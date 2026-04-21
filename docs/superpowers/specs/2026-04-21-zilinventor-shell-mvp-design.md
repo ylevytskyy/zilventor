@@ -56,7 +56,12 @@ collaboration, accounts, cloud sync.
 
 ## 2. Requirements and success criteria
 
-### 2.1 User requirements (locked via brainstorming)
+### 2.1 Product-level user requirements (locked via brainstorming)
+
+These requirements describe the eventual ZilInventor product across all six
+sub-projects. Shell MVP delivers the infrastructure for them but none of the
+user-facing outputs (cut list, shop drawings) yet — those arrive in
+Sub-projects 5 and 6.
 
 - **Workflow:** 70 % configure-from-library (cabinets, panels, shelves), 30 % custom-from-scratch. Shell MVP addresses only the CAD plumbing; the library layer arrives in Sub-project 5.
 - **Output:** 3D visualization, cut list, 2D shop drawings. No CNC / G-code / CAM.
@@ -71,7 +76,7 @@ laptop:
 
 1. A designer installs the PWA from a URL, offline after first load.
 2. They see the Inventor-2012-layout ribbon, browser pane, viewport with view cube, and status bar.
-3. They can create a new part, draw a rectangle on XY by numeric input, extrude it, edit the extrusion distance from the properties panel, and see the viewport update.
+3. They can create a new part, draw a rectangle on XY by entering two corner points (`x₁,y₁` and `x₂,y₂`) as numeric input, extrude it, edit the extrusion distance from the properties panel, and see the viewport update.
 4. They can save the part via File System Access, close the tab, reopen it later, load the part, and see the feature tree and geometry come back intact.
 5. Undo/redo works across at least 20 operations without corruption.
 6. Cold start to CAD-ready is under 5 seconds with a warm cache.
@@ -171,7 +176,7 @@ Six logical layers split across two threads:
    OCCT objects and mesh caches; the UI keeps only the serializable domain
    state. Restarting the Worker must be recoverable purely from domain state.
 
-### 4.3 Data flow
+### 4.3 Data flow (two examples)
 
 **On parameter edit:**
 
@@ -197,6 +202,55 @@ UI "Save" command
   → pako gzip → FileSystemWritableFileStream.write
   → Status bar updates, document marked clean
 ```
+
+### 4.4 Primary workflows
+
+Four end-to-end flows that Shell MVP must support. Referenced from §9 (Testing).
+
+**Workflow 1 — Cold app startup.**
+
+1. User hits the PWA URL (or launches the installed PWA).
+2. Service Worker serves cached `index.html` and JS bundles; no network needed after first install.
+3. React shell paints immediately — ribbon, browser pane, viewport placeholder all visible in under 200 ms.
+4. In parallel, `KernelClient` spawns the kernel Worker and calls `kernel.init()`. The Worker lazy-loads `opencascade.wasm` from cache and initializes the OCCT runtime.
+5. Status bar shows "Loading CAD kernel…" with a progress indicator while step 4 runs; ribbon geometry commands are disabled.
+6. Kernel signals ready → status bar flips to "Ready" → ribbon geometry commands enable. Target: under 5 s total with warm cache on the target laptop.
+
+**Workflow 2 — Create a box (the MVP happy path).**
+
+1. User clicks **Model tab → New Part** on the ribbon.
+2. `CreatePartCommand` runs: app store creates an empty `PartDocument` with a UUID, default name "Part1", units mm, empty `parameters` and `featureTree`. Browser pane shows the new part root.
+3. User clicks **Sketch tab → 2D Sketch** and selects the XY plane from the browser pane's Origin node.
+4. `AddSketchCommand` appends a `SketchFeature` to the tree. Viewport enters sketch mode (orthographic view normal to XY). Ribbon switches to "Sketch in progress" context.
+5. User clicks **Rectangle** and enters two corner points as numeric input: `x₁, y₁` and `x₂, y₂`. Interactive drag-to-draw is Sub-project 2.
+6. Command bus calls `kernel.addPrimitive(sketchId, { kind: "rectangle", ... })`. Kernel adapter updates `SketchFeature.primitives`.
+7. User clicks **Finish Sketch**. Viewport returns to 3D.
+8. User clicks **Extrude**. Properties panel on the right shows `Distance: 18 mm` and `Direction: Symmetric`. User clicks OK.
+9. `AddExtrusionCommand` appends an `ExtrudeFeature` referencing the sketch. Kernel adapter executes the feature tree: sketch → `TopoDS_Wire`, extrude → `BRepPrimAPI_MakePrism` → `TopoDS_Solid`.
+10. Tessellator runs `BRepMesh_IncrementalMesh`, extracts triangles into a transferable `Float32Array`, posts back to main thread.
+11. Viewport wraps the buffer in a three.js `BufferGeometry` and adds it to the scene. Target: under 300 ms for the box.
+12. Browser pane updates to `Origin · Sketch1 · Extrusion1 · End of Part` (Inventor-style tree).
+
+**Workflow 3 — Edit extrusion distance.**
+
+1. User double-clicks **Extrusion1** in the browser pane.
+2. Properties panel repopulates with current values.
+3. User types `36` and presses Enter.
+4. `EditParameterCommand` is pushed onto the undo stack before execution, then runs: parameter value is updated in the app store, kernel receives the update.
+5. Kernel adapter re-executes the feature tree **from Extrusion1 onward only** (Sketch1's cache is reused). New solid, new tessellation, new mesh buffer.
+6. Viewport updates. Browser pane flashes the changed feature briefly. Status bar: "Modified".
+7. User presses **Ctrl+Z**: command bus pops the last `EditParameterCommand`, restores the prior parameter value, re-runs the kernel from Extrusion1 onward. Redo is the mirror.
+
+**Workflow 4 — Save and reopen.**
+
+1. User presses **Ctrl+S**. First save: File System Access prompt asks where to put `Part1.zipt`. Subsequent saves reuse the file handle, no prompt.
+2. Main thread calls `kernel.save(fileHandle)` via Comlink.
+3. Kernel calls `BRepTools::Write` on the cached solid → BREP bytes. Manifest JSON gets `cachedGeometry.brepBlobId` set.
+4. `ProjectPacker` builds the tar (manifest.json + blobs/<id>.brep + thumbnail.png), pipes through pako gzip, writes via the transferred `FileSystemWritableFileStream`.
+5. Status bar: "Saved at HH:MM". Tab title loses its dirty-dot.
+6. Later, user reopens the PWA, clicks **File → Open**, picks `Part1.zipt`.
+7. Storage bridge unpacks → manifest deserialized → `PartDocument` reconstructed. `cachedGeometry.brepBlobId` present, so the kernel calls `BRepTools::Read` and skips re-execution.
+8. Tessellate → mesh to main thread → viewport shows the box. Designer is where they left off.
 
 ---
 
