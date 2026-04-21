@@ -13,19 +13,28 @@ export type ProjectArchiveOutput = {
   thumbnail?: Uint8Array;
 };
 
+const DETERMINISTIC_HEADER = {
+  mtime: new Date(0),
+  uid: 0,
+  gid: 0,
+  uname: '',
+  gname: '',
+  mode: 0o644
+};
+
 export async function packProject(input: ProjectArchiveInput): Promise<Uint8Array> {
   const tar = tarPack();
   const chunks: Uint8Array[] = [];
   tar.on('data', (c: Buffer) => chunks.push(new Uint8Array(c)));
 
   const manifestBytes = new TextEncoder().encode(JSON.stringify(input.manifest));
-  tar.entry({ name: 'manifest.json' }, Buffer.from(manifestBytes));
+  tar.entry({ ...DETERMINISTIC_HEADER, name: 'manifest.json' }, Buffer.from(manifestBytes));
 
   for (const [id, bytes] of Object.entries(input.blobs)) {
-    tar.entry({ name: `blobs/${id}.brep` }, Buffer.from(bytes));
+    tar.entry({ ...DETERMINISTIC_HEADER, name: `blobs/${id}.brep` }, Buffer.from(bytes));
   }
   if (input.thumbnail) {
-    tar.entry({ name: 'thumbnail.png' }, Buffer.from(input.thumbnail));
+    tar.entry({ ...DETERMINISTIC_HEADER, name: 'thumbnail.png' }, Buffer.from(input.thumbnail));
   }
   tar.finalize();
 
@@ -64,7 +73,7 @@ export async function unpackProject(archive: Uint8Array): Promise<ProjectArchive
       stream.resume();
     });
     extract.on('finish', () => resolve());
-    extract.on('error', reject);
+    extract.on('error', (e) => reject(new Error(`archive is corrupt (tar): ${(e as Error).message}`)));
   });
 
   extract.end(Buffer.from(tarBytes));
