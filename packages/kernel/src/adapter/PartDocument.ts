@@ -17,3 +17,9 @@ export function addFeature(part: PartDocument, feature: Feature): PartDocument {
 export function setParameter(part: PartDocument, param: Parameter): PartDocument {
   return { ...part, parameters: { ...part.parameters, [param.name]: param } };
 }
+
+export function removeParameter(part: PartDocument, name: string): PartDocument {
+  const { [name]: _removed, ...rest } = part.parameters;
+  void _removed;
+  return { ...part, parameters: rest };
+}

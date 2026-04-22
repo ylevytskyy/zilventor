@@ -12,12 +12,16 @@ type Ctx = {
 export class AddExtrusionCommand implements Command {
   readonly name = 'AddExtrusion';
   private prior: PartDocument | null = null;
+  // Snapshot of the parameter the command is about to (over)write, so we can
+  // distinguish "freshly created" (undefined) from "edited" (prior value) on revert.
+  private priorParameter: Parameter | undefined;
   constructor(private ctx: Ctx) {}
 
   async apply(): Promise<void> {
     const part = this.ctx.store.activePart;
     if (!part) throw new Error('no active part');
     this.prior = part;
+    this.priorParameter = part.parameters[this.ctx.parameter.name];
     await this.ctx.kernel.setParameter(part.id, this.ctx.parameter);
     await this.ctx.kernel.addFeature(part.id, this.ctx.feature);
     const next = await this.ctx.kernel.getPart(part.id);
@@ -25,6 +29,18 @@ export class AddExtrusionCommand implements Command {
   }
 
   async revert(): Promise<void> {
+    if (!this.prior) return;
+    // Roll the parameter back in the kernel. If we freshly added it, delete it;
+    // otherwise restore the previous value.
+    if (this.priorParameter) {
+      await this.ctx.kernel.setParameter(this.prior.id, this.priorParameter);
+    } else {
+      await this.ctx.kernel.deleteParameter(this.prior.id, this.ctx.parameter.name);
+    }
+    // NOTE: the feature added in apply() is still present in the kernel's part.
+    // The UI-facing revert relies on replacing activePart with the snapshot, which
+    // hides it. A future task should also wire a kernel.removeFeature for full
+    // kernel-side rollback; this is tracked as a known MVP limitation.
     this.ctx.store.setActivePart(this.prior);
   }
 }

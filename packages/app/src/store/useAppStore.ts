@@ -9,9 +9,11 @@ type AppState = {
   activePart: PartDocument | null;
   kernelReady: boolean;
   statusMessage: string;
+  selectedFeatureId: string | null;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
+  setSelectedFeature(id: string | null): void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -20,7 +22,9 @@ export const useAppStore = create<AppState>((set) => ({
   activePart: null,
   kernelReady: false,
   statusMessage: 'Loading…',
+  selectedFeatureId: null,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
   setActivePart: (p) => set({ activePart: p }),
-  setStatus: (msg) => set({ statusMessage: msg })
+  setStatus: (msg) => set({ statusMessage: msg }),
+  setSelectedFeature: (id) => set({ selectedFeatureId: id })
 }));

@@ -1,7 +1,7 @@
 import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
-import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart } from './adapter/PartDocument';
+import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart } from './adapter/PartDocument';
 import { disposeShape } from './occt/SolidOps';
 
 export type ExecuteResult = { mesh: Mesh };
@@ -12,6 +12,7 @@ export type KernelApi = {
   createPart(name: string): Promise<string>;
   addFeature(partId: string, feature: Feature): Promise<void>;
   setParameter(partId: string, param: Parameter): Promise<void>;
+  deleteParameter(partId: string, name: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
 };
@@ -45,6 +46,12 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
       parts.set(partId, setParameterOnPart(p, param));
+    },
+
+    async deleteParameter(partId, name) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`no part ${partId}`);
+      parts.set(partId, removeParameterFromPart(p, name));
     },
 
     async execute(partId) {

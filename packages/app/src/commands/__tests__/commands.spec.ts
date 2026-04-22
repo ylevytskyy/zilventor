@@ -60,7 +60,8 @@ describe('AddExtrusionCommand', () => {
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
-    const kernel = asKernel({ setParameter, addFeature, getPart });
+    const deleteParameter = vi.fn().mockResolvedValue(undefined);
+    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
     const setActivePart = vi.fn();
     const cmd = new AddExtrusionCommand({
       kernel,
@@ -74,6 +75,48 @@ describe('AddExtrusionCommand', () => {
     expect(setActivePart).toHaveBeenCalledWith(next);
     await cmd.revert();
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
+  });
+
+  it('revert calls deleteParameter when the parameter was freshly created', async () => {
+    const prior = makePart();
+    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
+    const deleteParameter = vi.fn().mockResolvedValue(undefined);
+    const setParameter = vi.fn().mockResolvedValue(undefined);
+    const addFeature = vi.fn().mockResolvedValue(undefined);
+    const getPart = vi.fn().mockResolvedValue(next);
+    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
+    const setActivePart = vi.fn();
+    const cmd = new AddExtrusionCommand({
+      kernel,
+      store: { activePart: prior, setActivePart },
+      parameter: { name: 'd1', expression: '18', value: 18, unit: 'mm' },
+      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
+    });
+    await cmd.apply();
+    await cmd.revert();
+    expect(deleteParameter).toHaveBeenCalledWith(prior.id, 'd1');
+  });
+
+  it('revert restores the prior parameter when one existed before apply', async () => {
+    const priorParam = { name: 'd1', expression: '10', value: 10, unit: 'mm' as const };
+    const prior: PartDocument = { id: 'part-1', name: 'Part1', units: 'mm', parameters: { d1: priorParam }, featureTree: [] };
+    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
+    const deleteParameter = vi.fn().mockResolvedValue(undefined);
+    const setParameter = vi.fn().mockResolvedValue(undefined);
+    const addFeature = vi.fn().mockResolvedValue(undefined);
+    const getPart = vi.fn().mockResolvedValue(next);
+    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
+    const setActivePart = vi.fn();
+    const cmd = new AddExtrusionCommand({
+      kernel,
+      store: { activePart: prior, setActivePart },
+      parameter: { name: 'd1', expression: '18', value: 18, unit: 'mm' },
+      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
+    });
+    await cmd.apply();
+    await cmd.revert();
+    expect(deleteParameter).not.toHaveBeenCalled();
+    expect(setParameter).toHaveBeenLastCalledWith(prior.id, priorParam);
   });
 });
 

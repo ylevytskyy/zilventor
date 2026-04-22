@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newPart, addFeature, setParameter } from '../PartDocument';
+import { newPart, addFeature, setParameter, removeParameter } from '../PartDocument';
 
 describe('PartDocument', () => {
   it('creates an empty part with defaults', () => {
@@ -23,6 +23,13 @@ describe('PartDocument', () => {
     expect(p.parameters.d1!.value).toBe(18);
     p = setParameter(p, { name: 'd1', expression: '36', value: 36, unit: 'mm' });
     expect(p.parameters.d1!.value).toBe(36);
+  });
+
+  it('removeParameter deletes by name', () => {
+    let p = newPart('P');
+    p = setParameter(p, { name: 'd1', expression: '18', value: 18, unit: 'mm' });
+    p = removeParameter(p, 'd1');
+    expect(p.parameters.d1).toBeUndefined();
   });
 
   it('addFeature does not mutate the input', () => {
