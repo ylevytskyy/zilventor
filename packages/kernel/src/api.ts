@@ -1,8 +1,12 @@
 import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError } from '@zilventor/shared';
+import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart } from './adapter/PartDocument';
 import { disposeShape } from './occt/SolidOps';
+import { writeBRep } from './occt/BRepIO';
+import { packProject, unpackProject } from './storage/ProjectPacker';
+import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 
 export type ExecuteResult = { mesh: Mesh };
 
@@ -15,6 +19,8 @@ export type KernelApi = {
   deleteParameter(partId: string, name: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
+  save(partId: string, handle: FileSystemFileHandle): Promise<void>;
+  load(handle: FileSystemFileHandle): Promise<string>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -67,6 +73,48 @@ export function createKernelApi(): KernelApi {
 
     async getPart(partId) {
       return parts.get(partId) ?? null;
+    },
+
+    async save(partId, handle) {
+      if (!occt) throw new Error('kernel not initialized');
+      const part = parts.get(partId);
+      if (!part) throw new Error(`no part ${partId}`);
+
+      // Re-run the feature tree to build the cached solid
+      const r = await executeTree(occt, part);
+      if (!r.ok) throw new Error(`execute failed before save: ${r.error.message}`);
+
+      try {
+        const brep = writeBRep(occt, r.value.finalSolid);
+        const manifest = {
+          formatVersion: 1 as const,
+          kind: 'part' as const,
+          createdAt: new Date().toISOString(),
+          appVersion: '0.0.0',
+          document: {
+            ...part,
+            cachedGeometry: {
+              brepBlobId: 'main',
+              triangleCount: r.value.mesh.indices.length / 3,
+              boundingBox: r.value.mesh.boundingBox
+            }
+          }
+        };
+        const archive = await packProject({ manifest, blobs: { main: brep } });
+        await writeToHandle(handle, archive);
+      } finally {
+        disposeShape(r.value.finalSolid);
+      }
+    },
+
+    async load(handle) {
+      if (!occt) throw new Error('kernel not initialized');
+      const bytes = await readFromHandle(handle);
+      const { manifest } = await unpackProject(bytes);
+      const migrated = migrateManifest(manifest as AnyManifest);
+      const part = (migrated as unknown as { document: PartDocument }).document;
+      parts.set(part.id, part);
+      return part.id;
     }
   };
 }
