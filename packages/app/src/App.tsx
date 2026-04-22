@@ -1,3 +1,5 @@
+import Ribbon from './shell/Ribbon';
+
 export default function App() {
   return (
     <div className="grid h-full" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
@@ -5,7 +7,7 @@ export default function App() {
         <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
       </header>
       <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-        <div className="px-3 py-2 text-xs text-neutral-400">Ribbon — Task 15</div>
+        <Ribbon />
       </div>
       <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
         <div className="px-3 py-2 text-xs text-neutral-400">Browser pane — Task 16</div>
