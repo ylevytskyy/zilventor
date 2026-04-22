@@ -1,5 +1,10 @@
 import { gzip, ungzip } from 'pako';
 import { pack as tarPack, extract as tarExtract } from 'tar-stream';
+// `streamx` has no published types. tar-stream already depends on it, so
+// it's on disk; we re-use its Writable to collect pack/extract output in a
+// way that works in both Node and the browser Web Worker.
+// @ts-expect-error missing type declarations for streamx
+import { Writable } from 'streamx';
 
 export type ProjectArchiveInput = {
   manifest: unknown;
@@ -22,28 +27,68 @@ const DETERMINISTIC_HEADER = {
   mode: 0o644
 };
 
-export async function packProject(input: ProjectArchiveInput): Promise<Uint8Array> {
-  const tar = tarPack();
-  const chunks: Uint8Array[] = [];
-  tar.on('data', (c: Buffer) => chunks.push(new Uint8Array(c)));
-
-  const manifestBytes = new TextEncoder().encode(JSON.stringify(input.manifest));
-  tar.entry({ ...DETERMINISTIC_HEADER, name: 'manifest.json' }, Buffer.from(manifestBytes));
-
-  for (const [id, bytes] of Object.entries(input.blobs)) {
-    tar.entry({ ...DETERMINISTIC_HEADER, name: `blobs/${id}.brep` }, Buffer.from(bytes));
-  }
-  if (input.thumbnail) {
-    tar.entry({ ...DETERMINISTIC_HEADER, name: 'thumbnail.png' }, Buffer.from(input.thumbnail));
-  }
-  tar.finalize();
-
-  await new Promise<void>((resolve) => tar.on('end', () => resolve()));
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((n, c) => n + c.byteLength, 0);
   const flat = new Uint8Array(total);
   let off = 0;
-  for (const c of chunks) { flat.set(c, off); off += c.byteLength; }
-  return gzip(flat);
+  for (const c of chunks) {
+    flat.set(c, off);
+    off += c.byteLength;
+  }
+  return flat;
+}
+
+function addEntry(
+  tar: ReturnType<typeof tarPack>,
+  header: Parameters<ReturnType<typeof tarPack>['entry']>[0],
+  body: Uint8Array
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    // `@types/tar-stream` types `body` as `Buffer | string` but the runtime
+    // (b4a-backed) accepts any Uint8Array in both Node and the browser.
+    tar.entry(
+      { ...header, size: body.byteLength },
+      body as unknown as Buffer,
+      (err?: Error | null) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+export async function packProject(input: ProjectArchiveInput): Promise<Uint8Array> {
+  const tar = tarPack();
+  const chunks: Uint8Array[] = [];
+
+  // Pipe the tar output into a collector Writable. Using streamx's `pipe`
+  // delivers chunks reliably across Node and the browser Web Worker, where
+  // the event-emitter / async-iterator paths did not pump as expected.
+  const collector = new Writable({
+    write(c: Uint8Array, cb: (err?: Error | null) => void) {
+      chunks.push(new Uint8Array(c.buffer, c.byteOffset, c.byteLength));
+      cb(null);
+    }
+  });
+  const collectDone = new Promise<void>((resolve, reject) => {
+    collector.on('finish', () => resolve());
+    collector.on('error', (e: Error) => reject(e));
+  });
+  (tar as unknown as { pipe(w: Writable): void }).pipe(collector);
+
+  const manifestBytes = new TextEncoder().encode(JSON.stringify(input.manifest));
+  await addEntry(tar, { ...DETERMINISTIC_HEADER, name: 'manifest.json' }, manifestBytes);
+
+  for (const [id, bytes] of Object.entries(input.blobs)) {
+    await addEntry(tar, { ...DETERMINISTIC_HEADER, name: `blobs/${id}.brep` }, bytes);
+  }
+  if (input.thumbnail) {
+    await addEntry(tar, { ...DETERMINISTIC_HEADER, name: 'thumbnail.png' }, input.thumbnail);
+  }
+  tar.finalize();
+
+  await collectDone;
+  return gzip(concatBytes(chunks));
 }
 
 export async function unpackProject(archive: Uint8Array): Promise<ProjectArchiveOutput> {
@@ -56,27 +101,35 @@ export async function unpackProject(archive: Uint8Array): Promise<ProjectArchive
 
   const done = new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, stream, next) => {
-      const bufs: Buffer[] = [];
-      stream.on('data', (c: Buffer) => bufs.push(c));
-      stream.on('end', () => {
-        const data = new Uint8Array(Buffer.concat(bufs));
-        if (header.name === 'manifest.json') {
-          result.manifest = JSON.parse(new TextDecoder().decode(data));
-        } else if (header.name.startsWith('blobs/') && header.name.endsWith('.brep')) {
-          const id = header.name.slice('blobs/'.length, -'.brep'.length);
-          result.blobs[id] = data;
-        } else if (header.name === 'thumbnail.png') {
-          result.thumbnail = data;
+      const bufs: Uint8Array[] = [];
+      // Drain each entry stream into a collector Writable so we reliably
+      // receive every chunk in Node and in the browser Web Worker.
+      const sink = new Writable({
+        write(c: Uint8Array, cb: (err?: Error | null) => void) {
+          bufs.push(new Uint8Array(c.buffer, c.byteOffset, c.byteLength));
+          cb(null);
+        },
+        final(cb: (err?: Error | null) => void) {
+          const data = concatBytes(bufs);
+          if (header.name === 'manifest.json') {
+            result.manifest = JSON.parse(new TextDecoder().decode(data));
+          } else if (header.name.startsWith('blobs/') && header.name.endsWith('.brep')) {
+            const id = header.name.slice('blobs/'.length, -'.brep'.length);
+            result.blobs[id] = data;
+          } else if (header.name === 'thumbnail.png') {
+            result.thumbnail = data;
+          }
+          cb(null);
+          next();
         }
-        next();
       });
-      stream.resume();
+      (stream as unknown as { pipe(w: Writable): void }).pipe(sink);
     });
     extract.on('finish', () => resolve());
     extract.on('error', (e) => reject(new Error(`archive is corrupt (tar): ${(e as Error).message}`)));
   });
 
-  extract.end(Buffer.from(tarBytes));
+  extract.end(tarBytes);
   await done;
   return result;
 }

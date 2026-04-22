@@ -24,6 +24,10 @@ export async function spawnKernel(): Promise<{ client: KernelClient; terminate()
   const workerUrl = new URL('../../../kernel/src/worker.ts', import.meta.url);
   const worker = new Worker(workerUrl, { type: 'module' });
   const proxy = Comlink.wrap<KernelApi>(worker);
+  // Expose Comlink on `window` so E2E tests can wrap test-injected handles
+  // (FakeFileSystemFileHandle) with `Comlink.proxy()` — plain class
+  // instances don't survive postMessage's structured-clone.
+  (globalThis as unknown as { __comlink?: typeof Comlink }).__comlink = Comlink;
   await proxy.init();
   return {
     client: createKernelClient(proxy),
