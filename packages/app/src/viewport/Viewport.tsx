@@ -4,6 +4,7 @@ import ViewCube from './ViewCube';
 
 export type ViewportRef = {
   setMesh(positions: Float32Array, indices: Uint32Array, normals?: Float32Array): void;
+  captureThumbnail(w: number, h: number): Promise<Uint8Array>;
 };
 
 const Viewport = forwardRef<ViewportRef>(function Viewport(_, ref) {
@@ -46,6 +47,10 @@ const Viewport = forwardRef<ViewportRef>(function Viewport(_, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setMesh(p, i, n);
       setTriangles(i.length / 3);
+    },
+    captureThumbnail: async (w, h) => {
+      if (!sceneRef.current) throw new Error('viewport not ready');
+      return sceneRef.current.captureThumbnail(w, h);
     }
   }), []);
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
@@ -56,6 +56,19 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [activePart, kernel]);
+
+  // Publish the viewport ref to the store so command handlers (e.g. Save) can
+  // ask the viewport for a thumbnail without drilling a prop all the way down.
+  // The ref is populated by the Viewport's useImperativeHandle, which fires
+  // synchronously during mount, so a useLayoutEffect after mount sees it.
+  useLayoutEffect(() => {
+    if (viewportRef.current) {
+      useAppStore.getState().setViewport(viewportRef.current);
+    }
+    return () => {
+      useAppStore.getState().setViewport(null);
+    };
+  }, []);
 
   // Global keyboard shortcuts: Ctrl/Cmd+Z for undo, Ctrl/Cmd+Y or Shift+Ctrl/Cmd+Z for redo.
   useEffect(() => {

@@ -55,6 +55,31 @@ export class SceneManager {
     this.renderer.render(this.scene, this.camera);
   }
 
+  /**
+   * Render the current scene at a requested size and return the PNG bytes.
+   * We temporarily resize the WebGL canvas so the framebuffer matches the
+   * requested thumbnail dimensions (keeping aspect-correct projection), grab
+   * a PNG blob from the canvas, then restore the prior size. Callers should
+   * follow up by invoking `setSize()` with the real viewport extent or rely
+   * on the ResizeObserver fallback.
+   */
+  async captureThumbnail(w: number, h: number): Promise<Uint8Array> {
+    const prev = {
+      w: this.renderer.domElement.width,
+      h: this.renderer.domElement.height
+    };
+    this.setSize(w, h);
+    this.render();
+    const canvas = this.renderer.domElement;
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png')
+    );
+    // Always restore prior framebuffer size, even if toBlob failed.
+    this.setSize(prev.w || 1, prev.h || 1);
+    if (!blob) throw new Error('thumbnail capture failed');
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
   dispose(): void {
     this.controls.dispose();
     this.renderer.dispose();

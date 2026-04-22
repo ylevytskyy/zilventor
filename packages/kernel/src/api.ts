@@ -19,7 +19,7 @@ export type KernelApi = {
   deleteParameter(partId: string, name: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
-  save(partId: string, handle: FileSystemFileHandle): Promise<void>;
+  save(partId: string, handle: FileSystemFileHandle, thumbnail?: Uint8Array): Promise<void>;
   load(handle: FileSystemFileHandle): Promise<string>;
 };
 
@@ -75,7 +75,7 @@ export function createKernelApi(): KernelApi {
       return parts.get(partId) ?? null;
     },
 
-    async save(partId, handle) {
+    async save(partId, handle, thumbnail) {
       if (!occt) throw new Error('kernel not initialized');
       const part = parts.get(partId);
       if (!part) throw new Error(`no part ${partId}`);
@@ -100,7 +100,11 @@ export function createKernelApi(): KernelApi {
             }
           }
         };
-        const archive = await packProject({ manifest, blobs: { main: brep } });
+        const archive = await packProject({
+          manifest,
+          blobs: { main: brep },
+          ...(thumbnail ? { thumbnail } : {})
+        });
         await writeToHandle(handle, archive);
       } finally {
         disposeShape(r.value.finalSolid);

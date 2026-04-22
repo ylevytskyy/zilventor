@@ -18,6 +18,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
+      // Enable the service worker in `vite dev` so Playwright's offline test
+      // can exercise caching without spinning up a separate preview server.
+      devOptions: { enabled: true, type: 'module' },
       manifest: {
         name: 'ZilInventor',
         short_name: 'ZilInventor',

@@ -18,14 +18,24 @@ export default function FileTab() {
   };
 
   const handleSaveAs = async () => {
-    const { kernel, setStatus } = useAppStore.getState();
+    const { kernel, viewport, setStatus } = useAppStore.getState();
     if (!kernel || !activePart) return;
     try {
+      // Thumbnail is a nice-to-have — if the viewport isn't ready or the
+      // canvas read-back fails for any reason, proceed with the save anyway.
+      let thumbnail: Uint8Array | undefined;
+      if (viewport) {
+        try {
+          thumbnail = await viewport.captureThumbnail(256, 256);
+        } catch {
+          thumbnail = undefined;
+        }
+      }
       const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
         suggestedName: `${activePart.name}.zipt`,
         types: [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }]
       });
-      await kernel.save(activePart.id, handle);
+      await kernel.save(activePart.id, handle, thumbnail);
       setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
