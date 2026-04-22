@@ -1,6 +1,7 @@
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
+import Viewport from './viewport/Viewport';
 
 export default function App() {
   return (
@@ -15,7 +16,7 @@ export default function App() {
         <BrowserPane part={null} />
       </aside>
       <main role="main" id="region-viewport" className="bg-shell">
-        <div className="p-3 text-xs text-neutral-400">Viewport — Task 17</div>
+        <Viewport />
       </main>
       <aside role="complementary" aria-label="Properties" className="bg-shell-panel border-l border-shell-border" id="region-properties">
         <div className="px-3 py-2 text-xs text-neutral-400">Properties — Task 21</div>
