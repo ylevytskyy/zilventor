@@ -8,8 +8,8 @@
     "lint": "eslint .",
     "test:unit": "pnpm -r test:unit",
     "test:integration": "pnpm -r test:integration",
-    "test:e2e": "playwright test",
-    "test:perf": "pnpm -r test:perf",
+    "test:e2e": "playwright test --project=chromium",
+    "test:perf": "playwright test --project=perf",
     "build": "pnpm -r build"
   },
   "devDependencies": {

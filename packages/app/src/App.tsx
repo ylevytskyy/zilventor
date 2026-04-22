@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
@@ -10,6 +10,7 @@ import { useAppStore } from './store/useAppStore';
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
   const terminateRef = useRef<(() => void) | null>(null);
+  const [kernelOffline, setKernelOffline] = useState(false);
 
   // Per-slice subscriptions (avoid subscribing to the full store).
   const activePart = useAppStore((s) => s.activePart);
@@ -22,7 +23,9 @@ export default function App() {
     let disposed = false;
     (async () => {
       try {
-        const { client, terminate } = await spawnKernel();
+        const { client, terminate } = await spawnKernel({
+          onOffline: () => setKernelOffline(true)
+        });
         if (disposed) { terminate(); return; }
         terminateRef.current = terminate;
         useAppStore.getState().setKernel(client);
@@ -90,26 +93,68 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Handler for the kernel-offline banner's Restart button. Terminates the
+  // current worker, spawns a new one, and re-executes the active part so the
+  // viewport mesh is repopulated.
+  const handleRestart = useCallback(async () => {
+    setKernelOffline(false);
+    terminateRef.current?.();
+    terminateRef.current = null;
+    try {
+      const { client, terminate } = await spawnKernel({
+        onOffline: () => setKernelOffline(true)
+      });
+      terminateRef.current = terminate;
+      useAppStore.getState().setKernel(client);
+      const { activePart: ap } = useAppStore.getState();
+      if (ap && viewportRef.current) {
+        const hasExtrude = ap.featureTree.some((f) => f.kind === 'extrude');
+        if (hasExtrude) {
+          const res = await client.execute(ap.id);
+          if (res.ok) {
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, res.value.mesh.normals);
+          }
+        }
+      }
+    } catch (e) {
+      useAppStore.getState().setStatus(`Kernel restart failed: ${(e as Error).message}`);
+    }
+  }, []);
+
   return (
-    <div className="grid h-full" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
-      <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-appbar">
-        <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
-      </header>
-      <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-        <Ribbon />
+    <div className="flex flex-col h-full">
+      {kernelOffline && (
+        <div
+          role="alert"
+          className="bg-red-900 text-white text-xs px-3 py-1 flex justify-between items-center"
+          data-testid="kernel-offline-banner"
+        >
+          <span>Kernel stopped — click to restart</span>
+          <button onClick={handleRestart} className="underline hover:no-underline">
+            Restart
+          </button>
+        </div>
+      )}
+      <div className="grid flex-1 min-h-0" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
+        <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-appbar">
+          <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
+        </header>
+        <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
+          <Ribbon />
+        </div>
+        <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
+          <BrowserPane part={activePart} />
+        </aside>
+        <main role="main" id="region-viewport" className="bg-shell">
+          <Viewport ref={viewportRef} />
+        </main>
+        <aside role="complementary" aria-label="Properties" className="bg-shell-panel border-l border-shell-border" id="region-properties">
+          <PropertiesPanel />
+        </aside>
+        <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
+          <StatusBar message={kernelReady ? (statusMessage || 'Ready') : 'Loading CAD kernel…'} />
+        </footer>
       </div>
-      <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-        <BrowserPane part={activePart} />
-      </aside>
-      <main role="main" id="region-viewport" className="bg-shell">
-        <Viewport ref={viewportRef} />
-      </main>
-      <aside role="complementary" aria-label="Properties" className="bg-shell-panel border-l border-shell-border" id="region-properties">
-        <PropertiesPanel />
-      </aside>
-      <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
-        <StatusBar message={kernelReady ? (statusMessage || 'Ready') : 'Loading CAD kernel…'} />
-      </footer>
     </div>
   );
 }
