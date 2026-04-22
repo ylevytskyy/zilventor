@@ -11,5 +11,11 @@ export default [
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
   },
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js'] }
+  {
+    files: ['packages/app/**', 'packages/shared/**', 'packages/kernel/src/adapter/**', 'packages/kernel/src/storage/**'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: ['opencascade.js', 'opencascade.js/*'] }]
+    }
+  },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '**/vitest.*.config.ts'] }
 ];
