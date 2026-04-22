@@ -4,20 +4,24 @@ import { AddSketchCommand } from '../AddSketchCommand';
 import { AddExtrusionCommand } from '../AddExtrusionCommand';
 import { EditParameterCommand } from '../EditParameterCommand';
 import type { PartDocument } from '@zilventor/shared';
+import type { KernelClient } from '../../kernel-client/KernelClient';
+
+// Partial KernelClient used by each command under test. Methods the command
+// doesn't touch are omitted; the cast through `unknown` is the escape hatch.
+const asKernel = (mock: Partial<KernelClient>): KernelClient => mock as unknown as KernelClient;
 
 const makePart = (): PartDocument => ({ id: 'part-1', name: 'Part1', units: 'mm', parameters: {}, featureTree: [] });
 
 describe('CreatePartCommand', () => {
   it('creates a part on apply; sets activePart to null on revert', async () => {
     const part = makePart();
-    const kernel = {
-      createPart: vi.fn().mockResolvedValue(part.id),
-      getPart: vi.fn().mockResolvedValue(part)
-    } as never;
+    const createPart = vi.fn().mockResolvedValue(part.id);
+    const getPart = vi.fn().mockResolvedValue(part);
+    const kernel = asKernel({ createPart, getPart });
     const setActivePart = vi.fn();
     const cmd = new CreatePartCommand({ kernel, store: { setActivePart }, name: 'Part1' });
     await cmd.apply();
-    expect(kernel.createPart).toHaveBeenCalledWith('Part1');
+    expect(createPart).toHaveBeenCalledWith('Part1');
     expect(setActivePart).toHaveBeenCalledWith(part);
     await cmd.revert();
     expect(setActivePart).toHaveBeenLastCalledWith(null);
@@ -28,22 +32,21 @@ describe('AddSketchCommand', () => {
   it('adds a sketch feature and reverts to the prior part', async () => {
     const prior = makePart();
     const next = { ...prior, featureTree: [{ kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [] }] };
-    const kernel = {
-      addFeature: vi.fn().mockResolvedValue(undefined),
-      getPart: vi.fn().mockResolvedValue(next)
-    } as never;
+    const addFeature = vi.fn().mockResolvedValue(undefined);
+    const getPart = vi.fn().mockResolvedValue(next);
+    const kernel = asKernel({ addFeature, getPart });
     const setActivePart = vi.fn();
     const store = { activePart: prior, setActivePart };
     const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] } });
     await cmd.apply();
-    expect(kernel.addFeature).toHaveBeenCalledWith(prior.id, expect.objectContaining({ kind: 'sketch', id: 's1' }));
+    expect(addFeature).toHaveBeenCalledWith(prior.id, expect.objectContaining({ kind: 'sketch', id: 's1' }));
     expect(setActivePart).toHaveBeenCalledWith(next);
     await cmd.revert();
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
   });
 
   it('throws if no active part', async () => {
-    const kernel = {} as never;
+    const kernel = asKernel({});
     const store = { activePart: null, setActivePart: vi.fn() };
     const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] } });
     await expect(cmd.apply()).rejects.toThrow(/no active part/);
@@ -54,11 +57,10 @@ describe('AddExtrusionCommand', () => {
   it('sets parameter, adds extrude feature, and reverts to prior part', async () => {
     const prior = makePart();
     const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
-    const kernel = {
-      setParameter: vi.fn().mockResolvedValue(undefined),
-      addFeature: vi.fn().mockResolvedValue(undefined),
-      getPart: vi.fn().mockResolvedValue(next)
-    } as never;
+    const setParameter = vi.fn().mockResolvedValue(undefined);
+    const addFeature = vi.fn().mockResolvedValue(undefined);
+    const getPart = vi.fn().mockResolvedValue(next);
+    const kernel = asKernel({ setParameter, addFeature, getPart });
     const setActivePart = vi.fn();
     const cmd = new AddExtrusionCommand({
       kernel,
@@ -67,8 +69,8 @@ describe('AddExtrusionCommand', () => {
       feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
     });
     await cmd.apply();
-    expect(kernel.setParameter).toHaveBeenCalledWith(prior.id, expect.objectContaining({ name: 'd1', value: 18 }));
-    expect(kernel.addFeature).toHaveBeenCalled();
+    expect(setParameter).toHaveBeenCalledWith(prior.id, expect.objectContaining({ name: 'd1', value: 18 }));
+    expect(addFeature).toHaveBeenCalled();
     expect(setActivePart).toHaveBeenCalledWith(next);
     await cmd.revert();
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
@@ -87,7 +89,7 @@ describe('EditParameterCommand', () => {
     const getPart = vi.fn()
       .mockResolvedValueOnce(afterApply) // apply returns new part
       .mockResolvedValueOnce(prior);     // revert returns old part
-    const kernel = { setParameter, getPart } as never;
+    const kernel = asKernel({ setParameter, getPart });
     const setActivePart = vi.fn();
     const cmd = new EditParameterCommand({
       kernel,
