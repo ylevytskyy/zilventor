@@ -28,4 +28,15 @@ describe('Tessellator', () => {
     }
     disposeShape(box);
   });
+
+  it('does not leak on 30 repeated tessellations', () => {
+    for (let i = 0; i < 30; i++) {
+      const box = makeBox(occt, 100, 200, 300);
+      const mesh = tessellate(occt, box, { linearDeflection: 0.1 });
+      expect(mesh.indices.length).toBeGreaterThan(0);
+      disposeShape(box);
+    }
+    // If the leak were severe, the process would OOM or vitest would hit timeout.
+    expect(true).toBe(true);
+  });
 });

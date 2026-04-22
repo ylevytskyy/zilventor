@@ -92,6 +92,8 @@ export function tessellate(
 
     triHandle.delete();
     loc.delete();
+    face.delete();
+    faceShape.delete();
     explorer.Next();
   }
   explorer.delete();
