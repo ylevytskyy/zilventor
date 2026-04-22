@@ -37,8 +37,10 @@ export function writeBRep(oc: OcctInstance, shape: OcctShape): Uint8Array {
  * API adaptation notes:
  *   - `Read_2` takes a `Message_ProgressRange` as a fourth argument in this
  *     build.
- *   - We do NOT delete the `TopoDS_Shape` here — ownership of the `handle`
- *     passes to the returned `OcctShape` and is freed by `disposeShape`.
+ *   - On success, we do NOT delete the `TopoDS_Shape` — ownership of the
+ *     `handle` passes to the returned `OcctShape` and is freed by
+ *     `disposeShape`. If `Read_2` throws, we delete the shape ourselves
+ *     since the caller never gets a reference to it.
  */
 export function readBRep(oc: OcctInstance, bytes: Uint8Array): OcctShape {
   const path = `/shape-in-${Math.random().toString(36).slice(2)}.brep`;
@@ -47,8 +49,17 @@ export function readBRep(oc: OcctInstance, bytes: Uint8Array): OcctShape {
   const builder = new oc.BRep_Builder();
   const shape = new oc.TopoDS_Shape();
   const progress = new oc.Message_ProgressRange_1();
+  let success = false;
   try {
     oc.BRepTools.Read_2(shape, path, builder, progress);
+    // Read_2 does not throw on malformed input — it logs to stderr and
+    // leaves `shape` null. Promote that to a real error so callers cannot
+    // silently receive an empty shape.
+    if ((shape as { IsNull?: () => boolean }).IsNull?.()) {
+      throw new Error('readBRep: BRepTools.Read_2 produced a null shape (corrupt or unsupported BREP bytes)');
+    }
+    success = true;
+    return { __brand: 'OcctShape', handle: shape };
   } finally {
     progress.delete();
     builder.delete();
@@ -57,7 +68,8 @@ export function readBRep(oc: OcctInstance, bytes: Uint8Array): OcctShape {
     } catch {
       // best-effort cleanup
     }
+    if (!success) {
+      (shape as { delete?: () => void }).delete?.();
+    }
   }
-
-  return { __brand: 'OcctShape', handle: shape };
 }
