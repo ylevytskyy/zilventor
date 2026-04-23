@@ -2,7 +2,7 @@ import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError } from
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
-import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart } from './adapter/PartDocument';
+import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart } from './adapter/PartDocument';
 import { disposeShape } from './occt/SolidOps';
 import { writeBRep } from './occt/BRepIO';
 import { packProject, unpackProject } from './storage/ProjectPacker';
@@ -15,8 +15,10 @@ export type KernelApi = {
   ping(input: string): Promise<{ reply: 'pong'; echo: string }>;
   createPart(name: string): Promise<string>;
   addFeature(partId: string, feature: Feature): Promise<void>;
+  removeFeature(partId: string, featureId: string): Promise<void>;
   setParameter(partId: string, param: Parameter): Promise<void>;
   deleteParameter(partId: string, name: string): Promise<void>;
+  deletePart(partId: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
   save(partId: string, handle: FileSystemFileHandle, thumbnail?: Uint8Array): Promise<void>;
@@ -48,6 +50,12 @@ export function createKernelApi(): KernelApi {
       parts.set(partId, addFeatureToPart(p, feature));
     },
 
+    async removeFeature(partId, featureId) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`no part ${partId}`);
+      parts.set(partId, removeFeatureFromPart(p, featureId));
+    },
+
     async setParameter(partId, param) {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
@@ -58,6 +66,10 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
       parts.set(partId, removeParameterFromPart(p, name));
+    },
+
+    async deletePart(partId) {
+      parts.delete(partId);
     },
 
     async execute(partId) {

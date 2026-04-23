@@ -10,6 +10,12 @@ import { useAppStore } from './store/useAppStore';
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
   const terminateRef = useRef<(() => void) | null>(null);
+  // Guards against double-click reentry into handleRestart (both calls would
+  // race spawnKernel() and leak a worker by overwriting terminateRef).
+  const restartingRef = useRef(false);
+  // Set from the bootstrap effect's cleanup so an in-flight handleRestart can
+  // terminate the freshly spawned worker instead of leaking it after unmount.
+  const unmountedRef = useRef(false);
   const [kernelOffline, setKernelOffline] = useState(false);
 
   // Per-slice subscriptions (avoid subscribing to the full store).
@@ -21,7 +27,7 @@ export default function App() {
   // Bootstrap the kernel once.
   useEffect(() => {
     let disposed = false;
-    (async () => {
+    void (async () => {
       try {
         const { client, terminate } = await spawnKernel({
           onOffline: () => setKernelOffline(true)
@@ -35,6 +41,7 @@ export default function App() {
     })();
     return () => {
       disposed = true;
+      unmountedRef.current = true;
       terminateRef.current?.();
       terminateRef.current = null;
     };
@@ -45,14 +52,14 @@ export default function App() {
   // raises a spurious degenerateSketch error that pollutes the status bar.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       if (!kernel || !activePart || !viewportRef.current) return;
       const hasExtrude = activePart.featureTree.some((f) => f.kind === 'extrude');
       if (!hasExtrude) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, res.value.mesh.normals);
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
       }
@@ -95,15 +102,23 @@ export default function App() {
 
   // Handler for the kernel-offline banner's Restart button. Terminates the
   // current worker, spawns a new one, and re-executes the active part so the
-  // viewport mesh is repopulated.
+  // viewport mesh is repopulated. Guarded against reentry (double-click would
+  // otherwise race two spawnKernel calls and leak a worker) and against
+  // unmount-during-spawn (the resolved worker would never be terminated).
   const handleRestart = useCallback(async () => {
-    setKernelOffline(false);
-    terminateRef.current?.();
-    terminateRef.current = null;
+    if (restartingRef.current) return;
+    restartingRef.current = true;
     try {
+      setKernelOffline(false);
+      terminateRef.current?.();
+      terminateRef.current = null;
       const { client, terminate } = await spawnKernel({
         onOffline: () => setKernelOffline(true)
       });
+      if (unmountedRef.current) {
+        terminate();
+        return;
+      }
       terminateRef.current = terminate;
       useAppStore.getState().setKernel(client);
       const { activePart: ap } = useAppStore.getState();
@@ -111,13 +126,17 @@ export default function App() {
         const hasExtrude = ap.featureTree.some((f) => f.kind === 'extrude');
         if (hasExtrude) {
           const res = await client.execute(ap.id);
-          if (res.ok) {
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, res.value.mesh.normals);
+          if (!unmountedRef.current && res.ok && viewportRef.current) {
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
           }
         }
       }
     } catch (e) {
-      useAppStore.getState().setStatus(`Kernel restart failed: ${(e as Error).message}`);
+      if (!unmountedRef.current) {
+        useAppStore.getState().setStatus(`Kernel restart failed: ${(e as Error).message}`);
+      }
+    } finally {
+      restartingRef.current = false;
     }
   }, []);
 

@@ -17,13 +17,15 @@ describe('CreatePartCommand', () => {
     const part = makePart();
     const createPart = vi.fn().mockResolvedValue(part.id);
     const getPart = vi.fn().mockResolvedValue(part);
-    const kernel = asKernel({ createPart, getPart });
+    const deletePart = vi.fn().mockResolvedValue(undefined);
+    const kernel = asKernel({ createPart, getPart, deletePart });
     const setActivePart = vi.fn();
     const cmd = new CreatePartCommand({ kernel, store: { setActivePart }, name: 'Part1' });
     await cmd.apply();
     expect(createPart).toHaveBeenCalledWith('Part1');
     expect(setActivePart).toHaveBeenCalledWith(part);
     await cmd.revert();
+    expect(deletePart).toHaveBeenCalledWith(part.id);
     expect(setActivePart).toHaveBeenLastCalledWith(null);
   });
 });
@@ -33,8 +35,9 @@ describe('AddSketchCommand', () => {
     const prior = makePart();
     const next = { ...prior, featureTree: [{ kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [] }] };
     const addFeature = vi.fn().mockResolvedValue(undefined);
+    const removeFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
-    const kernel = asKernel({ addFeature, getPart });
+    const kernel = asKernel({ addFeature, removeFeature, getPart });
     const setActivePart = vi.fn();
     const store = { activePart: prior, setActivePart };
     const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] } });
@@ -42,6 +45,7 @@ describe('AddSketchCommand', () => {
     expect(addFeature).toHaveBeenCalledWith(prior.id, expect.objectContaining({ kind: 'sketch', id: 's1' }));
     expect(setActivePart).toHaveBeenCalledWith(next);
     await cmd.revert();
+    expect(removeFeature).toHaveBeenCalledWith(prior.id, 's1');
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
   });
 
@@ -59,9 +63,10 @@ describe('AddExtrusionCommand', () => {
     const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
+    const removeFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
-    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
+    const kernel = asKernel({ setParameter, addFeature, removeFeature, getPart, deleteParameter });
     const setActivePart = vi.fn();
     const cmd = new AddExtrusionCommand({
       kernel,
@@ -74,6 +79,7 @@ describe('AddExtrusionCommand', () => {
     expect(addFeature).toHaveBeenCalled();
     expect(setActivePart).toHaveBeenCalledWith(next);
     await cmd.revert();
+    expect(removeFeature).toHaveBeenCalledWith(prior.id, 'e1');
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
   });
 
@@ -83,8 +89,9 @@ describe('AddExtrusionCommand', () => {
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
+    const removeFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
-    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
+    const kernel = asKernel({ setParameter, addFeature, removeFeature, getPart, deleteParameter });
     const setActivePart = vi.fn();
     const cmd = new AddExtrusionCommand({
       kernel,
@@ -94,6 +101,7 @@ describe('AddExtrusionCommand', () => {
     });
     await cmd.apply();
     await cmd.revert();
+    expect(removeFeature).toHaveBeenCalledWith(prior.id, 'e1');
     expect(deleteParameter).toHaveBeenCalledWith(prior.id, 'd1');
   });
 
@@ -104,8 +112,9 @@ describe('AddExtrusionCommand', () => {
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
+    const removeFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
-    const kernel = asKernel({ setParameter, addFeature, getPart, deleteParameter });
+    const kernel = asKernel({ setParameter, addFeature, removeFeature, getPart, deleteParameter });
     const setActivePart = vi.fn();
     const cmd = new AddExtrusionCommand({
       kernel,
@@ -115,6 +124,7 @@ describe('AddExtrusionCommand', () => {
     });
     await cmd.apply();
     await cmd.revert();
+    expect(removeFeature).toHaveBeenCalledWith(prior.id, 'e1');
     expect(deleteParameter).not.toHaveBeenCalled();
     expect(setParameter).toHaveBeenLastCalledWith(prior.id, priorParam);
   });

@@ -11,7 +11,6 @@ export type BoundingBox = readonly [number, number, number, number, number, numb
 
 export type Mesh = {
   positions: Float32Array;
-  normals: Float32Array;
   indices: Uint32Array;
   boundingBox: BoundingBox;
 };

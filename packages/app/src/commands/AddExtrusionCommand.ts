@@ -30,6 +30,10 @@ export class AddExtrusionCommand implements Command {
 
   async revert(): Promise<void> {
     if (!this.prior) return;
+    // Remove the feature first, then roll the parameter back. Order matters:
+    // if a re-execute happens between the two, a part without the extrude
+    // feature is less broken than one with a stale parameter.
+    await this.ctx.kernel.removeFeature(this.prior.id, this.ctx.feature.id);
     // Roll the parameter back in the kernel. If we freshly added it, delete it;
     // otherwise restore the previous value.
     if (this.priorParameter) {
@@ -37,10 +41,6 @@ export class AddExtrusionCommand implements Command {
     } else {
       await this.ctx.kernel.deleteParameter(this.prior.id, this.ctx.parameter.name);
     }
-    // NOTE: the feature added in apply() is still present in the kernel's part.
-    // The UI-facing revert relies on replacing activePart with the snapshot, which
-    // hides it. A future task should also wire a kernel.removeFeature for full
-    // kernel-side rollback; this is tracked as a known MVP limitation.
     this.ctx.store.setActivePart(this.prior);
   }
 }
