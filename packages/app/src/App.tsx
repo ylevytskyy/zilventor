@@ -104,65 +104,82 @@ export default function App() {
   }, []);
 
   // Wire up sketcher: controllers + overlay + committed renderer.
-  // Runs after the viewport is mounted so getSceneManager() returns a scene.
-  useLayoutEffect(() => {
-    const vp = viewportRef.current;
-    if (!vp) return;
-    const sm = vp.getSceneManager();
-    if (!sm) return;
+  // Must run AFTER Viewport's own useEffect has created the SceneManager.
+  // Parent's useLayoutEffect fires before child's useEffect, so we use
+  // useEffect and retry via rAF until the scene manager is ready.
+  useEffect(() => {
+    let cancelled = false;
+    let raf = 0;
+    let attachedSm: ReturnType<ViewportRef['getSceneManager']> = null;
 
-    sketchModeRef.current = createSketchModeController({
-      camera: sm.getCamera(),
-      orbitControls: sm.getControls(),
-      scene: sm.getScene()
-    });
-    const overlay = new SketchOverlay();
-    const renderer = new CommittedSketchRenderer();
-    sketchOverlayRef.current = overlay;
-    committedSketchRendererRef.current = renderer;
-    sm.addObject(overlay.group);
-    sm.addObject(renderer.group);
-
-    activeToolCtrlRef.current = new ActiveToolController({
-      emitPrimitive: (primitive) => {
-        void (async () => {
-          const store = useAppStore.getState();
-          // eslint-disable-next-line no-console
-          console.log('[DBG emitPrimitive]', 'kernel?', !!store.kernel, 'activePart?', !!store.activePart, 'activeSketchId?', store.activeSketchId, 'primitive=', primitive);
-          if (!store.kernel || !store.activePart || !store.activeSketchId) return;
-          await store.bus.execute(new AddPrimitiveCommand({
-            kernel: store.kernel,
-            store: { activePart: store.activePart, setActivePart: store.setActivePart },
-            sketchId: store.activeSketchId,
-            primitive
-          }));
-        })();
-      },
-      onPreview: (polyline, snap) => {
-        const ov = sketchOverlayRef.current;
-        if (!ov) return;
-        if (polyline && polyline.length >= 2) ov.setDraftPolyline(polyline);
-        else ov.clearDraft();
-        if (snap.kind === 'endpoint') ov.snapMarker.show(snap.point.x, snap.point.y);
-        else ov.snapMarker.hide();
-        const anchor = activeToolCtrlRef.current?.getAnchor();
-        if (snap.kind === 'horizontal-axis' && anchor) ov.axisHint.showHorizontal(anchor, snap.point);
-        else if (snap.kind === 'vertical-axis' && anchor) ov.axisHint.showVertical(anchor, snap.point);
-        else ov.axisHint.hide();
-        const count = activeToolCtrlRef.current?.numericFieldCount() ?? 0;
-        setNumericFieldCount(count);
-        setNumericVisible(count > 0);
+    const init = (): void => {
+      if (cancelled) return;
+      const vp = viewportRef.current;
+      const sm = vp?.getSceneManager();
+      if (!sm) {
+        raf = requestAnimationFrame(init);
+        return;
       }
-    });
+      attachedSm = sm;
+
+      sketchModeRef.current = createSketchModeController({
+        camera: sm.getCamera(),
+        orbitControls: sm.getControls(),
+        scene: sm.getScene()
+      });
+      const overlay = new SketchOverlay();
+      const renderer = new CommittedSketchRenderer();
+      sketchOverlayRef.current = overlay;
+      committedSketchRendererRef.current = renderer;
+      sm.addObject(overlay.group);
+      sm.addObject(renderer.group);
+
+      activeToolCtrlRef.current = new ActiveToolController({
+        emitPrimitive: (primitive) => {
+          void (async () => {
+            const store = useAppStore.getState();
+            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+            await store.bus.execute(new AddPrimitiveCommand({
+              kernel: store.kernel,
+              store: { activePart: store.activePart, setActivePart: store.setActivePart },
+              sketchId: store.activeSketchId,
+              primitive
+            }));
+          })();
+        },
+        onPreview: (polyline, snap) => {
+          const ov = sketchOverlayRef.current;
+          if (!ov) return;
+          if (polyline && polyline.length >= 2) ov.setDraftPolyline(polyline);
+          else ov.clearDraft();
+          if (snap.kind === 'endpoint') ov.snapMarker.show(snap.point.x, snap.point.y);
+          else ov.snapMarker.hide();
+          const anchor = activeToolCtrlRef.current?.getAnchor();
+          if (snap.kind === 'horizontal-axis' && anchor) ov.axisHint.showHorizontal(anchor, snap.point);
+          else if (snap.kind === 'vertical-axis' && anchor) ov.axisHint.showVertical(anchor, snap.point);
+          else ov.axisHint.hide();
+          const count = activeToolCtrlRef.current?.numericFieldCount() ?? 0;
+          setNumericFieldCount(count);
+          setNumericVisible(count > 0);
+        }
+      });
+    };
+
+    init();
 
     return () => {
-      if (sketchOverlayRef.current) {
-        sm.removeObject(sketchOverlayRef.current.group);
-        sketchOverlayRef.current.dispose();
-      }
-      if (committedSketchRendererRef.current) {
-        sm.removeObject(committedSketchRendererRef.current.group);
-        committedSketchRendererRef.current.dispose();
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      const sm = attachedSm;
+      if (sm) {
+        if (sketchOverlayRef.current) {
+          sm.removeObject(sketchOverlayRef.current.group);
+          sketchOverlayRef.current.dispose();
+        }
+        if (committedSketchRendererRef.current) {
+          sm.removeObject(committedSketchRendererRef.current.group);
+          committedSketchRendererRef.current.dispose();
+        }
       }
       sketchModeRef.current = null;
       activeToolCtrlRef.current = null;
