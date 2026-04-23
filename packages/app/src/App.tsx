@@ -208,8 +208,8 @@ export default function App() {
   useEffect(() => {
     const ctrl = sketchModeRef.current;
     if (!ctrl) return;
-    if (sketchMode) ctrl.enter();
-    else ctrl.exit();
+    if (sketchMode) void ctrl.enter();
+    else void ctrl.exit();
   }, [sketchMode]);
 
   // Swap the active drawing tool. Refresh numeric overlay state after swap.
