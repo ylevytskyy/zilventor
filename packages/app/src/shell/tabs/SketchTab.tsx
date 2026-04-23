@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
+import type { ToolKind } from '../../store/useAppStore';
 import SketchRectangleDialog from '../SketchRectangleDialog';
 import type { Feature } from '@zilventor/shared';
 
@@ -43,19 +44,6 @@ export default function SketchTab() {
     store.setStatus('Ready');
   };
 
-  // Keyboard shortcuts (only in sketch mode, only when not in an input)
-  useEffect(() => {
-    if (!sketchMode) return;
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
-      const btn = BUTTONS.find((b) => b.shortcut.toLowerCase() === e.key.toLowerCase());
-      if (btn) useAppStore.getState().setActiveToolKind(btn.kind);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [sketchMode]);
-
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title="Sketch">
@@ -75,6 +63,14 @@ export default function SketchTab() {
         )}
       </RibbonPanel>
       <RibbonPanel title="Draw">
+        <button
+          aria-pressed={activeToolKind === 'select'}
+          className={`text-xs ${activeToolKind === 'select' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('select')}
+        >
+          Select
+        </button>
         {BUTTONS.map((b) => (
           <button
             key={b.kind}
@@ -88,7 +84,29 @@ export default function SketchTab() {
         ))}
       </RibbonPanel>
       <RibbonPanel title="Constrain">
-        <button className="text-xs text-neutral-500" disabled>Constraints (SP2b)</button>
+        <div className="flex flex-col gap-1">
+          {([
+            ['coincident',    'Coincident (N)', '●'],
+            ['horizontal',    'Horizontal (H)', '—'],
+            ['vertical',      'Vertical (V)',   '|'],
+            ['parallel',      'Parallel (P)',   '∥'],
+            ['perpendicular', 'Perpendicular (E)', '⊥'],
+            ['tangent',       'Tangent (T)',    '⌒'],
+            ['equal',         'Equal (Q)',      '='],
+            ['symmetric',     'Symmetric (Y)',  '⇄'],
+          ] as const).map(([kind, label, glyph]) => (
+            <button
+              key={kind}
+              aria-pressed={activeToolKind === `constrain-${kind}`}
+              className={`text-xs ${activeToolKind === `constrain-${kind}` ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+              disabled={!sketchMode}
+              title={label}
+              onClick={() => useAppStore.getState().setActiveToolKind(`constrain-${kind}` as ToolKind)}
+            >
+              <span className="glyph">{glyph}</span> {label}
+            </button>
+          ))}
+        </div>
       </RibbonPanel>
       <RibbonPanel title="Fallback">
         <button className="text-xs text-neutral-400 hover:text-white" onClick={() => setNumericFallbackOpen(true)}>Numeric rectangle…</button>

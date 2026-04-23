@@ -7,6 +7,7 @@ import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
 import { useAppStore } from './store/useAppStore';
+import type { ToolKind } from './store/useAppStore';
 import { createSketchModeController, type SketchModeHandle } from './sketcher/SketchModeController';
 import { SketcherClient } from './sketcher/SketcherClient';
 import { createSketcherWorkerApi } from './vendor/sketcherWorker';
@@ -232,16 +233,41 @@ export default function App() {
   }, [activePart, activeSketchId]);
 
   // Global keyboard shortcuts. In sketch mode, Esc/Enter go to the active tool;
-  // Ctrl/Cmd+Z/Y remain bound for undo/redo outside input fields.
+  // letter shortcuts switch the active tool kind; Ctrl/Cmd+Z/Y are undo/redo.
+  // All shortcuts are no-ops when a text input is focused.
   useEffect(() => {
+    const toolKindMap: Record<string, ToolKind> = {
+      'l': 'line', 'r': 'rect', 'c': 'circle', 'a': 'arc', 's': 'spline',
+      'n': 'constrain-coincident',
+      'h': 'constrain-horizontal',
+      'v': 'constrain-vertical',
+      'p': 'constrain-parallel',
+      'e': 'constrain-perpendicular',
+      't': 'constrain-tangent',
+      'q': 'constrain-equal',
+      'y': 'constrain-symmetric',
+    };
     const onKey = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      // Don't swallow undo/redo inside input fields — the native undo there is
+      // Don't swallow shortcuts inside input fields — the native behaviour there is
       // useful, and intercepting would surprise the user mid-edit.
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
       if (sketchMode && activeToolCtrlRef.current) {
-        if (e.key === 'Escape') { activeToolCtrlRef.current.handleKey('Escape'); return; }
-        if (e.key === 'Enter')  { activeToolCtrlRef.current.handleKey('Enter');  return; }
+        if (e.key === 'Escape') {
+          activeToolCtrlRef.current.handleKey('Escape');
+          useAppStore.getState().setActiveToolKind('select');
+          return;
+        }
+        if (e.key === 'Enter') { activeToolCtrlRef.current.handleKey('Enter'); return; }
+      }
+      // Tool-kind shortcuts (no modifier keys).
+      if (sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = toolKindMap[e.key.toLowerCase()];
+        if (k) {
+          e.preventDefault();
+          useAppStore.getState().setActiveToolKind(k);
+          return;
+        }
       }
       const bus = useAppStore.getState().bus;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
