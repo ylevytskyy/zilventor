@@ -331,7 +331,7 @@ export default function App() {
       <NumericInputOverlay
         visible={sketchMode && numericVisible}
         fieldCount={numericFieldCount}
-        position={cursorScreenPos}
+        position={{ x: cursorScreenPos.x + 20, y: cursorScreenPos.y + 20 }}
         onCommit={(values) => {
           activeToolCtrlRef.current?.handleNumericCommit(values);
           setNumericVisible(false);
