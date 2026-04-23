@@ -23,8 +23,9 @@ export default function BrowserPane({ part }: Props) {
               <li
                 key={f.id}
                 className="pl-3 cursor-pointer hover:text-white"
+                data-sketch-primitive-count={f.primitives.length}
                 onDoubleClick={() => setSelectedFeature(f.id)}
-              >▸ Sketch{sketchCount}</li>
+              >▸ Sketch{sketchCount} ({f.primitives.length})</li>
             );
           }
           extrudeCount += 1;

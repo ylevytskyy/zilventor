@@ -71,6 +71,9 @@ export async function executeTree(
 
   for (const feature of part.featureTree) {
     if (feature.kind === 'sketch') {
+      // Skip empty sketches — they are under construction, not an error.
+      // An extrude that references one will fail with a clearer error below.
+      if (feature.primitives.length === 0) continue;
       const r = executeSketchFeature(oc, feature);
       if (!r.ok) {
         cleanupOnError();

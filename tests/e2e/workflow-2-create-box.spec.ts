@@ -14,7 +14,7 @@ test('Workflow 2 — create a box end-to-end', async ({ page }) => {
   // 2. Enter sketch mode and draw a rectangle
   await page.getByRole('tab', { name: 'Sketch' }).click();
   await page.getByRole('button', { name: '2D Sketch' }).click();
-  await page.getByRole('button', { name: 'Rectangle' }).click();
+  await page.getByRole('button', { name: 'Numeric rectangle…' }).click();
   await page.getByLabel('x1').fill('0');
   await page.getByLabel('y1').fill('0');
   await page.getByLabel('x2').fill('100');

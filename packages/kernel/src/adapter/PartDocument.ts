@@ -1,4 +1,4 @@
-import type { PartDocument, Feature, Parameter } from '@zilventor/shared';
+import type { PartDocument, Feature, Parameter, SketchPrimitive } from '@zilventor/shared';
 
 export function newPart(name: string): PartDocument {
   return {
@@ -26,4 +26,25 @@ export function removeParameter(part: PartDocument, name: string): PartDocument 
 
 export function removeFeature(part: PartDocument, featureId: string): PartDocument {
   return { ...part, featureTree: part.featureTree.filter((f) => f.id !== featureId) };
+}
+
+export function addPrimitive(part: PartDocument, sketchId: string, primitive: SketchPrimitive): PartDocument {
+  const idx = part.featureTree.findIndex((f) => f.kind === 'sketch' && f.id === sketchId);
+  if (idx < 0) throw new Error(`no sketch ${sketchId}`);
+  const sketch = part.featureTree[idx]! as Extract<Feature, { kind: 'sketch' }>;
+  const nextSketch: Extract<Feature, { kind: 'sketch' }> = { ...sketch, primitives: [...sketch.primitives, primitive] };
+  const nextTree = [...part.featureTree];
+  nextTree[idx] = nextSketch;
+  return { ...part, featureTree: nextTree };
+}
+
+export function removePrimitive(part: PartDocument, sketchId: string, primitiveId: string): PartDocument {
+  const idx = part.featureTree.findIndex((f) => f.kind === 'sketch' && f.id === sketchId);
+  if (idx < 0) throw new Error(`no sketch ${sketchId}`);
+  const sketch = part.featureTree[idx]! as Extract<Feature, { kind: 'sketch' }>;
+  const nextPrimitives = sketch.primitives.filter((p) => p.id !== primitiveId);
+  const nextSketch: Extract<Feature, { kind: 'sketch' }> = { ...sketch, primitives: nextPrimitives };
+  const nextTree = [...part.featureTree];
+  nextTree[idx] = nextSketch;
+  return { ...part, featureTree: nextTree };
 }

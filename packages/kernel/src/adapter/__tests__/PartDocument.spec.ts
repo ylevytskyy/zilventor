@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newPart, addFeature, setParameter, removeParameter, removeFeature } from '../PartDocument';
+import { newPart, addFeature, setParameter, removeParameter, removeFeature, addPrimitive, removePrimitive } from '../PartDocument';
 
 describe('PartDocument', () => {
   it('creates an empty part with defaults', () => {
@@ -54,5 +54,28 @@ describe('PartDocument', () => {
     p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
     const p2 = removeFeature(p, 'nonexistent');
     expect(p2.featureTree).toEqual(p.featureTree);
+  });
+
+  it('addPrimitive appends to a sketch feature\'s primitives', () => {
+    let p = newPart('P');
+    p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
+    p = addPrimitive(p, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
+    const sketch = p.featureTree[0] as { primitives: Array<{ id: string }> };
+    expect(sketch.primitives.map((pr) => pr.id)).toEqual(['p1']);
+  });
+
+  it('addPrimitive throws when sketch id not found', () => {
+    const p = newPart('P');
+    expect(() => addPrimitive(p, 'missing', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 })).toThrow(/no sketch/);
+  });
+
+  it('removePrimitive filters by id, preserves order', () => {
+    let p = newPart('P');
+    p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
+    p = addPrimitive(p, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
+    p = addPrimitive(p, 's1', { id: 'p2', kind: 'line', x1: 10, y1: 10, x2: 20, y2: 20 });
+    p = removePrimitive(p, 's1', 'p1');
+    const sketch = p.featureTree[0] as { primitives: Array<{ id: string }> };
+    expect(sketch.primitives.map((pr) => pr.id)).toEqual(['p2']);
   });
 });
