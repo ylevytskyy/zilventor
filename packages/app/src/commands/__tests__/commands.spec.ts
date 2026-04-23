@@ -3,7 +3,8 @@ import { CreatePartCommand } from '../CreatePartCommand';
 import { AddSketchCommand } from '../AddSketchCommand';
 import { AddExtrusionCommand } from '../AddExtrusionCommand';
 import { EditParameterCommand } from '../EditParameterCommand';
-import type { PartDocument } from '@zilventor/shared';
+import { AddPrimitiveCommand } from '../AddPrimitiveCommand';
+import type { PartDocument, Feature, SketchPrimitive } from '@zilventor/shared';
 import type { KernelClient } from '../../kernel-client/KernelClient';
 
 // Partial KernelClient used by each command under test. Methods the command
@@ -155,5 +156,48 @@ describe('EditParameterCommand', () => {
     await cmd.revert();
     expect(setParameter).toHaveBeenLastCalledWith(prior.id, expect.objectContaining({ value: 18 }));
     expect(setActivePart).toHaveBeenLastCalledWith(prior);
+  });
+});
+
+describe('AddPrimitiveCommand', () => {
+  it('adds a primitive on apply and removes it on revert', async () => {
+    const prior: PartDocument = {
+      id: 'part-1', name: 'P', units: 'mm', parameters: {},
+      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [] }]
+    };
+    const primitive: SketchPrimitive = { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
+    const next: PartDocument = {
+      ...prior,
+      featureTree: [{ ...(prior.featureTree[0] as Extract<Feature, { kind: 'sketch' }>), primitives: [primitive] }]
+    };
+    const kernel = asKernel({
+      addPrimitive: vi.fn().mockResolvedValue(undefined),
+      removePrimitive: vi.fn().mockResolvedValue(undefined),
+      getPart: vi.fn().mockResolvedValueOnce(next).mockResolvedValueOnce(prior)
+    });
+    const setActivePart = vi.fn();
+    const cmd = new AddPrimitiveCommand({
+      kernel,
+      store: { activePart: prior, setActivePart },
+      sketchId: 's1',
+      primitive
+    });
+    await cmd.apply();
+    expect(kernel.addPrimitive).toHaveBeenCalledWith('part-1', 's1', primitive);
+    expect(setActivePart).toHaveBeenCalledWith(next);
+    await cmd.revert();
+    expect(kernel.removePrimitive).toHaveBeenCalledWith('part-1', 's1', 'p1');
+    expect(setActivePart).toHaveBeenLastCalledWith(prior);
+  });
+
+  it('throws if no active part', async () => {
+    const kernel = asKernel({});
+    const cmd = new AddPrimitiveCommand({
+      kernel,
+      store: { activePart: null, setActivePart: vi.fn() },
+      sketchId: 's1',
+      primitive: { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 }
+    });
+    await expect(cmd.apply()).rejects.toThrow(/no active part/);
   });
 });
