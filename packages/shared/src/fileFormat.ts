@@ -7,7 +7,7 @@ export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 type MigrateFn = (m: AnyManifest) => AnyManifest;
 
 function deepClone<T>(v: T): T {
-  return JSON.parse(JSON.stringify(v));
+  return structuredClone(v);
 }
 
 const migrations: Record<number, MigrateFn> = {
