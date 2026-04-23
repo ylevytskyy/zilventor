@@ -33,7 +33,7 @@ export class CircleTool extends SketchTool {
       if (r < 1e-6) return { kind: 'idle' };
       const primitive = { id: genPrimitiveId(), kind: 'circle' as const, cx: center.x, cy: center.y, r };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents: [] };
     }
 
     if (event.type === 'numericCommit' && event.values.length === 1) {
@@ -42,7 +42,7 @@ export class CircleTool extends SketchTool {
       const { center } = this.state;
       const primitive = { id: genPrimitiveId(), kind: 'circle' as const, cx: center.x, cy: center.y, r };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents: [] };
     }
 
     return { kind: 'idle' };

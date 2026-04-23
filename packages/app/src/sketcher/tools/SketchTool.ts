@@ -1,4 +1,5 @@
 import type { SketchPrimitive } from '@zilventor/shared';
+import type { SnapEvent } from '@zilventor/sketcher-worker';
 import type { Point2, SnapResult } from '../snap';
 
 export type ToolEvent =
@@ -10,7 +11,7 @@ export type ToolEvent =
 
 export type ToolOutput =
   | { kind: 'preview'; polyline: Point2[] }
-  | { kind: 'committed'; primitive: SketchPrimitive }
+  | { kind: 'committed'; primitive: SketchPrimitive; snapEvents: SnapEvent[] }
   | { kind: 'aborted' }
   | { kind: 'idle' };
 

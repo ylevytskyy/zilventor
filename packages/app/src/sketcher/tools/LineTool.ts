@@ -1,5 +1,13 @@
 import { SketchTool, type ToolEvent, type ToolOutput, genPrimitiveId } from './SketchTool';
-import type { Point2 } from '../snap';
+import type { Point2, SnapResult } from '../snap';
+import type { SnapEvent } from '@zilventor/sketcher-worker';
+
+function snapEventsFromResult(snap: SnapResult): SnapEvent[] {
+  if (snap.kind === 'horizontal-axis') return [{ kind: 'axis', axis: 'h' }];
+  if (snap.kind === 'vertical-axis') return [{ kind: 'axis', axis: 'v' }];
+  // 'endpoint' snap from snap.ts does not carry primitiveId — no SnapEvent emitted
+  return [];
+}
 
 type State =
   | { step: 'idle' }
@@ -38,8 +46,9 @@ export class LineTool extends SketchTool {
         x2: event.snap.point.x,
         y2: event.snap.point.y
       };
+      const snapEvents = snapEventsFromResult(event.snap);
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents };
     }
 
     if (event.type === 'numericCommit' && event.values.length === 1) {
@@ -57,7 +66,7 @@ export class LineTool extends SketchTool {
         y2: this.state.firstPoint.y + uy * length
       };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents: [] };
     }
 
     return { kind: 'idle' };

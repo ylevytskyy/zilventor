@@ -39,7 +39,7 @@ export class RectTool extends SketchTool {
         h: Math.abs(p.y - first.y)
       };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents: [] };
     }
 
     if (event.type === 'numericCommit' && event.values.length === 2) {
@@ -54,7 +54,7 @@ export class RectTool extends SketchTool {
         h
       };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive };
+      return { kind: 'committed', primitive, snapEvents: [] };
     }
 
     return { kind: 'idle' };

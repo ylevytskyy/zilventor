@@ -60,7 +60,7 @@ export class ArcTool extends SketchTool {
       const arc = this.computeArc(this.state.start, this.state.end, event.snap.point);
       if (!arc) return { kind: 'idle' };
       this.state = { step: 'idle' };
-      return { kind: 'committed', primitive: { id: genPrimitiveId(), kind: 'arc', ...arc } };
+      return { kind: 'committed', primitive: { id: genPrimitiveId(), kind: 'arc', ...arc }, snapEvents: [] };
     }
 
     return { kind: 'idle' };

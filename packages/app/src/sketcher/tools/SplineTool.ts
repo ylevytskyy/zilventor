@@ -35,7 +35,8 @@ export class SplineTool extends SketchTool {
           controlPoints: pts,
           degree: 3,
           closed: false
-        }
+        },
+        snapEvents: []
       };
     }
 

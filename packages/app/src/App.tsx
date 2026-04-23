@@ -16,6 +16,7 @@ import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
 import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
+import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import type { Feature } from '@zilventor/shared';
 
 export default function App() {
@@ -163,6 +164,12 @@ export default function App() {
             }));
           })();
         },
+        emitConstraint: (c) => {
+          const store = useAppStore.getState();
+          if (!store.activeSketchId) return;
+          void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c));
+        },
+        sketcherClient: sketcherClientRef.current ?? undefined,
         onPreview: (polyline, snap) => {
           const ov = sketchOverlayRef.current;
           if (!ov) return;

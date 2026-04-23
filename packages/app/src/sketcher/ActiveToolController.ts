@@ -175,6 +175,15 @@ export class ActiveToolController {
         break;
       case 'committed':
         this.deps.emitPrimitive(output.primitive);
+        if (output.snapEvents.length > 0 && this.deps.sketcherClient) {
+          void this.deps.sketcherClient
+            .inferFromSnaps(output.primitive, output.snapEvents)
+            .then((inferred) => {
+              if (this.deps.emitConstraint) {
+                for (const c of inferred) this.deps.emitConstraint!(c);
+              }
+            });
+        }
         this.deps.onPreview(null, snap);
         break;
       case 'aborted':
