@@ -10,7 +10,7 @@ describe('KernelApi (end-to-end, in-process)', () => {
     expect(partId).toMatch(/[0-9a-f-]{36}/);
 
     await api.setParameter(partId, { name: 'd1', expression: '50', value: 50, unit: 'mm' });
-    await api.addFeature(partId, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }] });
+    await api.addFeature(partId, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }] });
     await api.addFeature(partId, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
 
     const part = await api.getPart(partId);

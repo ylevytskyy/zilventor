@@ -17,7 +17,7 @@ export default function SketchRectangleDialog({ onClose }: { onClose(): void }) 
     await bus.execute(new AddSketchCommand({
       kernel,
       store: { activePart, setActivePart },
-      feature: { kind: 'sketch', id: `s${Date.now()}`, plane: 'XY', primitives: [{ kind: 'rectangle', x, y, w, h }] }
+      feature: { kind: 'sketch', id: `s${Date.now()}`, plane: 'XY', primitives: [{ id: `p${Date.now()}`, kind: 'rectangle', x, y, w, h }] }
     }));
     onClose();
   };

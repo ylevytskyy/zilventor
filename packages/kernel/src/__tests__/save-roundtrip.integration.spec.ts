@@ -32,7 +32,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
   it('preserves feature tree and re-executes to produce the same geometry', async () => {
     const id = await api.createPart('Part1');
     await api.setParameter(id, { name: 'd1', expression: '50', value: 50, unit: 'mm' });
-    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }] });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }] });
     await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
 
     const h = new FakeHandle();
