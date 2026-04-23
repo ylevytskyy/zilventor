@@ -46,8 +46,10 @@ export class ActiveToolController {
 
   handlePointer(event: PointerEvent, primitives: SketchPrimitive[]): void {
     if (!this.tool) return;
-    const anchor = this.tool.getAnchor() ?? undefined;
-    const snap = resolveSnap(event.point, { primitives, pixelTolerance: 5, anchor });
+    const anchor = this.tool.getAnchor();
+    const snap = anchor
+      ? resolveSnap(event.point, { primitives, pixelTolerance: 5, anchor })
+      : resolveSnap(event.point, { primitives, pixelTolerance: 5 });
     const output: ToolOutput =
       event.type === 'click'
         ? this.tool.handle({ type: 'pointerClick', point: event.point, snap })
