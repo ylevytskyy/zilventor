@@ -35,9 +35,10 @@ async function loadImpl(): Promise<OcctInstance> {
   type EmscriptenFactory = new (opts: { locateFile?: (p: string) => string }) => Promise<OcctInstance>;
   const mainModJs = (await import(/* @vite-ignore */ 'opencascade.js/dist/opencascade.full.js')) as unknown as { default: EmscriptenFactory };
   // `?url` needs a literal specifier so Vite's static analyser picks it up
-  // and emits the wasm as an asset. TS has no declaration for the `?url`
-  // virtual module, hence the `@ts-expect-error`.
-  // @ts-expect-error Vite `?url` import has no TS declaration
+  // and emits the wasm as an asset. Kernel's tsconfig doesn't include vite/client
+  // types (app's does), so use @ts-ignore to suppress the missing-declaration error
+  // without failing the app typecheck with an unused-directive warning.
+  // @ts-ignore Vite `?url` import declaration only present in app's tsconfig
   const wasmUrlMod: { default: string } = await import('opencascade.js/dist/opencascade.full.wasm?url');
   const mainJS = mainModJs.default;
   const wasmUrl = wasmUrlMod.default;
