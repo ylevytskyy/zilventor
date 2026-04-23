@@ -5,6 +5,7 @@ import type {
   LoadSketchResult,
   AddConstraintResult,
   PrimitiveCoordsDiff,
+  DragSolveResult,
 } from './types';
 
 // planegcs wire-format primitives (matching SketchPrimitive/SketchGeometry interfaces)
@@ -31,6 +32,12 @@ export class GcsSystem {
   private decomp = new Map<string, Decomposition>();
   private domainPrimitives = new Map<string, SketchPrimitive>();
   private domainConstraints = new Map<string, SketchConstraint>();
+  /** Frozen copy of primitives at load time — used as baseline for drag finalCoords. */
+  private originalPrimitives = new Map<string, SketchPrimitive>();
+
+  private dragRef: PointRef | null = null;
+  private dragLockId: string | null = null;
+  private dragAnchorId: string | null = null;
 
   constructor(private gcs: InstanceType<typeof GcsWrapper>) {}
 
@@ -45,13 +52,20 @@ export class GcsSystem {
 
     for (const p of args.primitives) {
       this.domainPrimitives.set(p.id, p);
+      this.originalPrimitives.set(p.id, p);
       this.pushPrimitiveDecomposition(p, gcsPrims);
     }
 
     // push_primitives_and_params accepts SketchPrimitive (geometry + constraints) and SketchParam
     this.gcs.push_primitives_and_params(gcsPrims as never);
 
-    for (const c of args.constraints) this.domainConstraints.set(c.id, c);
+    for (const c of args.constraints) {
+      this.domainConstraints.set(c.id, c);
+      const gcsConstraints = this.translateConstraint(c);
+      if (gcsConstraints !== null) {
+        for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+      }
+    }
 
     this.gcs.solve();
     this.gcs.apply_solution();
@@ -64,7 +78,11 @@ export class GcsSystem {
     this.loaded = false;
     this.decomp.clear();
     this.domainPrimitives.clear();
+    this.originalPrimitives.clear();
     this.domainConstraints.clear();
+    this.dragRef = null;
+    this.dragLockId = null;
+    this.dragAnchorId = null;
     this.gcs.destroy_gcs_module();
   }
 
@@ -321,6 +339,90 @@ export class GcsSystem {
     return Object.keys(patch).length > 0 ? (patch as Partial<SketchPrimitive>) : null;
   }
 
-  // Task 9 adds: beginDrag, dragTo, endDrag
+  async beginDrag(ref: PointRef): Promise<void> {
+    this.requireLoaded();
+    if (this.dragRef) throw new Error('drag already in progress; call endDrag first');
+    const gcsPt = this.resolvePoint(ref);
+    if (!gcsPt) throw new Error(`cannot resolve point for drag: ${JSON.stringify(ref)}`);
+    this.dragRef = ref;
+  }
+
+  async dragTo(x: number, y: number): Promise<DragSolveResult> {
+    this.requireLoaded();
+    if (!this.dragRef) throw new Error('no active drag');
+    const gcsPt = this.resolvePoint(this.dragRef)!;
+    const startMs = performance.now();
+
+    // Remove previous temp lock + anchor if any, via clear_data + rebuild.
+    // rebuildGcs uses domainPrimitives as starting positions; we keep those
+    // updated via syncDomainFromGcs after each solve so we don't snap back.
+    if (this.dragLockId) {
+      this.rebuildGcs();
+    }
+
+    // Create a new fixed-anchor point and a temporary coincident constraint.
+    const anchorId = `__drag_anchor_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    const lockId = `__drag_lock_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    this.dragAnchorId = anchorId;
+    this.dragLockId = lockId;
+
+    this.gcs.push_primitive({ id: anchorId, type: 'point', x, y, fixed: true } as never);
+    this.gcs.push_primitive({
+      id: lockId, type: 'p2p_coincident', p1_id: gcsPt, p2_id: anchorId, temporary: true
+    } as never);
+
+    this.gcs.solve();
+    this.gcs.apply_solution();
+    const solverMs = performance.now() - startMs;
+
+    const coords = this.coordDiffForAll();
+    // Sync domain so next rebuild (next dragTo or endDrag) starts from solved positions.
+    this.syncDomainFromGcs();
+
+    return { coords, dof: this.readDof(), solverMs };
+  }
+
+  async endDrag(): Promise<{ dof: DofStatus; finalCoords: PrimitiveCoordsDiff[] }> {
+    this.requireLoaded();
+    if (!this.dragRef) return { dof: this.readDof(), finalCoords: [] };
+    // Compute final coords diff against original load-time positions before rebuilding.
+    const finalCoords = this.coordDiffAgainstOriginals();
+    if (this.dragLockId) {
+      this.rebuildGcs();   // discard drag lock + anchor, solve from current domain positions
+      this.dragLockId = null;
+      this.dragAnchorId = null;
+    }
+    this.dragRef = null;
+    return { dof: this.readDof(), finalCoords };
+  }
+
+  /**
+   * Read current GCS-solved point positions back into domainPrimitives.
+   * Called after each dragTo solve so that rebuildGcs() on the next dragTo
+   * (or endDrag) starts from the dragged positions rather than the original ones.
+   */
+  private syncDomainFromGcs(): void {
+    for (const [id, original] of this.domainPrimitives) {
+      const fresh = this.readDomainPrimitive(id);
+      if (fresh) this.domainPrimitives.set(id, { ...original, ...fresh });
+    }
+  }
+
+  /**
+   * Like coordDiffForAll but diffs current GCS state against originalPrimitives
+   * (load-time snapshot), not domainPrimitives (which syncDomainFromGcs mutates).
+   * Used by endDrag to report how far things moved from the initial load position.
+   */
+  private coordDiffAgainstOriginals(): PrimitiveCoordsDiff[] {
+    const out: PrimitiveCoordsDiff[] = [];
+    for (const [id, original] of this.originalPrimitives) {
+      const fresh = this.readDomainPrimitive(id);
+      if (!fresh) continue;
+      const patch = this.diffPrimitive(original, fresh);
+      if (patch) out.push({ primitiveId: id, patch });
+    }
+    return out;
+  }
+
   // Task 10 adds: redundant/conflict detection
 }
