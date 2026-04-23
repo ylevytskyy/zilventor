@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occtLoader';
 import { makeLineEdge, makeArcEdge, edgeEndpoints, disposeEdge } from '../SketchOps';
+import { makeCircleEdge, makeSplineEdge, makeRectangleEdges } from '../SketchOps';
 
 let occt: OcctInstance;
 beforeAll(async () => {
@@ -28,5 +29,51 @@ describe('SketchOps.makeArcEdge', () => {
     expect(end.x).toBeCloseTo(0, 3);
     expect(end.y).toBeCloseTo(50, 3);
     disposeEdge(edge);
+  });
+});
+
+describe('SketchOps.makeCircleEdge', () => {
+  it('creates a closed circle edge; endpoints coincide', () => {
+    const edge = makeCircleEdge(occt, { cx: 10, cy: 20, r: 5 });
+    const { start, end } = edgeEndpoints(occt, edge);
+    expect(start.x).toBeCloseTo(end.x, 3);
+    expect(start.y).toBeCloseTo(end.y, 3);
+    disposeEdge(edge);
+  });
+});
+
+describe('SketchOps.makeSplineEdge', () => {
+  it('creates a degree-3 bspline edge from 4 control points; start at first CP, end at last', () => {
+    const edge = makeSplineEdge(occt, {
+      controlPoints: [{ x: 0, y: 0 }, { x: 10, y: 30 }, { x: 20, y: 30 }, { x: 30, y: 0 }],
+      degree: 3,
+      closed: false
+    });
+    const { start, end } = edgeEndpoints(occt, edge);
+    expect(start.x).toBeCloseTo(0, 2);
+    expect(start.y).toBeCloseTo(0, 2);
+    expect(end.x).toBeCloseTo(30, 2);
+    expect(end.y).toBeCloseTo(0, 2);
+    disposeEdge(edge);
+  });
+
+  it('rejects a spline with fewer than 2 control points', () => {
+    expect(() => makeSplineEdge(occt, { controlPoints: [{ x: 0, y: 0 }], degree: 3, closed: false }))
+      .toThrow(/control points/i);
+  });
+});
+
+describe('SketchOps.makeRectangleEdges', () => {
+  it('produces 4 edges that connect end-to-start in order and close back to start', () => {
+    const edges = makeRectangleEdges(occt, { x: 0, y: 0, w: 100, h: 200 });
+    expect(edges.length).toBe(4);
+    const ends = edges.map((e) => edgeEndpoints(occt, e));
+    // Each edge's end must match the next edge's start, wrapping around.
+    for (let i = 0; i < 4; i++) {
+      const next = (i + 1) % 4;
+      expect(ends[i]!.end.x).toBeCloseTo(ends[next]!.start.x, 5);
+      expect(ends[i]!.end.y).toBeCloseTo(ends[next]!.start.y, 5);
+    }
+    edges.forEach(disposeEdge);
   });
 });

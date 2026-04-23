@@ -188,3 +188,116 @@ export function edgeEndpoints(oc: OcctInstance, e: EdgeHandle): { start: Point2;
 export function disposeEdge(e: EdgeHandle): void {
   (e.edge as { delete?: () => void }).delete?.();
 }
+
+export type CircleParams = { cx: number; cy: number; r: number };
+export type SplineParams = {
+  controlPoints: ReadonlyArray<Point2>;
+  degree: 2 | 3;
+  closed: boolean;
+};
+export type RectangleParams = { x: number; y: number; w: number; h: number };
+
+/**
+ * Builds a closed circular edge in the XY plane (normal = +Z).
+ *
+ * Overload notes:
+ *   - `BRepBuilderAPI_MakeEdge_8(gp_Circ)` — closed-circle single-arg form
+ *     (verified in `opencascade.full.d.ts`).
+ */
+export function makeCircleEdge(oc: OcctInstance, c: CircleParams): EdgeHandle {
+  const center = new oc.gp_Pnt_3(c.cx, c.cy, 0);
+  const axisDir = new oc.gp_Dir_4(0, 0, 1);
+  const xDir = new oc.gp_Dir_4(1, 0, 0);
+  const ax2 = new oc.gp_Ax2_2(center, axisDir, xDir);
+  const circ = new oc.gp_Circ_2(ax2, c.r);
+  const mk = new oc.BRepBuilderAPI_MakeEdge_8(circ);
+  const edge = mk.Edge();
+  mk.delete();
+  circ.delete();
+  ax2.delete();
+  xDir.delete();
+  axisDir.delete();
+  center.delete();
+  return { __brand: 'EdgeHandle', edge };
+}
+
+/**
+ * Builds a BSpline edge approximating the given XY control points via
+ * `GeomAPI_PointsToBSpline`. Degree is clamped to at most `nbPoles - 1`
+ * so a 2-CP input doesn't exceed the algorithm's degree bound.
+ *
+ * The `closed` flag is currently informational — closed splines would
+ * need post-processing (periodic knot structure), which is deferred.
+ *
+ * Overload notes:
+ *   - `TColgp_Array1OfPnt_2(lower=1, upper=N)` — 1-based indexing.
+ *   - `GeomAPI_PointsToBSpline_2(pts, degMin, degMax, continuity, tol3D)` —
+ *     5-arg form picks a clamped uniform knot vector through the CPs.
+ *   - `GeomAbs_Shape.GeomAbs_C2` — C2 continuity enum (module-level).
+ *   - `BRepBuilderAPI_MakeEdge_24(Handle_Geom_Curve)` requires the base
+ *     curve handle. `approx.Curve()` returns a `Handle_Geom_BSplineCurve`
+ *     (a subtype), which embind will NOT auto-upcast — passing it yields
+ *     `BindingError: Expected null or instance of Handle_Geom_Curve, got
+ *     an instance of Handle_Geom_BSplineCurve`. We unwrap via `.get()`
+ *     (yielding the raw `Geom_BSplineCurve*`, which is-a `Geom_Curve`)
+ *     and rewrap as a `Handle_Geom_Curve_2(thePtr)`.
+ */
+export function makeSplineEdge(oc: OcctInstance, s: SplineParams): EdgeHandle {
+  if (s.controlPoints.length < 2) {
+    throw new Error(
+      `spline requires at least 2 control points, got ${s.controlPoints.length}`
+    );
+  }
+  const nbPoles = s.controlPoints.length;
+  const poles = new oc.TColgp_Array1OfPnt_2(1, nbPoles);
+  const allocated: unknown[] = [];
+  for (let i = 0; i < nbPoles; i++) {
+    const cp = s.controlPoints[i]!;
+    const p = new oc.gp_Pnt_3(cp.x, cp.y, 0);
+    poles.SetValue(i + 1, p);
+    allocated.push(p);
+  }
+  const degree = Math.min(s.degree, nbPoles - 1) as 2 | 3;
+  const approx = new oc.GeomAPI_PointsToBSpline_2(
+    poles,
+    degree,
+    degree,
+    oc.GeomAbs_Shape.GeomAbs_C2 as never,
+    1e-3
+  );
+  const bsplineHandle = approx.Curve();
+  const curveHandle = new oc.Handle_Geom_Curve_2(bsplineHandle.get() as never);
+  const mk = new oc.BRepBuilderAPI_MakeEdge_24(curveHandle);
+  const edge = mk.Edge();
+  mk.delete();
+  curveHandle.delete();
+  bsplineHandle.delete();
+  approx.delete();
+  poles.delete();
+  allocated.forEach((p) => (p as { delete?: () => void }).delete?.());
+  return { __brand: 'EdgeHandle', edge };
+}
+
+/**
+ * Builds four connected line edges forming a closed rectangle loop on
+ * Z = 0 in CCW order: BL -> BR -> TR -> TL -> BL. Each edge's end point
+ * equals the next edge's start point, so the result can be fed directly
+ * into a wire builder.
+ *
+ * Unlike `makeRectangleWireXY`, this returns the raw edges (not a wire)
+ * so callers can mix them with other edges before constructing a wire.
+ */
+export function makeRectangleEdges(oc: OcctInstance, r: RectangleParams): EdgeHandle[] {
+  const corners: Point2[] = [
+    { x: r.x, y: r.y },
+    { x: r.x + r.w, y: r.y },
+    { x: r.x + r.w, y: r.y + r.h },
+    { x: r.x, y: r.y + r.h }
+  ];
+  return [
+    makeLineEdge(oc, corners[0]!, corners[1]!),
+    makeLineEdge(oc, corners[1]!, corners[2]!),
+    makeLineEdge(oc, corners[2]!, corners[3]!),
+    makeLineEdge(oc, corners[3]!, corners[0]!)
+  ];
+}
