@@ -9,5 +9,8 @@ test('Perf: extrude box timing', async ({ page }) => {
   await buildBox(page, { width: 100, height: 200, depth: 50 });
   const tBuild = Date.now() - t0;
   console.log(JSON.stringify({ metric: 'build-box-total', ms: tBuild }));
-  expect(tBuild).toBeLessThan(10_000);
+  // Measured ~0.6–1.4s on 2024 dev machine; 5s cap gives ~3.5× CI headroom.
+  // Inner single-feature extrude budget (spec §7.1) is 300ms — not asserted
+  // directly here because this measures the full click-sequence round-trip.
+  expect(tBuild).toBeLessThan(5_000);
 });
