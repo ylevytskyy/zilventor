@@ -1,12 +1,19 @@
-export const CURRENT_FORMAT_VERSION = 2 as const;
+import { inferFromGeometry } from './inferFromGeometry';
+
+export const CURRENT_FORMAT_VERSION = 3 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
 type MigrateFn = (m: AnyManifest) => AnyManifest;
 
+function deepClone<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v));
+}
+
 const migrations: Record<number, MigrateFn> = {
   // v1 → v2: synthesize primitive ids on sketch features.
-  1: (m) => {
+  1: (mIn) => {
+    const m = deepClone(mIn);
     const doc = m.document as
       | { featureTree?: Array<{ kind: string; id?: string; primitives?: Array<Record<string, unknown>> }> }
       | undefined;
@@ -22,6 +29,24 @@ const migrations: Record<number, MigrateFn> = {
       }
     }
     return { ...m, formatVersion: 2 };
+  },
+
+  // v2 → v3: add constraints[] to sketch features; seed via inferFromGeometry
+  // when absent. Tag each inferred constraint with source: 'inferred-migration'.
+  2: (mIn) => {
+    const m = deepClone(mIn);
+    const doc = m.document as
+      | { featureTree?: Array<Record<string, unknown>> }
+      | undefined;
+    if (doc?.featureTree) {
+      for (const f of doc.featureTree) {
+        if (f.kind === 'sketch' && !Array.isArray(f.constraints)) {
+          const prims = (f.primitives ?? []) as Parameters<typeof inferFromGeometry>[0];
+          f.constraints = inferFromGeometry(prims);
+        }
+      }
+    }
+    return { ...m, formatVersion: 3 };
   }
 };
 
