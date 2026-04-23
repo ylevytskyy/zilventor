@@ -301,3 +301,83 @@ export function makeRectangleEdges(oc: OcctInstance, r: RectangleParams): EdgeHa
     makeLineEdge(oc, corners[3]!, corners[0]!)
   ];
 }
+
+export const SKETCH_TOLERANCE_MM = 1e-3;
+
+export type CombinerResult = {
+  closedWires: WireHandle[];
+  openChains: Array<{ edges: EdgeHandle[]; start: Point2; end: Point2 }>;
+};
+
+function endpointsMatch(a: Point2, b: Point2, eps = SKETCH_TOLERANCE_MM): boolean {
+  return Math.abs(a.x - b.x) < eps && Math.abs(a.y - b.y) < eps;
+}
+
+type OpenSeed = { edge: EdgeHandle; start: Point2; end: Point2 };
+
+export function combineEdgesIntoWires(oc: OcctInstance, edges: EdgeHandle[]): CombinerResult {
+  const openSeeds: OpenSeed[] = edges.map((e) => {
+    const { start, end } = edgeEndpoints(oc, e);
+    return { edge: e, start, end };
+  });
+
+  const chains: OpenSeed[][] = [];
+  const remaining = [...openSeeds];
+  while (remaining.length > 0) {
+    const first = remaining.shift()!;
+    const chain: OpenSeed[] = [first];
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (let i = 0; i < remaining.length; i++) {
+        const cand = remaining[i]!;
+        const tailEnd = chain[chain.length - 1]!.end;
+        const headStart = chain[0]!.start;
+        if (endpointsMatch(tailEnd, cand.start)) {
+          chain.push(cand);
+          remaining.splice(i, 1);
+          extended = true;
+          break;
+        }
+        if (endpointsMatch(tailEnd, cand.end)) {
+          chain.push({ edge: cand.edge, start: cand.end, end: cand.start });
+          remaining.splice(i, 1);
+          extended = true;
+          break;
+        }
+        if (endpointsMatch(headStart, cand.end)) {
+          chain.unshift(cand);
+          remaining.splice(i, 1);
+          extended = true;
+          break;
+        }
+        if (endpointsMatch(headStart, cand.start)) {
+          chain.unshift({ edge: cand.edge, start: cand.end, end: cand.start });
+          remaining.splice(i, 1);
+          extended = true;
+          break;
+        }
+      }
+    }
+    chains.push(chain);
+  }
+
+  const closedWires: WireHandle[] = [];
+  const openChains: CombinerResult['openChains'] = [];
+  for (const chain of chains) {
+    const head = chain[0]!.start;
+    const tail = chain[chain.length - 1]!.end;
+    if (endpointsMatch(head, tail)) {
+      const mkWire = new oc.BRepBuilderAPI_MakeWire_1();
+      for (const seg of chain) {
+        mkWire.Add_1(seg.edge.edge as never);
+      }
+      const wire = mkWire.Wire();
+      mkWire.delete();
+      closedWires.push({ __brand: 'WireHandle', wire });
+    } else {
+      openChains.push({ edges: chain.map((c) => c.edge), start: head, end: tail });
+    }
+  }
+  return { closedWires, openChains };
+}

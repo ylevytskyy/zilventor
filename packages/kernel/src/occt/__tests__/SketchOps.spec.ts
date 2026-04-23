@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occtLoader';
 import { makeLineEdge, makeArcEdge, edgeEndpoints, disposeEdge } from '../SketchOps';
 import { makeCircleEdge, makeSplineEdge, makeRectangleEdges } from '../SketchOps';
+import { combineEdgesIntoWires, SKETCH_TOLERANCE_MM } from '../SketchOps';
 
 let occt: OcctInstance;
 beforeAll(async () => {
@@ -75,5 +76,66 @@ describe('SketchOps.makeRectangleEdges', () => {
       expect(ends[i]!.end.y).toBeCloseTo(ends[next]!.start.y, 5);
     }
     edges.forEach(disposeEdge);
+  });
+});
+
+describe('SketchOps.combineEdgesIntoWires', () => {
+  it('exports SKETCH_TOLERANCE_MM = 1e-3', () => {
+    expect(SKETCH_TOLERANCE_MM).toBe(1e-3);
+  });
+
+  it('four lines forming a square → 1 closed wire, 0 open chains', () => {
+    const e1 = makeLineEdge(occt, { x: 0, y: 0 }, { x: 100, y: 0 });
+    const e2 = makeLineEdge(occt, { x: 100, y: 0 }, { x: 100, y: 100 });
+    const e3 = makeLineEdge(occt, { x: 100, y: 100 }, { x: 0, y: 100 });
+    const e4 = makeLineEdge(occt, { x: 0, y: 100 }, { x: 0, y: 0 });
+    const result = combineEdgesIntoWires(occt, [e1, e2, e3, e4]);
+    expect(result.closedWires.length).toBe(1);
+    expect(result.openChains.length).toBe(0);
+    result.closedWires.forEach((w) => (w.wire as { delete?: () => void }).delete?.());
+    [e1, e2, e3, e4].forEach(disposeEdge);
+  });
+
+  it('three lines in L shape → 1 open chain, 0 closed', () => {
+    const e1 = makeLineEdge(occt, { x: 0, y: 0 }, { x: 100, y: 0 });
+    const e2 = makeLineEdge(occt, { x: 100, y: 0 }, { x: 100, y: 100 });
+    const e3 = makeLineEdge(occt, { x: 100, y: 100 }, { x: 50, y: 100 });
+    const result = combineEdgesIntoWires(occt, [e1, e2, e3]);
+    expect(result.closedWires.length).toBe(0);
+    expect(result.openChains.length).toBe(1);
+    [e1, e2, e3].forEach(disposeEdge);
+  });
+
+  it('connects regardless of input order', () => {
+    const e1 = makeLineEdge(occt, { x: 0, y: 0 }, { x: 100, y: 0 });
+    const e2 = makeLineEdge(occt, { x: 100, y: 0 }, { x: 100, y: 100 });
+    const e3 = makeLineEdge(occt, { x: 100, y: 100 }, { x: 0, y: 100 });
+    const e4 = makeLineEdge(occt, { x: 0, y: 100 }, { x: 0, y: 0 });
+    const result = combineEdgesIntoWires(occt, [e3, e1, e4, e2]);
+    expect(result.closedWires.length).toBe(1);
+    result.closedWires.forEach((w) => (w.wire as { delete?: () => void }).delete?.());
+    [e1, e2, e3, e4].forEach(disposeEdge);
+  });
+
+  it('chains edges by matching either endpoint (reversing as needed)', () => {
+    const e1 = makeLineEdge(occt, { x: 0, y: 0 }, { x: 100, y: 0 });
+    const e2 = makeLineEdge(occt, { x: 100, y: 100 }, { x: 100, y: 0 });
+    const result = combineEdgesIntoWires(occt, [e1, e2]);
+    expect(result.openChains.length).toBe(1);
+    [e1, e2].forEach(disposeEdge);
+  });
+
+  it('considers endpoints within ε tolerance as coincident', () => {
+    const e1 = makeLineEdge(occt, { x: 0, y: 0 }, { x: 100, y: 0 });
+    const e2 = makeLineEdge(occt, { x: 100.0001, y: 0 }, { x: 100.0001, y: 100 });
+    const result = combineEdgesIntoWires(occt, [e1, e2]);
+    expect(result.openChains.length).toBe(1);
+    [e1, e2].forEach(disposeEdge);
+  });
+
+  it('empty input → no wires, no chains', () => {
+    const result = combineEdgesIntoWires(occt, []);
+    expect(result.closedWires.length).toBe(0);
+    expect(result.openChains.length).toBe(0);
   });
 });
