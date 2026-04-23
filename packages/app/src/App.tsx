@@ -52,7 +52,7 @@ export default function App() {
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, res.value.mesh.normals);
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
       }
@@ -112,7 +112,7 @@ export default function App() {
         if (hasExtrude) {
           const res = await client.execute(ap.id);
           if (res.ok) {
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, res.value.mesh.normals);
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
           }
         }
       }

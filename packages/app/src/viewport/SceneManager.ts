@@ -35,7 +35,7 @@ export class SceneManager {
     this.renderer.setSize(w, h, false);
   }
 
-  setMesh(positions: Float32Array, indices: Uint32Array, normals?: Float32Array): void {
+  setMesh(positions: Float32Array, indices: Uint32Array): void {
     if (this.current) {
       this.scene.remove(this.current);
       this.current.geometry.dispose();
@@ -43,8 +43,8 @@ export class SceneManager {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    if (normals) g.setAttribute('normal', new THREE.BufferAttribute(normals, 3)); else g.computeVertexNormals();
     g.setIndex(new THREE.BufferAttribute(indices, 1));
+    g.computeVertexNormals();
     const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);

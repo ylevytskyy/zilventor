@@ -3,7 +3,7 @@ import { SceneManager } from './SceneManager';
 import ViewCube from './ViewCube';
 
 export type ViewportRef = {
-  setMesh(positions: Float32Array, indices: Uint32Array, normals?: Float32Array): void;
+  setMesh(positions: Float32Array, indices: Uint32Array): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
 };
 
@@ -43,9 +43,9 @@ const Viewport = forwardRef<ViewportRef>(function Viewport(_, ref) {
   }, []);
 
   useImperativeHandle(ref, () => ({
-    setMesh: (p, i, n) => {
+    setMesh: (p, i) => {
       if (!sceneRef.current) return;
-      sceneRef.current.setMesh(p, i, n);
+      sceneRef.current.setMesh(p, i);
       setTriangles(i.length / 3);
     },
     captureThumbnail: async (w, h) => {

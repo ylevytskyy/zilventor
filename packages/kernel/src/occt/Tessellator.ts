@@ -47,7 +47,6 @@ export function tessellate(
   progress.delete();
 
   const positions: number[] = [];
-  const normals: number[] = [];
   const indices: number[] = [];
 
   const explorer = new oc.TopExp_Explorer_2(
@@ -75,8 +74,6 @@ export function tessellate(
       for (let i = 1; i <= nbNodes; i++) {
         const p = t.Node(i);
         positions.push(p.X(), p.Y(), p.Z());
-        // Placeholder normals — per-face smooth normals are Task 9 territory.
-        normals.push(0, 0, 1);
         p.delete();
       }
       for (let i = 1; i <= nbTris; i++) {
@@ -101,7 +98,6 @@ export function tessellate(
 
   return {
     positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
     indices: new Uint32Array(indices),
     boundingBox: computeBoundingBox(oc, shape)
   };
