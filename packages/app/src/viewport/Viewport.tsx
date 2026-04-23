@@ -8,6 +8,7 @@ export type ViewportRef = {
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
+  worldToScreen(worldX: number, worldY: number): { x: number; y: number };
 };
 
 type Props = {
@@ -74,6 +75,16 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const hit = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, hit);
       return { x: hit.x, y: hit.y };
+    },
+    worldToScreen: (worldX, worldY) => {
+      if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const vec = new THREE.Vector3(worldX, worldY, 0);
+      vec.project(sceneRef.current.getCamera());
+      const x = ((vec.x + 1) / 2) * rect.width;
+      const y = ((-vec.y + 1) / 2) * rect.height;
+      return { x, y };
     }
   }), []);
 

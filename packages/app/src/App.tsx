@@ -14,6 +14,7 @@ import { createSketcherWorkerApi } from './vendor/sketcherWorker';
 import { ActiveToolController } from './sketcher/ActiveToolController';
 import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
+import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import type { Feature } from '@zilventor/shared';
 
@@ -360,8 +361,20 @@ export default function App() {
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
           <BrowserPane part={activePart} />
         </aside>
-        <main role="main" id="region-viewport" className="bg-shell">
+        <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
           <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
+          {sketchMode && activeSketchId && (() => {
+            const f = activePart?.featureTree.find((x) => x.kind === 'sketch' && x.id === activeSketchId);
+            if (f?.kind !== 'sketch') return null;
+            const worldToScreen = viewportRef.current?.worldToScreen ?? ((x: number, y: number) => ({ x, y }));
+            return (
+              <ConstraintBadgeRenderer
+                primitives={f.primitives}
+                constraints={f.constraints}
+                worldToScreen={worldToScreen}
+              />
+            );
+          })()}
         </main>
         <aside role="complementary" aria-label="Properties" className="bg-shell-panel border-l border-shell-border" id="region-properties">
           <PropertiesPanel />
