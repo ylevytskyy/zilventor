@@ -2,6 +2,7 @@ export type ConstraintSource = 'user' | 'auto-snap' | 'inferred-migration';
 
 export type PointRef =
   | { primitiveId: string; anchor: 'start' | 'end' | 'center' }
+  | { primitiveId: string; anchor: 'bl' | 'br' | 'tr' | 'tl' }
   | { primitiveId: string; anchor: `cp${number}` };
 
 type Base = { id: string; source?: ConstraintSource };
