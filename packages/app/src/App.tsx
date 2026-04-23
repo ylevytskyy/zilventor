@@ -50,10 +50,16 @@ export default function App() {
   const activeSketchId = useAppStore((s) => s.activeSketchId);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
 
-  // Expose store to E2E tests via window.__zilventorStore (dev only).
+  // Expose store and perf hooks to E2E/perf tests (dev only).
   useEffect(() => {
     if (import.meta.env.DEV) {
-      (window as unknown as { __zilventorStore: typeof useAppStore }).__zilventorStore = useAppStore;
+      const w = window as unknown as Record<string, unknown>;
+      w.__zilventorStore = useAppStore;
+      if (!w.__zilventorDragSolverMsSamples) {
+        w.__zilventorDragSolverMsSamples = [] as number[];
+      }
+      w.__zilventorWorldToScreen = (wx: number, wy: number) =>
+        viewportRef.current?.worldToScreen(wx, wy) ?? { x: 0, y: 0 };
     }
   }, []);
 
@@ -177,6 +183,13 @@ export default function App() {
           void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c));
         },
         sketcherClient: sketcherClientRef.current ?? undefined,
+        onCoords: (diff) => {
+          const store = useAppStore.getState();
+          if (store.activeSketchId) store.applyCoordDiff(store.activeSketchId, diff);
+        },
+        onDof: (dof) => {
+          useAppStore.getState().setSketchDof(dof);
+        },
         onPreview: (polyline, snap) => {
           const ov = sketchOverlayRef.current;
           if (!ov) return;
@@ -337,15 +350,19 @@ export default function App() {
     }
   }, []);
 
-  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move'; clientX: number; clientY: number }) => {
+  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!sketchMode || !activeToolCtrlRef.current || !viewportRef.current) return;
     const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
     const sketch = activePart?.featureTree.find(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === activeSketchId
     );
     const primitives = sketch?.primitives ?? [];
+    const type = ev.type === 'click' ? 'click'
+      : ev.type === 'pointerdown' ? 'pointerdown'
+      : ev.type === 'pointerup' ? 'pointerup'
+      : 'move';
     activeToolCtrlRef.current.handlePointer(
-      { type: ev.type === 'click' ? 'click' : 'move', point: world },
+      { type, point: world },
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });

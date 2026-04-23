@@ -28,7 +28,14 @@ export class SketcherClient {
   addConstraint(c: SketchConstraint): Promise<AddConstraintResult> { return this.api.addConstraint(c); }
   removeConstraint(id: string): Promise<{ dof: DofStatus }> { return this.api.removeConstraint(id); }
   beginDrag(ref: PointRef): Promise<void> { return this.api.beginDrag(ref); }
-  dragTo(x: number, y: number): Promise<DragSolveResult> { return this.api.dragTo(x, y); }
+  async dragTo(x: number, y: number): Promise<DragSolveResult> {
+    const r = await this.api.dragTo(x, y);
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
+      const w = window as unknown as { __zilventorDragSolverMsSamples?: number[] };
+      if (w.__zilventorDragSolverMsSamples) w.__zilventorDragSolverMsSamples.push(r.solverMs);
+    }
+    return r;
+  }
   endDrag(): Promise<{ dof: DofStatus; finalCoords: PrimitiveCoordsDiff[] }> { return this.api.endDrag(); }
   inferFromSnaps(p: SketchPrimitive, snapEvents: SnapEvent[]): Promise<SketchConstraint[]> {
     return this.api.inferFromSnaps(p, snapEvents);

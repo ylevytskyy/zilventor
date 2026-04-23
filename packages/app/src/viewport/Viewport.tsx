@@ -12,7 +12,7 @@ export type ViewportRef = {
 };
 
 type Props = {
-  onPointer?: (event: { type: 'click' | 'move'; clientX: number; clientY: number }) => void;
+  onPointer?: (event: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => void;
 };
 
 const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
@@ -93,8 +93,10 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       <canvas
         ref={canvasRef}
         className="block w-full h-full"
-        onPointerDown={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY })}
+        onPointerDown={(e) => props.onPointer?.({ type: 'pointerdown', clientX: e.clientX, clientY: e.clientY })}
         onPointerMove={(e) => props.onPointer?.({ type: 'move', clientX: e.clientX, clientY: e.clientY })}
+        onPointerUp={(e) => props.onPointer?.({ type: 'pointerup', clientX: e.clientX, clientY: e.clientY })}
+        onClick={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY })}
       />
       <ViewCube />
     </div>
