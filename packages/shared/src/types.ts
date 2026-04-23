@@ -1,3 +1,5 @@
+import type { SketchConstraint } from './constraints';
+
 export type UnitKind = 'mm' | 'deg';
 
 export type Parameter = {
@@ -23,7 +25,7 @@ export type SketchPrimitive =
   | { id: string; kind: 'spline'; controlPoints: ReadonlyArray<{ x: number; y: number }>; degree: 2 | 3; closed: boolean };
 
 export type Feature =
-  | { kind: 'sketch'; id: string; plane: 'XY' | 'XZ' | 'YZ'; primitives: SketchPrimitive[] }
+  | { kind: 'sketch'; id: string; plane: 'XY' | 'XZ' | 'YZ'; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric' };
 
 export type CachedGeometry = {
