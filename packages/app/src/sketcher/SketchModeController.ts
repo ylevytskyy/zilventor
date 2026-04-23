@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { DofStatus } from '@zilventor/sketcher-worker';
+import type { SketchPrimitive, SketchConstraint } from '@zilventor/shared';
+import type { SketcherClient } from './SketcherClient';
 
 /**
  * Handles the camera + grid + orbit-control changes when entering / exiting sketch mode.
@@ -7,16 +10,21 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
  * a 2D grid becomes visible, and orbit rotation is disabled (pan + zoom still work).
  */
 export type SketchModeHandle = {
-  enter(): void;
-  exit(): void;
+  enter(): Promise<void>;
+  exit(): Promise<void>;
   isActive(): boolean;
 };
 
-export function createSketchModeController(opts: {
+export type SketchModeControllerOpts = {
   camera: THREE.PerspectiveCamera;
   orbitControls: OrbitControls;
   scene: THREE.Scene;
-}): SketchModeHandle {
+  sketcherClient: SketcherClient;
+  getActiveSketch: () => { primitives: SketchPrimitive[]; constraints: SketchConstraint[] } | null;
+  setSketchDof: (v: DofStatus | null) => void;
+};
+
+export function createSketchModeController(opts: SketchModeControllerOpts): SketchModeHandle {
   let active = false;
   let savedCamera: { position: THREE.Vector3; rotation: THREE.Euler; fov: number } | null = null;
   const grid = new THREE.GridHelper(500, 50, 0x555555, 0x333333);
@@ -25,7 +33,7 @@ export function createSketchModeController(opts: {
   opts.scene.add(grid);
 
   return {
-    enter(): void {
+    async enter(): Promise<void> {
       if (active) return;
       active = true;
       savedCamera = {
@@ -42,10 +50,20 @@ export function createSketchModeController(opts: {
       // or disabled until exit.
       opts.orbitControls.enabled = false;
       grid.visible = true;
+      const sketch = opts.getActiveSketch();
+      if (sketch) {
+        const { dof } = await opts.sketcherClient.loadSketch({
+          primitives: sketch.primitives,
+          constraints: sketch.constraints
+        });
+        opts.setSketchDof(dof);
+      }
     },
-    exit(): void {
+    async exit(): Promise<void> {
       if (!active) return;
       active = false;
+      await opts.sketcherClient.unloadSketch();
+      opts.setSketchDof(null);
       if (savedCamera) {
         opts.camera.position.copy(savedCamera.position);
         opts.camera.rotation.copy(savedCamera.rotation);

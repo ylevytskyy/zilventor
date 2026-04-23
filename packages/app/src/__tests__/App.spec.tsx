@@ -9,6 +9,23 @@ vi.mock('../kernel-client/KernelClient', () => ({
   spawnKernel: vi.fn().mockRejectedValue(new Error('mocked, skipping'))
 }));
 
+// createSketcherWorkerApi spins up a real Worker that doesn't exist in jsdom.
+vi.mock('../vendor/sketcherWorker', () => ({
+  createSketcherWorkerApi: vi.fn(() => ({
+    loadSketch: vi.fn().mockResolvedValue({ dof: null }),
+    unloadSketch: vi.fn().mockResolvedValue(undefined),
+    addPrimitive: vi.fn(),
+    removePrimitive: vi.fn(),
+    updatePrimitive: vi.fn(),
+    addConstraint: vi.fn(),
+    removeConstraint: vi.fn(),
+    beginDrag: vi.fn(),
+    dragTo: vi.fn(),
+    endDrag: vi.fn(),
+    inferFromSnaps: vi.fn()
+  }))
+}));
+
 // Viewport mounts three.js; jsdom has no WebGL. Mock the renderer + OrbitControls.
 vi.mock('three', async (orig) => {
   const actual = (await orig()) as typeof import('three');

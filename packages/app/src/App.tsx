@@ -8,6 +8,8 @@ import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
 import { useAppStore } from './store/useAppStore';
 import { createSketchModeController, type SketchModeHandle } from './sketcher/SketchModeController';
+import { SketcherClient } from './sketcher/SketcherClient';
+import { createSketcherWorkerApi } from './vendor/sketcherWorker';
 import { ActiveToolController } from './sketcher/ActiveToolController';
 import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
@@ -26,6 +28,7 @@ export default function App() {
   const [kernelOffline, setKernelOffline] = useState(false);
 
   // Sketcher refs — instantiated once viewport is mounted.
+  const sketcherClientRef = useRef<SketcherClient | null>(null);
   const sketchModeRef = useRef<SketchModeHandle | null>(null);
   const activeToolCtrlRef = useRef<ActiveToolController | null>(null);
   const sketchOverlayRef = useRef<SketchOverlay | null>(null);
@@ -122,10 +125,21 @@ export default function App() {
       }
       attachedSm = sm;
 
+      sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi());
+
       sketchModeRef.current = createSketchModeController({
         camera: sm.getCamera(),
         orbitControls: sm.getControls(),
-        scene: sm.getScene()
+        scene: sm.getScene(),
+        sketcherClient: sketcherClientRef.current,
+        getActiveSketch: () => {
+          const part = useAppStore.getState().activePart;
+          const id = useAppStore.getState().activeSketchId;
+          if (!part || !id) return null;
+          const f = part.featureTree.find((x) => x.kind === 'sketch' && x.id === id);
+          return f?.kind === 'sketch' ? { primitives: f.primitives, constraints: f.constraints } : null;
+        },
+        setSketchDof: useAppStore.getState().setSketchDof
       });
       const overlay = new SketchOverlay();
       const renderer = new CommittedSketchRenderer();
@@ -170,6 +184,8 @@ export default function App() {
     return () => {
       cancelled = true;
       if (raf) cancelAnimationFrame(raf);
+      void sketcherClientRef.current?.unloadSketch();
+      sketcherClientRef.current = null;
       const sm = attachedSm;
       if (sm) {
         if (sketchOverlayRef.current) {
