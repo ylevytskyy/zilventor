@@ -437,5 +437,49 @@ export class GcsSystem {
     return out;
   }
 
+  async addPrimitive(p: SketchPrimitive): Promise<{ dof: DofStatus }> {
+    this.requireLoaded();
+    this.domainPrimitives.set(p.id, p);
+    this.originalPrimitives.set(p.id, p);
+    this.rebuildGcs();
+    return { dof: this.readDof() };
+  }
+
+  async removePrimitive(id: string): Promise<{ dof: DofStatus }> {
+    this.requireLoaded();
+    this.domainPrimitives.delete(id);
+    this.originalPrimitives.delete(id);
+    // Also remove any constraint referencing this primitive.
+    for (const [cid, c] of this.domainConstraints) {
+      if (this.constraintReferences(c, id)) this.domainConstraints.delete(cid);
+    }
+    this.rebuildGcs();
+    return { dof: this.readDof() };
+  }
+
+  async updatePrimitive(id: string, patch: Partial<SketchPrimitive>): Promise<{ dof: DofStatus }> {
+    this.requireLoaded();
+    const existing = this.domainPrimitives.get(id);
+    if (!existing) return { dof: this.readDof() };
+    const merged = { ...existing, ...patch } as SketchPrimitive;
+    this.domainPrimitives.set(id, merged);
+    this.originalPrimitives.set(id, merged);
+    this.rebuildGcs();
+    return { dof: this.readDof() };
+  }
+
+  private constraintReferences(c: SketchConstraint, primitiveId: string): boolean {
+    switch (c.kind) {
+      case 'horizontal':
+      case 'vertical':      return c.line === primitiveId;
+      case 'parallel':
+      case 'perpendicular': return c.line1 === primitiveId || c.line2 === primitiveId;
+      case 'tangent':       return c.line === primitiveId || c.arc === primitiveId;
+      case 'equal':         return c.a === primitiveId || c.b === primitiveId;
+      case 'coincident':    return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId;
+      case 'symmetric':     return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId || c.axis === primitiveId;
+    }
+  }
+
   // Task 10 adds: redundant/conflict detection
 }
