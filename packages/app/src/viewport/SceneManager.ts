@@ -35,6 +35,12 @@ export class SceneManager {
     this.renderer.setSize(w, h, false);
   }
 
+  getCamera(): THREE.PerspectiveCamera { return this.camera; }
+  getControls(): OrbitControls { return this.controls; }
+  getScene(): THREE.Scene { return this.scene; }
+  addObject(obj: THREE.Object3D): void { this.scene.add(obj); }
+  removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
+
   setMesh(positions: Float32Array, indices: Uint32Array): void {
     if (this.current) {
       this.scene.remove(this.current);
