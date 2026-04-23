@@ -6,17 +6,21 @@ const EPS = 1e-3;
 function endpointsOf(p: SketchPrimitive): Array<{ anchor: PointRef['anchor']; x: number; y: number }> {
   switch (p.kind) {
     case 'line':      return [{ anchor: 'start', x: p.x1, y: p.y1 }, { anchor: 'end', x: p.x2, y: p.y2 }];
-    case 'arc':       return [{ anchor: 'center', x: p.cx, y: p.cy }];
+    case 'arc': {
+      const sx = p.cx + p.r * Math.cos(p.startAngle);
+      const sy = p.cy + p.r * Math.sin(p.startAngle);
+      const ex = p.cx + p.r * Math.cos(p.endAngle);
+      const ey = p.cy + p.r * Math.sin(p.endAngle);
+      return [
+        { anchor: 'center', x: p.cx, y: p.cy },
+        { anchor: 'start',  x: sx,   y: sy },
+        { anchor: 'end',    x: ex,   y: ey },
+      ];
+    }
     case 'circle':    return [{ anchor: 'center', x: p.cx, y: p.cy }];
     case 'rectangle': return [];
     case 'spline':    return p.controlPoints.map((cp, i) => ({ anchor: `cp${i}` as const, x: cp.x, y: cp.y }));
   }
-}
-
-let seq = 0;
-function nextId(): string {
-  seq += 1;
-  return `c-inf-${Date.now().toString(36)}-${seq.toString(36)}`;
 }
 
 export function inferFromGeometry(primitives: SketchPrimitive[]): SketchConstraint[] {
@@ -26,9 +30,9 @@ export function inferFromGeometry(primitives: SketchPrimitive[]): SketchConstrai
   for (const p of primitives) {
     if (p.kind !== 'line') continue;
     if (Math.abs(p.y2 - p.y1) < EPS) {
-      out.push({ id: nextId(), kind: 'horizontal', line: p.id, source: 'inferred-migration' });
+      out.push({ id: `c-inf-h-${p.id}`, kind: 'horizontal', line: p.id, source: 'inferred-migration' });
     } else if (Math.abs(p.x2 - p.x1) < EPS) {
-      out.push({ id: nextId(), kind: 'vertical', line: p.id, source: 'inferred-migration' });
+      out.push({ id: `c-inf-v-${p.id}`, kind: 'vertical', line: p.id, source: 'inferred-migration' });
     }
   }
 
@@ -43,11 +47,15 @@ export function inferFromGeometry(primitives: SketchPrimitive[]): SketchConstrai
       if (a.primitiveId === b.primitiveId) continue;
       const dx = a.x - b.x, dy = a.y - b.y;
       if (dx * dx + dy * dy < EPS * EPS) {
+        // Sort sides lexicographically so ID is stable regardless of iteration order
+        const keyA = `${a.primitiveId}-${a.anchor}`;
+        const keyB = `${b.primitiveId}-${b.anchor}`;
+        const [sideL, sideR] = keyA <= keyB ? [a, b] : [b, a];
         out.push({
-          id: nextId(),
+          id: `c-inf-coi-${sideL.primitiveId}-${sideL.anchor}-${sideR.primitiveId}-${sideR.anchor}`,
           kind: 'coincident',
-          a: { primitiveId: a.primitiveId, anchor: a.anchor },
-          b: { primitiveId: b.primitiveId, anchor: b.anchor },
+          a: { primitiveId: sideL.primitiveId, anchor: sideL.anchor },
+          b: { primitiveId: sideR.primitiveId, anchor: sideR.anchor },
           source: 'inferred-migration',
         });
       }

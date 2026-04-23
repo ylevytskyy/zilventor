@@ -20,6 +20,8 @@ describe('inferFromGeometry', () => {
   it('adds vertical constraint for a line with dx < ε', () => {
     const cs = inferFromGeometry([line('L1', 10, 0, 10.0005, 40)]);
     expect(cs.some((c) => c.kind === 'vertical')).toBe(true);
+    const v = cs.find((c) => c.kind === 'vertical');
+    expect((v as { line: string }).line).toBe('L1');
   });
 
   it('adds coincident for endpoints within ε', () => {
@@ -37,6 +39,7 @@ describe('inferFromGeometry', () => {
       line('L2', 20, 0, 30, 0),     // also horizontal — "parallel" not inferred
       line('L3', 0, 20, 0, 30)      // vertical — "perpendicular" not inferred
     ]);
+    expect(cs.length).toBeGreaterThan(0);
     for (const c of cs) {
       expect(['horizontal', 'vertical', 'coincident']).toContain(c.kind);
     }
@@ -52,5 +55,15 @@ describe('inferFromGeometry', () => {
       { id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 50 }
     ]);
     expect(cs).toEqual([]);
+  });
+
+  it('infers coincident when an arc endpoint meets a line endpoint', () => {
+    // Arc from (10,0) to (0,10), center at origin, r=10
+    const arc: SketchPrimitive = { id: 'A1', kind: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: Math.PI / 2 };
+    // Line starting at (10,0) — same as arc.start
+    const ln: SketchPrimitive = { id: 'L1', kind: 'line', x1: 10, y1: 0, x2: 20, y2: 0 };
+    const cs = inferFromGeometry([arc, ln]);
+    const coinc = cs.filter((c) => c.kind === 'coincident');
+    expect(coinc.length).toBeGreaterThanOrEqual(1);
   });
 });
