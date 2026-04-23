@@ -1,8 +1,10 @@
 import type { GcsWrapper } from '@salusoft89/planegcs';
-import type { SketchPrimitive, SketchConstraint } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint, PointRef } from '@zilventor/shared';
 import type {
   DofStatus,
   LoadSketchResult,
+  AddConstraintResult,
+  PrimitiveCoordsDiff,
 } from './types';
 
 // planegcs wire-format primitives (matching SketchPrimitive/SketchGeometry interfaces)
@@ -152,7 +154,176 @@ export class GcsSystem {
     return { count: n, state: 'under' };
   }
 
-  // Task 8 adds: addConstraint, removeConstraint
+  async addConstraint(c: SketchConstraint): Promise<AddConstraintResult> {
+    this.requireLoaded();
+    const gcsConstraints = this.translateConstraint(c);
+    if (gcsConstraints === null) {
+      return { ok: false, reason: 'conflict', offendingConstraintIds: [c.id] };
+    }
+    for (const gc of gcsConstraints) (this.gcs as any).push_primitive(gc); // eslint-disable-line @typescript-eslint/no-explicit-any
+    this.gcs.solve();
+    this.gcs.apply_solution();
+    this.domainConstraints.set(c.id, c);
+    return {
+      ok: true,
+      dof: this.readDof(),
+      coords: this.coordDiffForAll(),
+    };
+  }
+
+  async removeConstraint(id: string): Promise<{ dof: DofStatus }> {
+    this.requireLoaded();
+    const c = this.domainConstraints.get(id);
+    if (!c) return { dof: this.readDof() };
+    // planegcs GcsWrapper has no public remove method — rebuild from remaining primitives + constraints.
+    this.domainConstraints.delete(id);
+    this.rebuildGcs();
+    return { dof: this.readDof() };
+  }
+
+  readCoords(primitiveId: string): { x1: number; y1: number; x2: number; y2: number } {
+    const d = this.decomp.get(primitiveId);
+    if (!d) throw new Error(`unknown primitive ${primitiveId}`);
+    const sketchPrims = (this.gcs as any).sketch_index?.get_primitives?.() ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const points = new Map<string, { x: number; y: number }>();
+    for (const sp of sketchPrims) if (sp.type === 'point') points.set(sp.id, { x: sp.x, y: sp.y });
+    const s = points.get(d.pointIds['start'] ?? '');
+    const e = points.get(d.pointIds['end'] ?? '');
+    if (!s || !e) throw new Error('readCoords only supported for line-like primitives');
+    return { x1: s.x, y1: s.y, x2: e.x, y2: e.y };
+  }
+
+  currentDof(): DofStatus {
+    return this.readDof();
+  }
+
+  private requireLoaded(): void {
+    if (!this.loaded) throw new Error('GcsSystem not loaded — call loadSketch first');
+  }
+
+  /**
+   * Rebuild WASM state from scratch using current domainPrimitives + domainConstraints.
+   * Called after removeConstraint since GcsWrapper has no public remove-by-id API.
+   */
+  private rebuildGcs(): void {
+    // clear_data resets all internal WASM state (sketch_index, p_param_index, etc.)
+    // without destroying the WASM module — safe to re-push after.
+    this.gcs.clear_data();
+    // Also clear our decomp map so pushPrimitiveDecomposition rebuilds it cleanly.
+    this.decomp.clear();
+    // Re-push geometry
+    const gcsPrims: PlanegcsPrimitive[] = [];
+    for (const p of this.domainPrimitives.values()) {
+      this.pushPrimitiveDecomposition(p, gcsPrims);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.gcs as any).push_primitives_and_params(gcsPrims);
+    // Re-push remaining constraints
+    for (const c of this.domainConstraints.values()) {
+      const gcsConstraints = this.translateConstraint(c);
+      if (gcsConstraints !== null) {
+        for (const gc of gcsConstraints) (this.gcs as any).push_primitive(gc); // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
+    }
+    this.gcs.solve();
+    this.gcs.apply_solution();
+  }
+
+  private translateConstraint(c: SketchConstraint): Array<Record<string, unknown>> | null {
+    switch (c.kind) {
+      case 'horizontal':    return [{ id: c.id, type: 'horizontal_l',   l_id: c.line }];
+      case 'vertical':      return [{ id: c.id, type: 'vertical_l',     l_id: c.line }];
+      case 'parallel':      return [{ id: c.id, type: 'parallel',       l1_id: c.line1, l2_id: c.line2 }];
+      case 'perpendicular': return [{ id: c.id, type: 'perpendicular_ll', l1_id: c.line1, l2_id: c.line2 }];
+      case 'tangent':       return [{ id: c.id, type: 'tangent_la',     l_id: c.line,  a_id: c.arc }];
+      case 'equal':         return [{ id: c.id, type: 'equal_length',   l1_id: c.a,    l2_id: c.b }];
+      case 'coincident': {
+        const p1 = this.resolvePoint(c.a);
+        const p2 = this.resolvePoint(c.b);
+        if (!p1 || !p2) return null;
+        return [{ id: c.id, type: 'p2p_coincident', p1_id: p1, p2_id: p2 }];
+      }
+      case 'symmetric': {
+        const p1 = this.resolvePoint(c.a);
+        const p2 = this.resolvePoint(c.b);
+        if (!p1 || !p2) return null;
+        return [{ id: c.id, type: 'p2p_symmetric_ppl', p1_id: p1, p2_id: p2, l_id: c.axis }];
+      }
+    }
+  }
+
+  private resolvePoint(ref: PointRef): string | null {
+    const d = this.decomp.get(ref.primitiveId);
+    if (!d) return null;
+    return d.pointIds[ref.anchor] ?? null;
+  }
+
+  private coordDiffForAll(): PrimitiveCoordsDiff[] {
+    const out: PrimitiveCoordsDiff[] = [];
+    for (const [id] of this.domainPrimitives) {
+      const fresh = this.readDomainPrimitive(id);
+      const original = this.domainPrimitives.get(id);
+      if (!fresh || !original) continue;
+      const patch = this.diffPrimitive(original, fresh);
+      if (patch) out.push({ primitiveId: id, patch });
+    }
+    return out;
+  }
+
+  private readDomainPrimitive(id: string): SketchPrimitive | null {
+    const original = this.domainPrimitives.get(id);
+    if (!original) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (this.gcs as any).sketch_index?.get_primitives?.() ?? [];
+    const pts = new Map<string, { x: number; y: number }>();
+    for (const p of all) if (p.type === 'point') pts.set(p.id, { x: p.x, y: p.y });
+    const d = this.decomp.get(id)!;
+    switch (original.kind) {
+      case 'line': {
+        const s = pts.get(d.pointIds['start']!)!;
+        const e = pts.get(d.pointIds['end']!)!;
+        return { ...original, x1: s.x, y1: s.y, x2: e.x, y2: e.y };
+      }
+      case 'circle': {
+        const c = pts.get(d.pointIds['center']!)!;
+        return { ...original, cx: c.x, cy: c.y };
+      }
+      case 'arc': {
+        const c = pts.get(d.pointIds['center']!)!;
+        return { ...original, cx: c.x, cy: c.y };
+      }
+      case 'rectangle': {
+        const bl = pts.get(d.pointIds['bl']!)!;
+        const tr = pts.get(d.pointIds['tr']!)!;
+        return { ...original, x: bl.x, y: bl.y, w: tr.x - bl.x, h: tr.y - bl.y };
+      }
+      case 'spline': {
+        const controlPoints = original.controlPoints.map((_: unknown, i: number) => {
+          const p = pts.get(d.pointIds[`cp${i}`]!)!;
+          return { x: p.x, y: p.y };
+        });
+        return { ...original, controlPoints };
+      }
+    }
+  }
+
+  private diffPrimitive(a: SketchPrimitive, b: SketchPrimitive): Partial<SketchPrimitive> | null {
+    const EPS = 1e-6;
+    if (a.kind !== b.kind) return null;
+    const patch: Record<string, unknown> = {};
+    for (const k of Object.keys(a) as Array<keyof typeof a>) {
+      if (k === 'id' || k === 'kind') continue;
+      const av = (a as Record<string, unknown>)[k as string];
+      const bv = (b as Record<string, unknown>)[k as string];
+      if (typeof av === 'number' && typeof bv === 'number') {
+        if (Math.abs(av - bv) > EPS) patch[k as string] = bv;
+      } else if (JSON.stringify(av) !== JSON.stringify(bv)) {
+        patch[k as string] = bv;
+      }
+    }
+    return Object.keys(patch).length > 0 ? (patch as Partial<SketchPrimitive>) : null;
+  }
+
   // Task 9 adds: beginDrag, dragTo, endDrag
   // Task 10 adds: redundant/conflict detection
 }
