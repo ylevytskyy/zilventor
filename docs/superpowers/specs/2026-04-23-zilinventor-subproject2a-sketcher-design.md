@@ -72,7 +72,7 @@ Every feature past the line above either (a) requires the solver (2b), (b) requi
 
 ### 2.3 Performance budgets
 
-See §7.
+See §9.
 
 ---
 
@@ -125,7 +125,7 @@ The existing three.js `SceneManager` gets extended — not replaced:
 
 ### 4.3 Kernel extensions
 
-- `SketchOps.ts` grows four new edge helpers (`makeLineEdge`, `makeArcEdge`, `makeCircleEdge`, `makeSplineEdge`) plus one combiner (`combineEdgesIntoWires`).
+- `SketchOps.ts` grows four new edge helpers (`makeLineEdge`, `makeArcEdge`, `makeCircleEdge`, `makeSplineEdge`), a rectangle-to-four-edges helper (`makeRectangleEdges`, used by the combiner's rectangle path), and one combiner (`combineEdgesIntoWires`).
 - `executeSketchFeature` (adapter) accepts multi-primitive sketches, builds edges, runs the combiner, returns either a single closed wire or a `degenerateSketch` error.
 - OCCT itself is unchanged.
 
@@ -268,7 +268,7 @@ export type SketchPrimitive =
 ```
 
 **Key changes:**
-- Every primitive has a stable `id` (UUID). Required so `DeletePrimitiveCommand` can target a specific primitive and undo/redo can faithfully restore.
+- Every primitive has a stable `id` (opaque string, treated by all consumers as an identifier with no semantic structure). Required so `DeletePrimitiveCommand` can target a specific primitive and undo/redo can faithfully restore. New primitives created in 2a get UUIDs; primitives migrated from v1 files get deterministic ids from §6.2. Consumers must not parse ids; they are opaque.
 - **Arc** is stored as center + radius + start/end angles. ArcTool's 3-click input converts to this canonical form at commit.
 - **Spline** is control polygon + degree + closed flag. Uniform knots implied. Non-uniform knots out of scope.
 
@@ -485,10 +485,10 @@ Every primitive add = one Comlink `addPrimitive` call. ~80 bytes of JSON + ~0.5 
 
 | Failure | Detection | User-visible | Recovery |
 |---|---|---|---|
-| Sketch not closed on extrude | Combiner open chains ≥ 1 | Toast: "Sketch is not closed — cannot extrude." | User adds closing primitive |
-| Sketch empty on extrude | No primitives | Toast: "Sketch is empty — draw a closed profile first." | User draws |
-| Multiple closed loops | Combiner closed wires ≥ 2 | Toast: "Multiple loops — keep exactly one." | User deletes extras |
-| Stray lines with valid loop | Combiner closed ≥ 1 AND open ≥ 1 | Toast: "Stray disconnected line(s). Delete or connect." | User cleans up |
+| Sketch not closed on extrude | Combiner open chains ≥ 1, closed = 0 | Toast: "Sketch is not closed — cannot extrude. Check that all endpoints connect." | User adds closing primitive |
+| Sketch empty on extrude | No primitives | Toast: "Sketch is empty — cannot extrude. Draw a closed profile first." | User draws |
+| Multiple closed loops | Combiner closed wires ≥ 2, open = 0 | Toast: "Sketch has multiple closed loops — cannot extrude. Merge or delete loops so exactly one remains. (Hole support comes in Sub-project 3.)" | User deletes extras |
+| Stray lines with valid loop | Combiner closed ≥ 1 AND open ≥ 1 | Toast: "Sketch has a valid loop plus disconnected line(s). Delete the stray lines or connect them." | User cleans up |
 | Self-intersecting chain | OCCT MakeFace rejects | Toast: "Sketch profile has a self-intersection." | User fixes |
 | Numeric input NaN / non-positive | Tool validates on commit | Input border red, no commit | User types valid value |
 | Spline with < 2 control points | SplineTool refuses commit | Enter is a no-op | Self-healing |
