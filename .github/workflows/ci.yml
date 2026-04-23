@@ -18,6 +18,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
+      - run: pnpm lint
       - run: pnpm -r test:unit
       - run: pnpm --filter @zilventor/kernel test:integration
       - name: Install Playwright browsers

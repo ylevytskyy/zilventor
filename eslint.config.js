@@ -8,7 +8,7 @@ export default [
     plugins: { '@typescript-eslint': tseslint },
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]
     }
   },
   {
@@ -17,5 +17,17 @@ export default [
       'no-restricted-imports': ['error', { patterns: ['opencascade.js', 'opencascade.js/*'] }]
     }
   },
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '**/vitest.*.config.ts'] }
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/*.js',
+      '**/vitest.*.config.ts',
+      '**/vitest.config.ts',
+      '**/tailwind.config.ts',
+      'playwright.config.ts',
+      'vitest.config.ts',
+      'tests/**'
+    ]
+  }
 ];

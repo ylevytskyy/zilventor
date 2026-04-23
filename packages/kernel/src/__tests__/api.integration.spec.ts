@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { createKernelApi } from '../api';
-import { disposeShape } from '../occt/SolidOps';
 
 describe('KernelApi (end-to-end, in-process)', () => {
   it('can create a part, add features, set parameters, and execute the tree', async () => {

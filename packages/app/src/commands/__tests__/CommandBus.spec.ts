@@ -38,11 +38,11 @@ describe('CommandBus', () => {
   });
 
   it('canUndo and canRedo reflect stack state', async () => {
-    let n = 0;
+    let _n = 0;
     const bus = createCommandBus();
     expect(bus.canUndo()).toBe(false);
     expect(bus.canRedo()).toBe(false);
-    await bus.execute({ name: 'x', apply: async () => { n += 1; }, revert: async () => { n -= 1; } });
+    await bus.execute({ name: 'x', apply: async () => { _n += 1; }, revert: async () => { _n -= 1; } });
     expect(bus.canUndo()).toBe(true);
     expect(bus.canRedo()).toBe(false);
     await bus.undo();

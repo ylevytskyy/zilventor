@@ -21,7 +21,7 @@ export default function App() {
   // Bootstrap the kernel once.
   useEffect(() => {
     let disposed = false;
-    (async () => {
+    void (async () => {
       try {
         const { client, terminate } = await spawnKernel({
           onOffline: () => setKernelOffline(true)
@@ -45,7 +45,7 @@ export default function App() {
   // raises a spurious degenerateSketch error that pollutes the status bar.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       if (!kernel || !activePart || !viewportRef.current) return;
       const hasExtrude = activePart.featureTree.some((f) => f.kind === 'extrude');
       if (!hasExtrude) return;
