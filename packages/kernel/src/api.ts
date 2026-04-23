@@ -1,8 +1,8 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
-import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart } from './adapter/PartDocument';
+import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
 import { disposeShape } from './occt/SolidOps';
 import { writeBRep } from './occt/BRepIO';
 import { packProject, unpackProject } from './storage/ProjectPacker';
@@ -16,6 +16,8 @@ export type KernelApi = {
   createPart(name: string): Promise<string>;
   addFeature(partId: string, feature: Feature): Promise<void>;
   removeFeature(partId: string, featureId: string): Promise<void>;
+  addPrimitive(partId: string, sketchId: string, primitive: SketchPrimitive): Promise<void>;
+  removePrimitive(partId: string, sketchId: string, primitiveId: string): Promise<void>;
   setParameter(partId: string, param: Parameter): Promise<void>;
   deleteParameter(partId: string, name: string): Promise<void>;
   deletePart(partId: string): Promise<void>;
@@ -54,6 +56,18 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
       parts.set(partId, removeFeatureFromPart(p, featureId));
+    },
+
+    async addPrimitive(partId, sketchId, primitive) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`no part ${partId}`);
+      parts.set(partId, addPrimitiveToPart(p, sketchId, primitive));
+    },
+
+    async removePrimitive(partId, sketchId, primitiveId) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`no part ${partId}`);
+      parts.set(partId, removePrimitiveFromPart(p, sketchId, primitiveId));
     },
 
     async setParameter(partId, param) {

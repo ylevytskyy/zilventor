@@ -39,4 +39,17 @@ describe('KernelApi (end-to-end, in-process)', () => {
     await api.init();
     await expect(api.execute('nonexistent')).rejects.toThrow(/no part/);
   }, 60_000);
+
+  it('addPrimitive + removePrimitive work via the API surface', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const id = await api.createPart('P');
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
+    await api.addPrimitive(id, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
+    let part = await api.getPart(id);
+    expect((part?.featureTree[0] as { primitives: unknown[] }).primitives.length).toBe(1);
+    await api.removePrimitive(id, 's1', 'p1');
+    part = await api.getPart(id);
+    expect((part?.featureTree[0] as { primitives: unknown[] }).primitives.length).toBe(0);
+  }, 60_000);
 });
