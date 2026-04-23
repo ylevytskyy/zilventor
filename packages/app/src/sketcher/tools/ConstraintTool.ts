@@ -60,6 +60,13 @@ export class ConstraintTool {
       } else if (prim.kind === 'arc') {
         endpoints.push({ ref: { primitiveId: prim.id, anchor: 'center' }, x: prim.cx, y: prim.cy });
         bodyDist = Math.abs(Math.hypot(p.x - prim.cx, p.y - prim.cy) - prim.r);
+      } else if (prim.kind === 'spline') {
+        for (let i = 0; i < prim.controlPoints.length; i++) {
+          const cp = prim.controlPoints[i]!;
+          endpoints.push({ ref: { primitiveId: prim.id, anchor: `cp${i}` as const }, x: cp.x, y: cp.y });
+        }
+        // No body-distance for splines in 2b — only control-point picking.
+        // bodyDist stays Infinity (declared above), so no body-pick is emitted.
       }
 
       for (const e of endpoints) {
