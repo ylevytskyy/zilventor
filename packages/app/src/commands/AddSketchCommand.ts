@@ -23,6 +23,8 @@ export class AddSketchCommand implements Command {
   }
 
   async revert(): Promise<void> {
+    if (!this.prior) return;
+    await this.ctx.kernel.removeFeature(this.prior.id, this.ctx.feature.id);
     this.ctx.store.setActivePart(this.prior);
   }
 }

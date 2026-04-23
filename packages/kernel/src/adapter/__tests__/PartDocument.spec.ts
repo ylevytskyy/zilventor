@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newPart, addFeature, setParameter, removeParameter } from '../PartDocument';
+import { newPart, addFeature, setParameter, removeParameter, removeFeature } from '../PartDocument';
 
 describe('PartDocument', () => {
   it('creates an empty part with defaults', () => {
@@ -38,5 +38,21 @@ describe('PartDocument', () => {
     expect(p1.featureTree.length).toBe(0);
     expect(p2.featureTree.length).toBe(1);
     expect(p1).not.toBe(p2);
+  });
+
+  it('removeFeature deletes by id and preserves order', () => {
+    let p = newPart('P');
+    p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
+    p = addFeature(p, { kind: 'sketch', id: 's2', plane: 'XY', primitives: [] });
+    p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
+    p = removeFeature(p, 's1');
+    expect(p.featureTree.map((f) => f.id)).toEqual(['s2', 'e1']);
+  });
+
+  it('removeFeature on non-existent id is a no-op', () => {
+    let p = newPart('P');
+    p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] });
+    const p2 = removeFeature(p, 'nonexistent');
+    expect(p2.featureTree).toEqual(p.featureTree);
   });
 });

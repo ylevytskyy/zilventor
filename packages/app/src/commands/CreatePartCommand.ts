@@ -20,7 +20,9 @@ export class CreatePartCommand implements Command {
   }
 
   async revert(): Promise<void> {
-    // MVP: just set activePart to null. A future task may remove the part from the kernel.
+    if (this.partId) {
+      await this.ctx.kernel.deletePart(this.partId);
+    }
     this.ctx.store.setActivePart(null);
   }
 }

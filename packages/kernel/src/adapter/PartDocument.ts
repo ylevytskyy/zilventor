@@ -23,3 +23,7 @@ export function removeParameter(part: PartDocument, name: string): PartDocument 
   void _removed;
   return { ...part, parameters: rest };
 }
+
+export function removeFeature(part: PartDocument, featureId: string): PartDocument {
+  return { ...part, featureTree: part.featureTree.filter((f) => f.id !== featureId) };
+}
