@@ -146,3 +146,31 @@ describe('fileFormat migrations', () => {
     expect((sketch!.constraints as unknown[])).toHaveLength(1);
   });
 });
+
+describe('v2 → v3 with rectangle-as-4-lines infers H/V + coincident', () => {
+  it('migrates a v2 sketch with 4 lines forming a rectangle', () => {
+    const v2 = {
+      formatVersion: 2,
+      document: {
+        featureTree: [
+          { kind: 'sketch', id: 's1', plane: 'XY',
+            primitives: [
+              { id: 'L1', kind: 'line', x1: 0,   y1: 0,   x2: 100, y2: 0   },  // H-bottom
+              { id: 'L2', kind: 'line', x1: 100, y1: 0,   x2: 100, y2: 50  },  // V-right
+              { id: 'L3', kind: 'line', x1: 100, y1: 50,  x2: 0,   y2: 50  },  // H-top
+              { id: 'L4', kind: 'line', x1: 0,   y1: 50,  x2: 0,   y2: 0   }   // V-left
+            ]
+          }
+        ]
+      }
+    } as const;
+    const out = migrateManifest(v2 as unknown as Parameters<typeof migrateManifest>[0]);
+    const sketch = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree[0];
+    const constraints = sketch!.constraints as Array<{ kind: string; source?: string }>;
+    // 2 horizontals + 2 verticals + 4 coincidents (at each corner) = 8 constraints
+    expect(constraints.filter((c) => c.kind === 'horizontal')).toHaveLength(2);
+    expect(constraints.filter((c) => c.kind === 'vertical')).toHaveLength(2);
+    expect(constraints.filter((c) => c.kind === 'coincident').length).toBeGreaterThanOrEqual(4);
+    for (const c of constraints) expect(c.source).toBe('inferred-migration');
+  });
+});
