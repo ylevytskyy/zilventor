@@ -11,7 +11,8 @@ describe('SketchFeature — rectangle on XY', () => {
       kind: 'sketch',
       id: 's1',
       plane: 'XY',
-      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }]
+      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }],
+      constraints: []
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -25,7 +26,8 @@ describe('SketchFeature — rectangle on XY', () => {
       kind: 'sketch',
       id: 's1',
       plane: 'XZ',
-      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }]
+      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }],
+      constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe('invalidParameter');
@@ -36,7 +38,8 @@ describe('SketchFeature — rectangle on XY', () => {
       kind: 'sketch',
       id: 's1',
       plane: 'XY',
-      primitives: []
+      primitives: [],
+      constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe('degenerateSketch');
@@ -50,7 +53,8 @@ describe('SketchFeature — rectangle on XY', () => {
         { id: 'p2', kind: 'arc', cx: 100, cy: 50, r: 50, startAngle: -Math.PI / 2, endAngle: Math.PI / 2 },
         { id: 'p3', kind: 'line', x1: 100, y1: 100, x2: 0, y2: 100 },
         { id: 'p4', kind: 'line', x1: 0, y1: 100, x2: 0, y2: 0 }
-      ]
+      ],
+      constraints: []
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -65,7 +69,8 @@ describe('SketchFeature — rectangle on XY', () => {
       primitives: [
         { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 100, y2: 0 },
         { id: 'p2', kind: 'line', x1: 100, y1: 0, x2: 100, y2: 50 }
-      ]
+      ],
+      constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -80,7 +85,8 @@ describe('SketchFeature — rectangle on XY', () => {
       primitives: [
         { id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 100 },
         { id: 'p2', kind: 'rectangle', x: 200, y: 0, w: 50, h: 50 }
-      ]
+      ],
+      constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -91,7 +97,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('returns "empty" error for a sketch with no primitives', () => {
     const result = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY', primitives: []
+      kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toMatch(/empty/i);

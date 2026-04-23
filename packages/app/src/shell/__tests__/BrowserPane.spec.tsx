@@ -13,7 +13,7 @@ describe('BrowserPane', () => {
     const part: PartDocument = {
       id: 'p1', name: 'Part1', units: 'mm', parameters: {},
       featureTree: [
-        { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] },
+        { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] },
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
       ]
     };
@@ -28,8 +28,8 @@ describe('BrowserPane', () => {
     const part: PartDocument = {
       id: 'p1', name: 'Part1', units: 'mm', parameters: {},
       featureTree: [
-        { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] },
-        { kind: 'sketch', id: 's2', plane: 'XY', primitives: [] },
+        { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] },
+        { kind: 'sketch', id: 's2', plane: 'XY', primitives: [], constraints: [] },
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
       ]
     };

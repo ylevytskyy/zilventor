@@ -30,7 +30,7 @@ export default function SketchTab() {
       return;
     }
     const newId = `s${Date.now()}`;
-    await store.kernel.addFeature(activePart.id, { kind: 'sketch', id: newId, plane: 'XY', primitives: [] });
+    await store.kernel.addFeature(activePart.id, { kind: 'sketch', id: newId, plane: 'XY', primitives: [], constraints: [] });
     const next = await store.kernel.getPart(activePart.id);
     store.setActivePart(next);
     store.setSketchMode(true, newId);

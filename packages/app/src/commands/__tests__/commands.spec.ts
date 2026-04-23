@@ -35,14 +35,14 @@ describe('CreatePartCommand', () => {
 describe('AddSketchCommand', () => {
   it('adds a sketch feature and reverts to the prior part', async () => {
     const prior = makePart();
-    const next = { ...prior, featureTree: [{ kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [] }] };
+    const next = { ...prior, featureTree: [{ kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [], constraints: [] }] };
     const addFeature = vi.fn().mockResolvedValue(undefined);
     const removeFeature = vi.fn().mockResolvedValue(undefined);
     const getPart = vi.fn().mockResolvedValue(next);
     const kernel = asKernel({ addFeature, removeFeature, getPart });
     const setActivePart = vi.fn();
     const store = { activePart: prior, setActivePart };
-    const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] } });
+    const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] } });
     await cmd.apply();
     expect(addFeature).toHaveBeenCalledWith(prior.id, expect.objectContaining({ kind: 'sketch', id: 's1' }));
     expect(setActivePart).toHaveBeenCalledWith(next);
@@ -54,7 +54,7 @@ describe('AddSketchCommand', () => {
   it('throws if no active part', async () => {
     const kernel = asKernel({});
     const store = { activePart: null, setActivePart: vi.fn() };
-    const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [] } });
+    const cmd = new AddSketchCommand({ kernel, store, feature: { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] } });
     await expect(cmd.apply()).rejects.toThrow(/no active part/);
   });
 });
@@ -164,7 +164,7 @@ describe('AddPrimitiveCommand', () => {
   it('adds a primitive on apply and removes it on revert', async () => {
     const prior: PartDocument = {
       id: 'part-1', name: 'P', units: 'mm', parameters: {},
-      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [] }]
+      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] }]
     };
     const primitive: SketchPrimitive = { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
     const next: PartDocument = {
@@ -208,7 +208,7 @@ describe('DeletePrimitiveCommand', () => {
     const primitive: SketchPrimitive = { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
     const prior: PartDocument = {
       id: 'part-1', name: 'P', units: 'mm', parameters: {},
-      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [primitive] }]
+      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [primitive], constraints: [] }]
     };
     const afterDelete: PartDocument = {
       ...prior,
@@ -237,7 +237,7 @@ describe('DeletePrimitiveCommand', () => {
   it('throws if primitive id not found in the sketch', async () => {
     const prior: PartDocument = {
       id: 'part-1', name: 'P', units: 'mm', parameters: {},
-      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [] }]
+      featureTree: [{ kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] }]
     };
     const kernel = asKernel({});
     const cmd = new DeletePrimitiveCommand({
