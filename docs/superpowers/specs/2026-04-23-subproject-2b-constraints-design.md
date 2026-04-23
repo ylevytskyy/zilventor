@@ -82,18 +82,19 @@ export type SketchConstraint =
 
 export type ConstraintSource = 'user' | 'auto-snap' | 'inferred-migration';
 
+// Every SketchConstraint variant additionally has:
+//   source?: ConstraintSource        // informational; absence == 'user'
+
 // Extended Feature:
 | { kind: 'sketch';
     id: string;
     plane: 'XY' | 'XZ' | 'YZ';
     primitives: SketchPrimitive[];
     constraints: SketchConstraint[];   // NEW — empty array valid
-    // Optional provenance on each constraint rather than the feature:
-    // (source is a tagged field on each constraint when it matters)
   }
 ```
 
-Constraints are stored as a flat array on the sketch feature. Each constraint has a stable `id` so selection and deletion are unambiguous. Provenance (`source`) is carried on each `SketchConstraint` via an optional extra field; it is informational, not load-bearing for solve semantics.
+Constraints are stored as a flat array on the sketch feature. Each constraint has a stable `id` so selection and deletion are unambiguous. An optional `source` field (present on every `SketchConstraint` variant) carries provenance — `'user'` for manually applied, `'auto-snap'` for snap-inferred during drawing, `'inferred-migration'` for v2→v3 migration. It is informational only, not load-bearing for solve semantics; absence is treated as `'user'`.
 
 **Rectangles** remain a single primitive in the store. When the sketcher worker builds the GCS system, rectangles are internally expanded into 4 edges + 4 corners with implicit constraints (H on top/bottom, V on left/right, coincident corners). These implicit constraints are never added to `feature.constraints` and are never visible as badges; they're part of the rectangle's identity.
 
@@ -192,7 +193,7 @@ Each inferred constraint is tagged `source: 'inferred-migration'`.
 - `tools/SelectTool.ts` — click-to-select, drag-start detection, streams drags through `SketcherClient`.
 - `tools/ConstraintTool.ts` — one class parameterised by constraint `kind`; handles N-click state machine.
 - `render/ConstraintBadgeRenderer.ts` — HTML-overlay badges anchored to primitive midpoints (three.js sprites are a fallback if overlay positioning is fragile in the Viewport).
-- `store/sketchDofSlice.ts` *(or fold into existing `useAppStore`)* — DOF status live in Zustand.
+- DOF status fields (`sketchDof`, setter, and coord-diff applier) are added directly to `useAppStore.ts` rather than a separate slice file — the existing store already carries all sketch-mode state and is the right home for 2b additions.
 
 ### Viewport overlay behavior
 
