@@ -1,4 +1,5 @@
-import type { SketchPrimitive } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint } from '@zilventor/shared';
+import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { Point2, SnapResult } from './snap';
 import { resolveSnap } from './snap';
 import { SketchTool, type ToolOutput } from './tools/SketchTool';
@@ -7,74 +8,164 @@ import { RectTool } from './tools/RectTool';
 import { CircleTool } from './tools/CircleTool';
 import { ArcTool } from './tools/ArcTool';
 import { SplineTool } from './tools/SplineTool';
+import { SelectTool } from './tools/SelectTool';
+import { ConstraintTool } from './tools/ConstraintTool';
+import type { SketcherClient } from './SketcherClient';
 
-export type ToolKind = 'line' | 'rect' | 'circle' | 'arc' | 'spline';
+export type ToolKind =
+  | 'select'
+  | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
+  | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
+  | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
+  | 'constrain-equal' | 'constrain-symmetric';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
-  | { type: 'move'; point: Point2 };
+  | { type: 'move'; point: Point2 }
+  | { type: 'pointerdown'; point: Point2 }
+  | { type: 'pointerup'; point: Point2 };
 
 export type ControllerDeps = {
   emitPrimitive(primitive: SketchPrimitive): void;
   onPreview(polyline: Point2[] | null, snap: SnapResult): void;
+  emitConstraint?(c: SketchConstraint): void;
+  sketcherClient?: SketcherClient;
+  onCoords?(diff: PrimitiveCoordsDiff[]): void;
+  onDof?(dof: DofStatus): void;
 };
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 
+type ActiveTool = SketchTool | SelectTool | ConstraintTool;
+
 export class ActiveToolController {
-  private tool: SketchTool | null = null;
+  private tool: ActiveTool | null = null;
 
   constructor(private deps: ControllerDeps) {}
 
   setToolKind(kind: ToolKind | null): void {
-    if (this.tool) {
+    if (this.tool instanceof SketchTool) {
       this.tool.handle({ type: 'escapePressed' }); // abort any in-progress draw
+    } else if (this.tool instanceof ConstraintTool) {
+      this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
-    this.deps.onPreview(null, NEUTRAL_SNAP);
+    if (!(this.tool instanceof SelectTool) && !(this.tool instanceof ConstraintTool)) {
+      this.deps.onPreview(null, NEUTRAL_SNAP);
+    }
   }
 
-  private instantiate(kind: ToolKind): SketchTool {
+  currentTool(): ActiveTool | null {
+    return this.tool;
+  }
+
+  private instantiate(kind: ToolKind): ActiveTool {
     switch (kind) {
-      case 'line': return new LineTool();
-      case 'rect': return new RectTool();
+      case 'line':   return new LineTool();
+      case 'rect':   return new RectTool();
       case 'circle': return new CircleTool();
-      case 'arc': return new ArcTool();
+      case 'arc':    return new ArcTool();
       case 'spline': return new SplineTool();
+
+      case 'select': {
+        const t = new SelectTool();
+        if (this.deps.sketcherClient && this.deps.onCoords && this.deps.onDof) {
+          t.bind({
+            client: this.deps.sketcherClient,
+            onCoords: this.deps.onCoords,
+            onDof: this.deps.onDof,
+          });
+        }
+        return t;
+      }
+
+      case 'constrain-coincident':
+      case 'constrain-horizontal':
+      case 'constrain-vertical':
+      case 'constrain-parallel':
+      case 'constrain-perpendicular':
+      case 'constrain-tangent':
+      case 'constrain-equal':
+      case 'constrain-symmetric': {
+        const constraintKind = kind.slice('constrain-'.length) as SketchConstraint['kind'];
+        return new ConstraintTool({
+          kind: constraintKind,
+          onCommit: (c) => { this.deps.emitConstraint?.(c); },
+        });
+      }
     }
   }
 
   handlePointer(event: PointerEvent, primitives: SketchPrimitive[]): void {
     if (!this.tool) return;
-    const anchor = this.tool.getAnchor();
+
+    if (this.tool instanceof SelectTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'pointerdown') {
+        void this.tool.onPointerDown(event.point);
+      } else if (event.type === 'move') {
+        void this.tool.onPointerMove(event.point);
+      } else if (event.type === 'pointerup') {
+        void this.tool.onPointerUp();
+      }
+      return;
+    }
+
+    if (this.tool instanceof ConstraintTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') {
+        void this.tool.onPointerClick(event.point);
+      }
+      return;
+    }
+
+    // SketchTool path
+    const sketchTool = this.tool;
+    const anchor = sketchTool.getAnchor();
     const snap = anchor
       ? resolveSnap(event.point, { primitives, pixelTolerance: 5, anchor })
       : resolveSnap(event.point, { primitives, pixelTolerance: 5 });
-    const output: ToolOutput =
-      event.type === 'click'
-        ? this.tool.handle({ type: 'pointerClick', point: event.point, snap })
-        : this.tool.handle({ type: 'pointerMove', point: event.point, snap });
+    let output: ToolOutput;
+    if (event.type === 'click') {
+      output = sketchTool.handle({ type: 'pointerClick', point: event.point, snap });
+    } else if (event.type === 'move') {
+      output = sketchTool.handle({ type: 'pointerMove', point: event.point, snap });
+    } else {
+      // pointerdown/pointerup not used by drawing tools — ignore
+      return;
+    }
     this.applyOutput(output, snap);
   }
 
   handleKey(key: 'Enter' | 'Escape'): void {
     if (!this.tool) return;
+
+    if (this.tool instanceof ConstraintTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof SelectTool) return;
+
     const output = this.tool.handle({ type: key === 'Enter' ? 'enterPressed' : 'escapePressed' });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   handleNumericCommit(values: number[]): void {
     if (!this.tool) return;
+    if (!(this.tool instanceof SketchTool)) return;
     const output = this.tool.handle({ type: 'numericCommit', values });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   numericFieldCount(): number {
-    return this.tool ? this.tool.numericFieldCount() : 0;
+    if (!this.tool || !(this.tool instanceof SketchTool)) return 0;
+    return this.tool.numericFieldCount();
   }
 
   getAnchor(): Point2 | null {
-    return this.tool ? this.tool.getAnchor() : null;
+    if (!this.tool || !(this.tool instanceof SketchTool)) return null;
+    return this.tool.getAnchor();
   }
 
   private applyOutput(output: ToolOutput, snap: SnapResult): void {

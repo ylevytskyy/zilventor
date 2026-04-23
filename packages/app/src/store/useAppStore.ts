@@ -5,7 +5,12 @@ import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
 import { createCommandBus, type CommandBus } from '../commands/CommandBus';
 
-export type ToolKind = 'line' | 'rect' | 'circle' | 'arc' | 'spline';
+export type ToolKind =
+  | 'select'
+  | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
+  | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
+  | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
+  | 'constrain-equal' | 'constrain-symmetric';
 
 type AppState = {
   kernel: KernelClient | null;

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ActiveToolController } from '../ActiveToolController';
+import { SelectTool } from '../tools/SelectTool';
+import { ConstraintTool } from '../tools/ConstraintTool';
 import type { SketchPrimitive } from '@zilventor/shared';
 
 describe('ActiveToolController', () => {
@@ -81,5 +83,31 @@ describe('ActiveToolController', () => {
     expect(c.numericFieldCount()).toBe(0); // before first click
     c.handlePointer({ type: 'click', point: { x: 0, y: 0 } }, []);
     expect(c.numericFieldCount()).toBe(2); // rect wants [w, h]
+  });
+});
+
+describe('ActiveToolController Task 21 extensions', () => {
+  it('setToolKind("select") instantiates SelectTool', () => {
+    const controller = new ActiveToolController({
+      emitPrimitive: () => {},
+      onPreview: () => {},
+      emitConstraint: () => {},
+      sketcherClient: undefined,  // optional for this test
+      onCoords: () => {},
+      onDof: () => {}
+    } as never);
+    controller.setToolKind('select');
+    expect(controller.currentTool()).toBeInstanceOf(SelectTool);
+  });
+
+  it('setToolKind("constrain-parallel") instantiates a ConstraintTool of kind parallel', () => {
+    const controller = new ActiveToolController({
+      emitPrimitive: () => {},
+      onPreview: () => {},
+      emitConstraint: () => {}
+    } as never);
+    controller.setToolKind('constrain-parallel');
+    const t = controller.currentTool();
+    expect(t).toBeInstanceOf(ConstraintTool);
   });
 });
