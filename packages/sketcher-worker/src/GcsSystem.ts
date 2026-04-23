@@ -49,8 +49,7 @@ export class GcsSystem {
     }
 
     // push_primitives_and_params accepts SketchPrimitive (geometry + constraints) and SketchParam
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.gcs as any).push_primitives_and_params(gcsPrims);
+    this.gcs.push_primitives_and_params(gcsPrims as never);
 
     for (const c of args.constraints) this.domainConstraints.set(c.id, c);
 
@@ -160,7 +159,7 @@ export class GcsSystem {
     if (gcsConstraints === null) {
       return { ok: false, reason: 'conflict', offendingConstraintIds: [c.id] };
     }
-    for (const gc of gcsConstraints) (this.gcs as any).push_primitive(gc); // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
     this.gcs.solve();
     this.gcs.apply_solution();
     this.domainConstraints.set(c.id, c);
@@ -184,7 +183,7 @@ export class GcsSystem {
   readCoords(primitiveId: string): { x1: number; y1: number; x2: number; y2: number } {
     const d = this.decomp.get(primitiveId);
     if (!d) throw new Error(`unknown primitive ${primitiveId}`);
-    const sketchPrims = (this.gcs as any).sketch_index?.get_primitives?.() ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const sketchPrims = this.gcs.sketch_index?.get_primitives?.() ?? [];
     const points = new Map<string, { x: number; y: number }>();
     for (const sp of sketchPrims) if (sp.type === 'point') points.set(sp.id, { x: sp.x, y: sp.y });
     const s = points.get(d.pointIds['start'] ?? '');
@@ -216,13 +215,12 @@ export class GcsSystem {
     for (const p of this.domainPrimitives.values()) {
       this.pushPrimitiveDecomposition(p, gcsPrims);
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.gcs as any).push_primitives_and_params(gcsPrims);
+    this.gcs.push_primitives_and_params(gcsPrims as never);
     // Re-push remaining constraints
     for (const c of this.domainConstraints.values()) {
       const gcsConstraints = this.translateConstraint(c);
       if (gcsConstraints !== null) {
-        for (const gc of gcsConstraints) (this.gcs as any).push_primitive(gc); // eslint-disable-line @typescript-eslint/no-explicit-any
+        for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
       }
     }
     this.gcs.solve();
@@ -273,8 +271,7 @@ export class GcsSystem {
   private readDomainPrimitive(id: string): SketchPrimitive | null {
     const original = this.domainPrimitives.get(id);
     if (!original) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const all = (this.gcs as any).sketch_index?.get_primitives?.() ?? [];
+    const all = this.gcs.sketch_index?.get_primitives?.() ?? [];
     const pts = new Map<string, { x: number; y: number }>();
     for (const p of all) if (p.type === 'point') pts.set(p.id, { x: p.x, y: p.y });
     const d = this.decomp.get(id)!;

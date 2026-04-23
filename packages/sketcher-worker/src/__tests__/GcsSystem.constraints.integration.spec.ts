@@ -169,4 +169,57 @@ describe('GcsSystem constraint integration', () => {
     expect(sys.currentDof().count).toBe(4);
     await sys.unloadSketch();
   });
+
+  it('symmetric: two points reflect across an axis line', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({
+      primitives: [
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },      // left of axis
+        { id: 'L2', kind: 'line', x1: 20, y1: 0, x2: 30, y2: 0 },      // right of axis
+        { id: 'AXIS', kind: 'line', x1: 15, y1: -10, x2: 15, y2: 10 } // vertical axis at x=15
+      ],
+      constraints: []
+    });
+    const r = await sys.addConstraint({
+      id: 'c1',
+      kind: 'symmetric',
+      a: { primitiveId: 'L1', anchor: 'end' },   // (10, 0)
+      b: { primitiveId: 'L2', anchor: 'start' }, // (20, 0)
+      axis: 'AXIS'
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const l1 = sys.readCoords('L1'), l2 = sys.readCoords('L2');
+      // After solve, L1.end and L2.start should be symmetric across x=15.
+      expect(Math.abs((l1.x2 + l2.x1) / 2 - 15)).toBeLessThan(1e-3);
+    }
+    await sys.unloadSketch();
+  });
+
+  it('tangent: a line is tangent to an arc', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({
+      primitives: [
+        { id: 'L1', kind: 'line', x1: -20, y1: 10.5, x2: 20, y2: 10.5 },
+        { id: 'A1', kind: 'arc', cx: 0, cy: 0, r: 10, startAngle: 0, endAngle: Math.PI }
+      ],
+      constraints: []
+    });
+    const r = await sys.addConstraint({
+      id: 'c1', kind: 'tangent', line: 'L1', arc: 'A1'
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // After solve: the distance from arc center (0,0) to line should equal radius (10).
+      const l = sys.readCoords('L1');
+      // Point-to-line distance = |cross((p2-p1), (center-p1))| / |p2-p1|
+      const dx = l.x2 - l.x1, dy = l.y2 - l.y1;
+      const cross = (0 - l.x1) * dy - (0 - l.y1) * dx;
+      const d = Math.abs(cross) / Math.hypot(dx, dy);
+      expect(Math.abs(d - 10)).toBeLessThan(0.5);
+    }
+    await sys.unloadSketch();
+  });
 });

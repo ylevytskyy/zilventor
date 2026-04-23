@@ -137,6 +137,25 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1)(terser@5.46.1)
 
+  packages/sketcher-worker:
+    dependencies:
+      '@salusoft89/planegcs':
+        specifier: ^1.1.7
+        version: 1.1.7
+      '@zilventor/shared':
+        specifier: workspace:*
+        version: link:../shared
+      comlink:
+        specifier: ^4.4.1
+        version: 4.4.2
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@25.6.0)(jsdom@25.0.1)(terser@5.46.1)
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
@@ -1099,6 +1118,9 @@ packages:
     resolution: {integrity: sha512-Nd/SgG27WoA9e+/TdK74KnHz852TLa94ovOYySo/yMPuTmpckK/jIF2jSwS3g7ELSKXK13/cVdmg1Z/DaCWKxA==}
     cpu: [x64]
     os: [win32]
+
+  '@salusoft89/planegcs@1.1.7':
+    resolution: {integrity: sha512-7xTCyQBS8xzRXvB5vXj7vzcGdmPVUZHYgZXrcHBMaBtSE/XMSKH1/OWpdJp8DonbBnuzmjpX8djLta2MFbkhzw==}
 
   '@surma/rollup-plugin-off-main-thread@2.2.3':
     resolution: {integrity: sha512-lR8q/9W7hZpMWweNiAKU7NQerBnzQQLvi8qnTDU/fxItPhtZVMbPV3lbCwjhIlNBe9Bbr5V+KHshvWmVSG9cxQ==}
@@ -4086,6 +4108,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.60.2':
     optional: true
+
+  '@salusoft89/planegcs@1.1.7': {}
 
   '@surma/rollup-plugin-off-main-thread@2.2.3':
     dependencies:
