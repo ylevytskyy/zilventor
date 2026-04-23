@@ -14,13 +14,13 @@ export function StatusBar({ message, modified = false, selection }: Props) {
   const displayMessage = message ?? statusMessage ?? 'Ready';
 
   return (
-    <footer role="contentinfo" style={{ display: 'flex', gap: 16, padding: '4px 12px' }}>
+    <div style={{ display: 'flex', gap: 16, padding: '4px 12px' }}>
       <span>{displayMessage}</span>
       {selection && <span>{selection}</span>}
       {modified && <span style={{ color: '#facc15' }}>● Modified</span>}
       {sketchDof && <DofSegment dof={sketchDof} />}
       <span style={{ marginLeft: 'auto' }}>mm</span>
-    </footer>
+    </div>
   );
 }
 

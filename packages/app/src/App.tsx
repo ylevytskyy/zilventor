@@ -50,6 +50,13 @@ export default function App() {
   const activeSketchId = useAppStore((s) => s.activeSketchId);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
 
+  // Expose store to E2E tests via window.__zilventorStore (dev only).
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __zilventorStore: typeof useAppStore }).__zilventorStore = useAppStore;
+    }
+  }, []);
+
   // Bootstrap the kernel once.
   useEffect(() => {
     let disposed = false;
@@ -158,7 +165,7 @@ export default function App() {
             if (!store.kernel || !store.activePart || !store.activeSketchId) return;
             await store.bus.execute(new AddPrimitiveCommand({
               kernel: store.kernel,
-              store: { activePart: store.activePart, setActivePart: store.setActivePart },
+              store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
               sketchId: store.activeSketchId,
               primitive
             }));

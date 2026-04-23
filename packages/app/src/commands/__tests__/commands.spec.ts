@@ -179,7 +179,7 @@ describe('AddPrimitiveCommand', () => {
     const setActivePart = vi.fn();
     const cmd = new AddPrimitiveCommand({
       kernel,
-      store: { activePart: prior, setActivePart },
+      store: { getActivePart: () => prior, setActivePart },
       sketchId: 's1',
       primitive
     });
@@ -195,7 +195,7 @@ describe('AddPrimitiveCommand', () => {
     const kernel = asKernel({});
     const cmd = new AddPrimitiveCommand({
       kernel,
-      store: { activePart: null, setActivePart: vi.fn() },
+      store: { getActivePart: () => null, setActivePart: vi.fn() },
       sketchId: 's1',
       primitive: { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 }
     });
