@@ -180,7 +180,20 @@ export class GcsSystem {
     for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
     this.gcs.solve();
     this.gcs.apply_solution();
+
+    if (this.gcs.has_gcs_conflicting_constraints()) {
+      const offendingConstraintIds = this.gcs.get_gcs_conflicting_constraints();
+      this.rebuildGcs();
+      return { ok: false, reason: 'conflict', offendingConstraintIds };
+    }
+    if (this.gcs.has_gcs_redundant_constraints()) {
+      const offendingConstraintIds = this.gcs.get_gcs_redundant_constraints();
+      this.rebuildGcs();
+      return { ok: false, reason: 'redundant', offendingConstraintIds };
+    }
+
     this.domainConstraints.set(c.id, c);
+    this.syncDomainFromGcs();
     return {
       ok: true,
       dof: this.readDof(),
