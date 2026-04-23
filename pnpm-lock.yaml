@@ -35,6 +35,9 @@ importers:
       '@zilventor/shared':
         specifier: workspace:*
         version: link:../shared
+      '@zilventor/sketcher-worker':
+        specifier: workspace:*
+        version: link:../sketcher-worker
       comlink:
         specifier: ^4.4.1
         version: 4.4.2

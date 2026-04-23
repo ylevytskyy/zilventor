@@ -13,6 +13,7 @@
   "dependencies": {
     "@zilventor/kernel": "workspace:*",
     "@zilventor/shared": "workspace:*",
+    "@zilventor/sketcher-worker": "workspace:*",
     "comlink": "^4.4.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
