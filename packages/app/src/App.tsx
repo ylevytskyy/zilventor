@@ -127,6 +127,8 @@ export default function App() {
       emitPrimitive: (primitive) => {
         void (async () => {
           const store = useAppStore.getState();
+          // eslint-disable-next-line no-console
+          console.log('[DBG emitPrimitive]', 'kernel?', !!store.kernel, 'activePart?', !!store.activePart, 'activeSketchId?', store.activeSketchId, 'primitive=', primitive);
           if (!store.kernel || !store.activePart || !store.activeSketchId) return;
           await store.bus.execute(new AddPrimitiveCommand({
             kernel: store.kernel,

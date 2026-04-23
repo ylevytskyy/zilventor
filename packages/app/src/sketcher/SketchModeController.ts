@@ -37,7 +37,10 @@ export function createSketchModeController(opts: {
       opts.camera.lookAt(0, 0, 0);
       opts.camera.fov = 10;
       opts.camera.updateProjectionMatrix();
-      opts.orbitControls.enableRotate = false;
+      // Disable OrbitControls entirely — it listens to pointerdown and would
+      // swallow canvas events intended for the sketcher. Pan/zoom via keyboard
+      // or disabled until exit.
+      opts.orbitControls.enabled = false;
       grid.visible = true;
     },
     exit(): void {
@@ -49,7 +52,7 @@ export function createSketchModeController(opts: {
         opts.camera.fov = savedCamera.fov;
         opts.camera.updateProjectionMatrix();
       }
-      opts.orbitControls.enableRotate = true;
+      opts.orbitControls.enabled = true;
       grid.visible = false;
     },
     isActive(): boolean {
