@@ -123,9 +123,12 @@ test('Perf: 200ms preview debounce coalesces rapid Angle input', async ({ page }
   const totalMs = endMs - startMs;
   console.log(JSON.stringify({ metric: 'revolve-preview-debounce', count, totalMs }));
 
-  // 9. Assert: debounce coalesced the burst (<= 7 of 10) and total time fits
-  //    within 2 s (actual burst 1 s + 500 ms settle + slack).
-  expect(count).toBeLessThanOrEqual(7);
+  // 9. Assert: debounce heavily coalesced the burst (<= 3 of 10) and total time
+  //    fits within 2 s (actual burst 1 s + 500 ms settle + slack). With 100 ms
+  //    gaps between 10 fills and a 200 ms debounce, only the trailing settle
+  //    fires — expected count is 1. Upper bound 3 tolerates jitter without
+  //    masking regressions.
+  expect(count).toBeLessThanOrEqual(3);
   expect(count).toBeGreaterThanOrEqual(1);
   expect(totalMs).toBeLessThanOrEqual(2000);
 });
