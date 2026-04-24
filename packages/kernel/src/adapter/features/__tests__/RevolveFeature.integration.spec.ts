@@ -46,6 +46,73 @@ describe('executeRevolveFeature (integration)', () => {
     disposeShape(r.value.solid);
   });
 
+  it('symmetric revolve sweeps equally in both directions around the axis', () => {
+    // Rectangle [5,15] x [0,5] revolved 90 deg about the Y axis (x=0) line.
+    // OCCT's BRepPrimAPI_MakeRevol follows the right-hand rule around the
+    // axis direction. With axis going +Y, a profile at +X swept by +90 deg
+    // rotates toward -Z.
+    //
+    // Normal 90-deg sweep (theta in [0, +90]): profile at X=[5,15] sweeps
+    //   from (15, 0) at theta=0 to (0, -15) at theta=+90. Bbox Z: [-15, 0].
+    //
+    // Symmetric 90-deg sweep (theta in [-45, +45]) via pre-rotation of -45:
+    //   profile sweeps through +Z AND -Z. Bbox Z: [-10.6, +10.6].
+    const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
+      kind: 'sketch',
+      id: 'S1',
+      plane: 'XY',
+      primitives: [
+        { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
+      ],
+      constraints: []
+    };
+
+    const symFeature: Extract<Feature, { kind: 'revolve' }> = {
+      kind: 'revolve',
+      id: 'R_sym',
+      sketchRef: 'S1',
+      axisPrimitiveId: 'L1',
+      angleParam: 'angle0',
+      direction: 'symmetric',
+      operation: 'new'
+    };
+    const normFeature: Extract<Feature, { kind: 'revolve' }> = {
+      kind: 'revolve',
+      id: 'R_norm',
+      sketchRef: 'S1',
+      axisPrimitiveId: 'L1',
+      angleParam: 'angle0',
+      direction: 'normal',
+      operation: 'new'
+    };
+
+    const rSym = executeRevolveFeature(oc, sketchFeature, symFeature, Math.PI / 2);
+    const rNorm = executeRevolveFeature(oc, sketchFeature, normFeature, Math.PI / 2);
+
+    expect(rSym.ok).toBe(true);
+    expect(rNorm.ok).toBe(true);
+    if (!rSym.ok || !rNorm.ok) return;
+
+    const symBBox = computeBoundingBox(oc, rSym.value.solid);
+    const normBBox = computeBoundingBox(oc, rNorm.value.solid);
+
+    // Normal 90-deg sweep (0 -> +90): profile at +X rotates only toward -Z.
+    // Bbox Z: [-15, 0]. Discriminator: zmax ~ 0 (profile does not enter +Z).
+    expect(normBBox[5]).toBeCloseTo(0, 0);
+
+    // Symmetric 90-deg sweep (-45 -> +45): profile sweeps through +Z AND -Z.
+    // Bbox Z: [-10.6, +10.6].
+    expect(symBBox[5]).toBeGreaterThan(5);    // zmax clearly positive
+    expect(symBBox[2]).toBeGreaterThan(-11);  // zmin less negative than normal's -15
+    expect(symBBox[2]).toBeLessThan(-5);      // but still clearly in -Z
+    // And symmetric around the XZ plane: |zmin| should approximate zmax.
+    expect(Math.abs(symBBox[2] + symBBox[5])).toBeLessThan(0.5);
+
+    disposeShape(rSym.value.solid);
+    disposeShape(rNorm.value.solid);
+  });
+
   it('returns revolveFailed when axisPrimitiveId is missing', () => {
     const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
       kind: 'sketch',

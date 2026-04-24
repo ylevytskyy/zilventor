@@ -49,8 +49,9 @@ export type RevolveResult = { featureId: string; solid: OcctShape };
  *     at least one closed wire; the first closed wire becomes the face
  *     boundary.
  *   - `direction: 'flipped'` negates the angle.
- *   - `direction: 'symmetric'` is treated as `'normal'` for MVP (proper
- *     pre-rotation is deferred).
+ *   - `direction: 'symmetric'` pre-rotates the profile face by `-angle/2`
+ *     around the revolve axis, then revolves by `+angle` — so the sweep
+ *     is centered on the profile's original angular position.
  *
  * Memory discipline: every OCCT object created here is released on
  * every exit path (5 error paths + happy + caught throw). The returned
@@ -109,6 +110,7 @@ export function executeRevolveFeature(
   let openChainsLocal: ReturnType<typeof combineEdgesIntoWires>['openChains'] = [];
   let face: unknown = null;
   let mkFace: { delete: () => void } | null = null;
+  let preRotatedFace: unknown = null;
 
   try {
     for (const p of profilePrims) {
@@ -137,9 +139,15 @@ export function executeRevolveFeature(
     ) as unknown as { delete: () => void };
     face = (mkFace as unknown as { Face: () => unknown }).Face();
 
-    // 4. Resolve direction.
+    // 4. Resolve direction. 'symmetric' pre-rotates the profile by -angle/2
+    //    around the axis so the subsequent +angle revolve is centered on the
+    //    profile's original angular position.
+    if (feature.direction === 'symmetric') {
+      preRotatedFace = rotateShape(oc, face, axisOrigin, axisDir, -angleRad / 2);
+      (face as { delete?: () => void }).delete?.();
+      face = preRotatedFace;
+    }
     const signedAngle = feature.direction === 'flipped' ? -angleRad : angleRad;
-    // 'symmetric' treated as 'normal' for MVP; pre-rotation deferred.
 
     // 5. Revolve.
     const r = makeRevolve(oc, {
@@ -173,6 +181,40 @@ export function executeRevolveFeature(
       featureId: feature.id
     });
   }
+}
+
+/**
+ * Rotates a shape by `angleRad` around the axis `(axisOrigin, axisDir)`.
+ * Disposes every OCCT intermediate (gp_Pnt, gp_Dir, gp_Ax1, gp_Trsf, and
+ * the BRepBuilderAPI_Transform builder) before returning. The returned
+ * shape handle is owned by the caller.
+ */
+function rotateShape(
+  oc: OcctInstance,
+  shape: unknown,
+  axisOrigin: [number, number, number],
+  axisDir: [number, number, number],
+  angleRad: number
+): unknown {
+  const origin = new oc.gp_Pnt_3(axisOrigin[0], axisOrigin[1], axisOrigin[2]);
+  const [dx, dy, dz] = axisDir;
+  const mag = Math.hypot(dx, dy, dz);
+  const dir = new oc.gp_Dir_4(dx / mag, dy / mag, dz / mag);
+  const ax = new oc.gp_Ax1_2(origin, dir);
+  const trsf = new oc.gp_Trsf_1();
+  trsf.SetRotation_1(ax as never, angleRad);
+  const builder = new oc.BRepBuilderAPI_Transform_2(
+    shape as never,
+    trsf as never,
+    false as never
+  );
+  const rotated = (builder as unknown as { Shape: () => unknown }).Shape();
+  (builder as unknown as { delete: () => void }).delete();
+  trsf.delete();
+  ax.delete();
+  dir.delete();
+  origin.delete();
+  return rotated;
 }
 
 /**

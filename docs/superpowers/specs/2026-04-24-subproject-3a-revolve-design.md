@@ -421,9 +421,15 @@ export function executeRevolveFeature(
 
 Reason: `executeSketchFeature` rejects sketches that contain a profile + an axis line as `degenerateSketch` (the axis line produces an open chain, so the sketch isn't entirely closed). The revolve executor therefore rebuilds edges from the raw sketch `Feature`, skipping the axis primitive before wire combination.
 
-### `symmetric` direction simplified to `normal` for MVP
+### `symmetric` direction: real pre-rotation (F3)
 
-The spec listed `symmetric` as pre-rotating the profile by `-angle/2` before revolving. In the shipped MVP, `direction: 'symmetric'` is treated identically to `direction: 'normal'` inside `executeRevolveFeature`. The dialog still exposes the Symmetric button so the wiring is ready, but proper pre-rotation is deferred. Tracked as a TODO in the manual test checklist.
+`direction: 'symmetric'` pre-rotates the profile face by `-angle/2` around the
+revolve axis via `BRepBuilderAPI_Transform_2` + `gp_Trsf_1.SetRotation_1`, then
+revolves by `+angle` — producing a sweep centered on the profile's original
+angular position. The `rotateShape` helper in `RevolveFeature.ts` encapsulates
+the OCCT transform and disposes every intermediate (`gp_Pnt`, `gp_Dir`,
+`gp_Ax1`, `gp_Trsf`, builder). Verified by the integration test
+`symmetric revolve sweeps equally in both directions around the axis`.
 
 ### XY-plane only
 
