@@ -37,4 +37,22 @@ describe('GeneralDimensionTool', () => {
     const last = onReady.mock.calls[onReady.mock.calls.length - 1]![0] as DimensionConstraint;
     expect(last.kind).toBe('dim-diameter');
   });
+
+  it('point + line click produces dim-point-line-distance with the computed perpendicular distance', async () => {
+    const onReady = vi.fn();
+    const tool = new GeneralDimensionTool({ onDimensionReady: onReady });
+    // Horizontal line L1 at y=0, plus L2 whose start endpoint sits 7 units above it.
+    tool.setPrimitives([line('L1', 0, 0, 100, 0), line('L2', 50, 7, 60, 9)]);
+    // Click L2's start endpoint (within 1 world-unit hit radius).
+    await tool.onPointerClick({ x: 50, y: 7 });
+    // Click L1's body.
+    await tool.onPointerClick({ x: 80, y: 0 });
+    const [d] = onReady.mock.calls[onReady.mock.calls.length - 1]!;
+    const dim = d as Extract<DimensionConstraint, { kind: 'dim-point-line-distance' }>;
+    expect(dim.kind).toBe('dim-point-line-distance');
+    expect(dim.value.kind).toBe('literal');
+    if (dim.value.kind === 'literal') {
+      expect(Math.abs(dim.value.value - 7)).toBeLessThan(1e-6);
+    }
+  });
 });

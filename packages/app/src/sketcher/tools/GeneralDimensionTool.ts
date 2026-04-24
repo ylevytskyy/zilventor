@@ -105,10 +105,12 @@ export class GeneralDimensionTool {
       return { id: nextDimId(), kind: 'dim-angle', paramName: nextParamName(), line1: p[0]!.id, line2: p[1]!.id, value: { kind: 'literal', value: 90 }, source: 'user' };
     }
     if (p.length === 2 && p[0]!.kind === 'point' && p[1]!.kind === 'line') {
-      return { id: nextDimId(), kind: 'dim-point-line-distance', paramName: nextParamName(), point: p[0]!.ref, line: p[1]!.id, value: { kind: 'literal', value: 0 }, source: 'user' };
+      const v = currentPointLineDistance(this.primitives, p[0]!.ref, p[1]!.id);
+      return { id: nextDimId(), kind: 'dim-point-line-distance', paramName: nextParamName(), point: p[0]!.ref, line: p[1]!.id, value: { kind: 'literal', value: v }, source: 'user' };
     }
     if (p.length === 2 && p[0]!.kind === 'line' && p[1]!.kind === 'point') {
-      return { id: nextDimId(), kind: 'dim-point-line-distance', paramName: nextParamName(), point: p[1]!.ref, line: p[0]!.id, value: { kind: 'literal', value: 0 }, source: 'user' };
+      const v = currentPointLineDistance(this.primitives, p[1]!.ref, p[0]!.id);
+      return { id: nextDimId(), kind: 'dim-point-line-distance', paramName: nextParamName(), point: p[1]!.ref, line: p[0]!.id, value: { kind: 'literal', value: v }, source: 'user' };
     }
     return null;
   }
@@ -144,4 +146,32 @@ function currentDistance(primitives: SketchPrimitive[], a: PointRef, b: PointRef
   const pa = pt(a); const pb = pt(b);
   if (!pa || !pb) return 0;
   return Math.hypot(pa.x - pb.x, pa.y - pb.y);
+}
+
+function currentPointLineDistance(
+  primitives: SketchPrimitive[],
+  point: PointRef,
+  lineId: string
+): number {
+  const linePrim = primitives.find((x) => x.id === lineId);
+  if (!linePrim || linePrim.kind !== 'line') return 0;
+  const pointPrim = primitives.find((x) => x.id === point.primitiveId);
+  if (!pointPrim) return 0;
+  let px: number, py: number;
+  if (pointPrim.kind === 'line') {
+    px = point.anchor === 'start' ? pointPrim.x1 : pointPrim.x2;
+    py = point.anchor === 'start' ? pointPrim.y1 : pointPrim.y2;
+  } else if (pointPrim.kind === 'circle' || pointPrim.kind === 'arc') {
+    px = pointPrim.cx;
+    py = pointPrim.cy;
+  } else {
+    return 0;
+  }
+  // Perpendicular distance from (px, py) to the infinite line through
+  // (x1, y1)-(x2, y2). Uses the cross-product form: |(p - a) × (b - a)| / |b - a|.
+  const ax = linePrim.x1, ay = linePrim.y1, bx = linePrim.x2, by = linePrim.y2;
+  const dx = bx - ax, dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-9) return Math.hypot(px - ax, py - ay);
+  return Math.abs((px - ax) * dy - (py - ay) * dx) / len;
 }
