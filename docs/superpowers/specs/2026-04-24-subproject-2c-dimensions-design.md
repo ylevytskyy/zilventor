@@ -30,7 +30,7 @@ Driving-only (no driven/reference dimensions). Full parametric expressions with 
 
 | Decision | Choice |
 |---|---|
-| Dimension kinds shipped | All 5 Inventor kinds (linear length + distance + angular + radial + diametral + point-to-line = 6 variants) |
+| Dimension kinds shipped | 6 variants covering the 5 Inventor categories: `dim-length` (single line) and `dim-distance` (2 points) both correspond to Inventor's "Linear"; `dim-angle`, `dim-radius`, `dim-diameter`, `dim-point-line-distance` are the other four |
 | Driving vs driven | Driving-only; driven deferred |
 | Parametric expressions | Full — arithmetic + named variables + whitelisted functions |
 | Dimension tool UX | Single General Dimension tool (`D`), infers kind from pick sequence |
