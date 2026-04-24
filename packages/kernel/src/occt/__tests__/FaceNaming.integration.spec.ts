@@ -6,8 +6,10 @@ import {
   attachName,
   resolveEdge,
   canonicalEdgeName,
+  tagHoleFaces,
   type NamedShape
 } from '../FaceNaming';
+import { makeHole } from '../HoleOps';
 import type { FaceName } from '@zilventor/shared';
 
 let oc: OcctInstance;
@@ -58,5 +60,44 @@ describe('resolveEdge (integration)', () => {
     );
     expect(resolveEdge(oc, nm, edgeName)).toBe(null);
     disposeShape(box);
+  });
+});
+
+describe('tagHoleFaces (integration)', () => {
+  let oc: OcctInstance;
+  beforeAll(async () => {
+    oc = await loadOcct();
+  }, 60_000);
+
+  it('tagHoleFaces labels shank / cbore / tip faces on a blind CBORE', () => {
+    // Box 10x10x10 with origin ON the top face (z=10), drilling down.
+    // cboreDepth=2 + shank depth=5 + tip cone → total < 10 so tip stays inside.
+    const body = new (oc as any).BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new (oc as any).gp_Pnt_3(5, 5, 10);
+    const axis = new (oc as any).gp_Dir_4(0, 0, -1);
+    const cut = makeHole(oc, body, [{ origin, axis }],
+      { kind: 'counterbore', diameter: 4, cboreDiameter: 7, cboreDepth: 2 },
+      { kind: 'distance', depth: 5, blindTip: true });
+
+    const names = tagHoleFaces(oc, cut, 'H1', 0, 'counterbore', /* blind */ true);
+    const roles = Array.from(names.values()).map((n) => n.role);
+    expect(roles).toContain('H1/hole/0/shank');
+    expect(roles).toContain('H1/hole/0/cbore');
+    expect(roles).toContain('H1/hole/0/tip');
+  });
+
+  it('tagHoleFaces labels csk on a CSK through hole', () => {
+    // Box 10x10x10 with origin ON the top face (z=10), drilling through.
+    const body = new (oc as any).BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new (oc as any).gp_Pnt_3(5, 5, 10);
+    const axis = new (oc as any).gp_Dir_4(0, 0, -1);
+    const cut = makeHole(oc, body, [{ origin, axis }],
+      { kind: 'countersink', diameter: 3, cskDiameter: 6, cskAngleDeg: 82 },
+      { kind: 'throughAll' });
+
+    const names = tagHoleFaces(oc, cut, 'H1', 0, 'countersink', /* blind */ false);
+    const roles = Array.from(names.values()).map((n) => n.role);
+    expect(roles).toContain('H1/hole/0/shank');
+    expect(roles).toContain('H1/hole/0/csk');
   });
 });

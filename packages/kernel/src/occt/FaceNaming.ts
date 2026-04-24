@@ -89,6 +89,73 @@ export function resolveEdge(
 }
 
 /**
+ * Tag faces produced by a hole cut. Walks faces, classifies by surface type,
+ * and assigns names under the `{featureId}/hole/{locationIndex}/{role}` convention.
+ *
+ * - Cylinders: smallest radius = shank; second smallest = cbore (if counterbore).
+ * - Cones: smallest area = tip (if blind); remainder = csk (if countersink).
+ *
+ * This heuristic works because the hole cutter deliberately produces at most one
+ * face per role per location, and radii/areas separate roles unambiguously for
+ * the shapes we build.
+ */
+export function tagHoleFaces(
+  oc: OcctInstance,
+  cutBody: OcctShape,
+  featureId: string,
+  locationIndex: number,
+  profileKind: 'simple' | 'counterbore' | 'countersink',
+  blind: boolean,
+): Map<unknown, FaceName> {
+  const out = new Map<unknown, FaceName>();
+  const explorer = new oc.TopExp_Explorer_2(
+    cutBody as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+  );
+
+  const cylFaces: { face: unknown; radius: number }[] = [];
+  const conFaces: { face: unknown; area: number }[] = [];
+
+  for (; explorer.More(); explorer.Next()) {
+    const face = (oc as any).TopoDS.Face_1(explorer.Current());
+    const surf = (oc as any).BRep_Tool.Surface_2(face).get();
+    const type = surf.DynamicType().get().Name();
+    if (type === 'Geom_CylindricalSurface') {
+      const r = (surf as any).Radius();
+      cylFaces.push({ face, radius: r });
+    } else if (type === 'Geom_ConicalSurface') {
+      const props = new (oc as any).GProp_GProps_1();
+      (oc as any).BRepGProp.SurfaceProperties_1(face, props, 1e-7, false);
+      conFaces.push({ face, area: props.Mass() });
+    }
+  }
+  explorer.delete();
+
+  // Cylinders — ascending radius: smallest = shank, next = cbore
+  cylFaces.sort((a, b) => a.radius - b.radius);
+  if (cylFaces[0]) {
+    out.set(cylFaces[0].face, { featureId, role: `${featureId}/hole/${locationIndex}/shank` });
+  }
+  if (profileKind === 'counterbore' && cylFaces[1]) {
+    out.set(cylFaces[1].face, { featureId, role: `${featureId}/hole/${locationIndex}/cbore` });
+  }
+
+  // Cones — ascending area: smallest = tip (blind drill point), next = csk
+  conFaces.sort((a, b) => a.area - b.area);
+  let coneIdx = 0;
+  if (blind && conFaces[coneIdx]) {
+    out.set(conFaces[coneIdx]!.face, { featureId, role: `${featureId}/hole/${locationIndex}/tip` });
+    coneIdx++;
+  }
+  if (profileKind === 'countersink' && conFaces[coneIdx]) {
+    out.set(conFaces[coneIdx]!.face, { featureId, role: `${featureId}/hole/${locationIndex}/csk` });
+  }
+
+  return out;
+}
+
+/**
  * Resolve a stored vertex (identified by its >=3 converging edges) to
  * a TopoDS_Vertex in the shape. Returns null if any edge is missing or
  * the edges don't share a common vertex.
