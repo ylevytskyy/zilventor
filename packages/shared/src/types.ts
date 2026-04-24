@@ -90,6 +90,16 @@ export type TessellatedEdge = {
   dihedralAngle?: number;
 };
 
+export type TessellatedFace = {
+  name: FaceName;
+  /** Triangle index into the Mesh's indices array (0-based, in units of
+   *  triangles, not indices). The three index values for this tri are at
+   *  `indices[3*triIndex], 3*triIndex+1, 3*triIndex+2`.
+   */
+  triangleStart: number;
+  triangleCount: number;
+};
+
 export type FilletSelectionMode = 'edge' | 'loop' | 'feature' | 'all-fillets' | 'all-rounds';
 
 export type ParamOrLiteral =

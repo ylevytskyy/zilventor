@@ -40,6 +40,7 @@ export class SceneManager {
   getControls(): OrbitControls { return this.controls; }
   getScene(): THREE.Scene { return this.scene; }
   addObject(obj: THREE.Object3D): void { this.scene.add(obj); }
+  getCurrentMesh(): THREE.Mesh | null { return this.current; }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
   setMesh(positions: Float32Array, indices: Uint32Array): void {

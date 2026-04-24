@@ -1,5 +1,5 @@
 import type { OcctInstance } from '../occt/occtLoader';
-import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge, FaceName } from '@zilventor/shared';
+import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge, TessellatedFace, FaceName } from '@zilventor/shared';
 import {
   ok,
   err,
@@ -17,7 +17,7 @@ import { executeRevolveFeature } from './features/RevolveFeature';
 import { executeFilletFeature } from './features/FilletFeature';
 import { executeChamferFeature } from './features/ChamferFeature';
 import { executeShellFeature } from './features/ShellFeature';
-import { tessellate, tessellateEdges } from '../occt/Tessellator';
+import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, namedFace, attachName } from '../occt/FaceNaming';
@@ -43,6 +43,11 @@ export type ExecutionResult = {
    *  to reason about BRep topology.
    */
   faceNames?: FaceName[];
+  /** Per-face triangle ranges of the final solid. Used by viewport
+   *  face-pick raycast to map a hit triangle to its FaceName without
+   *  the app layer having to know about BRep topology.
+   */
+  tessellatedFaces?: TessellatedFace[];
   featureErrors?: Map<string, KernelError>;
 };
 
@@ -329,6 +334,7 @@ export async function executeTree(
 
   const mesh = tessellate(oc, finalSolid.shape, { linearDeflection: 0.1 });
   const tessellatedEdges = tessellateEdges(oc, finalSolid);
+  const tessellatedFaces = tessellateFaces(oc, finalSolid);
   // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw
   // handle wrapper). Callers dispose it via `disposeShape`; they don't need
   // the NamedShape metadata here. The name map stays inside the executor,
@@ -340,6 +346,7 @@ export async function executeTree(
     finalSolid: finalSolid.shape,
     tessellatedEdges,
     faceNames: finalSolid.faceNames.map((f) => f.name),
+    tessellatedFaces,
     ...(featureErrors.size > 0 ? { featureErrors } : {})
   });
 }

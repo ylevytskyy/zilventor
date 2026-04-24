@@ -14,6 +14,7 @@ type Props = {
   onCommit(v: ShellDialogValue): void;
   onCancel(): void;
   onToggleFace(face: FaceName): void;
+  onPickFace(): void;
   onThicknessChange(expression: string): void;
   validateExpression?(expression: string): string | null;
 };
@@ -78,6 +79,7 @@ export function ShellDialog({
   onCommit,
   onCancel,
   onToggleFace,
+  onPickFace,
   onThicknessChange,
   validateExpression,
 }: Props): JSX.Element {
@@ -109,7 +111,12 @@ export function ShellDialog({
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Shell</div>
 
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Faces to remove ({selectedFaces.length})</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ ...sectionLabelStyle, marginBottom: 0, flex: 1 }}>
+            Faces to remove ({selectedFaces.length})
+          </span>
+          <button type="button" onClick={onPickFace} style={btnStyle}>Pick</button>
+        </div>
         {availableFaces.length === 0 ? (
           <div style={{ color: '#888', fontStyle: 'italic' }}>
             No body in the tree. Add an extrude / revolve first.

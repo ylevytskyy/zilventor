@@ -1,4 +1,4 @@
-import type { Mesh, TessellatedEdge, Vec3, FaceName } from '@zilventor/shared';
+import type { Mesh, TessellatedEdge, TessellatedFace, Vec3, FaceName } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
 import { computeBoundingBox, type OcctShape } from './SolidOps';
@@ -252,4 +252,62 @@ function findFaceName(
     }
   }
   return null;
+}
+
+/**
+ * Extract per-face triangle ranges from a named shape. Call AFTER
+ * `tessellate()` has run on the same shape, and walk faces in the same
+ * order as `tessellate` (TopExp_Explorer_2 on TopAbs_FACE) so triangle
+ * ranges line up with the mesh.indices array.
+ *
+ * The returned `TessellatedFace[]` has one entry per face with a known
+ * name — unnamed faces (not in `namedShape.faceNames`) are skipped.
+ * Callers (e.g. the viewport face-pick controller) binary-search into
+ * this array by triangle index to recover the FaceName of a hit.
+ */
+export function tessellateFaces(
+  oc: OcctInstance,
+  namedShape: { shape: OcctShape; faceNames: Array<{ name: FaceName; face: unknown }> }
+): TessellatedFace[] {
+  const result: TessellatedFace[] = [];
+  let triCursor = 0;
+
+  const explorer = new oc.TopExp_Explorer_2(
+    namedShape.shape.handle as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+
+  while (explorer.More()) {
+    const faceShape = explorer.Current();
+    const face = oc.TopoDS.Face_1(faceShape);
+    const loc = new oc.TopLoc_Location_1();
+    const triHandle = oc.BRep_Tool.Triangulation(
+      face,
+      loc,
+      POLY_MESH_PURPOSE_NONE as never
+    );
+
+    if (!triHandle.IsNull()) {
+      const t = triHandle.get();
+      const nbTris = t.NbTriangles();
+      const name = findFaceName(namedShape.faceNames, face);
+      if (name) {
+        result.push({
+          name,
+          triangleStart: triCursor,
+          triangleCount: nbTris
+        });
+      }
+      triCursor += nbTris;
+    }
+
+    triHandle.delete();
+    loc.delete();
+    face.delete();
+    faceShape.delete();
+    explorer.Next();
+  }
+  explorer.delete();
+  return result;
 }

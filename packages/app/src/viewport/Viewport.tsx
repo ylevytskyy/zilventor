@@ -16,6 +16,7 @@ export type ViewportRef = {
   ): { origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
   worldToScreen(worldX: number, worldY: number): { x: number; y: number };
   worldToScreen3d(worldX: number, worldY: number, worldZ: number): { x: number; y: number };
+  raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
 };
 
 type Props = {
@@ -115,6 +116,22 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
         origin: { x: o.x, y: o.y, z: o.z },
         direction: { x: d.x, y: d.y, z: d.z }
       };
+    },
+    raycastBody: (clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) return null;
+      const mesh = sceneRef.current.getCurrentMesh();
+      if (!mesh) return null;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, sceneRef.current.getCamera());
+      const hits = raycaster.intersectObject(mesh, false);
+      if (hits.length === 0 || hits[0]!.faceIndex === undefined) return null;
+      return { triangleIndex: hits[0]!.faceIndex! };
     },
     worldToScreen: (worldX, worldY) => {
       if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };

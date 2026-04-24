@@ -30,6 +30,7 @@ import { AxisPickController } from './model/AxisPickController';
 import { ProfilePickController } from './model/ProfilePickController';
 import { AddRevolveFeatureCommand } from './commands/AddRevolveFeatureCommand';
 import { EdgePickController, type TessellatedEdge } from './model/EdgePickController';
+import { FacePickController } from './model/FacePickController';
 import { FilletDialog, type FilletDialogValue, type FilletMode } from './shell/FilletDialog';
 import { AddFilletFeatureCommand } from './commands/AddFilletFeatureCommand';
 import { ChamferDialog, type ChamferDialogValue } from './shell/ChamferDialog';
@@ -78,6 +79,7 @@ export default function App() {
   // the NamedShape + tessellated edges so the Add button in FilletDialog can
   // actually populate the edge list.
   const tessellatedEdgesRef = useRef<TessellatedEdge[]>([]);
+  const facePickerRef = useRef<FacePickController>(new FacePickController());
   const [availableFaceNames, setAvailableFaceNames] = useState<FaceName[]>([]);
 
   const [numericVisible, setNumericVisible] = useState(false);
@@ -108,6 +110,7 @@ export default function App() {
   const [filletPreviewError, setFilletPreviewError] = useState<string | null>(null);
   const [pickingFilletEdges, setPickingFilletEdges] = useState(false);
   const [pickingChamferEdges, setPickingChamferEdges] = useState(false);
+  const [pickingShellFaces, setPickingShellFaces] = useState(false);
   // Hovered edge set — kept in state so a future highlight overlay in the
   // viewport can subscribe. For the T23-T25 stub no renderer consumes it yet.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -205,6 +208,7 @@ export default function App() {
         viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
+        facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
         useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -413,6 +417,7 @@ export default function App() {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
+            facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!res.ok) {
             useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -619,6 +624,7 @@ export default function App() {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
+            facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!unmountedRef.current) {
             useAppStore.getState().setFeatureErrors(new Map());
@@ -688,6 +694,16 @@ export default function App() {
       }
       return;
     }
+    if (!sketchMode && pickingShellFaces) {
+      if (ev.type !== 'click') return;
+      const hit = viewportRef.current.raycastBody(ev.clientX, ev.clientY);
+      if (!hit) return;
+      const face = facePickerRef.current.pickByTriangleIndex(hit.triangleIndex);
+      if (!face) return;
+      useAppStore.getState().toggleShellFace(face);
+      setPickingShellFaces(false);
+      return;
+    }
     // Model-mode profile pick: route a click to the ProfilePickController and
     // bail out. Movements/hovers are ignored.
     if (!sketchMode && pickingProfile) {
@@ -731,7 +747,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, filletSelectionMode]);
+  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, pickingShellFaces, filletSelectionMode]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
@@ -1414,6 +1430,7 @@ export default function App() {
           onCommit={(v) => { void onShellCommit(v); }}
           onCancel={onShellCancel}
           onToggleFace={(f) => toggleShellFace(f)}
+          onPickFace={() => setPickingShellFaces(true)}
           onThicknessChange={() => { /* no preview for MVP */ }}
           validateExpression={(expr) => {
             const res = parameterRegistry.dryRun({
