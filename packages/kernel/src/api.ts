@@ -22,6 +22,7 @@ export type KernelApi = {
   deleteParameter(partId: string, name: string): Promise<void>;
   deletePart(partId: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
+  previewFeature(partId: string, feature: Feature): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
   save(partId: string, handle: FileSystemFileHandle, thumbnail?: Uint8Array): Promise<void>;
   load(handle: FileSystemFileHandle): Promise<string>;
@@ -93,6 +94,18 @@ export function createKernelApi(): KernelApi {
       const r = await executeTree(occt, p);
       if (!r.ok) return r;
       // Dispose the solid — we only ship the mesh across the worker boundary.
+      disposeShape(r.value.finalSolid);
+      return { ok: true, value: { mesh: r.value.mesh } };
+    },
+
+    async previewFeature(partId, feature) {
+      if (!occt) throw new Error('kernel not initialized');
+      const p = parts.get(partId);
+      if (!p) throw new Error(`no part ${partId}`);
+      // Virtual tree: stored part + scratch feature appended. No persistence.
+      const virtual: PartDocument = { ...p, featureTree: [...p.featureTree, feature] };
+      const r = await executeTree(occt, virtual);
+      if (!r.ok) return r;
       disposeShape(r.value.finalSolid);
       return { ok: true, value: { mesh: r.value.mesh } };
     },

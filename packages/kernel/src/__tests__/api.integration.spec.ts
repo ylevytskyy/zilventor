@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Feature } from '@zilventor/shared';
 import { createKernelApi } from '../api';
 
 describe('KernelApi (end-to-end, in-process)', () => {
@@ -52,4 +53,27 @@ describe('KernelApi (end-to-end, in-process)', () => {
     part = await api.getPart(id);
     expect((part?.featureTree[0] as { primitives: unknown[] }).primitives.length).toBe(0);
   }, 60_000);
+
+  it('previewFeature executes without mutating the stored part', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const partId = await api.createPart('P');
+    await api.addFeature(partId, { kind: 'sketch', id: 'S1', plane: 'XY',
+      primitives: [
+        { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
+      ], constraints: [] });
+    await api.setParameter(partId, { name: 'angle0', expression: '360', value: 360, unit: 'deg' });
+
+    const scratch: Feature = {
+      kind: 'revolve', id: 'R_scratch', sketchRef: 'S1', axisPrimitiveId: 'L1',
+      angleParam: 'angle0', direction: 'normal', operation: 'new'
+    };
+    const r = await api.previewFeature(partId, scratch);
+    expect(r.ok).toBe(true);
+
+    // Stored part's featureTree unchanged.
+    const p = await api.getPart(partId);
+    expect(p!.featureTree.filter((f) => f.kind === 'revolve')).toHaveLength(0);
+  }, 120_000);
 });
