@@ -148,3 +148,45 @@ export function makeCounterboreCutter(
   fuse.Build(new oc.Message_ProgressRange_1());
   return fuse.Shape();
 }
+
+export type AxisCrossing = {
+  /** signed distance along axis from origin (always >= 0 in returned list) */
+  distance: number;
+  point: any;  // gp_Pnt
+  face: any;   // TopoDS_Face
+};
+
+/**
+ * Intersect the half-line {origin + t·axis : t >= 0} with every face on `body`.
+ * Returns crossings sorted ascending by `distance`. Crossings behind the origin
+ * (negative `t`) are filtered out.
+ *
+ * Uses `BRepIntCurveSurface_Inter` with an infinite line; we keep only forward hits.
+ *
+ * Overload notes:
+ *   - `gp_Lin_3(origin, axis)` — line through a point with a direction (gp_Lin subclass).
+ *   - `BRepIntCurveSurface_Inter.Init_2(shape, line: gp_Lin, tol)` — line-vs-shape init.
+ */
+export function axisSolidCrossings(
+  oc: any,
+  body: any,
+  origin: any,
+  axis: any,
+): AxisCrossing[] {
+  const line = new oc.gp_Lin_3(origin, axis);
+  const intersector = new oc.BRepIntCurveSurface_Inter();
+  intersector.Init_2(body, line, 1e-7);
+
+  const out: AxisCrossing[] = [];
+  for (; intersector.More(); intersector.Next()) {
+    const w = intersector.W();
+    if (w < -1e-6) continue;
+    out.push({
+      distance: w,
+      point: intersector.Pnt(),
+      face: intersector.Face(),
+    });
+  }
+  out.sort((a, b) => a.distance - b.distance);
+  return out;
+}

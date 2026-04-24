@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct } from '../occtLoader';
-import { makeSimpleCutter, makeCounterboreCutter, makeCountersinkCutter } from '../HoleOps';
+import { makeSimpleCutter, makeCounterboreCutter, makeCountersinkCutter, axisSolidCrossings } from '../HoleOps';
 
 describe('HoleOps — simple cutter', () => {
   let oc: any;
@@ -117,5 +117,41 @@ describe('HoleOps — countersink cutter', () => {
     expect(cylCount).toBe(1);
     // CSK conical + tip cone = 2
     expect(conCount).toBe(2);
+  });
+});
+
+describe('axisSolidCrossings', () => {
+  let oc: any;
+  beforeAll(async () => { oc = await loadOcct(); }, 60_000);
+
+  it('finds both front and back faces of a cube along +Z axis', () => {
+    const cubeShape = new oc.BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new oc.gp_Pnt_3(5, 5, -5);  // outside cube, below -Z face
+    const axis = new oc.gp_Dir_4(0, 0, 1);     // pointing up through cube
+    const crossings = axisSolidCrossings(oc, cubeShape, origin, axis);
+    expect(crossings.length).toBe(2);
+    // First crossing: -Z face at z=0 → distance 5
+    expect(crossings[0]!.distance).toBeCloseTo(5, 3);
+    // Second: +Z face at z=10 → distance 15
+    expect(crossings[1]!.distance).toBeCloseTo(15, 3);
+  });
+
+  it('crossings are sorted ascending by distance', () => {
+    const cubeShape = new oc.BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new oc.gp_Pnt_3(5, 5, -5);
+    const axis = new oc.gp_Dir_4(0, 0, 1);
+    const crossings = axisSolidCrossings(oc, cubeShape, origin, axis);
+    for (let i = 1; i < crossings.length; i++) {
+      expect(crossings[i]!.distance).toBeGreaterThanOrEqual(crossings[i - 1]!.distance);
+    }
+  });
+
+  it('ignores crossings behind the origin', () => {
+    const cubeShape = new oc.BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new oc.gp_Pnt_3(5, 5, 5);   // inside cube
+    const axis = new oc.gp_Dir_4(0, 0, 1);     // +Z; only the +Z face (z=10, distance 5) should appear
+    const crossings = axisSolidCrossings(oc, cubeShape, origin, axis);
+    expect(crossings.length).toBe(1);
+    expect(crossings[0]!.distance).toBeCloseTo(5, 3);
   });
 });
