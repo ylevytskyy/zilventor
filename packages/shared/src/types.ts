@@ -79,6 +79,15 @@ export function canonicalEdgeName(a: FaceName, b: FaceName): EdgeName {
   return { faceA: first, faceB: second };
 }
 
+export type Vec3 = { x: number; y: number; z: number };
+
+export type TessellatedEdge = {
+  edgeName: EdgeName;
+  segments: Array<[Vec3, Vec3]>;
+  faceNames: [FaceName, FaceName];
+  dihedralAngle?: number;
+};
+
 export type FilletSelectionMode = 'edge' | 'loop' | 'feature' | 'all-fillets' | 'all-rounds';
 
 export type ParamOrLiteral =

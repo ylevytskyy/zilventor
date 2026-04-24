@@ -1,13 +1,6 @@
-import type { EdgeName, FaceName, FilletSelectionMode } from '@zilventor/shared';
+import type { EdgeName, FilletSelectionMode, TessellatedEdge, Vec3 } from '@zilventor/shared';
 
-export type Vec3 = { x: number; y: number; z: number };
-
-export type TessellatedEdge = {
-  edgeName: EdgeName;
-  segments: Array<[Vec3, Vec3]>;
-  faceNames: [FaceName, FaceName];
-  dihedralAngle?: number;
-};
+export type { TessellatedEdge, Vec3 };
 
 export class EdgePickController {
   private candidates: TessellatedEdge[] = [];

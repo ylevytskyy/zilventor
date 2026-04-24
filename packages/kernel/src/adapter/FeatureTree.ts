@@ -1,5 +1,5 @@
 import type { OcctInstance } from '../occt/occtLoader';
-import type { PartDocument, Mesh, BooleanOperation } from '@zilventor/shared';
+import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge } from '@zilventor/shared';
 import {
   ok,
   err,
@@ -15,7 +15,7 @@ import {
 import { executeExtrudeFeature } from './features/ExtrudeFeature';
 import { executeRevolveFeature } from './features/RevolveFeature';
 import { executeFilletFeature } from './features/FilletFeature';
-import { tessellate } from '../occt/Tessellator';
+import { tessellate, tessellateEdges } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, namedFace, attachName } from '../occt/FaceNaming';
@@ -35,6 +35,7 @@ import { resolve } from './ParameterResolver';
 export type ExecutionResult = {
   mesh: Mesh;
   finalSolid: OcctShape;
+  tessellatedEdges?: TessellatedEdge[];
   featureErrors?: Map<string, KernelError>;
 };
 
@@ -258,12 +259,17 @@ export async function executeTree(
   }
 
   const mesh = tessellate(oc, finalSolid.shape, { linearDeflection: 0.1 });
+  const tessellatedEdges = tessellateEdges(oc, finalSolid);
   // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw
   // handle wrapper). Callers dispose it via `disposeShape`; they don't need
-  // the NamedShape metadata here. The name map stays inside the executor.
+  // the NamedShape metadata here. The name map stays inside the executor,
+  // except for `tessellatedEdges` which carries a pre-resolved (edgeName →
+  // world-space segments) view so the app-layer edge picker does not need
+  // to reason about BRep topology.
   return ok({
     mesh,
     finalSolid: finalSolid.shape,
+    tessellatedEdges,
     ...(featureErrors.size > 0 ? { featureErrors } : {})
   });
 }

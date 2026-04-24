@@ -188,6 +188,7 @@ export default function App() {
       if (cancelled) return;
       if (res.ok) {
         viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+        tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -394,6 +395,7 @@ export default function App() {
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!res.ok) {
             useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -588,6 +590,7 @@ export default function App() {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!unmountedRef.current) {
             useAppStore.getState().setFeatureErrors(new Map());
