@@ -43,6 +43,57 @@ describe('executeRevolveFeature (integration)', () => {
     expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0.5);
     expect(bbox[4] - bbox[1]).toBeCloseTo(5, 0.5);   // Y height
     expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0.5);  // Z diameter
+
+    expect(r.value.named.faceNames.length).toBeGreaterThan(0);
+    const roles = r.value.named.faceNames.map((f) => f.name.role);
+    // Full 360 deg produces a lateral face (and potentially a top/bottom
+    // cap depending on profile geometry). No cap_start/cap_end — the sweep
+    // closes on itself so MakeRevol emits no start/end planar trims.
+    expect(roles).toContain('lateral');
+    expect(roles).not.toContain('cap_start');
+    expect(roles).not.toContain('cap_end');
+    disposeShape(r.value.solid);
+  });
+
+  it('partial 90 deg revolve labels cap_start + cap_end + lateral faces', () => {
+    // Rectangle [5,15] x [0,5] revolved 90 deg about the Y axis (x=0).
+    // MakeRevol for a partial sweep emits exactly 2 planar cap faces whose
+    // planes contain the axis (plane_normal ⊥ axis) — one at angle 0
+    // (cap_start) and one at angle +90 (cap_end) — plus the swept lateral
+    // surfaces. Instance-order of cap_start vs cap_end is MVP-stable on
+    // TopExp_Explorer iteration order for a fixed profile.
+    const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
+      kind: 'sketch',
+      id: 'S1',
+      plane: 'XY',
+      primitives: [
+        { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
+      ],
+      constraints: []
+    };
+    const revolve: Extract<Feature, { kind: 'revolve' }> = {
+      kind: 'revolve',
+      id: 'REV_partial',
+      sketchRef: 'S1',
+      axisPrimitiveId: 'L1',
+      angleParam: 'angle0',
+      direction: 'normal',
+      operation: 'new'
+    };
+
+    const r = executeRevolveFeature(oc, sketchFeature, revolve, Math.PI / 2);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // Partial revolve produces lateral + two cap faces (cap_start, cap_end).
+    const roles = r.value.named.faceNames.map((f) => f.name.role);
+    expect(roles).toContain('cap_start');
+    expect(roles).toContain('cap_end');
+    expect(roles).toContain('lateral');
+    // Exactly one cap_start and one cap_end — MakeRevol emits both trims.
+    expect(roles.filter((r) => r === 'cap_start')).toHaveLength(1);
+    expect(roles.filter((r) => r === 'cap_end')).toHaveLength(1);
     disposeShape(r.value.solid);
   });
 
