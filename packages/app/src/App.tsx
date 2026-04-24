@@ -209,6 +209,7 @@ export default function App() {
             if (!store.kernel || !store.activePart || !store.activeSketchId) return;
             await store.bus.execute(new AddPrimitiveCommand({
               kernel: store.kernel,
+              sketcherClient: sketcherClientRef.current ?? undefined,
               store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
               sketchId: store.activeSketchId,
               primitive
@@ -218,7 +219,7 @@ export default function App() {
         emitConstraint: (c) => {
           const store = useAppStore.getState();
           if (!store.activeSketchId) return;
-          void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c));
+          void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c, sketcherClientRef.current ?? undefined));
         },
         sketcherClient: sketcherClientRef.current ?? undefined,
         onCoords: (diff) => {
@@ -296,7 +297,11 @@ export default function App() {
       const part = store.activePart;
       const sketchId = store.activeSketchId;
       const client = sketcherClientRef.current;
-      if (!part || !sketchId || !client) return;
+      // Only cascade when a sketch is actively loaded in the worker (sketchDof
+      // is non-null between SketchModeController.enter and exit). Otherwise the
+      // initial part-load burst of setParameter calls would fire updateDimensionValue
+      // before loadSketch, and the worker would throw "GcsSystem not loaded".
+      if (!part || !sketchId || !client || store.sketchDof === null) return;
       const sketch = part.featureTree.find(
         (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === sketchId
       );

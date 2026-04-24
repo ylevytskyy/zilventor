@@ -1,9 +1,11 @@
 import type { Command } from './Command';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import type { SketcherClient } from '../sketcher/SketcherClient';
 
 type Ctx = {
   kernel: KernelClient;
+  sketcherClient?: SketcherClient | undefined;
   store: { getActivePart(): PartDocument | null; setActivePart(p: PartDocument | null): void };
   sketchId: string;
   primitive: SketchPrimitive;
@@ -39,6 +41,12 @@ export class AddPrimitiveCommand implements Command {
     this.prior = part;
 
     await this.ctx.kernel.addPrimitive(part.id, this.ctx.sketchId, this.ctx.primitive);
+    // Mirror into the sketcher worker so dim/constraint add + drag + solve all
+    // see primitives drawn after the initial loadSketch. Without this the
+    // worker's GcsSystem only knows about primitives present at sketch entry.
+    if (this.ctx.sketcherClient) {
+      await this.ctx.sketcherClient.addPrimitive(this.ctx.primitive);
+    }
     const raw = await this.ctx.kernel.getPart(part.id);
 
     // The kernel has no concept of sketch constraints — they live only in the
@@ -61,6 +69,9 @@ export class AddPrimitiveCommand implements Command {
   async revert(): Promise<void> {
     if (!this.prior) return;
     await this.ctx.kernel.removePrimitive(this.prior.id, this.ctx.sketchId, this.ctx.primitive.id);
+    if (this.ctx.sketcherClient) {
+      await this.ctx.sketcherClient.removePrimitive(this.ctx.primitive.id);
+    }
     this.ctx.store.setActivePart(this.prior);
   }
 }

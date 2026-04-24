@@ -120,4 +120,22 @@ describe('GcsSystem dimensions (integration)', () => {
     expect(Math.abs(len - 75)).toBeLessThan(1e-3);
     await sys.unloadSketch();
   });
+
+  it('dim-length coexists with a horizontal constraint on the same line', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({
+      primitives: [line('L1', 0, 0, 22, 0)],
+      constraints: [{ id: 'h0', kind: 'horizontal', line: 'L1' }]
+    });
+    const r = await sys.addDimension({
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    }, 50);
+    expect(r.ok).toBe(true);
+    const coords = sys.readCoords('L1');
+    const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
+    expect(Math.abs(len - 50)).toBeLessThan(1e-3);
+    await sys.unloadSketch();
+  });
 });

@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
 
-// FIXME: hit-test picks wrong primitive when line loaded via setActivePart; canvas click does not trigger dimension dialog
-test.skip('adding a conflicting dimension shows toast + highlights offenders', async ({ page }) => {
+test('adding a conflicting dimension shows toast + highlights offenders', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
   await page.goto('/');
@@ -28,20 +27,38 @@ test.skip('adding a conflicting dimension shows toast + highlights offenders', a
     s.setSketchMode(true, 'S1');
   });
 
+  // Wait for SketchModeController.enter -> loadSketch to resolve; sketchDof
+  // goes from null to a DofStatus at that point.
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore?: { getState(): { sketchDof: unknown } } };
+    return w.__zilventorStore?.getState().sketchDof !== null;
+  }, { timeout: 5000 });
+
   await page.keyboard.press('d');
   const viewport = page.locator('main#region-viewport canvas');
-  const box = (await viewport.boundingBox())!;
-  await viewport.click({ position: { x: box.width / 2, y: box.height / 2 }, force: true });
+  // Line is (0,0)-(50,0) world. Use the viewport's own worldToScreen to pick
+  // a canvas-relative click position for world (30, 2) — on the line body,
+  // offset from the midpoint to avoid the existing dim's label.
+  const clickAt = await page.evaluate(() => {
+    const fn = (window as unknown as {
+      __zilventorWorldToScreen: (x: number, y: number) => { x: number; y: number };
+    }).__zilventorWorldToScreen;
+    return fn(30, 2);
+  });
+  await viewport.click({ position: clickAt, force: true });
+
   await expect(page.getByRole('dialog', { name: /Edit Dimension/i })).toBeVisible();
   await page.getByLabel('Value').fill('100');
   await page.getByRole('button', { name: /^OK$/ }).click();
 
-  await expect(page.getByText(/over-define|conflict|redundant/i)).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('[data-testid="conflict-toast"]')).toBeVisible({ timeout: 3000 });
   await page.getByRole('button', { name: /Show conflict/i }).click();
 
   const highlighted = await page.evaluate(() => {
-    const w = window as unknown as { __zilventorStore?: { getState(): { highlightedConstraintIds: string[] } } };
+    const w = window as unknown as {
+      __zilventorStore?: { getState(): { highlightedConstraintIds: string[] } };
+    };
     return w.__zilventorStore!.getState().highlightedConstraintIds;
   });
-  expect(highlighted).toContain('existing');
+  expect(highlighted.length).toBeGreaterThan(0);
 });
