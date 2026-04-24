@@ -31,6 +31,27 @@ describe('ExtrudeFeature', () => {
     disposeShape(ex.value.solid);
   });
 
+  it('executeExtrudeFeature labels 6 faces for a rectangle prism', () => {
+    const sketch = executeSketchFeature(occt, {
+      kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
+    });
+    expect(sketch.ok).toBe(true);
+    if (!sketch.ok) return;
+
+    const ex = executeExtrudeFeature(occt, sketch.value, {
+      kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new'
+    }, 50);
+    expect(ex.ok).toBe(true);
+    if (!ex.ok) return;
+
+    expect(ex.value.named.faceNames).toHaveLength(6);
+    const roles = ex.value.named.faceNames.map((f) => f.name.role).sort();
+    expect(roles).toContain('top');
+    expect(roles).toContain('bottom');
+    expect(roles.filter((r) => r === 'side')).toHaveLength(4);
+    disposeShape(ex.value.solid);
+  });
+
   it('rejects non-positive extrude distance', () => {
     const sketch = executeSketchFeature(occt, {
       kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []

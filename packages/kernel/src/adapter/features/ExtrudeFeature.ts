@@ -1,6 +1,7 @@
 import type { OcctInstance } from '../../occt/occtLoader';
 import type { SketchResult } from './SketchFeature';
 import type { OcctShape } from '../../occt/SolidOps';
+import { type NamedShape, namedFace, attachName } from '../../occt/FaceNaming';
 import {
   ok,
   err,
@@ -13,9 +14,11 @@ import {
 /**
  * The adapter-level result of executing an extrude feature. `solid`
  * owns the OCCT topology and must be released via `disposeShape` once
- * the caller is done with it.
+ * the caller is done with it. `named` carries the per-face role labels
+ * (top/bottom/side[i]) so that downstream features can bind to stable
+ * face identities across rebuilds.
  */
-export type ExtrudeResult = { featureId: string; solid: OcctShape };
+export type ExtrudeResult = { featureId: string; solid: OcctShape; named: NamedShape };
 
 /**
  * Extrudes a closed sketch wire along +Z into a prismatic solid.
@@ -80,5 +83,70 @@ export function executeExtrudeFeature(
   mkFace.delete();
   dir.delete();
 
-  return ok({ featureId: feature.id, solid: { __brand: 'OcctShape', handle: shape } });
+  // Enumerate faces of the resulting prism and assign names.
+  //
+  // Labeling strategy: for a +Z extrude, the face with the lowest-Z centroid
+  // is 'bottom', the highest-Z is 'top', and the remaining faces are 'side'
+  // instances sorted by atan2 around the solid's center so the instance
+  // indexing is stable under rotation/edit-order changes.
+  //
+  // Overload notes:
+  //   - `GProp_GProps_1()` — default-ctor accumulator (same as BooleanOps).
+  //   - `BRepGProp.SurfaceProperties_1(S, props, SkipShared, UseTriangulation)`
+  //     is the face/shell surface-property overload; for a TopoDS_Face the
+  //     centroid is the area-weighted centroid of the face.
+  const namedResult: NamedShape = {
+    shape: { __brand: 'OcctShape', handle: shape },
+    faceNames: []
+  };
+  const expl = new oc.TopExp_Explorer_2(
+    shape as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+  const faces: unknown[] = [];
+  while (expl.More()) {
+    faces.push(expl.Current());
+    expl.Next();
+  }
+  expl.delete();
+
+  const withCentroids = faces.map((f) => {
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.SurfaceProperties_1(
+      f as never,
+      props,
+      false as never,
+      false as never
+    );
+    const c = props.CentreOfMass();
+    const coord: [number, number, number] = [c.X(), c.Y(), c.Z()];
+    c.delete();
+    props.delete();
+    return { face: f, c: coord };
+  });
+
+  // Sort by Z to identify top/bottom.
+  withCentroids.sort((a, b) => a.c[2] - b.c[2]);
+  const bottom = withCentroids[0]!;
+  const top = withCentroids[withCentroids.length - 1]!;
+  const sides = withCentroids.slice(1, withCentroids.length - 1);
+  attachName(namedResult, bottom.face, namedFace(feature.id, 'bottom'));
+  attachName(namedResult, top.face, namedFace(feature.id, 'top'));
+  // Sort sides by atan2(cY - center, cX - center) for stable instance indexing.
+  const cx = (top.c[0] + bottom.c[0]) / 2;
+  const cy = (top.c[1] + bottom.c[1]) / 2;
+  sides.sort(
+    (a, b) =>
+      Math.atan2(a.c[1] - cy, a.c[0] - cx) - Math.atan2(b.c[1] - cy, b.c[0] - cx)
+  );
+  sides.forEach((s, i) =>
+    attachName(namedResult, s.face, namedFace(feature.id, 'side', i))
+  );
+
+  return ok({
+    featureId: feature.id,
+    solid: { __brand: 'OcctShape', handle: shape },
+    named: namedResult
+  });
 }
