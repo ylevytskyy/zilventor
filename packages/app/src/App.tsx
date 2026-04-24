@@ -635,6 +635,12 @@ export default function App() {
         });
         const scratch = buildRevolveFeature(v, profile, axis, { scratch: true });
         const r = await k.previewFeature(part.id, scratch);
+        // Perf-test instrumentation (T19): count actual preview RPC calls so
+        // tests can verify the 200 ms debounce coalesces rapid input.
+        if (import.meta.env.DEV && typeof window !== 'undefined') {
+          const w = window as unknown as { __zilventorPreviewCount?: number };
+          w.__zilventorPreviewCount = (w.__zilventorPreviewCount ?? 0) + 1;
+        }
         if (r.ok) {
           viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
         } else {
