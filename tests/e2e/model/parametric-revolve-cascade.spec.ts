@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
+import { seedKernelPart } from '../helpers/seedKernelPart';
 
 /**
  * T18 — parametric revolve cascade.
@@ -32,61 +33,42 @@ test('parameter change cascades to revolve geometry', async ({ page }) => {
   //    then mirror theta0 into the ParameterRegistry so the F7 panel lists it.
   //    The AddRevolveFeatureCommand would normally do both; we replicate that
   //    split here without going through the dialog.
-  await page.evaluate(async () => {
+  //
+  //    Rectangle profile offset from origin + vertical axis along X=0 so the
+  //    revolve sweeps around the Y axis.
+  await seedKernelPart(page, {
+    parameters: [{ name: 'theta0', expression: '180', value: 180, unit: 'deg' }],
+    sketches: [
+      {
+        id: 'S_rev',
+        primitives: [
+          { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
+          { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
+        ],
+      },
+    ],
+    revolves: [
+      {
+        id: 'R1',
+        sketchRef: 'S_rev',
+        axisPrimitiveId: 'P_axis',
+        angleParam: 'theta0',
+        operation: 'new',
+      },
+    ],
+  });
+
+  // Register theta0 in the ParameterRegistry so the F7 panel lists it.
+  // The kernel's parameters map was already populated by seedKernelPart above.
+  await page.evaluate(() => {
     const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            setParameter(partId: string, p: unknown): Promise<void>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
       __zilventorParameterRegistry: {
         setParameter(p: { name: string; expression: string; unit: string }): unknown;
       };
     };
-    const state = w.__zilventorStore.getState();
-    if (!state.kernel || !state.activePart) throw new Error('store not primed');
-
-    // Rectangle profile offset from origin + vertical axis along X=0 so the
-    // revolve sweeps around the Y axis.
-    const sketch = {
-      kind: 'sketch',
-      id: 'S_rev',
-      plane: 'XY',
-      primitives: [
-        { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
-        { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
-      ],
-      constraints: [],
-    };
-    await state.kernel.addFeature(state.activePart.id, sketch);
-
-    // Register theta0 in the ParameterRegistry (so the F7 panel lists it)
-    // and push the same value to the kernel's parameters map.
     w.__zilventorParameterRegistry.setParameter({
       name: 'theta0', expression: '180', unit: 'deg',
     });
-    await state.kernel.setParameter(state.activePart.id, {
-      name: 'theta0', expression: '180', value: 180, unit: 'deg',
-    });
-
-    const revolve = {
-      kind: 'revolve',
-      id: 'R1',
-      sketchRef: 'S_rev',
-      axisPrimitiveId: 'P_axis',
-      angleParam: 'theta0',
-      direction: 'normal',
-      operation: 'new',
-    };
-    await state.kernel.addFeature(state.activePart.id, revolve);
-    const next = await state.kernel.getPart(state.activePart.id);
-    state.setActivePart(next);
   });
 
   // The activePart change triggers the executeTree useEffect, which pushes

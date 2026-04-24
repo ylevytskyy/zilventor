@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../e2e/helpers/buildBox';
+import { seedKernelPart } from '../e2e/helpers/seedKernelPart';
 
 /**
  * T19 — debounce perf test.
@@ -35,34 +36,16 @@ test('Perf: 200ms preview debounce coalesces rapid Angle input', async ({ page }
   // 2. Seed a sketch with a rectangle profile + a vertical axis line via the
   //    kernel (same approach as T16). Rectangle at (10,0)-(40,20); axis from
   //    (0,0) to (0,20).
-  await page.evaluate(async () => {
-    const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
-    };
-    const s = w.__zilventorStore.getState();
-    if (!s.kernel || !s.activePart) throw new Error('store not primed');
-    const sketch = {
-      kind: 'sketch',
-      id: 'S_seed',
-      plane: 'XY',
-      primitives: [
-        { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
-        { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
-      ],
-      constraints: [],
-    };
-    await s.kernel.addFeature(s.activePart.id, sketch);
-    const next = await s.kernel.getPart(s.activePart.id);
-    s.setActivePart(next);
+  await seedKernelPart(page, {
+    sketches: [
+      {
+        id: 'S_seed',
+        primitives: [
+          { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
+          { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
+        ],
+      },
+    ],
   });
 
   // Sketch is in the store (2 primitives: rectangle + axis line).

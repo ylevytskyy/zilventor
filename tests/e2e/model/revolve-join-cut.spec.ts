@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
+import { seedKernelPart } from '../helpers/seedKernelPart';
 
 /**
  * T17 — revolve Join + Cut against an existing body.
@@ -36,79 +37,53 @@ type SketchSeed = {
 };
 
 async function seedSketch(page: Page, seed: SketchSeed): Promise<void> {
-  await page.evaluate(async (s) => {
-    const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
-    };
-    const state = w.__zilventorStore.getState();
-    if (!state.kernel || !state.activePart) throw new Error('store not primed');
-    const sketch = {
-      kind: 'sketch',
-      id: s.sketchId,
-      plane: 'XY',
-      primitives: [
-        { id: s.rectId, kind: 'rectangle', x: s.rect.x, y: s.rect.y, w: s.rect.w, h: s.rect.h },
-        { id: s.axisId, kind: 'line', x1: s.axis.x1, y1: s.axis.y1, x2: s.axis.x2, y2: s.axis.y2 },
-      ],
-      constraints: [],
-    };
-    await state.kernel.addFeature(state.activePart.id, sketch);
-    const next = await state.kernel.getPart(state.activePart.id);
-    state.setActivePart(next);
-  }, seed);
+  await seedKernelPart(page, {
+    sketches: [
+      {
+        id: seed.sketchId,
+        primitives: [
+          {
+            id: seed.rectId,
+            kind: 'rectangle',
+            x: seed.rect.x,
+            y: seed.rect.y,
+            w: seed.rect.w,
+            h: seed.rect.h,
+          },
+          {
+            id: seed.axisId,
+            kind: 'line',
+            x1: seed.axis.x1,
+            y1: seed.axis.y1,
+            x2: seed.axis.x2,
+            y2: seed.axis.y2,
+          },
+        ],
+      },
+    ],
+  });
 }
 
 async function seedBaseExtrude(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            setParameter(partId: string, p: unknown): Promise<void>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
-    };
-    const state = w.__zilventorStore.getState();
-    if (!state.kernel || !state.activePart) throw new Error('store not primed');
-    // Base sketch: plain 40x40 rectangle; no axis — extrude doesn't need one.
-    const sketch = {
-      kind: 'sketch',
-      id: 'S_base',
-      plane: 'XY',
-      primitives: [
-        { id: 'P_base_rect', kind: 'rectangle', x: 0, y: 0, w: 40, h: 40 },
-      ],
-      constraints: [],
-    };
-    await state.kernel.addFeature(state.activePart.id, sketch);
-    await state.kernel.setParameter(state.activePart.id, {
-      name: 'd_base', expression: '20', value: 20, unit: 'mm',
-    });
-    const extrude = {
-      kind: 'extrude',
-      id: 'E_base',
-      sketchRef: 'S_base',
-      distanceParam: 'd_base',
-      direction: 'forward',
-      operation: 'new',
-    };
-    await state.kernel.addFeature(state.activePart.id, extrude);
-    const next = await state.kernel.getPart(state.activePart.id);
-    state.setActivePart(next);
+  // Base sketch: plain 40x40 rectangle; no axis — extrude doesn't need one.
+  await seedKernelPart(page, {
+    parameters: [{ name: 'd_base', expression: '20', value: 20, unit: 'mm' }],
+    sketches: [
+      {
+        id: 'S_base',
+        primitives: [
+          { id: 'P_base_rect', kind: 'rectangle', x: 0, y: 0, w: 40, h: 40 },
+        ],
+      },
+    ],
+    extrudes: [
+      {
+        id: 'E_base',
+        sketchRef: 'S_base',
+        distanceParam: 'd_base',
+        operation: 'new',
+      },
+    ],
   });
 }
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
+import { seedKernelPart } from '../helpers/seedKernelPart';
 
 /**
  * T16 — first E2E for revolve: place a full 360° revolve.
@@ -33,34 +34,16 @@ test('place a full 360° revolve', async ({ page }) => {
   //    Rectangle: (10,0) to (40,20). Axis: from (0,0) to (0,20) — vertical
   //    line left of the rectangle. Revolving the rectangle around this axis
   //    produces a hollow cylinder (annulus).
-  await page.evaluate(async () => {
-    const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
-    };
-    const s = w.__zilventorStore.getState();
-    if (!s.kernel || !s.activePart) throw new Error('store not primed');
-    const sketch = {
-      kind: 'sketch',
-      id: 'S_seed',
-      plane: 'XY',
-      primitives: [
-        { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
-        { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
-      ],
-      constraints: [],
-    };
-    await s.kernel.addFeature(s.activePart.id, sketch);
-    const next = await s.kernel.getPart(s.activePart.id);
-    s.setActivePart(next);
+  await seedKernelPart(page, {
+    sketches: [
+      {
+        id: 'S_seed',
+        primitives: [
+          { id: 'P_rect', kind: 'rectangle', x: 10, y: 0, w: 30, h: 20 },
+          { id: 'P_axis', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 20 },
+        ],
+      },
+    ],
   });
 
   // Sketch landed in the browser pane (2 primitives: rectangle + axis line).
