@@ -102,4 +102,21 @@ describe('SketchFeature — rectangle on XY', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toMatch(/empty/i);
   });
+
+  it('executeSketchFeature result has NamedShape with empty faceNames', () => {
+    const sketchFeature = {
+      kind: 'sketch' as const, id: 'S1', plane: 'XY' as const,
+      primitives: [{ id: 'R1', kind: 'rectangle' as const, x: 0, y: 0, w: 10, h: 10 }],
+      constraints: []
+    };
+    const r = executeSketchFeature(occt, sketchFeature);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Sketch doesn't produce faces — faceNames is empty. The naming is
+      // attached by downstream features (extrude/revolve) that do.
+      expect(r.value.named).toBeDefined();
+      expect(r.value.named.faceNames).toEqual([]);
+      disposeSketchResult(occt, r.value);
+    }
+  });
 });

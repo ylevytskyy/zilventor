@@ -18,6 +18,7 @@ import {
   type EdgeHandle,
   type WireHandle
 } from '../../occt/SketchOps';
+import type { NamedShape } from '../../occt/FaceNaming';
 
 /**
  * The adapter-level result of executing a sketch feature. `wire` owns
@@ -29,6 +30,12 @@ export type SketchResult = {
   wire: WireHandle;
   plane: 'XY' | 'XZ' | 'YZ';
   closed: boolean;
+  /** Placeholder NamedShape that downstream features (extrude/revolve) will
+   *  attach faces to. Sketches themselves produce only edges/wires; the
+   *  naming becomes meaningful once a solid is generated. `shape` here is
+   *  a degenerate wrapper — downstream code should read `named.faceNames`,
+   *  not `named.shape`. */
+  named: NamedShape;
 };
 
 /**
@@ -94,7 +101,8 @@ export function executeSketchFeature(
         sketchId: feature.id,
         wire: closedWires[0]!,
         plane: feature.plane,
-        closed: true
+        closed: true,
+        named: { shape: { __brand: 'OcctShape', handle: null }, faceNames: [] }
       });
     }
 
