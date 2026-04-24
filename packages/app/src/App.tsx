@@ -96,7 +96,6 @@ export default function App() {
   const scratchParamNameRef = useRef<string | null>(null);
 
   // Fillet dialog state.
-  const [filletEdges, setFilletEdges] = useState<FilletEdgeSpec[]>([]);
   const [filletSelectionMode, setFilletSelectionMode] = useState<FilletSelectionMode>('edge');
   const [filletMode, setFilletMode] = useState<FilletMode>('constant');
   const [filletPreviewError, setFilletPreviewError] = useState<string | null>(null);
@@ -133,6 +132,8 @@ export default function App() {
   const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
   const filletDialogOpen = useAppStore((s) => s.filletDialogOpen);
   const setFilletDialogOpen = useAppStore((s) => s.setFilletDialogOpen);
+  const filletEdges = useAppStore((s) => s.filletEdges);
+  const setFilletEdges = useAppStore((s) => s.setFilletEdges);
   const parameterValues = useParameterValues(parameterRegistry);
 
   // Expose store and perf hooks to E2E/perf tests (dev only).
@@ -629,7 +630,7 @@ export default function App() {
             selectionMode: filletSelectionMode,
             radius: { kind: 'param', paramName: 'r_fillet' }
           }));
-          setFilletEdges((prev) => [...prev, ...newSpecs]);
+          setFilletEdges([...useAppStore.getState().filletEdges, ...newSpecs]);
           setPickingFilletEdges(false);
           setHoveredEdgeSet(null);
         }
@@ -917,7 +918,7 @@ export default function App() {
   }, [activePart, filletSelectionMode, showToast]);
 
   const onFilletRemoveEdge = useCallback((spec: FilletEdgeSpec) => {
-    setFilletEdges((prev) => prev.filter((e) => e !== spec));
+    setFilletEdges(useAppStore.getState().filletEdges.filter((e) => e !== spec));
   }, []);
 
   const scheduleFilletPreview = useCallback((v: FilletDialogValue) => {

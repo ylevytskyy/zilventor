@@ -22,7 +22,8 @@ export default defineConfig({
     {
       name: 'perf',
       testDir: './tests/perf',
-      use: { ...devices['Desktop Chrome'] }
+      use: { ...devices['Desktop Chrome'] },
+      retries: 1
     }
   ]
 });

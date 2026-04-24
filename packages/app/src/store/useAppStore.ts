@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DimensionConstraint, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { DimensionConstraint, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -29,6 +29,7 @@ type AppState = {
   parametersPanelOpen: boolean;
   revolveDialogOpen: boolean;
   filletDialogOpen: boolean;
+  filletEdges: FilletEdgeSpec[];
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -41,6 +42,7 @@ type AppState = {
   setParametersPanelOpen(v: boolean): void;
   setRevolveDialogOpen(v: boolean): void;
   setFilletDialogOpen(v: boolean): void;
+  setFilletEdges(edges: FilletEdgeSpec[]): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -90,6 +92,8 @@ export const useAppStore = create<AppState>((set) => ({
   setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
   setRevolveDialogOpen: (v) => set({ revolveDialogOpen: v }),
   setFilletDialogOpen: (v) => set({ filletDialogOpen: v }),
+  filletEdges: [],
+  setFilletEdges: (edges) => set({ filletEdges: edges }),
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),

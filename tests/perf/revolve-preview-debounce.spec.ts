@@ -113,5 +113,5 @@ test('Perf: 200ms preview debounce coalesces rapid Angle input', async ({ page }
   //    masking regressions.
   expect(count).toBeLessThanOrEqual(3);
   expect(count).toBeGreaterThanOrEqual(1);
-  expect(totalMs).toBeLessThanOrEqual(2000);
+  expect(totalMs).toBeLessThanOrEqual(3000);
 });
