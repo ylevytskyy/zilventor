@@ -14,19 +14,28 @@ import {
 } from './features/SketchFeature';
 import { executeExtrudeFeature } from './features/ExtrudeFeature';
 import { executeRevolveFeature } from './features/RevolveFeature';
+import { executeFilletFeature } from './features/FilletFeature';
 import { tessellate } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
+import { type NamedShape, namedFace, attachName } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
 
 /**
  * The tessellated result of executing a full feature tree. The caller
  * owns `finalSolid` and must dispose it via `disposeShape` once done;
  * `mesh` is plain typed arrays and needs no disposal.
+ *
+ * `featureErrors` carries per-feature non-fatal errors (e.g. a fillet
+ * whose edge went missing) that should surface to the UI without
+ * short-circuiting the whole tree. Only fillet errors populate it in
+ * Sub-project 3b T13; extrude/revolve still short-circuit to a hard
+ * error return. T14 will tighten this to a non-optional field.
  */
 export type ExecutionResult = {
   mesh: Mesh;
   finalSolid: OcctShape;
+  featureErrors?: Map<string, KernelError>;
 };
 
 /**
@@ -62,13 +71,14 @@ export async function executeTree(
   part: PartDocument
 ): Promise<Result<ExecutionResult, KernelError>> {
   const sketches = new Map<string, SketchResult>();
-  let finalSolid: OcctShape | null = null;
+  let finalSolid: NamedShape | null = null;
+  const featureErrors = new Map<string, KernelError>();
 
   const cleanupOnError = (): void => {
     for (const s of sketches.values()) disposeSketchResult(oc, s);
     sketches.clear();
     if (finalSolid) {
-      disposeShape(finalSolid);
+      disposeShape(finalSolid.shape);
       finalSolid = null;
     }
   };
@@ -132,7 +142,7 @@ export async function executeTree(
         return ex;
       }
 
-      const applied = applyBooleanOp(oc, finalSolid, ex.value.solid, feature.operation, feature.id);
+      const applied = applyBooleanOp(oc, finalSolid, ex.value.named, feature.operation, feature.id);
       if (!applied.ok) {
         // applyBooleanOp has already disposed the freshly made solid (and the
         // running body for the fuse/cut branches); we only need to clear our
@@ -186,7 +196,7 @@ export async function executeTree(
         return rv;
       }
 
-      const applied = applyBooleanOp(oc, finalSolid, rv.value.solid, feature.operation, feature.id);
+      const applied = applyBooleanOp(oc, finalSolid, rv.value.named, feature.operation, feature.id);
       if (!applied.ok) {
         // applyBooleanOp already disposed running + next on failure (for
         // fuse/cut branches); clear our handle so cleanupOnError doesn't
@@ -197,10 +207,41 @@ export async function executeTree(
       }
       finalSolid = applied.value;
     } else if (feature.kind === 'fillet') {
-      // Placeholder for Sub-project 3b T13 — real fillet execution
-      // replaces this branch. Skipping keeps the exhaustive `Feature['kind']`
-      // switch typecheck-green without affecting existing features.
-      continue;
+      // A fillet modifies an existing body — without one there's nothing to
+      // modify. This is a soft error (recorded in featureErrors) so later
+      // features in the tree can still execute; it does not short-circuit
+      // the whole rebuild.
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Fillet needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      const result = executeFilletFeature(oc, finalSolid, feature, (p) => {
+        if (p.kind === 'literal') return ok(p.value);
+        const param = part.parameters[p.paramName];
+        if (!param) {
+          return err({
+            kind: 'invalidParameter',
+            message: `Parameter ${p.paramName} not found`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+        }
+        return resolve(param.expression, param.unit);
+      });
+      if (!result.ok) {
+        // Soft-fail: record the error, keep the pre-fillet body intact, and
+        // continue. The UI can annotate the fillet node while the rest of
+        // the tree rebuilds normally.
+        featureErrors.set(feature.id, result.error);
+        continue;
+      }
+      disposeShape(finalSolid.shape);
+      finalSolid = result.value;
     }
   }
 
@@ -216,8 +257,15 @@ export async function executeTree(
     });
   }
 
-  const mesh = tessellate(oc, finalSolid, { linearDeflection: 0.1 });
-  return ok({ mesh, finalSolid });
+  const mesh = tessellate(oc, finalSolid.shape, { linearDeflection: 0.1 });
+  // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw
+  // handle wrapper). Callers dispose it via `disposeShape`; they don't need
+  // the NamedShape metadata here. The name map stays inside the executor.
+  return ok({
+    mesh,
+    finalSolid: finalSolid.shape,
+    ...(featureErrors.size > 0 ? { featureErrors } : {})
+  });
 }
 
 /**
@@ -242,26 +290,31 @@ export async function executeTree(
  */
 function applyBooleanOp(
   oc: OcctInstance,
-  running: OcctShape | null,
-  next: OcctShape,
+  running: NamedShape | null,
+  next: NamedShape,
   op: BooleanOperation,
   featureId: string
-): Result<OcctShape, KernelError> {
+): Result<NamedShape, KernelError> {
   if (op === 'new') {
-    if (running) disposeShape(running);
+    if (running) disposeShape(running.shape);
     return ok(next);
   }
   if (op === 'join') {
     if (!running) return ok(next); // first feature can be Join (treated as seed)
-    const r = fuseShapes(oc, running, next);
-    disposeShape(running);
-    disposeShape(next);
-    if (!r.ok) return err({ ...r.error, featureId });
-    return r;
+    const r = fuseShapes(oc, running.shape, next.shape);
+    if (!r.ok) {
+      disposeShape(running.shape);
+      disposeShape(next.shape);
+      return err({ ...r.error, featureId });
+    }
+    const merged = mergeFaceNames(oc, r.value, running, next, featureId);
+    disposeShape(running.shape);
+    disposeShape(next.shape);
+    return ok(merged);
   }
   if (op === 'cut') {
     if (!running) {
-      disposeShape(next);
+      disposeShape(next.shape);
       return err({
         kind: 'booleanFailed',
         message: 'Cut needs a target body',
@@ -269,14 +322,19 @@ function applyBooleanOp(
         featureId
       });
     }
-    const r = cutShapes(oc, running, next);
-    disposeShape(running);
-    disposeShape(next);
-    if (!r.ok) return err({ ...r.error, featureId });
-    return r;
+    const r = cutShapes(oc, running.shape, next.shape);
+    if (!r.ok) {
+      disposeShape(running.shape);
+      disposeShape(next.shape);
+      return err({ ...r.error, featureId });
+    }
+    const merged = mergeFaceNames(oc, r.value, running, next, featureId);
+    disposeShape(running.shape);
+    disposeShape(next.shape);
+    return ok(merged);
   }
-  disposeShape(next);
-  if (running) disposeShape(running);
+  disposeShape(next.shape);
+  if (running) disposeShape(running.shape);
   const _exhaustive: never = op;
   return err({
     kind: 'booleanFailed',
@@ -284,4 +342,57 @@ function applyBooleanOp(
     correlationId: newCorrelationId(),
     featureId
   });
+}
+
+/**
+ * Build a NamedShape around a boolean-op result by reusing face names from
+ * the two operand NamedShapes. A face in the result keeps the name of
+ * whichever operand face it IsSame-matches; faces that don't match any
+ * operand (i.e. new topology produced by the boolean) receive a synthetic
+ * `{featureId}/opResult/{n}` name so downstream features can still address
+ * them deterministically.
+ *
+ * This is the T13 minimum: IsSame comparison across both operands, no
+ * topology inference beyond that. T15+ may refine with Modified/Generated/
+ * IsDeleted tracking from BRepAlgoAPI_BooleanOperation.
+ */
+function mergeFaceNames(
+  oc: OcctInstance,
+  resultShape: OcctShape,
+  a: NamedShape,
+  b: NamedShape,
+  featureId: string
+): NamedShape {
+  const named: NamedShape = { shape: resultShape, faceNames: [] };
+  const map = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(
+    resultShape.handle as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    map as never
+  );
+  const extent = (map as { Extent: () => number }).Extent();
+  let unnamedIdx = 0;
+  for (let i = 1; i <= extent; i++) {
+    const faceShape = (map as { FindKey: (i: number) => unknown }).FindKey(i);
+    const face = (oc.TopoDS as { Face_1: (s: unknown) => unknown }).Face_1(
+      faceShape as never
+    );
+    // Prefer A (the running body) over B (the incoming feature) for ambiguous
+    // matches — running-body names are older and more likely to be bound by
+    // downstream features.
+    const surviving =
+      a.faceNames.find((f) =>
+        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
+      ) ??
+      b.faceNames.find((f) =>
+        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
+      );
+    if (surviving) {
+      attachName(named, face, surviving.name);
+    } else {
+      attachName(named, face, namedFace(featureId, 'opResult', unnamedIdx++));
+    }
+  }
+  map.delete();
+  return named;
 }

@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import type { BooleanOperation, PartDocument } from '@zilventor/shared';
+import type {
+  BooleanOperation,
+  FilletFeature,
+  PartDocument
+} from '@zilventor/shared';
+import { canonicalEdgeName } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../../occt/occtLoader';
 import { executeTree } from '../FeatureTree';
 import { computeBoundingBox, disposeShape, type OcctShape } from '../../occt/SolidOps';
+import { namedFace } from '../../occt/FaceNaming';
 
 /** Test-local volume helper: mirrors the private shapeVolume in BooleanOps.ts. */
 function computeVolume(oc: OcctInstance, shape: OcctShape): number {
@@ -47,6 +53,10 @@ function makePart(opts: {
         angleParam: string;
         operation: BooleanOperation;
       }
+    // A fillet case forwards a pre-built FilletFeature object — this keeps
+    // the helper thin for callers that already have canonicalEdgeName/
+    // namedFace wiring in-hand.
+    | { kind: 'fillet'; feature: FilletFeature }
   >;
 }): PartDocument {
   const parameters = opts.parameters ?? {
@@ -84,6 +94,9 @@ function makePart(opts: {
         direction: 'normal' as const,
         operation: f.operation
       };
+    }
+    if (f.kind === 'fillet') {
+      return f.feature;
     }
     return {
       kind: 'extrude' as const,
@@ -307,6 +320,83 @@ describe('FeatureTree revolve execution', () => {
       const vol = computeVolume(occt, r.value.finalSolid);
       expect(vol).toBeLessThan(27000);
       expect(vol).toBeGreaterThan(26000);
+      disposeShape(r.value.finalSolid);
+    }
+  });
+});
+
+// ---- New tests: fillet execution -------------------------------------------
+
+describe('FeatureTree fillet execution', () => {
+  it('extrude New + fillet top edges produces a blended body', async () => {
+    const filletFeature: FilletFeature = {
+      kind: 'fillet',
+      id: 'f1',
+      mode: 'constant',
+      edges: [
+        {
+          edgeId: canonicalEdgeName(
+            namedFace('e1', 'top'),
+            namedFace('e1', 'side', 0)
+          ),
+          selectionMode: 'edge',
+          radius: { kind: 'param', paramName: 'r1' }
+        }
+      ],
+      setbacks: []
+    };
+    const part = makePart({
+      parameters: {
+        d1: { name: 'd1', expression: '10', value: 10, unit: 'mm' as const },
+        r1: { name: 'r1', expression: '2', value: 2, unit: 'mm' as const }
+      },
+      features: [
+        { kind: 'rectSketch', id: 's1', x: 0, y: 0, w: 10, h: 10 },
+        { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', operation: 'new' },
+        { kind: 'fillet', feature: filletFeature }
+      ]
+    });
+    const r = await executeTree(occt, part);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.finalSolid).toBeDefined();
+      // No featureErrors should be populated for this happy path.
+      expect(r.value.featureErrors).toBeUndefined();
+      disposeShape(r.value.finalSolid);
+    }
+  });
+
+  it('records a featureErrors entry when fillet runs without a body', async () => {
+    // A fillet with no prior solid is a soft error: the tree still completes
+    // (with no solid) and returns degenerateSketch, while featureErrors logs
+    // the fillet's complaint. But since the tree has no surviving solid, the
+    // whole executeTree returns degenerateSketch. To exercise the soft-error
+    // path with a valid final solid we put a fillet ahead of an extrude — the
+    // fillet records its error, then the extrude seeds the body.
+    const filletFeature: FilletFeature = {
+      kind: 'fillet',
+      id: 'f1',
+      mode: 'constant',
+      edges: [
+        {
+          edgeId: canonicalEdgeName(namedFace('x', 'y'), namedFace('x', 'z')),
+          selectionMode: 'edge',
+          radius: { kind: 'literal', value: 1 }
+        }
+      ],
+      setbacks: []
+    };
+    const part = makePart({
+      features: [
+        { kind: 'fillet', feature: filletFeature },
+        { kind: 'rectSketch', id: 's1', x: 0, y: 0, w: 10, h: 10 },
+        { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', operation: 'new' }
+      ]
+    });
+    const r = await executeTree(occt, part);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.featureErrors?.get('f1')?.kind).toBe('invalidParameter');
       disposeShape(r.value.finalSolid);
     }
   });
