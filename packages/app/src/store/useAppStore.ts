@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import type { DimensionConstraint, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -39,6 +39,9 @@ type AppState = {
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
   addConstraintToActiveSketch(sketchId: string, c: SketchConstraint): void;
   removeConstraintFromActiveSketch(sketchId: string, constraintId: string): void;
+  addDimensionToActiveSketch(sketchId: string, d: DimensionConstraint): void;
+  removeDimensionFromActiveSketch(sketchId: string, dimensionId: string): void;
+  updateDimensionValueInStore(sketchId: string, dimensionId: string, value: number): void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -123,6 +126,42 @@ export const useAppStore = create<AppState>((set) => ({
         ? { ...f, constraints: f.constraints.filter((c) => c.id !== constraintId) }
         : f
     );
+    return { activePart: { ...part, featureTree: tree } };
+  }),
+  addDimensionToActiveSketch: (sketchId, d) => set((state) => {
+    const part = state.activePart;
+    if (!part) return state;
+    const tree = part.featureTree.map((f) =>
+      f.kind === 'sketch' && f.id === sketchId
+        ? { ...f, constraints: [...f.constraints, d as SketchConstraint] }
+        : f
+    );
+    return { activePart: { ...part, featureTree: tree } };
+  }),
+  removeDimensionFromActiveSketch: (sketchId, id) => set((state) => {
+    const part = state.activePart;
+    if (!part) return state;
+    const tree = part.featureTree.map((f) =>
+      f.kind === 'sketch' && f.id === sketchId
+        ? { ...f, constraints: f.constraints.filter((c) => c.id !== id) }
+        : f
+    );
+    return { activePart: { ...part, featureTree: tree } };
+  }),
+  updateDimensionValueInStore: (sketchId, id, value) => set((state) => {
+    const part = state.activePart;
+    if (!part) return state;
+    const tree = part.featureTree.map((f) => {
+      if (f.kind !== 'sketch' || f.id !== sketchId) return f;
+      return {
+        ...f,
+        constraints: f.constraints.map((c) =>
+          c.id === id && c.kind.startsWith('dim-')
+            ? ({ ...c, value: { kind: 'literal', value } } as SketchConstraint)
+            : c
+        )
+      };
+    });
     return { activePart: { ...part, featureTree: tree } };
   })
 }));

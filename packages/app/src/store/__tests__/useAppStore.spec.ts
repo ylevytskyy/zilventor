@@ -50,3 +50,43 @@ describe('useAppStore constraint extensions', () => {
     expect(sketch.constraints).toHaveLength(0);
   });
 });
+
+describe('useAppStore dimension CRUD', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [{ kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] }]
+    });
+  });
+
+  it('adds a dimension to the active sketch', () => {
+    useAppStore.getState().addDimensionToActiveSketch('S1', {
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    });
+    const sketch = useAppStore.getState().activePart!.featureTree[0] as { constraints: unknown[] };
+    expect(sketch.constraints).toHaveLength(1);
+  });
+
+  it('updates the value of an existing dimension', () => {
+    const s = useAppStore.getState();
+    s.addDimensionToActiveSketch('S1', {
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    });
+    s.updateDimensionValueInStore('S1', 'd0', 100);
+    const sketch = useAppStore.getState().activePart!.featureTree[0] as { constraints: Array<{ value: { value: number } }> };
+    expect(sketch.constraints[0]!.value.value).toBe(100);
+  });
+
+  it('removes a dimension by id', () => {
+    const s = useAppStore.getState();
+    s.addDimensionToActiveSketch('S1', {
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    });
+    s.removeDimensionFromActiveSketch('S1', 'd0');
+    const sketch = useAppStore.getState().activePart!.featureTree[0] as { constraints: unknown[] };
+    expect(sketch.constraints).toHaveLength(0);
+  });
+});
