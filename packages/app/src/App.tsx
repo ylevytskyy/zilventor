@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, PatternAxis, EdgeName } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, MirrorPlane, PatternAxis, EdgeName } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -39,6 +39,8 @@ import { ShellDialog, type ShellDialogValue } from './shell/ShellDialog';
 import { AddShellFeatureCommand } from './commands/AddShellFeatureCommand';
 import { LinearPatternDialog, type LinearPatternDialogValue } from './shell/LinearPatternDialog';
 import { AddLinearPatternFeatureCommand } from './commands/AddLinearPatternFeatureCommand';
+import { MirrorDialog, type MirrorDialogValue } from './shell/MirrorDialog';
+import { AddMirrorFeatureCommand } from './commands/AddMirrorFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -536,6 +538,11 @@ export default function App() {
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
         useAppStore.getState().setLinearPatternDialogOpen(true);
+        return;
+      }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        useAppStore.getState().setMirrorDialogOpen(true);
         return;
       }
       if (e.key === 'F7') {
@@ -1331,6 +1338,37 @@ export default function App() {
     setLinearPatternDialogOpen(false);
   }, [setLinearPatternDialogOpen]);
 
+  // Mirror dialog handlers.
+  const mirrorDialogOpen = useAppStore((s) => s.mirrorDialogOpen);
+  const setMirrorDialogOpen = useAppStore((s) => s.setMirrorDialogOpen);
+
+  const onMirrorCommit = useCallback(async (v: MirrorDialogValue) => {
+    if (!activePart || !kernel) return;
+    const feature: MirrorFeature = {
+      kind: 'mirror',
+      id: `m${Date.now()}`,
+      sourceFeatureId: v.sourceFeatureId,
+      plane: v.plane,
+    };
+    const store = useAppStore.getState();
+    try {
+      await store.bus.execute(new AddMirrorFeatureCommand({
+        partId: activePart.id,
+        feature,
+        kernel,
+        store: { setActivePart: store.setActivePart },
+      }));
+      setMirrorDialogOpen(false);
+    } catch (e) {
+      showToast(`Mirror failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, setMirrorDialogOpen, showToast]);
+
+  const onMirrorCancel = useCallback(() => {
+    setMirrorDialogOpen(false);
+  }, [setMirrorDialogOpen]);
+
+
 
 
   return (
@@ -1510,6 +1548,13 @@ export default function App() {
             });
             return res.ok ? null : formatExpressionError(res.error);
           }}
+        />
+      )}
+      {mirrorDialogOpen && (
+        <MirrorDialog
+          patternableFeatures={patternableFeatures}
+          onCommit={(v) => { void onMirrorCommit(v); }}
+          onCancel={onMirrorCancel}
         />
       )}
       {revolveDialogOpen && (

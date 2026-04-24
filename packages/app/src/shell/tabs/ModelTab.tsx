@@ -81,6 +81,13 @@ export default function ModelTab() {
         >
           Linear Pattern (L)
         </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasRunningBody}
+          onClick={() => useAppStore.getState().setMirrorDialogOpen(true)}
+        >
+          Mirror (M)
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Parameters">
         <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>Parameters…</button>

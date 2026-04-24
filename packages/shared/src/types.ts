@@ -31,7 +31,8 @@ export type Feature =
   | FilletFeature
   | ChamferFeature
   | ShellFeature
-  | LinearPatternFeature;
+  | LinearPatternFeature
+  | MirrorFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -157,6 +158,19 @@ export type LinearPatternFeature = {
   spacing: ParamOrLiteral;
   /** Total number of copies including the source (>= 1; 1 = no replication). */
   count: number;
+};
+
+export type MirrorPlane = 'xy' | 'yz' | 'xz';
+
+export type MirrorFeature = {
+  kind: 'mirror';
+  id: string;
+  /** Id of the extrude or revolve whose geometry is reflected. */
+  sourceFeatureId: string;
+  /** World coordinate plane across which to reflect. Arbitrary planes
+   *  (sketch face / named face) are a follow-up.
+   */
+  plane: MirrorPlane;
 };
 
 export type ShellFeature = {

@@ -18,6 +18,7 @@ import { executeFilletFeature } from './features/FilletFeature';
 import { executeChamferFeature } from './features/ChamferFeature';
 import { executeShellFeature } from './features/ShellFeature';
 import { executeLinearPatternFeature } from './features/LinearPatternFeature';
+import { executeMirrorFeature } from './features/MirrorFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -451,6 +452,111 @@ export async function executeTree(
       // boolean-op'd copies in. Update our pointer without a
       // double-dispose.
       finalSolid = patternResult.value;
+    } else if (feature.kind === 'mirror') {
+      // Mirror reuses the linear-pattern strategy: re-execute the source
+      // feature in isolation, reflect the result across a world plane,
+      // boolean-op the copy into the running body.
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Mirror needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      const source = part.featureTree.find((f) => f.id === feature.sourceFeatureId);
+      if (!source || (source.kind !== 'extrude' && source.kind !== 'revolve')) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: `Mirror source ${feature.sourceFeatureId} must be an extrude or revolve`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      let sourceShape: NamedShape | null = null;
+      if (source.kind === 'extrude') {
+        const sketch = sketches.get(source.sketchRef);
+        if (!sketch) {
+          featureErrors.set(feature.id, {
+            kind: 'featureNotFound',
+            message: `Source extrude's sketch ${source.sketchRef} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const param = part.parameters[source.distanceParam];
+        if (!param) {
+          featureErrors.set(feature.id, {
+            kind: 'invalidParameter',
+            message: `Source extrude parameter ${source.distanceParam} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const resolved = resolve(param.expression, param.unit);
+        if (!resolved.ok) {
+          featureErrors.set(feature.id, { ...resolved.error, featureId: feature.id });
+          continue;
+        }
+        const ex = executeExtrudeFeature(oc, sketch, source, resolved.value);
+        if (!ex.ok) {
+          featureErrors.set(feature.id, { ...ex.error, featureId: feature.id });
+          continue;
+        }
+        sourceShape = ex.value.named;
+      } else {
+        const sketchFeature = part.featureTree.find(
+          (f) => f.kind === 'sketch' && f.id === source.sketchRef
+        );
+        if (!sketchFeature || sketchFeature.kind !== 'sketch') {
+          featureErrors.set(feature.id, {
+            kind: 'featureNotFound',
+            message: `Source revolve's sketch ${source.sketchRef} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const param = part.parameters[source.angleParam];
+        if (!param) {
+          featureErrors.set(feature.id, {
+            kind: 'invalidParameter',
+            message: `Source revolve parameter ${source.angleParam} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const resolved = resolve(param.expression, param.unit);
+        if (!resolved.ok) {
+          featureErrors.set(feature.id, { ...resolved.error, featureId: feature.id });
+          continue;
+        }
+        const angleRad = (resolved.value * Math.PI) / 180;
+        const rv = executeRevolveFeature(oc, sketchFeature, source, angleRad);
+        if (!rv.ok) {
+          featureErrors.set(feature.id, { ...rv.error, featureId: feature.id });
+          continue;
+        }
+        sourceShape = rv.value.named;
+      }
+      const mirrorResult = executeMirrorFeature(oc, {
+        runningBody: finalSolid,
+        sourceShape: sourceShape.shape,
+        operation: source.operation,
+        plane: feature.plane,
+        featureId: feature.id
+      });
+      disposeShape(sourceShape.shape);
+      if (!mirrorResult.ok) {
+        featureErrors.set(feature.id, mirrorResult.error);
+        continue;
+      }
+      finalSolid = mirrorResult.value;
     }
   }
 
