@@ -1,4 +1,11 @@
 import type { OcctInstance } from './occtLoader';
+import {
+  ok,
+  err,
+  type Result,
+  type KernelError,
+  newCorrelationId
+} from '@zilventor/shared';
 
 /**
  * Opaque branded wrapper around an OCCT TopoDS_Shape.
@@ -68,4 +75,102 @@ export function computeBoundingBox(
  */
 export function disposeShape(shape: OcctShape): void {
   (shape.handle as { delete?: () => void }).delete?.();
+}
+
+/**
+ * Parameters for `makeRevolve`.
+ *   - `profile`: a planar face or wire to sweep.
+ *   - `axisOrigin` / `axisDir`: the revolution axis (direction is normalized
+ *     internally). A zero-length `axisDir` is rejected up front.
+ *   - `angleRad`: sweep angle in radians (use `2 * Math.PI` for full).
+ */
+export type RevolveSpec = {
+  profile: OcctShape;
+  axisOrigin: [number, number, number];
+  axisDir: [number, number, number];
+  angleRad: number;
+};
+
+/**
+ * Revolves a profile around an axis via `BRepPrimAPI_MakeRevol_1`.
+ *
+ * Overload notes:
+ *   - `gp_Pnt_3(x, y, z)` — three-real point ctor.
+ *   - `gp_Dir_4(x, y, z)` — three-real direction ctor (takes a normalized
+ *     vector; OCCT will throw if the magnitude is zero, which is why we
+ *     guard with a pre-check).
+ *   - `gp_Ax1_2(gp_Pnt, gp_Dir)` — origin + direction axis ctor.
+ *   - `BRepPrimAPI_MakeRevol_1(S, A, D, Copy)` — shape + axis + angle +
+ *     copy-flag. Note this deviates from the plan's draft (`_2`) which is
+ *     the no-angle full-360 variant; `_1` is the angle-aware constructor
+ *     verified against `opencascade.full.d.ts`.
+ *
+ * Lifecycle:
+ *   - Every `new oc.*` is disposed on every exit path (degenerate-axis
+ *     guard, not-done, success, thrown). The `Message_ProgressRange_1`
+ *     passed to `Build()` is held in a local and disposed alongside the
+ *     builder — matching the pattern in `BooleanOps.ts`.
+ */
+export function makeRevolve(
+  oc: OcctInstance,
+  s: RevolveSpec
+): Result<OcctShape, KernelError> {
+  const [dx, dy, dz] = s.axisDir;
+  const mag = Math.hypot(dx, dy, dz);
+  if (mag < 1e-9) {
+    return err({
+      kind: 'revolveFailed',
+      message: 'Degenerate axis direction',
+      correlationId: newCorrelationId()
+    });
+  }
+  let origin: unknown = null;
+  let dir: unknown = null;
+  let ax: unknown = null;
+  let mk: unknown = null;
+  let range: unknown = null;
+  try {
+    origin = new oc.gp_Pnt_3(s.axisOrigin[0], s.axisOrigin[1], s.axisOrigin[2]);
+    dir = new oc.gp_Dir_4(dx / mag, dy / mag, dz / mag);
+    ax = new oc.gp_Ax1_2(origin as never, dir as never);
+    mk = new oc.BRepPrimAPI_MakeRevol_1(
+      s.profile.handle as never,
+      ax as never,
+      s.angleRad,
+      false as never
+    );
+    range = new oc.Message_ProgressRange_1();
+    (mk as { Build: (r: unknown) => void }).Build(range);
+    const done = (mk as { IsDone: () => boolean }).IsDone();
+    if (!done) {
+      (mk as { delete: () => void }).delete();
+      (range as { delete: () => void }).delete();
+      (ax as { delete: () => void }).delete();
+      (dir as { delete: () => void }).delete();
+      (origin as { delete: () => void }).delete();
+      return err({
+        kind: 'revolveFailed',
+        message: 'MakeRevol did not converge',
+        correlationId: newCorrelationId()
+      });
+    }
+    const shape = (mk as { Shape: () => unknown }).Shape();
+    (mk as { delete: () => void }).delete();
+    (range as { delete: () => void }).delete();
+    (ax as { delete: () => void }).delete();
+    (dir as { delete: () => void }).delete();
+    (origin as { delete: () => void }).delete();
+    return ok({ __brand: 'OcctShape', handle: shape });
+  } catch (e) {
+    (mk as { delete?: () => void } | null)?.delete?.();
+    (range as { delete?: () => void } | null)?.delete?.();
+    (ax as { delete?: () => void } | null)?.delete?.();
+    (dir as { delete?: () => void } | null)?.delete?.();
+    (origin as { delete?: () => void } | null)?.delete?.();
+    return err({
+      kind: 'revolveFailed',
+      message: `MakeRevol threw: ${(e as Error).message}`,
+      correlationId: newCorrelationId()
+    });
+  }
 }
