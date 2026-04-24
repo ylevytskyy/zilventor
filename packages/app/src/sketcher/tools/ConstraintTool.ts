@@ -1,7 +1,9 @@
-import type { SketchPrimitive, SketchConstraint, PointRef } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint, DimensionConstraint, PointRef } from '@zilventor/shared';
 import type { Point2 } from '../snap';
 
-type Kind = SketchConstraint['kind'];
+// ConstraintTool only handles geometric constraints. Dimensional constraints
+// have their own GeneralDimensionTool (Sub-project 2c Task 15).
+type Kind = Exclude<SketchConstraint['kind'], DimensionConstraint['kind']>;
 type CommitFn = (c: SketchConstraint) => void;
 
 const arity: Record<Kind, 1 | 2 | 3> = {

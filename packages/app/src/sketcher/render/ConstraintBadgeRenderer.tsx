@@ -4,7 +4,9 @@ import { RemoveConstraintCommand } from '../../commands/RemoveConstraintCommand'
 
 const GLYPH: Record<SketchConstraint['kind'], string> = {
   coincident: '●', horizontal: '—', vertical: '|', parallel: '∥',
-  perpendicular: '⊥', tangent: '⌒', equal: '=', symmetric: '⇄'
+  perpendicular: '⊥', tangent: '⌒', equal: '=', symmetric: '⇄',
+  'dim-length': '', 'dim-distance': '', 'dim-angle': '',
+  'dim-radius': '', 'dim-diameter': '', 'dim-point-line-distance': '',
 };
 
 type WorldToScreen = (x: number, y: number) => { x: number; y: number };
@@ -81,5 +83,13 @@ function anchorWorldPos(c: SketchConstraint, prims: Map<string, SketchPrimitive>
     case 'tangent':        return midOfLine(c.line);
     case 'coincident':     return pointAt(c.a);
     case 'symmetric':      return pointAt(c.a);
+    case 'dim-length':
+    case 'dim-distance':
+    case 'dim-angle':
+    case 'dim-radius':
+    case 'dim-diameter':
+    case 'dim-point-line-distance':
+      // Dimensions have their own renderer (Task 14); this file only handles geometric-constraint badges.
+      return null;
   }
 }

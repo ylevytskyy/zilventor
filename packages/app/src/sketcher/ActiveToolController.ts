@@ -87,7 +87,10 @@ export class ActiveToolController {
       case 'constrain-tangent':
       case 'constrain-equal':
       case 'constrain-symmetric': {
-        const constraintKind = kind.slice('constrain-'.length) as SketchConstraint['kind'];
+        // The switch arms above only produce geometric constrain-* kinds,
+        // so the narrowed type excludes dimensional kinds.
+        const constraintKind = kind.slice('constrain-'.length) as
+          Exclude<SketchConstraint['kind'], `dim-${string}`>;
         return new ConstraintTool({
           kind: constraintKind,
           onCommit: (c) => { this.deps.emitConstraint?.(c); },

@@ -278,6 +278,14 @@ export class GcsSystem {
         if (!p1 || !p2) return null;
         return [{ id: c.id, type: 'p2p_symmetric_ppl', p1_id: p1, p2_id: p2, l_id: c.axis }];
       }
+      case 'dim-length':
+      case 'dim-distance':
+      case 'dim-angle':
+      case 'dim-radius':
+      case 'dim-diameter':
+      case 'dim-point-line-distance':
+        // Dimensions flow through addDimension, not addConstraint.
+        return null;
     }
   }
 
@@ -477,7 +485,13 @@ export class GcsSystem {
       case 'tangent':       return c.line === primitiveId || c.arc === primitiveId;
       case 'equal':         return c.a === primitiveId || c.b === primitiveId;
       case 'coincident':    return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId;
-      case 'symmetric':     return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId || c.axis === primitiveId;
+      case 'symmetric':                  return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId || c.axis === primitiveId;
+      case 'dim-length':                 return c.line === primitiveId;
+      case 'dim-distance':               return c.a.primitiveId === primitiveId || c.b.primitiveId === primitiveId;
+      case 'dim-angle':                  return c.line1 === primitiveId || c.line2 === primitiveId;
+      case 'dim-radius':
+      case 'dim-diameter':               return c.circle === primitiveId;
+      case 'dim-point-line-distance':    return c.point.primitiveId === primitiveId || c.line === primitiveId;
     }
   }
 
