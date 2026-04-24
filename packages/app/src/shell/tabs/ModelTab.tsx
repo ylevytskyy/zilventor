@@ -2,7 +2,8 @@ import { useState } from 'react';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
-import ExtrudeDialog from '../ExtrudeDialog';
+import { AddExtrusionCommand } from '../../commands/AddExtrusionCommand';
+import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
   const activePart = useAppStore((s) => s.activePart);
@@ -15,6 +16,32 @@ export default function ModelTab() {
   };
 
   const hasSketch = !!activePart?.featureTree.some((f) => f.kind === 'sketch');
+  const hasRunningBody = !!activePart?.featureTree.some(
+    (f) => f.kind === 'extrude' || f.kind === 'revolve'
+  );
+
+  const handleExtrudeCommit = async (v: ExtrudeDialogValue) => {
+    const { kernel, bus, activePart: part, setActivePart } = useAppStore.getState();
+    if (!kernel || !part) return;
+    const d = Number(v.distance);
+    if (!Number.isFinite(d) || d <= 0) return;
+    const lastSketch = [...part.featureTree].reverse().find((f) => f.kind === 'sketch');
+    if (!lastSketch) return;
+    await bus.execute(new AddExtrusionCommand({
+      kernel,
+      store: { activePart: part, setActivePart },
+      parameter: { name: 'd1', expression: String(d), value: d, unit: 'mm' },
+      feature: {
+        kind: 'extrude',
+        id: `e${Date.now()}`,
+        sketchRef: lastSketch.id,
+        distanceParam: 'd1',
+        direction: 'forward',
+        operation: v.operation,
+      },
+    }));
+    setExtrudeOpen(false);
+  };
 
   return (
     <div className="flex gap-2 px-3 py-2">
@@ -29,7 +56,13 @@ export default function ModelTab() {
       <RibbonPanel title="Parameters">
         <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>Parameters…</button>
       </RibbonPanel>
-      {extrudeOpen && <ExtrudeDialog onClose={() => setExtrudeOpen(false)} />}
+      {extrudeOpen && (
+        <ExtrudeDialog
+          hasRunningBody={hasRunningBody}
+          onCommit={(v) => { void handleExtrudeCommit(v); }}
+          onCancel={() => setExtrudeOpen(false)}
+        />
+      )}
     </div>
   );
 }
