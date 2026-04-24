@@ -6,6 +6,47 @@ import type { NamedShape } from '../../../occt/FaceNaming';
 import type { FaceName, EdgeName } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
 
+function nameCylinderTopologies(oc: any, cyl: any, featureId: string): {
+  named: NamedShape;
+  faceNameOf: Record<string, FaceName>;
+  circularEdge: EdgeName;
+} {
+  const faceNameOf: Record<string, FaceName> = {};
+  const named: NamedShape = { shape: cyl, faceNames: [] };
+
+  const map = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(cyl, oc.TopAbs_ShapeEnum.TopAbs_FACE, map);
+  for (let i = 1; i <= map.Extent(); i++) {
+    const faceShape = map.FindKey(i);
+    const face = oc.TopoDS.Face_1(faceShape);
+    const surfAdaptor = new oc.BRepAdaptor_Surface_2(face, true);
+    const surfType = surfAdaptor.GetType();
+    surfAdaptor.delete?.();
+
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.SurfaceProperties_1(face, props, 1e-7, false);
+    const c = props.CentreOfMass();
+    props.delete?.();
+
+    let role: string;
+    if (surfType === oc.GeomAbs_SurfaceType.GeomAbs_Cylinder) {
+      role = 'side';
+    } else if (c.Z() > 5) {
+      role = 'top';
+    } else {
+      role = 'bottom';
+    }
+
+    const name: FaceName = { featureId, role, instance: 0 };
+    faceNameOf[role] = name;
+    named.faceNames.push({ name, face });
+  }
+  map.delete();
+
+  const circularEdge = canonicalEdgeName(faceNameOf['top']!, faceNameOf['side']!);
+  return { named, faceNameOf, circularEdge };
+}
+
 function nameCubeFaces(oc: any, cube: any, featureId: string): {
   named: NamedShape;
   faceNameOf: Record<string, FaceName>;
@@ -158,5 +199,29 @@ describe('makeHole — integration (kernel)', () => {
     const props = new oc.GProp_GProps_1();
     oc.BRepGProp.VolumeProperties_1(result.shape, props, 1e-7, false, false);
     expect(20 * 20 * 10 - props.Mass()).toBeCloseTo(Math.PI * 10, 0);
+  });
+
+  it('concentric placement centers hole on a circular edge', () => {
+    const cyl = new oc.BRepPrimAPI_MakeCylinder_1(5, 10).Shape();
+    const { named, faceNameOf, circularEdge } = nameCylinderTopologies(oc, cyl, 'C1');
+
+    const feature: any = {
+      id: 'H1', kind: 'hole',
+      placement: {
+        kind: 'concentric',
+        faceName: faceNameOf['top'],
+        circularEdgeName: circularEdge,
+      },
+      profile: { kind: 'simple', diameter: { kind: 'literal', value: 2 } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    const result = executeHoleFeature(oc, named, feature, (p: any) => p.value, new Map());
+
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.VolumeProperties_1(result.shape, props, 1e-7, false, false);
+    const origVol = Math.PI * 25 * 10;        // R²·π·H = 25π·10
+    const holeVol = Math.PI * 1 * 1 * 10;     // r²·π·H = π·10
+    expect(origVol - props.Mass()).toBeCloseTo(holeVol, 0);
   });
 });

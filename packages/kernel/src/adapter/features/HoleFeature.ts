@@ -189,6 +189,46 @@ function resolveFromSketchLocations(
   return locations;
 }
 
+function resolveConcentricLocation(
+  oc: OcctInstance,
+  runningBody: NamedShape,
+  placement: Extract<HolePlacement, { kind: 'concentric' }>,
+  flipAxis: boolean,
+): HoleLocation {
+  const face = findFaceByName(runningBody, placement.faceName);
+  if (!face) throw new Error('concentric: face not found');
+  const rawEdge = resolveEdge(oc, runningBody, placement.circularEdgeName);
+  if (!rawEdge) throw new Error('concentric: circular edge not found');
+  const edge = (oc as any).TopoDS.Edge_1(rawEdge);
+
+  const adaptor = new (oc as any).BRepAdaptor_Curve_2(edge);
+  const curveType = adaptor.GetType();
+  // oc.GeomAbs_CurveType is an object with enum-value properties, matching the pattern
+  // used elsewhere (GeomAbs_JoinType, GeomAbs_SurfaceType, GeomAbs_Shape).
+  const expectedCircle = (oc as any).GeomAbs_CurveType.GeomAbs_Circle;
+  if (curveType !== expectedCircle) {
+    adaptor.delete?.();
+    throw new Error('concentric: picked edge is not a circle');
+  }
+  const circle = adaptor.Circle();
+  const center = circle.Location();
+  const circleAxis = circle.Axis().Direction();
+  adaptor.delete?.();
+
+  // Use the face normal (outward) to pin the circle-axis sign, then negate to point inward.
+  // flipAxis inverts again (drill from inside out).
+  const { normal: faceNormal } = facePlaneNormal(oc, face);
+  const circleVec: Vec3 = { x: circleAxis.X(), y: circleAxis.Y(), z: circleAxis.Z() };
+  // Align circleVec with faceNormal for a deterministic sign, then negate to point inward.
+  const aligned = dot(circleVec, faceNormal) >= 0 ? circleVec : neg(circleVec);
+  const inward = neg(aligned);
+  const axisVec = flipAxis ? neg(inward) : inward;
+
+  const origin = new (oc as any).gp_Pnt_3(center.X(), center.Y(), center.Z());
+  const axis = new (oc as any).gp_Dir_4(axisVec.x, axisVec.y, axisVec.z);
+  return { origin, axis };
+}
+
 /**
  * Execute a hole feature against a running body.
  *
@@ -218,6 +258,8 @@ export function executeHoleFeature(
       resolveParam(feature.placement.offset2),
       feature.flipAxis,
     )];
+  } else if (feature.placement.kind === 'concentric') {
+    locations = [resolveConcentricLocation(oc, runningBody, feature.placement, feature.flipAxis)];
   } else {
     throw new Error(`hole: placement ${(feature.placement as { kind: string }).kind} not implemented`);
   }
