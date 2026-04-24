@@ -1,4 +1,4 @@
-import type { SketchPrimitive, SketchConstraint, PointRef } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint, PointRef, DimensionConstraint } from '@zilventor/shared';
 
 export type DofStatus = { count: number; state: 'under' | 'fully' | 'over' };
 
@@ -8,6 +8,10 @@ export type PrimitiveCoordsDiff = {
 };
 
 export type AddConstraintResult =
+  | { ok: true;  dof: DofStatus; coords: PrimitiveCoordsDiff[] }
+  | { ok: false; reason: 'redundant' | 'conflict'; offendingConstraintIds: string[] };
+
+export type AddDimensionResult =
   | { ok: true;  dof: DofStatus; coords: PrimitiveCoordsDiff[] }
   | { ok: false; reason: 'redundant' | 'conflict'; offendingConstraintIds: string[] };
 
@@ -35,6 +39,10 @@ export interface SketcherWorkerApi {
 
   addConstraint(c: SketchConstraint): Promise<AddConstraintResult>;
   removeConstraint(id: string): Promise<{ dof: DofStatus }>;
+
+  addDimension(constraint: DimensionConstraint, resolvedValue: number): Promise<AddDimensionResult>;
+  removeDimension(id: string): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }>;
+  updateDimensionValue(id: string, resolvedValue: number): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }>;
 
   beginDrag(ref: PointRef): Promise<void>;
   dragTo(x: number, y: number): Promise<DragSolveResult>;

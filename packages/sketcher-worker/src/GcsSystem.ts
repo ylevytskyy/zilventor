@@ -1,9 +1,10 @@
 import type { GcsWrapper } from '@salusoft89/planegcs';
-import type { SketchPrimitive, SketchConstraint, PointRef } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint, PointRef, DimensionConstraint } from '@zilventor/shared';
 import type {
   DofStatus,
   LoadSketchResult,
   AddConstraintResult,
+  AddDimensionResult,
   PrimitiveCoordsDiff,
   DragSolveResult,
 } from './types';
@@ -249,9 +250,17 @@ export class GcsSystem {
     this.gcs.push_primitives_and_params(gcsPrims as never);
     // Re-push remaining constraints
     for (const c of this.domainConstraints.values()) {
-      const gcsConstraints = this.translateConstraint(c);
-      if (gcsConstraints !== null) {
-        for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+      if (isDimension(c)) {
+        const resolvedValue = c.value.kind === 'literal' ? c.value.value : 0;
+        const gcsConstraints = this.translateDimensionConstraint(c, resolvedValue);
+        if (gcsConstraints !== null) {
+          for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+        }
+      } else {
+        const gcsConstraints = this.translateConstraint(c);
+        if (gcsConstraints !== null) {
+          for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+        }
       }
     }
     this.gcs.solve();
@@ -495,5 +504,90 @@ export class GcsSystem {
     }
   }
 
+  async addDimension(
+    constraint: DimensionConstraint,
+    resolvedValue: number
+  ): Promise<AddDimensionResult> {
+    this.requireLoaded();
+    const gcs = this.translateDimensionConstraint(constraint, resolvedValue);
+    if (gcs === null) {
+      return { ok: false, reason: 'conflict', offendingConstraintIds: [constraint.id] };
+    }
+    for (const g of gcs) this.gcs.push_primitive(g as never);
+    this.gcs.solve();
+    this.gcs.apply_solution();
+
+    if (this.gcs.has_gcs_conflicting_constraints()) {
+      const offendingConstraintIds = this.gcs.get_gcs_conflicting_constraints();
+      this.rebuildGcs();
+      return { ok: false, reason: 'conflict', offendingConstraintIds };
+    }
+    if (this.gcs.has_gcs_redundant_constraints()) {
+      const offendingConstraintIds = this.gcs.get_gcs_redundant_constraints();
+      this.rebuildGcs();
+      return { ok: false, reason: 'redundant', offendingConstraintIds };
+    }
+
+    this.domainConstraints.set(constraint.id, constraint);
+    this.syncDomainFromGcs();
+    return { ok: true, dof: this.readDof(), coords: this.coordDiffForAll() };
+  }
+
+  async removeDimension(id: string): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }> {
+    this.requireLoaded();
+    const c = this.domainConstraints.get(id);
+    if (!c) return { dof: this.readDof(), coords: [] };
+    this.domainConstraints.delete(id);
+    this.rebuildGcs();
+    return { dof: this.readDof(), coords: this.coordDiffForAll() };
+  }
+
+  async updateDimensionValue(
+    id: string,
+    resolvedValue: number
+  ): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }> {
+    this.requireLoaded();
+    const c = this.domainConstraints.get(id);
+    if (!c || !isDimension(c)) return { dof: this.readDof(), coords: [] };
+    const updated = { ...c, value: { kind: 'literal' as const, value: resolvedValue } };
+    this.domainConstraints.set(id, updated);
+    this.rebuildGcs();
+    return { dof: this.readDof(), coords: this.coordDiffForAll() };
+  }
+
+  private translateDimensionConstraint(
+    c: DimensionConstraint,
+    value: number
+  ): Array<Record<string, unknown>> | null {
+    switch (c.kind) {
+      case 'dim-length': {
+        const d = this.decomp.get(c.line);
+        if (!d?.pointIds['start'] || !d?.pointIds['end']) return null;
+        return [{ id: c.id, type: 'p2p_distance', p1_id: d.pointIds['start'], p2_id: d.pointIds['end'], distance: value }];
+      }
+      case 'dim-distance': {
+        const a = this.resolvePoint(c.a);
+        const b = this.resolvePoint(c.b);
+        if (!a || !b) return null;
+        return [{ id: c.id, type: 'p2p_distance', p1_id: a, p2_id: b, distance: value }];
+      }
+      case 'dim-angle':
+        return [{ id: c.id, type: 'l2l_angle_ll', l1_id: c.line1, l2_id: c.line2, angle: value * Math.PI / 180 }];
+      case 'dim-radius':
+        return [{ id: c.id, type: 'circle_radius', c_id: c.circle, radius: value }];
+      case 'dim-diameter':
+        return [{ id: c.id, type: 'circle_diameter', c_id: c.circle, diameter: value }];
+      case 'dim-point-line-distance': {
+        const p = this.resolvePoint(c.point);
+        if (!p) return null;
+        return [{ id: c.id, type: 'p2l_distance', p_id: p, l_id: c.line, distance: value }];
+      }
+    }
+  }
+
   // Task 10 adds: redundant/conflict detection
+}
+
+function isDimension(c: SketchConstraint): c is DimensionConstraint {
+  return c.kind.startsWith('dim-');
 }

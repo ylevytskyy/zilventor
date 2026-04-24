@@ -14,7 +14,10 @@ function makeFakeApi(): SketcherWorkerApi {
     beginDrag:  vi.fn(async () => undefined),
     dragTo:     vi.fn(async () => ({ coords: [], dof: { count: 0, state: 'fully' as const }, solverMs: 1 })),
     endDrag:    vi.fn(async () => ({ dof: { count: 0, state: 'fully' as const }, finalCoords: [] })),
-    inferFromSnaps: vi.fn(async () => [])
+    inferFromSnaps: vi.fn(async () => []),
+    addDimension: vi.fn(async () => ({ ok: true as const, dof: { count: 3, state: 'under' as const }, coords: [] })),
+    removeDimension: vi.fn(async () => ({ dof: { count: 4, state: 'under' as const }, coords: [] })),
+    updateDimensionValue: vi.fn(async () => ({ dof: { count: 3, state: 'under' as const }, coords: [] })),
   };
 }
 
