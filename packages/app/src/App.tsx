@@ -69,6 +69,10 @@ export default function App() {
   const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
   const [pickingAxis, setPickingAxis] = useState(false);
   const [selectedAxisRef, setSelectedAxisRef] = useState<AxisRef | null>(null);
+  // Error message surfaced by schedulePreview when `previewFeature` returns
+  // err — passed to RevolveDialog's `previewError` prop so the user sees why
+  // the live preview disappeared. Cleared on cancel/commit/apply.
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; action?: { label: string; fn: () => void } } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -651,11 +655,14 @@ export default function App() {
         }
         if (r.ok) {
           viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
+          setPreviewError(null);
         } else {
           viewportRef.current?.clearPreviewMesh();
+          setPreviewError(r.error.message);
         }
-      } catch {
+      } catch (e) {
         viewportRef.current?.clearPreviewMesh();
+        setPreviewError((e as Error).message);
       }
     }, 200);
   }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature]);
@@ -683,6 +690,7 @@ export default function App() {
       // a later Cancel-after-commit does not delete a legitimate param.
       scratchParamNameRef.current = null;
       clearPreview();
+      setPreviewError(null);
       setRevolveDialogOpen(false);
       setPickingAxis(false);
       setSelectedAxisRef(null);
@@ -708,6 +716,7 @@ export default function App() {
       // longer "scratch" — clear the ref so a later Cancel does not delete it.
       scratchParamNameRef.current = null;
       clearPreview();
+      setPreviewError(null);
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
     }
@@ -724,6 +733,7 @@ export default function App() {
       void kernel.deleteParameter(activePart.id, scratchName);
       scratchParamNameRef.current = null;
     }
+    setPreviewError(null);
     setRevolveDialogOpen(false);
     setPickingAxis(false);
     setSelectedAxisRef(null);
@@ -838,6 +848,18 @@ export default function App() {
           onPickProfile={() => { /* T15: profile picking. For T13 the dialog shows the active sketch. */ }}
           onPickAxis={onPickAxis}
           onDraftChange={schedulePreview}
+          validateExpression={(expr) => {
+            // Use dryRun so the registry is NOT mutated while the user types.
+            // We validate under the *committed* name 'angle0' — the dialog's
+            // name field is captured at commit time by AddRevolveFeatureCommand.
+            const res = parameterRegistry.dryRun({
+              name: 'angle0',
+              expression: expr,
+              unit: 'deg'
+            });
+            return res.ok ? null : formatExpressionError(res.error);
+          }}
+          previewError={previewError}
         />
       )}
       {toast && (

@@ -29,8 +29,58 @@ export class ParameterRegistry {
     for (const l of this.listeners) l();
   }
 
+  /**
+   * Parses and evaluates the input expression without mutating the registry.
+   * Runs the same parse / unknown-var / cycle / eval / finite checks as
+   * `setParameter`, but never writes to `entries` or `dependents`. Intended
+   * for UI-side validation (e.g. inline dialog errors) where we want to show
+   * an error as the user types without polluting the registry state.
+   *
+   * Returns the computed SketchParameter on success, or an EvaluationError.
+   * Note: this does NOT recompute dependents — it only validates the single
+   * input expression against the current registry snapshot.
+   */
+  dryRun(input: Pick<SketchParameter, 'name' | 'expression' | 'unit'>):
+    Result<SketchParameter, EvaluationError> {
+    const parsed = this.parseAndValidate(input);
+    if (!parsed.ok) return parsed;
+    return { ok: true, value: parsed.value.parameter };
+  }
+
   setParameter(input: Pick<SketchParameter, 'name' | 'expression' | 'unit'>):
     Result<SketchParameter, EvaluationError> {
+    const parsed = this.parseAndValidate(input);
+    if (!parsed.ok) return parsed;
+    const { parameter, expr, refs } = parsed.value;
+
+    const old = this.entries.get(input.name);
+
+    // Commit
+    if (old) {
+      for (const r of old.refs) {
+        if (!WHITELIST_FNS.has(r)) this.dependents.get(r)?.delete(input.name);
+      }
+    }
+    for (const r of refs) {
+      if (WHITELIST_FNS.has(r)) continue;
+      if (!this.dependents.has(r)) this.dependents.set(r, new Set());
+      this.dependents.get(r)!.add(input.name);
+    }
+    this.entries.set(input.name, { parameter, expr, refs });
+
+    const affectedRes = this.recomputeDependentsOf(input.name);
+    if (!affectedRes.ok) return affectedRes;
+    this.emit();
+    return { ok: true, value: parameter };
+  }
+
+  /**
+   * Shared parse + validate + evaluate pipeline used by both `setParameter`
+   * and `dryRun`. Does NOT mutate the registry. Returns the parsed Expression,
+   * its variable refs, and the resulting SketchParameter on success.
+   */
+  private parseAndValidate(input: Pick<SketchParameter, 'name' | 'expression' | 'unit'>):
+    Result<{ parameter: SketchParameter; expr: Expression; refs: string[] }, EvaluationError> {
     let expr: Expression;
     try {
       expr = this.parser.parse(input.expression);
@@ -61,8 +111,6 @@ export class ParameterRegistry {
       return { ok: false, error: { code: 'cycle', namesInCycle: cycle } };
     }
 
-    const old = this.entries.get(input.name);
-
     // Stage 3: compute
     const vars: Record<string, number> = {};
     for (const [name, entry] of this.entries) {
@@ -78,29 +126,13 @@ export class ParameterRegistry {
       return { ok: false, error: { code: 'non-finite' } };
     }
 
-    // Commit
-    if (old) {
-      for (const r of old.refs) {
-        if (!WHITELIST_FNS.has(r)) this.dependents.get(r)?.delete(input.name);
-      }
-    }
-    for (const r of refs) {
-      if (WHITELIST_FNS.has(r)) continue;
-      if (!this.dependents.has(r)) this.dependents.set(r, new Set());
-      this.dependents.get(r)!.add(input.name);
-    }
     const parameter: SketchParameter = {
       name: input.name,
       expression: input.expression,
       value,
       unit: input.unit
     };
-    this.entries.set(input.name, { parameter, expr, refs });
-
-    const affectedRes = this.recomputeDependentsOf(input.name);
-    if (!affectedRes.ok) return affectedRes;
-    this.emit();
-    return { ok: true, value: parameter };
+    return { ok: true, value: { parameter, expr, refs } };
   }
 
   renameParameter(from: string, to: string): Result<void, EvaluationError> {

@@ -159,6 +159,73 @@ describe('ParameterRegistry remove', () => {
   });
 });
 
+describe('ParameterRegistry dryRun', () => {
+  it('returns ok with the same parameter as setParameter would produce', () => {
+    const r = new ParameterRegistry();
+    const res = r.dryRun({ name: 'a', expression: '10 + 5', unit: 'mm' });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.value.name).toBe('a');
+      expect(res.value.value).toBe(15);
+      expect(res.value.expression).toBe('10 + 5');
+      expect(res.value.unit).toBe('mm');
+    }
+  });
+
+  it('does NOT mutate the registry on success', () => {
+    const r = new ParameterRegistry();
+    r.setParameter({ name: 'a', expression: '10', unit: 'mm' });
+    const before = JSON.stringify(r.getAll());
+    const res = r.dryRun({ name: 'b', expression: 'a + 1', unit: 'mm' });
+    expect(res.ok).toBe(true);
+    const after = JSON.stringify(r.getAll());
+    expect(after).toBe(before);
+    // 'b' was never committed
+    expect(r.getValue('b')).toBeUndefined();
+  });
+
+  it('does NOT mutate the registry on parse error', () => {
+    const r = new ParameterRegistry();
+    r.setParameter({ name: 'a', expression: '10', unit: 'mm' });
+    const before = JSON.stringify(r.getAll());
+    const res = r.dryRun({ name: 'b', expression: '1 +', unit: 'mm' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('parse-error');
+    expect(JSON.stringify(r.getAll())).toBe(before);
+  });
+
+  it('does NOT mutate the registry on unknown-var', () => {
+    const r = new ParameterRegistry();
+    const before = JSON.stringify(r.getAll());
+    const res = r.dryRun({ name: 'b', expression: 'ghost + 1', unit: 'mm' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('unknown-var');
+    expect(JSON.stringify(r.getAll())).toBe(before);
+  });
+
+  it('does NOT pollute dependents map on a successful dry run', () => {
+    const r = new ParameterRegistry();
+    r.setParameter({ name: 'a', expression: '10', unit: 'mm' });
+    // Dry-running a dependent of 'a' should not register 'b' as a dependent
+    // of 'a' — so removing 'a' afterward must still succeed.
+    r.dryRun({ name: 'b', expression: 'a + 1', unit: 'mm' });
+    const removed = r.removeParameter('a');
+    expect(removed.ok).toBe(true);
+  });
+
+  it('mirrors setParameter error codes on identical invalid inputs', () => {
+    const r1 = new ParameterRegistry();
+    const r2 = new ParameterRegistry();
+    const dry = r1.dryRun({ name: 'a', expression: 'sin(0)', unit: 'mm' });
+    const real = r2.setParameter({ name: 'a', expression: 'sin(0)', unit: 'mm' });
+    expect(dry.ok).toBe(false);
+    expect(real.ok).toBe(false);
+    if (!dry.ok && !real.ok) {
+      expect(dry.error.code).toBe(real.error.code);
+    }
+  });
+});
+
 describe('ParameterRegistry subscribe', () => {
   it('fires listeners on any successful mutation', () => {
     const r = new ParameterRegistry();

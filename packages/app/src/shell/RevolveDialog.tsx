@@ -29,6 +29,20 @@ type Props = {
    * live preview via `previewFeature`.
    */
   onDraftChange?: (v: RevolveDialogValue) => void;
+  /**
+   * Validates the current angle expression; returns a human-readable error
+   * string when the expression is invalid, or null when it parses cleanly.
+   * Called on every expression change. Host wires this to ParameterRegistry's
+   * dryRun logic. When non-null, the dialog renders the error inline under
+   * the Angle input and disables OK/Apply.
+   */
+  validateExpression?: (expression: string) => string | null;
+  /**
+   * If set, the dialog renders an error badge above the action row describing
+   * the most recent preview failure (e.g. axis crosses profile, kernel error).
+   * Cleared by the host on cancel/commit.
+   */
+  previewError?: string | null;
 };
 
 const panelStyle: React.CSSProperties = {
@@ -95,13 +109,21 @@ export function RevolveDialog({
   onPickProfile,
   onPickAxis,
   onDraftChange,
+  validateExpression,
+  previewError,
 }: Props): JSX.Element {
   const [name, setName] = useState(initialName);
   const [expression, setExpression] = useState(initialExpression);
   const [direction, setDirection] = useState<RevolveDirection>('normal');
   const [operation, setOperation] = useState<RevolveOperation>(hasRunningBody ? 'join' : 'new');
 
-  const canCommit = !!profile && !!axis && expression.trim().length > 0;
+  // Run the host-supplied validator on every expression change; cache the
+  // latest error (null when the expression parses) so we can both render the
+  // inline message and gate OK/Apply from the same source.
+  const exprError = validateExpression ? validateExpression(expression) : null;
+
+  const canCommit =
+    !!profile && !!axis && expression.trim().length > 0 && exprError === null;
 
   const value = (): RevolveDialogValue => ({ name, expression, direction, operation });
 
@@ -178,6 +200,14 @@ export function RevolveDialog({
           style={{ ...inputStyle, marginTop: 2, width: '100%' }}
         />
         <span style={{ fontSize: 11, color: '#888', marginLeft: 4 }}>deg</span>
+        {exprError && (
+          <span
+            role="alert"
+            style={{ display: 'block', color: '#ff6b6b', fontSize: 11, marginTop: 2 }}
+          >
+            {exprError}
+          </span>
+        )}
       </label>
 
       <div style={{ marginBottom: 10 }}>
@@ -241,6 +271,23 @@ export function RevolveDialog({
           </button>
         </div>
       </div>
+
+      {previewError && (
+        <div
+          role="alert"
+          style={{
+            background: '#3a1a1a',
+            border: '1px solid #6a3333',
+            color: '#ffb3b3',
+            padding: '4px 8px',
+            borderRadius: 4,
+            fontSize: 11,
+            marginBottom: 8,
+          }}
+        >
+          Preview: {previewError}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button type="button" onClick={onCancel}>Cancel</button>
