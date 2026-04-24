@@ -1,6 +1,8 @@
 # Sub-project 3a — Parametric Revolve Design Spec
 
-**Status:** Design approved 2026-04-24. Awaiting implementation plan.
+**Status:** Design approved 2026-04-24. Implementation complete 2026-04-24 (T1-T21 shipped; T22 pending final review + push).
+
+**Post-implementation clarifications:** see the "Implementation deltas (post-T21 clarifications)" appendix at the bottom for items that shifted during build.
 
 **Scope:** Single new solid-producing feature — `revolve`. Along the way, retrofit `extrude` with a boolean-operation field and migrate the feature-tree executor to a single-body-per-part model.
 
@@ -396,3 +398,92 @@ The plan should cover at least these tasks, in rough order:
 ---
 
 **Spec ends.** Implementation plan to follow via `superpowers:writing-plans`.
+
+---
+
+## Implementation deltas (post-T21 clarifications)
+
+Surgical clarifications captured after T1-T21 shipped. The body of this spec is left as originally approved; these notes record where the actual implementation shifted.
+
+### `executeRevolveFeature` signature is 4-arg, not 5-arg
+
+The spec's Task-5 sketch implied an executor that consumed a pre-built `SketchResult` (closed wires already produced by `executeSketchFeature`). The actual shipped signature rebuilds edges internally and drops the `SketchResult` param:
+
+```ts
+// packages/kernel/src/adapter/features/RevolveFeature.ts
+export function executeRevolveFeature(
+  oc: OcctInstance,
+  sketchFeature: Extract<Feature, { kind: 'sketch' }>,
+  feature: Extract<Feature, { kind: 'revolve' }>,
+  angleRad: number
+): Result<RevolveResult, KernelError>;
+```
+
+Reason: `executeSketchFeature` rejects sketches that contain a profile + an axis line as `degenerateSketch` (the axis line produces an open chain, so the sketch isn't entirely closed). The revolve executor therefore rebuilds edges from the raw sketch `Feature`, skipping the axis primitive before wire combination.
+
+### `symmetric` direction simplified to `normal` for MVP
+
+The spec listed `symmetric` as pre-rotating the profile by `-angle/2` before revolving. In the shipped MVP, `direction: 'symmetric'` is treated identically to `direction: 'normal'` inside `executeRevolveFeature`. The dialog still exposes the Symmetric button so the wiring is ready, but proper pre-rotation is deferred. Tracked as a TODO in the manual test checklist.
+
+### XY-plane only
+
+3a ships XY-plane revolves only. `executeRevolveFeature` returns a `revolveFailed` error for any `sketchFeature.plane !== 'XY'`. XZ / YZ support is deferred — it requires the same sketch-plane transform work that `extrude` has for non-XY planes, which wasn't in scope.
+
+### FeatureTree revolve-sketch pre-scan
+
+To prevent `executeSketchFeature` from rejecting profile+axis sketches as degenerate, `FeatureTree.executeTree` pre-scans for revolve features and collects their `sketchRef`s into a `revolveSketchIds: Set<string>`. The main loop then skips `executeSketchFeature` for any sketch whose id is in that set — the revolve executor handles wire construction itself.
+
+```ts
+// packages/kernel/src/adapter/FeatureTree.ts (T8)
+const revolveSketchIds = new Set<string>();
+for (const f of part.featureTree) {
+  if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
+}
+// ... main loop:
+if (feature.kind === 'sketch' && revolveSketchIds.has(feature.id)) continue;
+```
+
+### Kernel-side param cascade fix (T18)
+
+The spec's `AddRevolveFeatureCommand` describes setting the registry param, then calling `kernel.addFeature` + `kernel.execute`. That covers the initial commit, but editing `theta0` later through the Parameters panel did not regenerate the revolve geometry — the kernel's `executeTree` reads from its own internal parts map, not the app store.
+
+T18 extended the `parameterRegistry.subscribe` listener in `App.tsx` to also push non-dim parameter changes down to the kernel:
+
+```ts
+// packages/app/src/App.tsx — cascade effect
+if (kernelClient && part) {
+  const names = Object.keys(part.parameters ?? {});
+  for (const name of names) {
+    const p = parameterRegistry.getAll().find((x) => x.name === name);
+    if (!p || p.value === undefined) continue;
+    const stored = part.parameters[name];
+    if (stored && stored.expression === p.expression && stored.value === p.value) continue;
+    await kernelClient.setParameter(part.id, {
+      name: p.name, expression: p.expression, value: p.value, unit: p.unit
+    });
+  }
+}
+```
+
+This guarantees the kernel's parts map stays in sync with the registry, so the next `kernel.execute(partId)` regenerates revolve + extrude geometry with the new angle / distance values. Covered by `parametric-revolve-cascade.spec.ts` (T18).
+
+### Dialog error surfacing — toast, not inline / footer badge
+
+The spec described (a) an error badge in the dialog footer for preview failures and (b) an inline error under the Angle field for bad expressions. Neither UI was built in T11-T15. The shipped dialog surfaces all revolve / parameter errors via the global toast on commit (`showToast('Revolve failed: ...')`) and silently no-ops the preview mesh on preview failures. Inline / footer error UI is a TODO carried forward into 3b or polish.
+
+### Profile picking is a stub
+
+The `Pick` profile button in the dialog is wired to a no-op. The profile is derived automatically from the active sketch via `computeProfileRef()` — any sketch whose closed-wire count is non-zero qualifies. Explicit profile picking can land later when face-picking infrastructure arrives in 3b.
+
+### `KernelClient = KernelApi` alias
+
+Adding the `previewFeature` RPC (T9) required no manual `KernelClient` interface update — it's a type alias over `KernelApi`, so the new method propagated automatically. The spec's Task-8 step for updating the client interface was a no-op in practice.
+
+### File + command references
+
+- Executor: `packages/kernel/src/adapter/features/RevolveFeature.ts`
+- Feature-tree loop: `packages/kernel/src/adapter/FeatureTree.ts`
+- Dialog: `packages/app/src/shell/RevolveDialog.tsx`
+- Command: `packages/app/src/commands/AddRevolveFeatureCommand.ts`
+- Param cascade (T18 fix): `packages/app/src/App.tsx` `parameterRegistry.subscribe` effect
+
