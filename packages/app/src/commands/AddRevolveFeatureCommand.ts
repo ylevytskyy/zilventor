@@ -37,17 +37,25 @@ export class AddRevolveFeatureCommand implements Command {
         `failed to register angle parameter "${this.feature.angleParam}": ${JSON.stringify(res.error)}`
       );
     }
-    await this.kernel.setParameter(this.partId, {
-      name: this.feature.angleParam,
-      expression: this.angleExpression,
-      value: this.registry.getValue(this.feature.angleParam) ?? 0,
-      unit: 'deg'
-    });
-    await this.kernel.addFeature(this.partId, this.feature);
-    await this.kernel.execute(this.partId);
-    if (this.store) {
-      const next = await this.kernel.getPart(this.partId);
-      this.store.setActivePart(next);
+    try {
+      await this.kernel.setParameter(this.partId, {
+        name: this.feature.angleParam,
+        expression: this.angleExpression,
+        value: this.registry.getValue(this.feature.angleParam) ?? 0,
+        unit: 'deg'
+      });
+      await this.kernel.addFeature(this.partId, this.feature);
+      await this.kernel.execute(this.partId);
+      if (this.store) {
+        const next = await this.kernel.getPart(this.partId);
+        this.store.setActivePart(next);
+      }
+    } catch (e) {
+      // Registry/kernel drift compensation: undo the registry write we made
+      // before the kernel failure so the next retry starts clean. Rethrow so
+      // the bus still reports the failure to the caller.
+      this.registry.removeParameter(this.feature.angleParam);
+      throw e;
     }
   }
 
