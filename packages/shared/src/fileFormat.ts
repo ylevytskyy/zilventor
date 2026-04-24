@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 5 as const;
+export const CURRENT_FORMAT_VERSION = 6 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -78,6 +78,12 @@ const migrations: Record<number, MigrateFn> = {
       }
     }
     return { ...m, formatVersion: 5 };
+  },
+
+  // v5 → v6 is additive (FilletFeature variant added). No-op migration.
+  5: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 6 };
   }
 };
 

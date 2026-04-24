@@ -48,7 +48,7 @@ export type PartDocument = {
 export type AssemblyDocument = { id: string; name: string };
 
 export type ProjectFile = {
-  formatVersion: 5;
+  formatVersion: 6;
   kind: 'part' | 'assembly';
   createdAt: string;
   appVersion: string;
