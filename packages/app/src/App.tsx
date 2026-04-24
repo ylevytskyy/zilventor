@@ -71,6 +71,7 @@ export default function App() {
   const [selectedAxisRef, setSelectedAxisRef] = useState<AxisRef | null>(null);
   const [toast, setToast] = useState<{ message: string; action?: { label: string; fn: () => void } } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -568,15 +569,63 @@ export default function App() {
     setPickingAxis(true);
   }, [activePart, computeProfileRef]);
 
-  const buildRevolveFeature = useCallback((v: RevolveDialogValue, profile: ProfileRef, axis: AxisRef): Extract<Feature, { kind: 'revolve' }> => ({
+  const buildRevolveFeature = useCallback((v: RevolveDialogValue, profile: ProfileRef, axis: AxisRef, opts?: { scratch?: boolean }): Extract<Feature, { kind: 'revolve' }> => ({
     kind: 'revolve',
-    id: `r${Date.now()}`,
+    // Preview calls reuse a stable id ('R_scratch') so we don't pollute the
+    // feature-id counter on every keystroke; committed features get a unique
+    // timestamped id.
+    id: opts?.scratch ? 'R_scratch' : `r${Date.now()}`,
     sketchRef: profile.sketchId,
     axisPrimitiveId: axis.primitiveId,
     angleParam: v.name,
     direction: v.direction,
     operation: v.operation
   }), []);
+
+  // Debounce preview calls: every draft change resets a 200ms timer; when it
+  // fires we write the angle parameter then ask the kernel to execute a
+  // virtual tree with the scratch revolve appended. The resulting mesh is
+  // rendered in the viewport at 50% opacity until the dialog closes.
+  //
+  // NOTE: kernel.setParameter mutates the stored part. The committed feature
+  // would have written the same param via AddRevolveFeatureCommand anyway, so
+  // this is merely premature — acceptable for now, flagged for follow-up.
+  const schedulePreview = useCallback((v: RevolveDialogValue) => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    const profile = computeProfileRef();
+    if (!profile || !selectedAxisRef || !activePart || !kernel) return;
+    const axis = selectedAxisRef;
+    const part = activePart;
+    const k = kernel;
+    previewTimerRef.current = setTimeout(async () => {
+      previewTimerRef.current = null;
+      try {
+        await k.setParameter(part.id, {
+          name: v.name,
+          expression: v.expression,
+          value: 0,
+          unit: 'deg'
+        });
+        const scratch = buildRevolveFeature(v, profile, axis, { scratch: true });
+        const r = await k.previewFeature(part.id, scratch);
+        if (r.ok) {
+          viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
+        } else {
+          viewportRef.current?.clearPreviewMesh();
+        }
+      } catch {
+        viewportRef.current?.clearPreviewMesh();
+      }
+    }, 200);
+  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature]);
+
+  const clearPreview = useCallback(() => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    viewportRef.current?.clearPreviewMesh();
+  }, []);
 
   const onRevolveCommit = useCallback(async (v: RevolveDialogValue) => {
     const profile = computeProfileRef();
@@ -586,13 +635,14 @@ export default function App() {
       await useAppStore.getState().bus.execute(
         new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
       );
+      clearPreview();
       setRevolveDialogOpen(false);
       setPickingAxis(false);
       setSelectedAxisRef(null);
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
     }
-  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, setRevolveDialogOpen, showToast]);
+  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, setRevolveDialogOpen, showToast, clearPreview]);
 
   const onRevolveApply = useCallback(async (v: RevolveDialogValue) => {
     // Apply = commit but keep the dialog open for further edits. T13 uses
@@ -604,16 +654,29 @@ export default function App() {
       await useAppStore.getState().bus.execute(
         new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
       );
+      clearPreview();
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
     }
-  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, showToast]);
+  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, showToast, clearPreview]);
 
   const onRevolveCancel = useCallback(() => {
+    clearPreview();
     setRevolveDialogOpen(false);
     setPickingAxis(false);
     setSelectedAxisRef(null);
-  }, [setRevolveDialogOpen]);
+  }, [setRevolveDialogOpen, clearPreview]);
+
+  // Global cleanup: cancel any in-flight preview timer on unmount so the
+  // closure (which holds a ref to the kernel) doesn't survive teardown.
+  useEffect(() => {
+    return () => {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -712,6 +775,7 @@ export default function App() {
           onCancel={onRevolveCancel}
           onPickProfile={() => { /* T15: profile picking. For T13 the dialog shows the active sketch. */ }}
           onPickAxis={onPickAxis}
+          onDraftChange={schedulePreview}
         />
       )}
       {toast && (

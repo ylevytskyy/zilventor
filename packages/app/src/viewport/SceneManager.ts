@@ -7,6 +7,7 @@ export class SceneManager {
   readonly renderer: THREE.WebGLRenderer;
   readonly controls: OrbitControls;
   private current: THREE.Mesh | null = null;
+  private preview: THREE.Mesh | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -54,6 +55,37 @@ export class SceneManager {
     const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);
+  }
+
+  /**
+   * Render (or replace) a translucent preview mesh — used by live-preview
+   * flows such as RevolveDialog to show a 50% opacity ghost of the in-progress
+   * feature. Disposes the prior preview geometry/material before creating a
+   * new one. Passing `null` just clears the preview.
+   */
+  setPreviewMesh(positions: Float32Array, indices: Uint32Array): void {
+    this.clearPreviewMesh();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    g.setIndex(new THREE.BufferAttribute(indices, 1));
+    g.computeVertexNormals();
+    const m = new THREE.MeshStandardMaterial({
+      color: 0xe8c36a,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false
+    });
+    this.preview = new THREE.Mesh(g, m);
+    this.scene.add(this.preview);
+  }
+
+  clearPreviewMesh(): void {
+    if (!this.preview) return;
+    this.scene.remove(this.preview);
+    this.preview.geometry.dispose();
+    (this.preview.material as THREE.Material).dispose();
+    this.preview = null;
   }
 
   render(): void {

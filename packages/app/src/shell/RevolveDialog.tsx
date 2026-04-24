@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 export type ProfileRef = { sketchId: string; closedProfileCount: number };
 export type AxisRef = { primitiveId: string };
@@ -23,6 +23,12 @@ type Props = {
   onCancel(): void;
   onPickProfile(): void;
   onPickAxis(): void;
+  /**
+   * Fires whenever the dialog's internal form state changes, guarded by
+   * profile + axis being set. Used by the host to schedule a debounced
+   * live preview via `previewFeature`.
+   */
+  onDraftChange?: (v: RevolveDialogValue) => void;
 };
 
 const panelStyle: React.CSSProperties = {
@@ -88,6 +94,7 @@ export function RevolveDialog({
   onCancel,
   onPickProfile,
   onPickAxis,
+  onDraftChange,
 }: Props): JSX.Element {
   const [name, setName] = useState(initialName);
   const [expression, setExpression] = useState(initialExpression);
@@ -97,6 +104,14 @@ export function RevolveDialog({
   const canCommit = !!profile && !!axis && expression.trim().length > 0;
 
   const value = (): RevolveDialogValue => ({ name, expression, direction, operation });
+
+  // Fire onDraftChange whenever the user-editable state changes, but only
+  // once profile + axis are both set — otherwise buildRevolveFeature on the
+  // host side can't produce a valid scratch feature.
+  useEffect(() => {
+    if (!profile || !axis) return;
+    onDraftChange?.({ name, expression, direction, operation });
+  }, [name, expression, direction, operation, profile, axis, onDraftChange]);
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();

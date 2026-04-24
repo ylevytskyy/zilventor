@@ -5,6 +5,8 @@ import ViewCube from './ViewCube';
 
 export type ViewportRef = {
   setMesh(positions: Float32Array, indices: Uint32Array): void;
+  setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
+  clearPreviewMesh(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
@@ -55,6 +57,14 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setMesh(p, i);
       setTriangles(i.length / 3);
+    },
+    setPreviewMesh: (p, i) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setPreviewMesh(p, i);
+    },
+    clearPreviewMesh: () => {
+      if (!sceneRef.current) return;
+      sceneRef.current.clearPreviewMesh();
     },
     captureThumbnail: async (w, h) => {
       if (!sceneRef.current) throw new Error('viewport not ready');
