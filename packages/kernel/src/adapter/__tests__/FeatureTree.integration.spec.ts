@@ -2,7 +2,18 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { BooleanOperation, PartDocument } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../../occt/occtLoader';
 import { executeTree } from '../FeatureTree';
-import { computeBoundingBox, disposeShape } from '../../occt/SolidOps';
+import { computeBoundingBox, disposeShape, type OcctShape } from '../../occt/SolidOps';
+
+/** Test-local volume helper: mirrors the private shapeVolume in BooleanOps.ts. */
+function computeVolume(oc: OcctInstance, shape: OcctShape): number {
+  const props = new oc.GProp_GProps_1();
+  try {
+    oc.BRepGProp.VolumeProperties_1(shape.handle as never, props, true as never, false as never, false as never);
+    return props.Mass();
+  } finally {
+    props.delete();
+  }
+}
 
 let occt: OcctInstance;
 beforeAll(async () => { occt = await loadOcct(); }, 60_000);
@@ -250,8 +261,8 @@ describe('FeatureTree revolve execution', () => {
       // Fused with the 10x10x10 cube at origin, min is -15 and max is 15 on
       // X/Z (the cube is wholly contained on the positive octant and doesn't
       // extend the bbox). Extent on X ~ 30.
-      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0);
-      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0);
+      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 1);
+      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 1);
       disposeShape(r.value.finalSolid);
     }
   });
@@ -285,9 +296,17 @@ describe('FeatureTree revolve execution', () => {
     if (r.ok) {
       const bbox = computeBoundingBox(occt, r.value.finalSolid);
       // Outer bbox still matches the 30x30x30 cube since the cut is internal.
-      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0);
-      expect(bbox[4] - bbox[1]).toBeCloseTo(30, 0);
-      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0);
+      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 1);
+      expect(bbox[4] - bbox[1]).toBeCloseTo(30, 1);
+      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 1);
+      // Prove the cut actually removed material: the cube is 30^3 = 27000 mm^3
+      // and the annular cut (r=1..3, h=30, 360 deg) removes ~754 mm^3, so the
+      // final volume should be ~26246 mm^3. 26000 < vol < 27000 is a wide but
+      // proof-positive band for "material was removed, approximately as
+      // expected".
+      const vol = computeVolume(occt, r.value.finalSolid);
+      expect(vol).toBeLessThan(27000);
+      expect(vol).toBeGreaterThan(26000);
       disposeShape(r.value.finalSolid);
     }
   });
