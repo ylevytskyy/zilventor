@@ -19,6 +19,8 @@ type Props = {
 
 export function ConstraintBadgeRenderer({ primitives, constraints, worldToScreen }: Props) {
   const primsById = new Map(primitives.map((p) => [p.id, p]));
+  const highlightedIds = useAppStore((s) => s.highlightedConstraintIds);
+  const highlightedSet = new Set(highlightedIds);
 
   return (
     <div className="constraint-badges" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -26,6 +28,7 @@ export function ConstraintBadgeRenderer({ primitives, constraints, worldToScreen
         const worldPos = anchorWorldPos(c, primsById);
         if (!worldPos) return null;
         const { x, y } = worldToScreen(worldPos.x, worldPos.y);
+        const highlighted = highlightedSet.has(c.id);
         return (
           <button key={c.id}
             data-testid="constraint-badge"
@@ -34,7 +37,7 @@ export function ConstraintBadgeRenderer({ primitives, constraints, worldToScreen
               position: 'absolute', left: `${x}px`, top: `${y}px`,
               transform: 'translate(-50%, -50%)', pointerEvents: 'auto',
               width: 18, height: 18, borderRadius: 3,
-              background: '#2a7aa8', color: '#fff',
+              background: highlighted ? '#c23a3a' : '#2a7aa8', color: '#fff',
               fontFamily: 'ui-monospace, monospace', fontSize: 11, fontWeight: 700,
               border: 'none', cursor: 'pointer'
             }}

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DimensionConstraint, SketchPrimitive } from '@zilventor/shared';
+import { useAppStore } from '../../store/useAppStore';
 
 type Props = {
   primitives: SketchPrimitive[];
@@ -13,6 +14,8 @@ const ARC_RADIUS_PX = 40;
 
 export function DimensionRenderer({ primitives, dimensions, parameterValues, worldToScreen }: Props) {
   const byId = new Map(primitives.map((p) => [p.id, p]));
+  const highlightedIds = useAppStore((s) => s.highlightedConstraintIds);
+  const highlightedSet = new Set(highlightedIds);
   return (
     <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width="100%" height="100%">
       {dimensions.map((d) => (
@@ -22,6 +25,7 @@ export function DimensionRenderer({ primitives, dimensions, parameterValues, wor
           byId={byId}
           parameterValues={parameterValues}
           worldToScreen={worldToScreen}
+          highlighted={highlightedSet.has(d.id)}
         />
       ))}
     </svg>
@@ -42,13 +46,16 @@ function format(val: number, kind: DimensionConstraint['kind']): string {
 }
 
 function DimensionGlyph({
-  d, byId, parameterValues, worldToScreen
+  d, byId, parameterValues, worldToScreen, highlighted
 }: {
   d: DimensionConstraint;
   byId: Map<string, SketchPrimitive>;
   parameterValues: Map<string, number>;
   worldToScreen: (x: number, y: number) => { x: number; y: number };
+  highlighted: boolean;
 }) {
+  const lineColor = highlighted ? '#c23a3a' : '#e8c36a';
+  const labelColor = highlighted ? '#ff9a9a' : '#e8c36a';
   const value = resolveValue(d, parameterValues);
   const text = format(value, d.kind);
 
@@ -68,9 +75,9 @@ function DimensionGlyph({
       <>
         <line x1={s.x} y1={s.y} x2={sOff.x} y2={sOff.y} stroke="#888" strokeWidth={1} />
         <line x1={e.x} y1={e.y} x2={eOff.x} y2={eOff.y} stroke="#888" strokeWidth={1} />
-        <line x1={sOff.x} y1={sOff.y} x2={eOff.x} y2={eOff.y} stroke="#e8c36a" strokeWidth={1} />
-        <Arrow at={sOff} toward={eOff} />
-        <Arrow at={eOff} toward={sOff} />
+        <line x1={sOff.x} y1={sOff.y} x2={eOff.x} y2={eOff.y} stroke={lineColor} strokeWidth={1} />
+        <Arrow at={sOff} toward={eOff} color={lineColor} />
+        <Arrow at={eOff} toward={sOff} color={lineColor} />
       </>
     );
   } else if (d.kind === 'dim-distance') {
@@ -93,9 +100,9 @@ function DimensionGlyph({
       <>
         <line x1={s.x} y1={s.y} x2={sOff.x} y2={sOff.y} stroke="#888" strokeWidth={1} />
         <line x1={e.x} y1={e.y} x2={eOff.x} y2={eOff.y} stroke="#888" strokeWidth={1} />
-        <line x1={sOff.x} y1={sOff.y} x2={eOff.x} y2={eOff.y} stroke="#e8c36a" strokeWidth={1} />
-        <Arrow at={sOff} toward={eOff} />
-        <Arrow at={eOff} toward={sOff} />
+        <line x1={sOff.x} y1={sOff.y} x2={eOff.x} y2={eOff.y} stroke={lineColor} strokeWidth={1} />
+        <Arrow at={sOff} toward={eOff} color={lineColor} />
+        <Arrow at={eOff} toward={sOff} color={lineColor} />
       </>
     );
   } else if (d.kind === 'dim-angle') {
@@ -112,8 +119,8 @@ function DimensionGlyph({
     labelAt = { x: (c.x + rim.x) / 2, y: c.y };
     els = (
       <>
-        <line x1={c.x} y1={c.y} x2={rim.x} y2={rim.y} stroke="#e8c36a" strokeWidth={1} />
-        <Arrow at={rim} toward={c} />
+        <line x1={c.x} y1={c.y} x2={rim.x} y2={rim.y} stroke={lineColor} strokeWidth={1} />
+        <Arrow at={rim} toward={c} color={lineColor} />
       </>
     );
   } else if (d.kind === 'dim-point-line-distance') {
@@ -131,19 +138,19 @@ function DimensionGlyph({
     <g data-testid="dimension-glyph" style={{ pointerEvents: 'auto' }}>
       {els}
       <rect x={labelAt.x - 24} y={labelAt.y - 8} width={48} height={16} fill="#1a1a1a" opacity={0.9} />
-      <text x={labelAt.x} y={labelAt.y + 4} fill="#e8c36a" fontSize={11} fontFamily="ui-monospace, monospace" textAnchor="middle">
+      <text x={labelAt.x} y={labelAt.y + 4} fill={labelColor} fontSize={11} fontFamily="ui-monospace, monospace" textAnchor="middle">
         {text}
       </text>
     </g>
   );
 }
 
-function Arrow({ at, toward }: { at: { x: number; y: number }; toward: { x: number; y: number } }) {
+function Arrow({ at, toward, color = '#e8c36a' }: { at: { x: number; y: number }; toward: { x: number; y: number }; color?: string }) {
   const dx = toward.x - at.x, dy = toward.y - at.y, len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;
   const tip = at;
   const back = { x: tip.x - ux * 8, y: tip.y - uy * 8 };
   const left = { x: back.x - uy * 4, y: back.y + ux * 4 };
   const right = { x: back.x + uy * 4, y: back.y - ux * 4 };
-  return <polygon points={`${tip.x},${tip.y} ${left.x},${left.y} ${right.x},${right.y}`} fill="#e8c36a" />;
+  return <polygon points={`${tip.x},${tip.y} ${left.x},${left.y} ${right.x},${right.y}`} fill={color} />;
 }

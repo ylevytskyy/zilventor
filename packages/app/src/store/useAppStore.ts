@@ -45,6 +45,8 @@ type AppState = {
   addDimensionToActiveSketch(sketchId: string, d: DimensionConstraint): void;
   removeDimensionFromActiveSketch(sketchId: string, dimensionId: string): void;
   updateDimensionValueInStore(sketchId: string, dimensionId: string, value: number): void;
+  highlightedConstraintIds: string[];
+  setHighlightedConstraintIds(ids: string[]): void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -77,6 +79,8 @@ export const useAppStore = create<AppState>((set) => ({
   sketchDof: null,
   setSketchDof: (v) => set({ sketchDof: v }),
   setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
+  highlightedConstraintIds: [],
+  setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {
     const part = state.activePart;
     if (!part) return state;

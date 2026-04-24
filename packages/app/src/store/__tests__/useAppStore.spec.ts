@@ -51,6 +51,29 @@ describe('useAppStore constraint extensions', () => {
   });
 });
 
+describe('useAppStore highlightedConstraintIds', () => {
+  beforeEach(() => {
+    useAppStore.getState().setHighlightedConstraintIds([]);
+  });
+
+  it('setHighlightedConstraintIds populates the store', () => {
+    useAppStore.getState().setHighlightedConstraintIds(['c1', 'c2']);
+    expect(useAppStore.getState().highlightedConstraintIds).toEqual(['c1', 'c2']);
+  });
+
+  it('setHighlightedConstraintIds replaces previous value', () => {
+    useAppStore.getState().setHighlightedConstraintIds(['c1']);
+    useAppStore.getState().setHighlightedConstraintIds(['c3', 'c4']);
+    expect(useAppStore.getState().highlightedConstraintIds).toEqual(['c3', 'c4']);
+  });
+
+  it('setHighlightedConstraintIds clears with empty array', () => {
+    useAppStore.getState().setHighlightedConstraintIds(['c1']);
+    useAppStore.getState().setHighlightedConstraintIds([]);
+    expect(useAppStore.getState().highlightedConstraintIds).toEqual([]);
+  });
+});
+
 describe('useAppStore dimension CRUD', () => {
   beforeEach(() => {
     useAppStore.getState().setActivePart({

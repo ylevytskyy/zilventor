@@ -50,6 +50,17 @@ export default function App() {
   const [numericFieldCount, setNumericFieldCount] = useState(0);
   const [cursorScreenPos, setCursorScreenPos] = useState({ x: 0, y: 0 });
   const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
+  const [toast, setToast] = useState<{ message: string; action?: { label: string; fn: () => void } } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(action ? { message, action } : { message });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
 
   // Per-slice subscriptions (avoid subscribing to the full store).
   const activePart = useAppStore((s) => s.activePart);
@@ -358,7 +369,15 @@ export default function App() {
     };
     const addRes = await sketcherClientRef.current!.addDimension(finalDim, res.value.value);
     if (!addRes.ok) {
-      console.warn('Over-defined', addRes.reason);
+      const offending = addRes.offendingConstraintIds;
+      const { setHighlightedConstraintIds } = useAppStore.getState();
+      showToast('Over-defined: sketch has conflicting constraints.', offending.length > 0 ? {
+        label: 'Show conflict',
+        fn: () => {
+          setHighlightedConstraintIds(offending);
+          setTimeout(() => setHighlightedConstraintIds([]), 3000);
+        }
+      } : undefined);
       setPendingDimension(null);
       return;
     }
@@ -513,6 +532,34 @@ export default function App() {
           registry={parameterRegistry}
           onClose={() => setParametersPanelOpen(false)}
         />
+      )}
+      {toast && (
+        <div
+          role="status"
+          data-testid="conflict-toast"
+          style={{
+            position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+            background: '#1e1e1e', color: '#e8c36a',
+            padding: '8px 16px', borderRadius: 6,
+            display: 'flex', alignItems: 'center', gap: 12,
+            fontSize: 13, fontFamily: 'ui-monospace, monospace',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.6)', zIndex: 9999,
+            pointerEvents: 'auto'
+          }}
+        >
+          <span>{toast.message}</span>
+          {toast.action && (
+            <button
+              onClick={() => { toast.action!.fn(); setToast(null); }}
+              style={{
+                background: '#c23a3a', color: '#fff', border: 'none', borderRadius: 4,
+                padding: '2px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 700
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
