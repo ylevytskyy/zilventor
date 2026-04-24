@@ -3,11 +3,11 @@ import { CURRENT_FORMAT_VERSION, migrateManifest, type AnyManifest } from '../fi
 
 describe('fileFormat', () => {
   it('exports a locked current version', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(3);
+    expect(CURRENT_FORMAT_VERSION).toBe(4);
   });
 
   it('returns the manifest unchanged when already current', () => {
-    const m = { formatVersion: 3, kind: 'part' as const };
+    const m = { formatVersion: 4, kind: 'part' as const };
     expect(migrateManifest(m)).toEqual(m);
   });
 
@@ -22,8 +22,8 @@ describe('fileFormat', () => {
 });
 
 describe('fileFormat v1 → v2', () => {
-  it('exports version 3 as current', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(3);
+  it('exports version 4 as current', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(4);
   });
 
   it('migrates a v1 manifest (rectangle without id) to v2 with synthesized id', () => {
@@ -41,7 +41,7 @@ describe('fileFormat v1 → v2', () => {
       }
     } as unknown as AnyManifest;
     const m = migrateManifest(v1);
-    expect(m.formatVersion).toBe(3);
+    expect(m.formatVersion).toBe(4);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
     expect(doc.featureTree[0]!.primitives[0]!.id).toBe('s1-p0');
   });
@@ -102,7 +102,7 @@ describe('fileFormat migrations', () => {
     expect(JSON.stringify(input)).toBe(snapshot);
   });
 
-  it('reaches formatVersion 3 via v1 → v2 → v3 chain', () => {
+  it('reaches formatVersion 4 via v1 → v2 → v3 → v4 chain', () => {
     const input: AnyManifest = {
       formatVersion: 1,
       document: {
@@ -111,7 +111,7 @@ describe('fileFormat migrations', () => {
     };
     const out = migrateManifest(input);
     expect(out.formatVersion).toBe(CURRENT_FORMAT_VERSION);
-    expect(CURRENT_FORMAT_VERSION).toBe(3);
+    expect(CURRENT_FORMAT_VERSION).toBe(4);
   });
 
   it('v2 → v3 seeds constraints on sketches that have none', () => {
@@ -172,5 +172,34 @@ describe('v2 → v3 with rectangle-as-4-lines infers H/V + coincident', () => {
     expect(constraints.filter((c) => c.kind === 'vertical')).toHaveLength(2);
     expect(constraints.filter((c) => c.kind === 'coincident').length).toBeGreaterThanOrEqual(4);
     for (const c of constraints) expect(c.source).toBe('inferred-migration');
+  });
+});
+
+describe('fileFormat v3 → v4 migration', () => {
+  it('v3 manifest round-trips to v4 with parameters untouched', () => {
+    const input: AnyManifest = {
+      formatVersion: 3,
+      document: {
+        id: 'P1', name: 'Part1', units: 'mm',
+        parameters: { d0: { name: 'd0', expression: '50', value: 50, unit: 'mm' } },
+        featureTree: [{ kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] }]
+      }
+    };
+    const out = migrateManifest(input);
+    expect(out.formatVersion).toBe(4);
+    expect(CURRENT_FORMAT_VERSION).toBe(4);
+    const params = (out.document as { parameters: Record<string, unknown> }).parameters;
+    expect(params.d0).toEqual({ name: 'd0', expression: '50', value: 50, unit: 'mm' });
+  });
+
+  it('v3 manifest without a parameters field gets an empty map on migration', () => {
+    const input: AnyManifest = {
+      formatVersion: 3,
+      document: { featureTree: [] }
+    };
+    const out = migrateManifest(input);
+    expect(out.formatVersion).toBe(4);
+    const doc = out.document as { parameters?: Record<string, unknown> };
+    expect(doc.parameters).toEqual({});
   });
 });

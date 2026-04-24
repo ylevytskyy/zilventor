@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 3 as const;
+export const CURRENT_FORMAT_VERSION = 4 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -47,6 +47,17 @@ const migrations: Record<number, MigrateFn> = {
       }
     }
     return { ...m, formatVersion: 3 };
+  },
+
+  // v3 → v4: ensure document.parameters exists (typed as Record<string, SketchParameter>).
+  // Files saved before this field was formalised may omit it entirely.
+  3: (mIn) => {
+    const m = deepClone(mIn);
+    const doc = m.document as { parameters?: Record<string, unknown> } | undefined;
+    if (doc && !doc.parameters) {
+      doc.parameters = {};
+    }
+    return { ...m, formatVersion: 4 };
   }
 };
 
