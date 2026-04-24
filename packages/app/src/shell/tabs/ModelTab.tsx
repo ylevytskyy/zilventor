@@ -21,6 +21,7 @@ export default function ModelTab() {
       <RibbonPanel title="Create">
         <button className="text-xs hover:text-white" onClick={handleNewPart}>New Part</button>
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch} onClick={() => setExtrudeOpen(true)}>Extrude</button>
+        <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>Revolve (R)</button>
       </RibbonPanel>
       <RibbonPanel title="Modify">
         <button className="text-xs text-neutral-500" disabled>Fillet (SP3)</button>

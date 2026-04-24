@@ -27,6 +27,7 @@ type AppState = {
   selectedPrimitiveId: string | null;
   sketchDof: DofStatus | null;
   parametersPanelOpen: boolean;
+  revolveDialogOpen: boolean;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -37,6 +38,7 @@ type AppState = {
   setSelectedPrimitive(id: string | null): void;
   setSketchDof(v: DofStatus | null): void;
   setParametersPanelOpen(v: boolean): void;
+  setRevolveDialogOpen(v: boolean): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -63,6 +65,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeToolKind: null,
   selectedPrimitiveId: null,
   parametersPanelOpen: false,
+  revolveDialogOpen: false,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
   setActivePart: (p) => set({ activePart: p }),
   setStatus: (msg) => set({ statusMessage: msg }),
@@ -80,6 +83,7 @@ export const useAppStore = create<AppState>((set) => ({
   sketchDof: null,
   setSketchDof: (v) => set({ sketchDof: v }),
   setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
+  setRevolveDialogOpen: (v) => set({ revolveDialogOpen: v }),
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {

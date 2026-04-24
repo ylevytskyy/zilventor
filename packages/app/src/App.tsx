@@ -25,6 +25,9 @@ import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
 import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
+import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue } from './shell/RevolveDialog';
+import { AxisPickController } from './model/AxisPickController';
+import { AddRevolveFeatureCommand } from './commands/AddRevolveFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -58,11 +61,14 @@ export default function App() {
   const activeToolCtrlRef = useRef<ActiveToolController | null>(null);
   const sketchOverlayRef = useRef<SketchOverlay | null>(null);
   const committedSketchRendererRef = useRef<CommittedSketchRenderer | null>(null);
+  const axisPickerRef = useRef<AxisPickController>(new AxisPickController());
 
   const [numericVisible, setNumericVisible] = useState(false);
   const [numericFieldCount, setNumericFieldCount] = useState(0);
   const [cursorScreenPos, setCursorScreenPos] = useState({ x: 0, y: 0 });
   const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
+  const [pickingAxis, setPickingAxis] = useState(false);
+  const [selectedAxisRef, setSelectedAxisRef] = useState<AxisRef | null>(null);
   const [toast, setToast] = useState<{ message: string; action?: { label: string; fn: () => void } } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -85,6 +91,8 @@ export default function App() {
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const parametersPanelOpen = useAppStore((s) => s.parametersPanelOpen);
   const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
+  const revolveDialogOpen = useAppStore((s) => s.revolveDialogOpen);
+  const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
   const parameterValues = useParameterValues(parameterRegistry);
 
   // Expose store and perf hooks to E2E/perf tests (dev only).
@@ -382,6 +390,11 @@ export default function App() {
           return;
         }
       }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        useAppStore.getState().setRevolveDialogOpen(true);
+        return;
+      }
       if (e.key === 'F7') {
         e.preventDefault();
         useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
@@ -486,7 +499,20 @@ export default function App() {
   }, []);
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
-    if (!sketchMode || !activeToolCtrlRef.current || !viewportRef.current) return;
+    if (!viewportRef.current) return;
+    // Model-mode axis pick: route a click to the AxisPickController and bail
+    // out of the sketch-tool routing. Movements/hovers are ignored.
+    if (!sketchMode && pickingAxis) {
+      if (ev.type !== 'click') return;
+      const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+      const hitId = axisPickerRef.current.pick(world);
+      if (hitId) {
+        setSelectedAxisRef({ primitiveId: hitId });
+        setPickingAxis(false);
+      }
+      return;
+    }
+    if (!sketchMode || !activeToolCtrlRef.current) return;
     const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
     const sketch = activePart?.featureTree.find(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === activeSketchId
@@ -501,7 +527,93 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId]);
+  }, [sketchMode, activePart, activeSketchId, pickingAxis]);
+
+  // Revolve dialog helpers and handlers.
+  // computeProfileRef: find a sketch suitable as a revolve profile. T13
+  // simplification — prefer an activeSketchId, else the last sketch in the
+  // feature tree. Closed-loop detection is deferred (T15+); report 1 if the
+  // sketch has any primitives so the dialog can show non-empty state.
+  const computeProfileRef = useCallback((): ProfileRef | null => {
+    if (!activePart) return null;
+    const sketches = activePart.featureTree.filter(
+      (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch'
+    );
+    if (sketches.length === 0) return null;
+    const active = activeSketchId ? sketches.find((s) => s.id === activeSketchId) : undefined;
+    const sketch = active ?? sketches[sketches.length - 1];
+    if (!sketch) return null;
+    const closedProfileCount = sketch.primitives.length > 0 ? 1 : 0;
+    if (closedProfileCount === 0) return null;
+    return { sketchId: sketch.id, closedProfileCount };
+  }, [activePart, activeSketchId]);
+
+  // hasRunningBody: true if any prior solid-producing feature exists. T13
+  // simplification — any extrude or revolve feature qualifies.
+  const hasRunningBody = useCallback((): boolean => {
+    if (!activePart) return false;
+    return activePart.featureTree.some(
+      (f) => f.kind === 'extrude' || f.kind === 'revolve'
+    );
+  }, [activePart]);
+
+  const onPickAxis = useCallback(() => {
+    const profile = computeProfileRef();
+    if (!profile || !activePart) return;
+    const sketch = activePart.featureTree.find(
+      (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === profile.sketchId
+    );
+    if (!sketch) return;
+    axisPickerRef.current.setCandidates([...sketch.primitives]);
+    setPickingAxis(true);
+  }, [activePart, computeProfileRef]);
+
+  const buildRevolveFeature = useCallback((v: RevolveDialogValue, profile: ProfileRef, axis: AxisRef): Extract<Feature, { kind: 'revolve' }> => ({
+    kind: 'revolve',
+    id: `r${Date.now()}`,
+    sketchRef: profile.sketchId,
+    axisPrimitiveId: axis.primitiveId,
+    angleParam: v.name,
+    direction: v.direction,
+    operation: v.operation
+  }), []);
+
+  const onRevolveCommit = useCallback(async (v: RevolveDialogValue) => {
+    const profile = computeProfileRef();
+    if (!profile || !selectedAxisRef || !activePart || !kernel) return;
+    const feature = buildRevolveFeature(v, profile, selectedAxisRef);
+    try {
+      await useAppStore.getState().bus.execute(
+        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
+      );
+      setRevolveDialogOpen(false);
+      setPickingAxis(false);
+      setSelectedAxisRef(null);
+    } catch (e) {
+      showToast(`Revolve failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, setRevolveDialogOpen, showToast]);
+
+  const onRevolveApply = useCallback(async (v: RevolveDialogValue) => {
+    // Apply = commit but keep the dialog open for further edits. T13 uses
+    // the same command path as OK; the dialog stays open for the next change.
+    const profile = computeProfileRef();
+    if (!profile || !selectedAxisRef || !activePart || !kernel) return;
+    const feature = buildRevolveFeature(v, profile, selectedAxisRef);
+    try {
+      await useAppStore.getState().bus.execute(
+        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
+      );
+    } catch (e) {
+      showToast(`Revolve failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, showToast]);
+
+  const onRevolveCancel = useCallback(() => {
+    setRevolveDialogOpen(false);
+    setPickingAxis(false);
+    setSelectedAxisRef(null);
+  }, [setRevolveDialogOpen]);
 
   return (
     <div className="flex flex-col h-full">
@@ -588,6 +700,18 @@ export default function App() {
         <ParametersPanel
           registry={parameterRegistry}
           onClose={() => setParametersPanelOpen(false)}
+        />
+      )}
+      {revolveDialogOpen && (
+        <RevolveDialog
+          profile={computeProfileRef()}
+          axis={selectedAxisRef}
+          hasRunningBody={hasRunningBody()}
+          onCommit={(v) => { void onRevolveCommit(v); }}
+          onApply={(v) => { void onRevolveApply(v); }}
+          onCancel={onRevolveCancel}
+          onPickProfile={() => { /* T15: profile picking. For T13 the dialog shows the active sketch. */ }}
+          onPickAxis={onPickAxis}
         />
       )}
       {toast && (
