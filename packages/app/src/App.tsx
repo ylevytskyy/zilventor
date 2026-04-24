@@ -18,7 +18,7 @@ import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRender
 import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
-import { AddDimensionCommand } from './commands/AddDimensionCommand';
+import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import type { Feature, DimensionConstraint } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -397,22 +397,31 @@ export default function App() {
       paramName: v.name,
       value: { kind: 'param', paramName: v.name }
     };
-    const addRes = await sketcherClientRef.current!.addDimension(finalDim, res.value.value);
-    if (!addRes.ok) {
-      const offending = addRes.offendingConstraintIds;
-      const { setHighlightedConstraintIds } = useAppStore.getState();
-      showToast('Over-defined: sketch has conflicting constraints.', offending.length > 0 ? {
-        label: 'Show conflict',
-        fn: () => {
-          setHighlightedConstraintIds(offending);
-          setTimeout(() => setHighlightedConstraintIds([]), 3000);
-        }
-      } : undefined);
+    const store = useAppStore.getState();
+    const client = sketcherClientRef.current;
+    if (!client || !store.activeSketchId) {
       setPendingDimension(null);
       return;
     }
-    const store = useAppStore.getState();
-    await store.bus.execute(new AddDimensionCommand(store.activeSketchId!, finalDim));
+    try {
+      await store.bus.execute(
+        new AddDimensionCommand(store.activeSketchId, finalDim, res.value.value, client)
+      );
+    } catch (e) {
+      if (e instanceof AddDimensionConflictError) {
+        const offending = e.result.offendingConstraintIds;
+        const { setHighlightedConstraintIds } = useAppStore.getState();
+        showToast('Over-defined: sketch has conflicting constraints.', offending.length > 0 ? {
+          label: 'Show conflict',
+          fn: () => {
+            setHighlightedConstraintIds(offending);
+            setTimeout(() => setHighlightedConstraintIds([]), 3000);
+          }
+        } : undefined);
+      } else {
+        throw e;
+      }
+    }
     setPendingDimension(null);
   }, [pendingDimension]);
 

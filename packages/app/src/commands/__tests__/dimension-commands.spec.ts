@@ -16,7 +16,7 @@ describe('dimension commands', () => {
     const cmd = new AddDimensionCommand('S1', {
       id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
       value: { kind: 'literal', value: 50 }
-    });
+    }, 50);
     await cmd.apply();
     expect((useAppStore.getState().activePart!.featureTree[0] as { constraints: unknown[] }).constraints).toHaveLength(1);
     await cmd.revert();
@@ -30,7 +30,7 @@ describe('dimension commands', () => {
       value: { kind: 'literal' as const, value: 50 }
     };
     useAppStore.getState().addDimensionToActiveSketch('S1', snapshot);
-    const cmd = new RemoveDimensionCommand('S1', snapshot);
+    const cmd = new RemoveDimensionCommand('S1', snapshot, 50);
     await cmd.apply();
     expect((useAppStore.getState().activePart!.featureTree[0] as { constraints: unknown[] }).constraints).toHaveLength(0);
     await cmd.revert();
