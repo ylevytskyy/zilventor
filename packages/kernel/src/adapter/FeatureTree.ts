@@ -13,6 +13,7 @@ import {
   type SketchResult
 } from './features/SketchFeature';
 import { executeExtrudeFeature } from './features/ExtrudeFeature';
+import { executeRevolveFeature } from './features/RevolveFeature';
 import { tessellate } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -72,11 +73,26 @@ export async function executeTree(
     }
   };
 
+  // Pre-scan to classify each sketch by downstream consumer. A sketch
+  // referenced by a revolve contains both a closed profile AND an axis
+  // line — a shape `executeSketchFeature` rejects as degenerate ("valid
+  // loop plus disconnected line(s)"). Such a sketch is consumed
+  // directly by the revolve branch (which builds its own edges, excluding
+  // the axis primitive), so we must NOT run `executeSketchFeature` on it.
+  const revolveSketchIds = new Set<string>();
+  for (const f of part.featureTree) {
+    if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
+  }
+
   for (const feature of part.featureTree) {
     if (feature.kind === 'sketch') {
       // Skip empty sketches — they are under construction, not an error.
       // An extrude that references one will fail with a clearer error below.
       if (feature.primitives.length === 0) continue;
+      // A revolve-only sketch (profile + axis line) is processed directly
+      // by the revolve branch below; `executeSketchFeature` would reject it
+      // as a disconnected-loop sketch. Skip it here.
+      if (revolveSketchIds.has(feature.id)) continue;
       const r = executeSketchFeature(oc, feature);
       if (!r.ok) {
         cleanupOnError();
@@ -127,9 +143,59 @@ export async function executeTree(
       }
       finalSolid = applied.value;
     } else if (feature.kind === 'revolve') {
-      // Implemented in T8. For now, do nothing — the feature is skipped so the
-      // tree execution completes with prior extrudes as the final solid.
-      continue;
+      // Revolve does NOT rely on the `sketches` Map: a revolve sketch contains
+      // both a closed profile AND an axis line (an open chain), which is
+      // exactly the shape `executeSketchFeature` rejects as degenerate. So we
+      // look up the raw sketch feature from the tree and pass it straight to
+      // `executeRevolveFeature`, which builds its own edges/wires excluding
+      // the axis primitive. See RevolveFeature.ts "Signature note" comment.
+      const sketchFeature = part.featureTree.find(
+        (f) => f.kind === 'sketch' && f.id === feature.sketchRef
+      );
+      if (!sketchFeature || sketchFeature.kind !== 'sketch') {
+        cleanupOnError();
+        return err({
+          kind: 'featureNotFound',
+          message: `Sketch ${feature.sketchRef} not found for revolve`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+      }
+      const param = part.parameters[feature.angleParam];
+      if (!param) {
+        cleanupOnError();
+        return err({
+          kind: 'invalidParameter',
+          message: `Parameter ${feature.angleParam} not found`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+      }
+      const resolved = resolve(param.expression, param.unit);
+      if (!resolved.ok) {
+        cleanupOnError();
+        return resolved;
+      }
+      // `resolve` returns the raw numeric value; the angle parameter is in
+      // degrees (ParameterUnit 'deg'), so convert to radians here.
+      const angleRad = (resolved.value * Math.PI) / 180;
+
+      const rv = executeRevolveFeature(oc, sketchFeature, feature, angleRad);
+      if (!rv.ok) {
+        cleanupOnError();
+        return rv;
+      }
+
+      const applied = applyBooleanOp(oc, finalSolid, rv.value.solid, feature.operation, feature.id);
+      if (!applied.ok) {
+        // applyBooleanOp already disposed running + next on failure (for
+        // fuse/cut branches); clear our handle so cleanupOnError doesn't
+        // double-free.
+        finalSolid = null;
+        cleanupOnError();
+        return applied;
+      }
+      finalSolid = applied.value;
     }
   }
 

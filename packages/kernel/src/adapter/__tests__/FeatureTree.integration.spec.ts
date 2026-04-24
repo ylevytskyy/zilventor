@@ -10,12 +10,32 @@ beforeAll(async () => { occt = await loadOcct(); }, 60_000);
 // ---- Test helpers ----------------------------------------------------------
 
 /** Build a PartDocument with one rectangle sketch (id `s${n}`) + one extrude
- *  (id `e${n}`) referencing it. Kept small so callers can chain multiple. */
+ *  (id `e${n}`) referencing it. Kept small so callers can chain multiple.
+ *
+ *  Extended in T8 to also support revolve features + a "rectAxisSketch" that
+ *  contains a rectangle profile and an in-sketch axis line (the shape a
+ *  revolve needs to consume). */
 function makePart(opts: {
-  parameters?: Record<string, { name: string; expression: string; value: number; unit: 'mm' }>;
+  parameters?: Record<string, { name: string; expression: string; value: number; unit: 'mm' | 'deg' }>;
   features: Array<
     | { kind: 'rectSketch'; id: string; x: number; y: number; w: number; h: number }
+    | {
+        kind: 'rectAxisSketch';
+        id: string;
+        // Rectangle profile
+        x: number; y: number; w: number; h: number;
+        // Axis line endpoints
+        ax1: number; ay1: number; ax2: number; ay2: number;
+      }
     | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; operation: BooleanOperation }
+    | {
+        kind: 'revolve';
+        id: string;
+        sketchRef: string;
+        axisPrimitiveId: string;
+        angleParam: string;
+        operation: BooleanOperation;
+      }
   >;
 }): PartDocument {
   const parameters = opts.parameters ?? {
@@ -29,6 +49,29 @@ function makePart(opts: {
         plane: 'XY' as const,
         primitives: [{ id: `${f.id}-r`, kind: 'rectangle' as const, x: f.x, y: f.y, w: f.w, h: f.h }],
         constraints: []
+      };
+    }
+    if (f.kind === 'rectAxisSketch') {
+      return {
+        kind: 'sketch' as const,
+        id: f.id,
+        plane: 'XY' as const,
+        primitives: [
+          { id: `${f.id}-r`, kind: 'rectangle' as const, x: f.x, y: f.y, w: f.w, h: f.h },
+          { id: `${f.id}-axis`, kind: 'line' as const, x1: f.ax1, y1: f.ay1, x2: f.ax2, y2: f.ay2 }
+        ],
+        constraints: []
+      };
+    }
+    if (f.kind === 'revolve') {
+      return {
+        kind: 'revolve' as const,
+        id: f.id,
+        sketchRef: f.sketchRef,
+        axisPrimitiveId: f.axisPrimitiveId,
+        angleParam: f.angleParam,
+        direction: 'normal' as const,
+        operation: f.operation
       };
     }
     return {
@@ -167,6 +210,85 @@ describe('FeatureTree single-body execution', () => {
     if (!r.ok) {
       expect(r.error.kind).toBe('booleanFailed');
       expect(r.error.featureId).toBe('e1');
+    }
+  });
+});
+
+// ---- New tests: revolve execution -----------------------------------------
+
+describe('FeatureTree revolve execution', () => {
+  it('extrude New + revolve Join produces a fused body', async () => {
+    // Extrude 1: 10x10x10 box at origin (spans [0,10] on X/Y/Z).
+    // Revolve (Join): rectangle [5,15]x[0,5] revolved 360 deg around Y axis
+    //   (axis line x1=0,y1=0 -> x2=0,y2=10). Produces an annular disk with
+    //   x-extent [-15,15] and z-extent [-15,15]. Fused with the cube, the
+    //   final bbox x-extent spans [-15, 15] = 30 (the annulus dominates).
+    const part = makePart({
+      parameters: {
+        d1: { name: 'd1', expression: '10', value: 10, unit: 'mm' as const },
+        a1: { name: 'a1', expression: '360', value: 360, unit: 'deg' as const }
+      },
+      features: [
+        { kind: 'rectSketch', id: 's1', x: 0, y: 0, w: 10, h: 10 },
+        { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', operation: 'new' },
+        {
+          kind: 'rectAxisSketch', id: 's2',
+          x: 5, y: 0, w: 10, h: 5,
+          ax1: 0, ay1: 0, ax2: 0, ay2: 10
+        },
+        {
+          kind: 'revolve', id: 'r1', sketchRef: 's2',
+          axisPrimitiveId: 's2-axis', angleParam: 'a1', operation: 'join'
+        }
+      ]
+    });
+    const r = await executeTree(occt, part);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const bbox = computeBoundingBox(occt, r.value.finalSolid);
+      // The 360-deg annular revolve around Y spans X:[-15,15], Z:[-15,15].
+      // Fused with the 10x10x10 cube at origin, min is -15 and max is 15 on
+      // X/Z (the cube is wholly contained on the positive octant and doesn't
+      // extend the bbox). Extent on X ~ 30.
+      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0);
+      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0);
+      disposeShape(r.value.finalSolid);
+    }
+  });
+
+  it('extrude New + revolve Cut removes material', async () => {
+    // Start with a 30x30x30 cube centered on origin via extrude at (-15,-15).
+    // Then Cut with a narrow cylinder produced by revolving a small rectangle
+    // [1,3]x[0,30] around the Y axis 360 deg -> an annulus/cylinder that
+    // punches through the cube around the Y axis.
+    const part = makePart({
+      parameters: {
+        d1: { name: 'd1', expression: '30', value: 30, unit: 'mm' as const },
+        a1: { name: 'a1', expression: '360', value: 360, unit: 'deg' as const }
+      },
+      features: [
+        { kind: 'rectSketch', id: 's1', x: -15, y: -15, w: 30, h: 30 },
+        { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', operation: 'new' },
+        {
+          kind: 'rectAxisSketch', id: 's2',
+          x: 1, y: 0, w: 2, h: 30,
+          ax1: 0, ay1: 0, ax2: 0, ay2: 30
+        },
+        {
+          kind: 'revolve', id: 'r1', sketchRef: 's2',
+          axisPrimitiveId: 's2-axis', angleParam: 'a1', operation: 'cut'
+        }
+      ]
+    });
+    const r = await executeTree(occt, part);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const bbox = computeBoundingBox(occt, r.value.finalSolid);
+      // Outer bbox still matches the 30x30x30 cube since the cut is internal.
+      expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0);
+      expect(bbox[4] - bbox[1]).toBeCloseTo(30, 0);
+      expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0);
+      disposeShape(r.value.finalSolid);
     }
   });
 });
