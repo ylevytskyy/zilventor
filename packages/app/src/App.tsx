@@ -142,8 +142,8 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasExtrude = activePart.featureTree.some((f) => f.kind === 'extrude');
-      if (!hasExtrude) return;
+      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve');
+      if (!hasSolidFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
@@ -482,8 +482,8 @@ export default function App() {
       useAppStore.getState().setKernel(client);
       const { activePart: ap } = useAppStore.getState();
       if (ap && viewportRef.current) {
-        const hasExtrude = ap.featureTree.some((f) => f.kind === 'extrude');
-        if (hasExtrude) {
+        const hasSolidFeature = ap.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve');
+        if (hasSolidFeature) {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
@@ -631,9 +631,12 @@ export default function App() {
     const profile = computeProfileRef();
     if (!profile || !selectedAxisRef || !activePart || !kernel) return;
     const feature = buildRevolveFeature(v, profile, selectedAxisRef);
+    const store = useAppStore.getState();
     try {
-      await useAppStore.getState().bus.execute(
-        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
+      await store.bus.execute(
+        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry, {
+          setActivePart: store.setActivePart
+        })
       );
       clearPreview();
       setRevolveDialogOpen(false);
@@ -650,9 +653,12 @@ export default function App() {
     const profile = computeProfileRef();
     if (!profile || !selectedAxisRef || !activePart || !kernel) return;
     const feature = buildRevolveFeature(v, profile, selectedAxisRef);
+    const store = useAppStore.getState();
     try {
-      await useAppStore.getState().bus.execute(
-        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry)
+      await store.bus.execute(
+        new AddRevolveFeatureCommand(activePart.id, feature, v.expression, kernel, parameterRegistry, {
+          setActivePart: store.setActivePart
+        })
       );
       clearPreview();
     } catch (e) {
