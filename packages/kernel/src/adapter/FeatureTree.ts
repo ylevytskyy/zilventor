@@ -15,6 +15,7 @@ import {
 import { executeExtrudeFeature } from './features/ExtrudeFeature';
 import { executeRevolveFeature } from './features/RevolveFeature';
 import { executeFilletFeature } from './features/FilletFeature';
+import { executeChamferFeature } from './features/ChamferFeature';
 import { tessellate, tessellateEdges } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -238,6 +239,39 @@ export async function executeTree(
         // Soft-fail: record the error, keep the pre-fillet body intact, and
         // continue. The UI can annotate the fillet node while the rest of
         // the tree rebuilds normally.
+        featureErrors.set(feature.id, result.error);
+        continue;
+      }
+      disposeShape(finalSolid.shape);
+      finalSolid = result.value;
+    } else if (feature.kind === 'chamfer') {
+      // Chamfer follows the same soft-fail pattern as fillet — without a
+      // body to modify there's nothing to do, and if the chamfer op itself
+      // fails (edge missing, zero distance, OCCT converge failure) we record
+      // the error and keep the pre-chamfer body intact.
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Chamfer needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      const result = executeChamferFeature(oc, finalSolid, feature, (p) => {
+        if (p.kind === 'literal') return ok(p.value);
+        const param = part.parameters[p.paramName];
+        if (!param) {
+          return err({
+            kind: 'invalidParameter',
+            message: `Parameter ${p.paramName} not found`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+        }
+        return resolve(param.expression, param.unit);
+      });
+      if (!result.ok) {
         featureErrors.set(feature.id, result.error);
         continue;
       }

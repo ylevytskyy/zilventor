@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DimensionConstraint, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { ChamferEdgeSpec, DimensionConstraint, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -32,6 +32,10 @@ type AppState = {
   filletEdges: FilletEdgeSpec[];
   editingFilletId: string | null;
   filletInitialRadius: string | undefined;
+  chamferDialogOpen: boolean;
+  chamferEdges: ChamferEdgeSpec[];
+  editingChamferId: string | null;
+  chamferInitialDistance: string | undefined;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -48,6 +52,11 @@ type AppState = {
   setEditingFilletId(id: string | null): void;
   setFilletInitialRadius(radius: string | undefined): void;
   openFilletForEdit(featureId: string): void;
+  setChamferDialogOpen(v: boolean): void;
+  setChamferEdges(edges: ChamferEdgeSpec[]): void;
+  setEditingChamferId(id: string | null): void;
+  setChamferInitialDistance(distance: string | undefined): void;
+  openChamferForEdit(featureId: string): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -127,6 +136,40 @@ export const useAppStore = create<AppState>((set) => ({
       filletEdges: feature.edges.map((e) => ({ ...e })),
       filletInitialRadius: initialRadius,
       filletDialogOpen: true,
+    });
+  },
+  chamferDialogOpen: false,
+  setChamferDialogOpen: (v) => set({ chamferDialogOpen: v }),
+  chamferEdges: [],
+  setChamferEdges: (edges) => set({ chamferEdges: edges }),
+  editingChamferId: null,
+  setEditingChamferId: (id) => set({ editingChamferId: id }),
+  chamferInitialDistance: undefined,
+  setChamferInitialDistance: (distance) => set({ chamferInitialDistance: distance }),
+  openChamferForEdit: (featureId) => {
+    const state = useAppStore.getState();
+    const part = state.activePart;
+    if (!part) return;
+    const feature = part.featureTree.find(
+      (f): f is Extract<typeof f, { kind: 'chamfer' }> => f.kind === 'chamfer' && f.id === featureId
+    );
+    if (!feature) return;
+    const firstEdge = feature.edges[0];
+    const distanceSpec = firstEdge?.distance;
+    let initialDistance: string | undefined;
+    if (distanceSpec) {
+      if (distanceSpec.kind === 'literal') {
+        initialDistance = String(distanceSpec.value);
+      } else {
+        const param = part.parameters[distanceSpec.paramName];
+        initialDistance = param?.expression ?? distanceSpec.paramName;
+      }
+    }
+    set({
+      editingChamferId: feature.id,
+      chamferEdges: feature.edges.map((e) => ({ ...e })),
+      chamferInitialDistance: initialDistance,
+      chamferDialogOpen: true,
     });
   },
   highlightedConstraintIds: [],

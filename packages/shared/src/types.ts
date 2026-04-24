@@ -28,7 +28,8 @@ export type Feature =
   | { kind: 'sketch'; id: string; plane: 'XY' | 'XZ' | 'YZ'; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation }
   | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation }
-  | FilletFeature;
+  | FilletFeature
+  | ChamferFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -115,4 +116,16 @@ export type FilletFeature = {
   mode: 'constant' | 'variable';
   edges: FilletEdgeSpec[];
   setbacks: VertexSetback[];
+};
+
+export type ChamferEdgeSpec = {
+  edgeId: EdgeName;
+  selectionMode: FilletSelectionMode;
+  distance: ParamOrLiteral;
+};
+
+export type ChamferFeature = {
+  kind: 'chamfer';
+  id: string;
+  edges: ChamferEdgeSpec[];
 };

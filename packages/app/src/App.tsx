@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FilletEdgeSpec, FilletSelectionMode, FilletFeature, EdgeName } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, EdgeName } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -32,6 +32,8 @@ import { AddRevolveFeatureCommand } from './commands/AddRevolveFeatureCommand';
 import { EdgePickController, type TessellatedEdge } from './model/EdgePickController';
 import { FilletDialog, type FilletDialogValue, type FilletMode } from './shell/FilletDialog';
 import { AddFilletFeatureCommand } from './commands/AddFilletFeatureCommand';
+import { ChamferDialog, type ChamferDialogValue } from './shell/ChamferDialog';
+import { AddChamferFeatureCommand } from './commands/AddChamferFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -102,6 +104,7 @@ export default function App() {
   // so the FilletDialog can mount with pre-populated radius when editing.
   const [filletPreviewError, setFilletPreviewError] = useState<string | null>(null);
   const [pickingFilletEdges, setPickingFilletEdges] = useState(false);
+  const [pickingChamferEdges, setPickingChamferEdges] = useState(false);
   // Hovered edge set — kept in state so a future highlight overlay in the
   // viewport can subscribe. For the T23-T25 stub no renderer consumes it yet.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -508,6 +511,11 @@ export default function App() {
         useAppStore.getState().setFilletDialogOpen(true);
         return;
       }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        useAppStore.getState().setChamferDialogOpen(true);
+        return;
+      }
       if (e.key === 'F7') {
         e.preventDefault();
         useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
@@ -645,6 +653,30 @@ export default function App() {
       }
       return;
     }
+    if (!sketchMode && pickingChamferEdges) {
+      if (ev.type === 'move') {
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        const hover = edgePickerRef.current.highlightFromRay(r.origin, r.direction);
+        setHoveredEdgeSet(hover);
+        return;
+      }
+      if (ev.type === 'click') {
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        const pick = edgePickerRef.current.pickFromRay(r.origin, r.direction);
+        if (pick && pick.length > 0) {
+          const newSpecs: ChamferEdgeSpec[] = pick.map((edgeId) => ({
+            edgeId,
+            selectionMode: filletSelectionMode,
+            distance: { kind: 'param', paramName: 'd_chamfer' }
+          }));
+          const store = useAppStore.getState();
+          store.setChamferEdges([...store.chamferEdges, ...newSpecs]);
+          setPickingChamferEdges(false);
+          setHoveredEdgeSet(null);
+        }
+      }
+      return;
+    }
     // Model-mode profile pick: route a click to the ProfilePickController and
     // bail out. Movements/hovers are ignored.
     if (!sketchMode && pickingProfile) {
@@ -688,7 +720,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, filletSelectionMode]);
+  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, filletSelectionMode]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
@@ -1071,6 +1103,104 @@ export default function App() {
     setHoveredEdgeSet(null);
   }, [clearFilletPreview, clearFilletScratchParams, setFilletDialogOpen, setEditingFilletId]);
 
+  // Chamfer dialog handlers — mirror the fillet handlers with distance
+  // instead of radius, single mode (symmetric), no setbacks / variable.
+  const chamferDialogOpen = useAppStore((s) => s.chamferDialogOpen);
+  const setChamferDialogOpen = useAppStore((s) => s.setChamferDialogOpen);
+  const chamferEdges = useAppStore((s) => s.chamferEdges);
+  const setChamferEdges = useAppStore((s) => s.setChamferEdges);
+  const editingChamferId = useAppStore((s) => s.editingChamferId);
+  const setEditingChamferId = useAppStore((s) => s.setEditingChamferId);
+  const chamferInitialDistance = useAppStore((s) => s.chamferInitialDistance);
+
+  const onChamferAddEdges = useCallback(() => {
+    if (!activePart) return;
+    if (tessellatedEdgesRef.current.length === 0) {
+      showToast('No edges available — add a body (extrude/revolve) first.');
+      return;
+    }
+    edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
+    edgePickerRef.current.setMode(filletSelectionMode);
+    setPickingChamferEdges(true);
+  }, [activePart, filletSelectionMode, showToast]);
+
+  const onChamferRemoveEdge = useCallback((spec: ChamferEdgeSpec) => {
+    setChamferEdges(useAppStore.getState().chamferEdges.filter((e) => e !== spec));
+  }, [setChamferEdges]);
+
+  const onChamferCommit = useCallback(async (v: ChamferDialogValue) => {
+    if (!activePart || !kernel || chamferEdges.length === 0) return;
+    const feature: ChamferFeature = {
+      kind: 'chamfer',
+      id: editingChamferId ?? `c${Date.now()}`,
+      edges: chamferEdges.map((e) => ({
+        ...e,
+        distance: { kind: 'param', paramName: 'd_chamfer' }
+      }))
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      d_chamfer: { expression: v.distance, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      if (editingChamferId) {
+        await kernel.removeFeature(activePart.id, editingChamferId);
+      }
+      await store.bus.execute(new AddChamferFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart }
+      }));
+      setChamferDialogOpen(false);
+      setChamferEdges([]);
+      setEditingChamferId(null);
+      setPickingChamferEdges(false);
+      setHoveredEdgeSet(null);
+    } catch (e) {
+      showToast(`Chamfer failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, chamferEdges, editingChamferId, setChamferDialogOpen, setChamferEdges, setEditingChamferId, showToast]);
+
+  const onChamferApply = useCallback(async (v: ChamferDialogValue) => {
+    if (!activePart || !kernel || chamferEdges.length === 0) return;
+    const feature: ChamferFeature = {
+      kind: 'chamfer',
+      id: editingChamferId ?? `c${Date.now()}`,
+      edges: chamferEdges.map((e) => ({
+        ...e,
+        distance: { kind: 'param', paramName: 'd_chamfer' }
+      }))
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      d_chamfer: { expression: v.distance, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      await store.bus.execute(new AddChamferFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart }
+      }));
+    } catch (e) {
+      showToast(`Chamfer failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, chamferEdges, editingChamferId, showToast]);
+
+  const onChamferCancel = useCallback(() => {
+    setChamferDialogOpen(false);
+    setChamferEdges([]);
+    setEditingChamferId(null);
+    setPickingChamferEdges(false);
+    setHoveredEdgeSet(null);
+  }, [setChamferDialogOpen, setChamferEdges, setEditingChamferId]);
+
+
   return (
     <div className="flex flex-col h-full">
       {kernelOffline && (
@@ -1182,6 +1312,30 @@ export default function App() {
             // at onFilletCommit time.
             const res = parameterRegistry.dryRun({
               name: 'r_fillet_dry',
+              expression: expr,
+              unit: 'mm'
+            });
+            return res.ok ? null : formatExpressionError(res.error);
+          }}
+        />
+      )}
+      {chamferDialogOpen && (
+        <ChamferDialog
+          edges={chamferEdges}
+          pickingMode={filletSelectionMode}
+          previewError={null}
+          initialDistance={chamferInitialDistance}
+          onCommit={(v) => { void onChamferCommit(v); }}
+          onApply={(v) => { void onChamferApply(v); }}
+          onCancel={onChamferCancel}
+          onAddEdges={onChamferAddEdges}
+          onRemoveEdge={onChamferRemoveEdge}
+          onClearEdges={() => setChamferEdges([])}
+          onSelectionModeChange={setFilletSelectionMode}
+          onDistanceChange={() => { /* no preview for MVP */ }}
+          validateExpression={(expr) => {
+            const res = parameterRegistry.dryRun({
+              name: 'd_chamfer_dry',
               expression: expr,
               unit: 'mm'
             });

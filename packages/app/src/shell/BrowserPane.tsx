@@ -51,6 +51,7 @@ export default function BrowserPane({ part }: Props) {
   let extrudeCount = 0;
   let revolveCount = 0;
   let filletCount = 0;
+  let chamferCount = 0;
   return (
     <div className="px-3 py-2 text-xs text-neutral-200">
       <div className="font-semibold mb-1">{part.name}</div>
@@ -96,6 +97,22 @@ export default function BrowserPane({ part }: Props) {
                 }}
               >
                 ▸ Fillet{filletCount}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
+          if (f.kind === 'chamfer') {
+            chamferCount += 1;
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onDoubleClick={() => {
+                  setSelectedFeature(f.id);
+                  useAppStore.getState().openChamferForEdit(f.id);
+                }}
+              >
+                ▸ Chamfer{chamferCount}
                 {renderErrorBadge(f.id)}
               </li>
             );
