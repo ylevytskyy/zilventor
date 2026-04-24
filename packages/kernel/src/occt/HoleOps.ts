@@ -11,7 +11,7 @@
  *   - `gp_Dir_4(x, y, z)`          — direction from components.
  *   - `gp_Ax2_3(origin, direction)` — right-handed frame (N axis = direction).
  *   - `BRepPrimAPI_MakeCylinder_3(frame, radius, height)` — axis-based cylinder.
- *   - `BRepPrimAPI_MakeCone_4(frame, R1, R2, H)` — frustum; R1 at base, R2 at top.
+ *   - `BRepPrimAPI_MakeCone_3(frame, R1, R2, H)` — frustum; R1 at base, R2 at top.
  *   - `BRepAlgoAPI_Fuse_3(s1, s2, progressRange)` — requires progress range.
  *   - `Message_ProgressRange_1()` — default (no-op) progress range.
  */
@@ -66,8 +66,8 @@ export function makeSimpleCutter(
     origin.Z() + axis.Z() * opts.cylinderLength,
   );
   const tipFrame = new oc.gp_Ax2_3(tipOrigin, axis);
-  // BRepPrimAPI_MakeCone_4(frame, R1, R2, H): R1 at base, R2 at top (apex).
-  const cone = new oc.BRepPrimAPI_MakeCone_4(tipFrame, radius, 0, tipHeight).Shape();
+  // BRepPrimAPI_MakeCone_3(frame, R1, R2, H): R1 at base, R2 at top (apex).
+  const cone = new oc.BRepPrimAPI_MakeCone_3(tipFrame, radius, 0, tipHeight).Shape();
 
   const fuse = new oc.BRepAlgoAPI_Fuse_3(cyl, cone, new oc.Message_ProgressRange_1());
   fuse.Build(new oc.Message_ProgressRange_1());
