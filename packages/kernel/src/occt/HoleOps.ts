@@ -73,3 +73,38 @@ export function makeSimpleCutter(
   fuse.Build(new oc.Message_ProgressRange_1());
   return fuse.Shape();
 }
+
+export type CounterboreCutterOpts = {
+  diameter: number;
+  cylinderLength: number;
+  cboreDiameter: number;
+  cboreDepth: number;
+  drillTipAngleDeg: number | null;
+};
+
+export function makeCounterboreCutter(
+  oc: any,
+  origin: any,
+  axis: any,
+  opts: CounterboreCutterOpts,
+): any {
+  // CBORE sits at top, shank cylinder below.
+  const cboreFrame = new oc.gp_Ax2_3(origin, axis);
+  const cboreRadius = opts.cboreDiameter / 2;
+  const cbore = new oc.BRepPrimAPI_MakeCylinder_3(cboreFrame, cboreRadius, opts.cboreDepth).Shape();
+
+  const shankTop = new oc.gp_Pnt_3(
+    origin.X() + axis.X() * opts.cboreDepth,
+    origin.Y() + axis.Y() * opts.cboreDepth,
+    origin.Z() + axis.Z() * opts.cboreDepth,
+  );
+  const shank = makeSimpleCutter(oc, shankTop, axis, {
+    diameter: opts.diameter,
+    cylinderLength: opts.cylinderLength,
+    drillTipAngleDeg: opts.drillTipAngleDeg,
+  });
+
+  const fuse = new oc.BRepAlgoAPI_Fuse_3(cbore, shank, new oc.Message_ProgressRange_1());
+  fuse.Build(new oc.Message_ProgressRange_1());
+  return fuse.Shape();
+}

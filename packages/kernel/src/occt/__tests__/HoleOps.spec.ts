@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct } from '../occtLoader';
-import { makeSimpleCutter } from '../HoleOps';
+import { makeSimpleCutter, makeCounterboreCutter } from '../HoleOps';
 
 describe('HoleOps — simple cutter', () => {
   let oc: any;
@@ -60,5 +60,33 @@ describe('HoleOps — simple cutter', () => {
     expect(conCount).toBe(1);
     // 118° included → 59° half
     expect(Math.abs(coneHalfAngle) * (180 / Math.PI)).toBeCloseTo(59, 0);
+  });
+});
+
+describe('HoleOps — counterbore cutter', () => {
+  let oc: any;
+  beforeAll(async () => { oc = await loadOcct(); }, 60_000);
+
+  it('CBORE cutter has 2 concentric cylinders + tip cone (blind)', () => {
+    const origin = new oc.gp_Pnt_3(0, 0, 0);
+    const axis = new oc.gp_Dir_4(0, 0, -1);
+    const cutter = makeCounterboreCutter(oc, origin, axis, {
+      diameter: 5, cylinderLength: 20,
+      cboreDiameter: 10, cboreDepth: 3,
+      drillTipAngleDeg: 118,
+    });
+    const explorer = new oc.TopExp_Explorer_2(
+      cutter, oc.TopAbs_ShapeEnum.TopAbs_FACE as any, oc.TopAbs_ShapeEnum.TopAbs_SHAPE as any,
+    );
+    let cylCount = 0, conCount = 0;
+    for (; explorer.More(); explorer.Next()) {
+      const face = oc.TopoDS.Face_1(explorer.Current());
+      const surf = oc.BRep_Tool.Surface_2(face).get();
+      const type = surf.DynamicType().get().Name();
+      if (type === 'Geom_CylindricalSurface') cylCount++;
+      if (type === 'Geom_ConicalSurface') conCount++;
+    }
+    expect(cylCount).toBe(2);
+    expect(conCount).toBe(1);
   });
 });
