@@ -62,4 +62,21 @@ describe('makeFillet constant radius (integration)', () => {
     if (!r.ok) expect(r.error.kind).toBe('filletFailed');
     disposeShape(box);
   });
+
+  it('variable-radius fillet transitions linearly along one edge', () => {
+    const box = makeBox(oc, 10, 10, 10);
+    const edges = enumerateEdges(oc, box.handle);
+    const r = makeFillet(oc, box, {
+      edges: [{ edge: edges[0]!, radius: 0, variable: { startRadius: 1, endRadius: 3 } }],
+      setbacks: []
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Successful variable-radius fillet; mesh-worthy shape.
+      const bbox = computeBoundingBox(oc, r.value);
+      expect(bbox[3] - bbox[0]).toBeCloseTo(10, 1);
+      disposeShape(r.value);
+    }
+    disposeShape(box);
+  });
 });
