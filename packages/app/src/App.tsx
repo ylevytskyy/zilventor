@@ -18,6 +18,10 @@ import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRender
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import type { Feature } from '@zilventor/shared';
+import { ParameterRegistry } from './parameters/ParameterRegistry';
+
+// Module-level singleton. Registry loads from activePart.parameters on every part change.
+export const parameterRegistry = new ParameterRegistry();
 
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
@@ -232,6 +236,17 @@ export default function App() {
       committedSketchRendererRef.current = null;
     };
   }, []);
+
+  // Sync ParameterRegistry with the active part's parameters on every part change.
+  useEffect(() => {
+    if (!activePart) return;
+    // Reset and repopulate on every activePart change.
+    const names = parameterRegistry.getAll().map((p) => p.name);
+    for (const n of names) parameterRegistry.removeParameter(n);
+    for (const p of Object.values(activePart.parameters ?? {})) {
+      parameterRegistry.setParameter({ name: p.name, expression: p.expression, unit: p.unit });
+    }
+  }, [activePart?.id]);
 
   // Enter/exit sketch mode (camera swap + grid + orbit lock).
   useEffect(() => {
