@@ -68,4 +68,56 @@ describe('GcsSystem dimensions (integration)', () => {
     expect(r.ok).toBe(false);
     await sys.unloadSketch();
   });
+
+  it('rebuildGcs preserves param-kind dim value via the resolved-value sidecar', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({ primitives: [line('L1', 0, 0, 10, 0)], constraints: [] });
+    const dim: DimensionConstraint = {
+      id: 'd0', kind: 'dim-length', paramName: 'width', line: 'L1',
+      value: { kind: 'param', paramName: 'width' }
+    };
+    await sys.addDimension(dim, 50);
+    await sys.addPrimitive(line('L2', 100, 100, 110, 100));
+    const coords = sys.readCoords('L1');
+    const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
+    // Regression: before the fix, rebuildGcs fed 0 for param-kind and the line
+    // collapsed to length 0. The sidecar now keeps 50 alive across the rebuild.
+    expect(Math.abs(len - 50)).toBeLessThan(1e-3);
+    await sys.unloadSketch();
+  });
+
+  it('updateDimensionValue drives geometry without discarding the param binding', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({ primitives: [line('L1', 0, 0, 10, 0)], constraints: [] });
+    const dim: DimensionConstraint = {
+      id: 'd0', kind: 'dim-length', paramName: 'width', line: 'L1',
+      value: { kind: 'param', paramName: 'width' }
+    };
+    await sys.addDimension(dim, 50);
+    await sys.updateDimensionValue('d0', 100);
+    const coords = sys.readCoords('L1');
+    const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
+    expect(Math.abs(len - 100)).toBeLessThan(1e-3);
+    await sys.unloadSketch();
+  });
+
+  it('loadSketch uses dimensionResolvedValues for param-kind dims', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    const dim: DimensionConstraint = {
+      id: 'd0', kind: 'dim-length', paramName: 'width', line: 'L1',
+      value: { kind: 'param', paramName: 'width' }
+    };
+    await sys.loadSketch({
+      primitives: [line('L1', 0, 0, 10, 0)],
+      constraints: [dim],
+      dimensionResolvedValues: { d0: 75 }
+    });
+    const coords = sys.readCoords('L1');
+    const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
+    expect(Math.abs(len - 75)).toBeLessThan(1e-3);
+    await sys.unloadSketch();
+  });
 });
