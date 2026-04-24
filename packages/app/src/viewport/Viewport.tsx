@@ -10,7 +10,12 @@ export type ViewportRef = {
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
+  screenToRay(
+    clientX: number,
+    clientY: number
+  ): { origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
   worldToScreen(worldX: number, worldY: number): { x: number; y: number };
+  worldToScreen3d(worldX: number, worldY: number, worldZ: number): { x: number; y: number };
 };
 
 type Props = {
@@ -92,11 +97,40 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       raycaster.ray.intersectPlane(plane, hit);
       return { x: hit.x, y: hit.y };
     },
+    screenToRay: (clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) {
+        return { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 } };
+      }
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, sceneRef.current.getCamera());
+      const o = raycaster.ray.origin;
+      const d = raycaster.ray.direction;
+      return {
+        origin: { x: o.x, y: o.y, z: o.z },
+        direction: { x: d.x, y: d.y, z: d.z }
+      };
+    },
     worldToScreen: (worldX, worldY) => {
       if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };
       const canvas = canvasRef.current;
       const rect = canvas.getBoundingClientRect();
       const vec = new THREE.Vector3(worldX, worldY, 0);
+      vec.project(sceneRef.current.getCamera());
+      const x = ((vec.x + 1) / 2) * rect.width;
+      const y = ((-vec.y + 1) / 2) * rect.height;
+      return { x, y };
+    },
+    worldToScreen3d: (wx, wy, wz) => {
+      if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const vec = new THREE.Vector3(wx, wy, wz);
       vec.project(sceneRef.current.getCamera());
       const x = ((vec.x + 1) / 2) * rect.width;
       const y = ((-vec.y + 1) / 2) * rect.height;

@@ -146,6 +146,8 @@ export default function App() {
       }
       w.__zilventorWorldToScreen = (wx: number, wy: number) =>
         viewportRef.current?.worldToScreen(wx, wy) ?? { x: 0, y: 0 };
+      w.__zilventorWorldToScreen3d = (wx: number, wy: number, wz: number) =>
+        viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
     }
   }, []);
@@ -610,20 +612,20 @@ export default function App() {
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
     // Model-mode fillet edge pick. Hover highlights the candidate, click
-    // commits the pick into the dialog's edge list. screenToWorld returns 2D
-    // (x,y); EdgePickController expects Vec3 — we pad z=0 for the stub path.
-    // When tessellatedEdgesRef is wired to a real 3D shape a proper ray-hit
-    // will replace this.
+    // commits the pick into the dialog's edge list. Uses a camera-space ray
+    // (origin + direction in world coords) against the kernel's tessellated
+    // edges — ray-vs-segment distance with near-to-camera tiebreak handles
+    // occlusion naturally.
     if (!sketchMode && pickingFilletEdges) {
       if (ev.type === 'move') {
-        const w = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
-        const hover = edgePickerRef.current.highlight({ x: w.x, y: w.y, z: 0 });
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        const hover = edgePickerRef.current.highlightFromRay(r.origin, r.direction);
         setHoveredEdgeSet(hover);
         return;
       }
       if (ev.type === 'click') {
-        const w = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
-        const pick = edgePickerRef.current.pick({ x: w.x, y: w.y, z: 0 });
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        const pick = edgePickerRef.current.pickFromRay(r.origin, r.direction);
         if (pick && pick.length > 0) {
           const newSpecs: FilletEdgeSpec[] = pick.map((edgeId) => ({
             edgeId,
@@ -901,15 +903,16 @@ export default function App() {
   }, []);
 
   // Fillet dialog handlers.
-  // T23-T25 INTERIM: real edge picking requires tessellated-edge extraction
-  // from the executed NamedShape (currently dropped by ExecutionResult). Until
-  // that kernel extension lands, Add surfaces a stub toast but commit flow is
-  // fully wired — E2E tests can seed filletEdges directly via store
-  // manipulation to exercise the commit path.
+  // Edge picking reads from `tessellatedEdgesRef`, populated by every
+  // kernel.execute. Clicking Add arms the pick flow; the next viewport click
+  // is consumed by `handleViewportPointer`'s fillet branch, which raycasts
+  // through the picker and appends the hit to the store's `filletEdges`.
+  // If the cache is empty (no solid body has been executed yet), the toast
+  // surfaces that state instead of silently arming a pick with no candidates.
   const onFilletAddEdges = useCallback(() => {
     if (!activePart) return;
     if (tessellatedEdgesRef.current.length === 0) {
-      showToast('Edge picking not yet wired — tessellated-edge cache is empty.');
+      showToast('No edges available — add a body (extrude/revolve) first.');
       return;
     }
     edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);

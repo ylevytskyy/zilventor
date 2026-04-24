@@ -150,3 +150,69 @@ describe('EdgePickController All-Fillets / All-Rounds modes', () => {
     expect(hit).not.toContainEqual(concave.edgeName);
   });
 });
+
+describe('EdgePickController pickFromRay', () => {
+  it('hits an edge lying in the path of the ray', () => {
+    // Edge along the x-axis from (0,0,0) to (10,0,0). Ray fires straight
+    // toward it from above: origin (5, 0, 10), direction (0, 0, -1).
+    const edge = makeEdge(
+      { featureId: 'E1', role: 'top' },
+      { featureId: 'E1', role: 'side', instance: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 10, y: 0, z: 0 }
+    );
+    const ctrl = new EdgePickController();
+    ctrl.setCandidates([edge]);
+    ctrl.setMode('edge');
+    const hit = ctrl.pickFromRay(
+      { x: 5, y: 0, z: 10 },
+      { x: 0, y: 0, z: -1 }
+    );
+    expect(hit).toEqual([edge.edgeName]);
+  });
+
+  it('returns null when ray misses every segment', () => {
+    const edge = makeEdge(
+      { featureId: 'E1', role: 'top' },
+      { featureId: 'E1', role: 'side', instance: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 10, y: 0, z: 0 }
+    );
+    const ctrl = new EdgePickController();
+    ctrl.setCandidates([edge]);
+    ctrl.setMode('edge');
+    // Ray origin far to the side, direction parallel to y-axis — never hits
+    // the x-axis segment within the 2 mm tolerance.
+    const hit = ctrl.pickFromRay(
+      { x: 50, y: 0, z: 10 },
+      { x: 0, y: 1, z: 0 }
+    );
+    expect(hit).toBe(null);
+  });
+
+  it('picks the nearest-to-camera segment when two edges line up under the ray', () => {
+    // Two parallel edges, one at z=0, the other at z=5. Ray fires downward
+    // at x=5; both are within tolerance on the ray, but the z=5 edge has
+    // smaller rayT and should win.
+    const near = makeEdge(
+      { featureId: 'A', role: 'top' },
+      { featureId: 'A', role: 'side', instance: 0 },
+      { x: 0, y: 0, z: 5 },
+      { x: 10, y: 0, z: 5 }
+    );
+    const far = makeEdge(
+      { featureId: 'B', role: 'top' },
+      { featureId: 'B', role: 'side', instance: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 10, y: 0, z: 0 }
+    );
+    const ctrl = new EdgePickController();
+    ctrl.setCandidates([far, near]); // order on purpose
+    ctrl.setMode('edge');
+    const hit = ctrl.pickFromRay(
+      { x: 5, y: 0, z: 20 },
+      { x: 0, y: 0, z: -1 }
+    );
+    expect(hit).toEqual([near.edgeName]);
+  });
+});

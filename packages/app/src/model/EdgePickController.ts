@@ -22,8 +22,33 @@ export class EdgePickController {
 
   pick(point: Vec3): EdgeName[] | null {
     const hit = this.nearestEdge(point);
-    if (!hit) return null;
+    return hit ? this.expandHit(hit) : null;
+  }
 
+  highlight(point: Vec3): EdgeName[] | null {
+    return this.pick(point);
+  }
+
+  /**
+   * Pick the edge hit by a 3D ray (camera → click). Distances are measured
+   * between the ray and each segment in world space; segments within
+   * `tolerance` are candidates, and the one with the smallest along-ray
+   * `t` (nearest to the camera) wins so occluders pick correctly.
+   *
+   * `tolerance` defaults to the controller's world tolerance (`setTolerance`)
+   * but can be overridden per call — callers can scale tolerance by camera
+   * distance to approximate a pixel-space tolerance.
+   */
+  pickFromRay(origin: Vec3, direction: Vec3, tolerance?: number): EdgeName[] | null {
+    const hit = this.nearestEdgeAlongRay(origin, direction, tolerance ?? this.tolerance);
+    return hit ? this.expandHit(hit) : null;
+  }
+
+  highlightFromRay(origin: Vec3, direction: Vec3, tolerance?: number): EdgeName[] | null {
+    return this.pickFromRay(origin, direction, tolerance);
+  }
+
+  private expandHit(hit: TessellatedEdge): EdgeName[] | null {
     if (this.mode === 'edge') {
       return [hit.edgeName];
     }
@@ -65,10 +90,6 @@ export class EdgePickController {
     return null;
   }
 
-  highlight(point: Vec3): EdgeName[] | null {
-    return this.pick(point);
-  }
-
   private nearestEdge(p: Vec3): TessellatedEdge | null {
     let best: { edge: TessellatedEdge; d: number } | null = null;
     for (const e of this.candidates) {
@@ -76,6 +97,23 @@ export class EdgePickController {
         const d = distPointToSegment(p, a, b);
         if (d <= this.tolerance && (!best || d < best.d)) {
           best = { edge: e, d };
+        }
+      }
+    }
+    return best?.edge ?? null;
+  }
+
+  private nearestEdgeAlongRay(
+    origin: Vec3,
+    direction: Vec3,
+    tolerance: number
+  ): TessellatedEdge | null {
+    let best: { edge: TessellatedEdge; t: number } | null = null;
+    for (const e of this.candidates) {
+      for (const [a, b] of e.segments) {
+        const hit = raySegmentClosest(origin, direction, a, b);
+        if (hit.dist <= tolerance && hit.rayT >= 0 && (!best || hit.rayT < best.t)) {
+          best = { edge: e, t: hit.rayT };
         }
       }
     }
@@ -145,4 +183,71 @@ function dir3(a: Vec3, b: Vec3): Vec3 {
   const vx = b.x - a.x, vy = b.y - a.y, vz = b.z - a.z;
   const mag = Math.hypot(vx, vy, vz);
   return mag > 0 ? { x: vx / mag, y: vy / mag, z: vz / mag } : { x: 0, y: 0, z: 0 };
+}
+
+/**
+ * Closest point between a ray (origin + t*direction, t ≥ 0) and a line
+ * segment [a, b]. Returns the distance and the along-ray parameter `rayT`
+ * of the closest point on the ray side — callers use `rayT` as a
+ * "nearest to camera" tiebreaker.
+ *
+ * Algorithm: solve the 2-variable least-squares system for the closest
+ * points on the two lines, then clamp the segment param to [0, 1] and
+ * the ray param to [0, ∞). Parallel case falls back to endpoint-to-ray
+ * distance.
+ */
+function raySegmentClosest(
+  origin: Vec3,
+  direction: Vec3,
+  a: Vec3,
+  b: Vec3
+): { dist: number; rayT: number } {
+  const d1x = direction.x, d1y = direction.y, d1z = direction.z;
+  const d2x = b.x - a.x, d2y = b.y - a.y, d2z = b.z - a.z;
+  const rx = origin.x - a.x, ry = origin.y - a.y, rz = origin.z - a.z;
+  const aDot = d1x * d1x + d1y * d1y + d1z * d1z;       // |dir|^2
+  const e = d2x * d2x + d2y * d2y + d2z * d2z;          // |segDir|^2
+  const f = d2x * rx + d2y * ry + d2z * rz;
+  const c = d1x * rx + d1y * ry + d1z * rz;
+  const bDot = d1x * d2x + d1y * d2y + d1z * d2z;
+  const denom = aDot * e - bDot * bDot;
+
+  let s: number;
+  let t: number;
+  if (denom < 1e-10 || e < 1e-10) {
+    s = 0;
+    t = aDot > 1e-10 ? (-c) / aDot : 0;
+  } else {
+    s = (aDot * f - bDot * c) / denom;
+    t = (bDot * f - e * c) / denom;
+  }
+
+  // Clamp s to the segment, then re-solve t for the clamped s so the
+  // closest point on the ray stays accurate (not just the closest on the
+  // infinite line).
+  if (s < 0) s = 0;
+  else if (s > 1) s = 1;
+  if (aDot > 1e-10) {
+    const px = a.x + s * d2x - origin.x;
+    const py = a.y + s * d2y - origin.y;
+    const pz = a.z + s * d2z - origin.z;
+    t = (px * d1x + py * d1y + pz * d1z) / aDot;
+  }
+
+  // Ray constraint: t >= 0. If the closest approach is behind the camera,
+  // clamp t to 0 and re-solve s for the ray origin.
+  if (t < 0) {
+    t = 0;
+    if (e > 1e-10) {
+      s = (origin.x - a.x) * d2x + (origin.y - a.y) * d2y + (origin.z - a.z) * d2z;
+      s = s / e;
+      if (s < 0) s = 0;
+      else if (s > 1) s = 1;
+    }
+  }
+
+  const px = origin.x + t * d1x, py = origin.y + t * d1y, pz = origin.z + t * d1z;
+  const qx = a.x + s * d2x, qy = a.y + s * d2y, qz = a.z + s * d2z;
+  const dist = Math.hypot(px - qx, py - qy, pz - qz);
+  return { dist, rayT: t };
 }
