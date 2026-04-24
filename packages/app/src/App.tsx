@@ -27,6 +27,7 @@ import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
 import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue } from './shell/RevolveDialog';
 import { AxisPickController } from './model/AxisPickController';
+import { ProfilePickController } from './model/ProfilePickController';
 import { AddRevolveFeatureCommand } from './commands/AddRevolveFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
@@ -62,6 +63,7 @@ export default function App() {
   const sketchOverlayRef = useRef<SketchOverlay | null>(null);
   const committedSketchRendererRef = useRef<CommittedSketchRenderer | null>(null);
   const axisPickerRef = useRef<AxisPickController>(new AxisPickController());
+  const profilePickerRef = useRef<ProfilePickController>(new ProfilePickController());
 
   const [numericVisible, setNumericVisible] = useState(false);
   const [numericFieldCount, setNumericFieldCount] = useState(0);
@@ -69,6 +71,8 @@ export default function App() {
   const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
   const [pickingAxis, setPickingAxis] = useState(false);
   const [selectedAxisRef, setSelectedAxisRef] = useState<AxisRef | null>(null);
+  const [pickingProfile, setPickingProfile] = useState(false);
+  const [manualProfileRef, setManualProfileRef] = useState<ProfileRef | null>(null);
   // Error message surfaced by schedulePreview when `previewFeature` returns
   // err — passed to RevolveDialog's `previewError` prop so the user sees why
   // the live preview disappeared. Cleared on cancel/commit/apply.
@@ -536,6 +540,22 @@ export default function App() {
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
+    // Model-mode profile pick: route a click to the ProfilePickController and
+    // bail out. Movements/hovers are ignored.
+    if (!sketchMode && pickingProfile) {
+      if (ev.type !== 'click') return;
+      const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+      const hitId = profilePickerRef.current.pick(world);
+      if (hitId) {
+        const sketch = activePart?.featureTree.find(
+          (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === hitId
+        );
+        const count = sketch && sketch.primitives.length > 0 ? 1 : 0;
+        setManualProfileRef({ sketchId: hitId, closedProfileCount: count });
+        setPickingProfile(false);
+      }
+      return;
+    }
     // Model-mode axis pick: route a click to the AxisPickController and bail
     // out of the sketch-tool routing. Movements/hovers are ignored.
     if (!sketchMode && pickingAxis) {
@@ -563,7 +583,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis]);
+  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
@@ -572,6 +592,18 @@ export default function App() {
   // sketch has any primitives so the dialog can show non-empty state.
   const computeProfileRef = useCallback((): ProfileRef | null => {
     if (!activePart) return null;
+    // Manual pick (F4) takes precedence. The manualProfileRef state is
+    // populated by the pointer handler when the user clicks a sketch after
+    // pressing Pick in the dialog; cleared on cancel/commit.
+    if (manualProfileRef) {
+      const manualSketch = activePart.featureTree.find(
+        (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === manualProfileRef.sketchId
+      );
+      if (manualSketch) {
+        const count = manualSketch.primitives.length > 0 ? 1 : 0;
+        if (count > 0) return { sketchId: manualSketch.id, closedProfileCount: count };
+      }
+    }
     const sketches = activePart.featureTree.filter(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch'
     );
@@ -582,7 +614,7 @@ export default function App() {
     const closedProfileCount = sketch.primitives.length > 0 ? 1 : 0;
     if (closedProfileCount === 0) return null;
     return { sketchId: sketch.id, closedProfileCount };
-  }, [activePart, activeSketchId]);
+  }, [activePart, activeSketchId, manualProfileRef]);
 
   // hasRunningBody: true if any prior solid-producing feature exists. T13
   // simplification — any extrude or revolve feature qualifies.
@@ -603,6 +635,18 @@ export default function App() {
     axisPickerRef.current.setCandidates([...sketch.primitives]);
     setPickingAxis(true);
   }, [activePart, computeProfileRef]);
+
+  const onPickProfile = useCallback(() => {
+    if (!activePart) return;
+    const sketches = activePart.featureTree.filter(
+      (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.primitives.length > 0
+    );
+    if (sketches.length === 0) return;
+    profilePickerRef.current.setCandidates(
+      sketches.map((s) => ({ sketchId: s.id, primitives: [...s.primitives] }))
+    );
+    setPickingProfile(true);
+  }, [activePart]);
 
   const buildRevolveFeature = useCallback((v: RevolveDialogValue, profile: ProfileRef, axis: AxisRef, opts?: { scratch?: boolean }): Extract<Feature, { kind: 'revolve' }> => ({
     kind: 'revolve',
@@ -694,6 +738,8 @@ export default function App() {
       setRevolveDialogOpen(false);
       setPickingAxis(false);
       setSelectedAxisRef(null);
+      setPickingProfile(false);
+      setManualProfileRef(null);
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
     }
@@ -717,6 +763,7 @@ export default function App() {
       scratchParamNameRef.current = null;
       clearPreview();
       setPreviewError(null);
+      setManualProfileRef(null);
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
     }
@@ -737,6 +784,8 @@ export default function App() {
     setRevolveDialogOpen(false);
     setPickingAxis(false);
     setSelectedAxisRef(null);
+    setPickingProfile(false);
+    setManualProfileRef(null);
   }, [activePart, kernel, setRevolveDialogOpen, clearPreview]);
 
   // Global cleanup: cancel any in-flight preview timer on unmount so the
@@ -845,7 +894,7 @@ export default function App() {
           onCommit={(v) => { void onRevolveCommit(v); }}
           onApply={(v) => { void onRevolveApply(v); }}
           onCancel={onRevolveCancel}
-          onPickProfile={() => { /* T15: profile picking. For T13 the dialog shows the active sketch. */ }}
+          onPickProfile={onPickProfile}
           onPickAxis={onPickAxis}
           onDraftChange={schedulePreview}
           validateExpression={(expr) => {
