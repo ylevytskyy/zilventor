@@ -72,6 +72,10 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; action?: { label: string; fn: () => void } } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Remembers the most recent scratch angle-parameter name written by the
+  // preview-debounce path. Cleared on successful commit/apply so a subsequent
+  // Cancel does not delete a legitimately-committed param.
+  const scratchParamNameRef = useRef<string | null>(null);
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -633,6 +637,10 @@ export default function App() {
           value: 0,
           unit: 'deg'
         });
+        // Track for cancel-path cleanup. Only the MOST RECENT name is
+        // remembered — rename mid-session is an accepted edge case where an
+        // orphaned param may linger under the previous name.
+        scratchParamNameRef.current = v.name;
         const scratch = buildRevolveFeature(v, profile, axis, { scratch: true });
         const r = await k.previewFeature(part.id, scratch);
         // Perf-test instrumentation (T19): count actual preview RPC calls so
@@ -671,6 +679,9 @@ export default function App() {
           setActivePart: store.setActivePart
         })
       );
+      // Commit consumed the scratch param into a real one — clear the ref so
+      // a later Cancel-after-commit does not delete a legitimate param.
+      scratchParamNameRef.current = null;
       clearPreview();
       setRevolveDialogOpen(false);
       setPickingAxis(false);
@@ -693,6 +704,9 @@ export default function App() {
           setActivePart: store.setActivePart
         })
       );
+      // Apply commits the feature (the dialog stays open), so the param is no
+      // longer "scratch" — clear the ref so a later Cancel does not delete it.
+      scratchParamNameRef.current = null;
       clearPreview();
     } catch (e) {
       showToast(`Revolve failed: ${(e as Error).message}`);
@@ -701,10 +715,19 @@ export default function App() {
 
   const onRevolveCancel = useCallback(() => {
     clearPreview();
+    // If a preview wrote a scratch angle parameter, delete it from the kernel
+    // so it doesn't persist as a phantom param in the saved part. Fire-and-
+    // forget: the user has already closed the dialog, and any failure here is
+    // non-fatal.
+    const scratchName = scratchParamNameRef.current;
+    if (scratchName && activePart && kernel) {
+      void kernel.deleteParameter(activePart.id, scratchName);
+      scratchParamNameRef.current = null;
+    }
     setRevolveDialogOpen(false);
     setPickingAxis(false);
     setSelectedAxisRef(null);
-  }, [setRevolveDialogOpen, clearPreview]);
+  }, [activePart, kernel, setRevolveDialogOpen, clearPreview]);
 
   // Global cleanup: cancel any in-flight preview timer on unmount so the
   // closure (which holds a ref to the kernel) doesn't survive teardown.
