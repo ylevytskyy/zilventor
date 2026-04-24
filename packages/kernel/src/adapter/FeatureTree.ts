@@ -1,5 +1,5 @@
 import type { OcctInstance } from '../occt/occtLoader';
-import type { PartDocument, Mesh } from '@zilventor/shared';
+import type { PartDocument, Mesh, BooleanOperation } from '@zilventor/shared';
 import {
   ok,
   err,
@@ -15,6 +15,7 @@ import {
 import { executeExtrudeFeature } from './features/ExtrudeFeature';
 import { tessellate } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
+import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { resolve } from './ParameterResolver';
 
 /**
@@ -31,14 +32,16 @@ export type ExecutionResult = {
  * Runs a PartDocument's feature tree top-to-bottom, returning the mesh
  * of the final solid plus the solid handle for downstream consumers.
  *
- * Execution model (Shell MVP):
+ * Execution model (Sub-project 3a):
  *   - Sketches are stashed by id so that a later extrude can look up
- *     its `sketchRef`. In the MVP each sketch feeds exactly one extrude,
- *     but carrying a map keeps the path ready for Sub-project 3's more
- *     complex trees.
- *   - Extrudes produce a fresh solid each time. The "current" solid is
- *     the output of the most recent extrude; if a later extrude runs
- *     we dispose the prior one before overwriting.
+ *     its `sketchRef`. Each sketch feeds exactly one extrude in the
+ *     MVP, but carrying a map keeps the path ready for more complex
+ *     trees.
+ *   - Extrudes route through `applyBooleanOp(running, next, op)` which
+ *     maintains a single running solid accumulator:
+ *       - `op: 'new'`  — dispose running (if any), use next as the new running.
+ *       - `op: 'join'` — fuse running with next (seed behavior if no running).
+ *       - `op: 'cut'`  — err if no running; else cut(running, next).
  *   - Errors short-circuit: on the first failing feature we return the
  *     error. Any sketches accumulated so far are disposed in the
  *     `finally`-equivalent block at the end of the happy path, but on
@@ -112,9 +115,17 @@ export async function executeTree(
         cleanupOnError();
         return ex;
       }
-      // Replace any prior in-flight solid — we only return the last one.
-      if (finalSolid) disposeShape(finalSolid);
-      finalSolid = ex.value.solid;
+
+      const applied = applyBooleanOp(oc, finalSolid, ex.value.solid, feature.operation);
+      if (!applied.ok) {
+        // applyBooleanOp has already disposed the freshly made solid (and the
+        // running body for the fuse/cut branches); we only need to clear our
+        // local handle so cleanupOnError doesn't double-free.
+        finalSolid = null;
+        cleanupOnError();
+        return applied;
+      }
+      finalSolid = applied.value;
     } else if (feature.kind === 'revolve') {
       // Implemented in T8. For now, do nothing — the feature is skipped so the
       // tree execution completes with prior extrudes as the final solid.
@@ -136,4 +147,64 @@ export async function executeTree(
 
   const mesh = tessellate(oc, finalSolid, { linearDeflection: 0.1 });
   return ok({ mesh, finalSolid });
+}
+
+/**
+ * Routes an extrude's output through the running-body accumulator according
+ * to the feature's `BooleanOperation`.
+ *
+ * Ownership rules:
+ *   - On success, callers get back a single fresh shape (the new running
+ *     body). Any prior running shape and the `next` input have been disposed
+ *     where the op consumed them.
+ *   - On failure, both `running` (if the helper had already combined it) and
+ *     `next` are disposed here so the caller never needs to reason about
+ *     partial state. The caller is responsible for clearing its own pointer
+ *     to `running` before invoking `cleanupOnError` to avoid a double-free.
+ *
+ * Semantics:
+ *   - `new`   — discard `running` (if any), return `next` as the new body.
+ *   - `join`  — fuse `running` with `next`; if there is no running body this
+ *               is the first feature and `next` becomes the seed.
+ *   - `cut`   — subtract `next` from `running`; err if there is no running
+ *               body (nothing to cut from).
+ */
+function applyBooleanOp(
+  oc: OcctInstance,
+  running: OcctShape | null,
+  next: OcctShape,
+  op: BooleanOperation
+): Result<OcctShape, KernelError> {
+  if (op === 'new') {
+    if (running) disposeShape(running);
+    return ok(next);
+  }
+  if (op === 'join') {
+    if (!running) return ok(next); // first feature can be Join (treated as seed)
+    const r = fuseShapes(oc, running, next);
+    disposeShape(running);
+    disposeShape(next);
+    return r;
+  }
+  if (op === 'cut') {
+    if (!running) {
+      disposeShape(next);
+      return err({
+        kind: 'booleanFailed',
+        message: 'Cut needs a target body',
+        correlationId: newCorrelationId()
+      });
+    }
+    const r = cutShapes(oc, running, next);
+    disposeShape(running);
+    disposeShape(next);
+    return r;
+  }
+  disposeShape(next);
+  if (running) disposeShape(running);
+  return err({
+    kind: 'booleanFailed',
+    message: `Unknown operation: ${op as string}`,
+    correlationId: newCorrelationId()
+  });
 }
