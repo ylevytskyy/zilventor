@@ -38,7 +38,8 @@ describe('worker entrypoint', () => {
       'addPrimitive', 'removePrimitive', 'updatePrimitive',
       'addConstraint', 'removeConstraint',
       'beginDrag', 'dragTo', 'endDrag',
-      'inferFromSnaps'
+      'inferFromSnaps',
+      'addDimension', 'removeDimension', 'updateDimensionValue'
     ]) {
       expect(typeof impl[m]).toBe('function');
     }
