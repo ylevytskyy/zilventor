@@ -27,7 +27,8 @@ export type BooleanOperation = 'new' | 'join' | 'cut';
 export type Feature =
   | { kind: 'sketch'; id: string; plane: 'XY' | 'XZ' | 'YZ'; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation }
-  | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation };
+  | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation }
+  | FilletFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -77,3 +78,32 @@ export function canonicalEdgeName(a: FaceName, b: FaceName): EdgeName {
   const [first, second] = faceNameKey(a) <= faceNameKey(b) ? [a, b] : [b, a];
   return { faceA: first, faceB: second };
 }
+
+export type FilletSelectionMode = 'edge' | 'loop' | 'feature' | 'all-fillets' | 'all-rounds';
+
+export type ParamOrLiteral =
+  | { kind: 'param'; paramName: string }
+  | { kind: 'literal'; value: number };
+
+export type FilletEdgeSpec = {
+  edgeId: EdgeName;
+  selectionMode: FilletSelectionMode;
+  radius: ParamOrLiteral;
+  variableRadii?: {
+    startRadius: ParamOrLiteral;
+    endRadius: ParamOrLiteral;
+  };
+};
+
+export type VertexSetback = {
+  vertexId: { edges: EdgeName[] };
+  perEdgeSetbacks: Array<{ edgeId: EdgeName; setback: ParamOrLiteral }>;
+};
+
+export type FilletFeature = {
+  kind: 'fillet';
+  id: string;
+  mode: 'constant' | 'variable';
+  edges: FilletEdgeSpec[];
+  setbacks: VertexSetback[];
+};

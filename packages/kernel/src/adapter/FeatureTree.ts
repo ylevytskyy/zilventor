@@ -196,6 +196,11 @@ export async function executeTree(
         return applied;
       }
       finalSolid = applied.value;
+    } else if (feature.kind === 'fillet') {
+      // Placeholder for Sub-project 3b T13 — real fillet execution
+      // replaces this branch. Skipping keeps the exhaustive `Feature['kind']`
+      // switch typecheck-green without affecting existing features.
+      continue;
     }
   }
 
