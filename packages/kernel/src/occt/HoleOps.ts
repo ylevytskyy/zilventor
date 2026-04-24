@@ -190,3 +190,104 @@ export function axisSolidCrossings(
   out.sort((a, b) => a.distance - b.distance);
   return out;
 }
+
+export type ResolvedHoleProfile =
+  | { kind: 'simple'; diameter: number }
+  | { kind: 'counterbore'; diameter: number; cboreDiameter: number; cboreDepth: number }
+  | { kind: 'countersink'; diameter: number; cskDiameter: number; cskAngleDeg: number };
+
+export type ResolvedHoleTermination =
+  | { kind: 'distance'; depth: number; blindTip: boolean }
+  | { kind: 'throughAll' }
+  | { kind: 'toNext' };
+  // Note: toFace is resolved by the adapter into a `distance` with blindTip=false before
+  // reaching makeHole — see HoleFeature.ts (Task 14).
+
+export type HoleLocation = { origin: any; axis: any };
+
+const DRILL_TIP_ANGLE_DEG = 118;
+
+function boundingDiagonal(oc: any, body: any): number {
+  const bnd = new oc.Bnd_Box_1();
+  oc.BRepBndLib.Add(body, bnd, false);
+  const lo = bnd.CornerMin();
+  const hi = bnd.CornerMax();
+  const dx = hi.X() - lo.X();
+  const dy = hi.Y() - lo.Y();
+  const dz = hi.Z() - lo.Z();
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function resolveLength(
+  oc: any,
+  body: any,
+  loc: HoleLocation,
+  termination: ResolvedHoleTermination,
+): { length: number; blind: boolean } {
+  if (termination.kind === 'distance') return { length: termination.depth, blind: termination.blindTip };
+  if (termination.kind === 'throughAll') return { length: 2 * boundingDiagonal(oc, body), blind: false };
+  // toNext
+  const crossings = axisSolidCrossings(oc, body, loc.origin, loc.axis);
+  if (crossings.length < 2) throw new Error('toNext: no next face found');
+  return { length: crossings[1]!.distance, blind: false };
+}
+
+function buildCutter(
+  oc: any,
+  loc: HoleLocation,
+  profile: ResolvedHoleProfile,
+  length: number,
+  blind: boolean,
+): any {
+  const tipAngle = blind ? DRILL_TIP_ANGLE_DEG : null;
+  if (profile.kind === 'simple') {
+    return makeSimpleCutter(oc, loc.origin, loc.axis, {
+      diameter: profile.diameter,
+      cylinderLength: length,
+      drillTipAngleDeg: tipAngle,
+    });
+  }
+  if (profile.kind === 'counterbore') {
+    return makeCounterboreCutter(oc, loc.origin, loc.axis, {
+      diameter: profile.diameter,
+      cylinderLength: length,
+      cboreDiameter: profile.cboreDiameter,
+      cboreDepth: profile.cboreDepth,
+      drillTipAngleDeg: tipAngle,
+    });
+  }
+  return makeCountersinkCutter(oc, loc.origin, loc.axis, {
+    diameter: profile.diameter,
+    cylinderLength: length,
+    cskDiameter: profile.cskDiameter,
+    cskAngleDeg: profile.cskAngleDeg,
+    drillTipAngleDeg: tipAngle,
+  });
+}
+
+export function makeHole(
+  oc: any,
+  body: any,
+  locations: HoleLocation[],
+  profile: ResolvedHoleProfile,
+  termination: ResolvedHoleTermination,
+): any {
+  if (locations.length === 0) return body;
+
+  let compound: any | null = null;
+  for (const loc of locations) {
+    const { length, blind } = resolveLength(oc, body, loc, termination);
+    const cutter = buildCutter(oc, loc, profile, length, blind);
+    if (compound === null) {
+      compound = cutter;
+    } else {
+      const fuse = new oc.BRepAlgoAPI_Fuse_3(compound, cutter, new oc.Message_ProgressRange_1());
+      fuse.Build(new oc.Message_ProgressRange_1());
+      compound = fuse.Shape();
+    }
+  }
+
+  const cut = new oc.BRepAlgoAPI_Cut_3(body, compound, new oc.Message_ProgressRange_1());
+  cut.Build(new oc.Message_ProgressRange_1());
+  return cut.Shape();
+}
