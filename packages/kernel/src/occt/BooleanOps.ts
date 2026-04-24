@@ -69,16 +69,18 @@ export function fuseShapes(
  */
 function shapeVolume(oc: OcctInstance, shape: unknown): number {
   const props = new oc.GProp_GProps_1();
-  oc.BRepGProp.VolumeProperties_1(
-    shape as never,
-    props,
-    true as never,
-    false as never,
-    false as never
-  );
-  const mass = props.Mass();
-  props.delete();
-  return mass;
+  try {
+    oc.BRepGProp.VolumeProperties_1(
+      shape as never,
+      props,
+      true as never,
+      false as never,
+      false as never
+    );
+    return props.Mass();
+  } finally {
+    props.delete();
+  }
 }
 
 /**
