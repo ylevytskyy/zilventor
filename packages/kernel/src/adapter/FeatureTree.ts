@@ -19,6 +19,7 @@ import { executeChamferFeature } from './features/ChamferFeature';
 import { executeShellFeature } from './features/ShellFeature';
 import { executeLinearPatternFeature } from './features/LinearPatternFeature';
 import { executeMirrorFeature } from './features/MirrorFeature';
+import { executeHoleFeature } from './features/HoleFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -104,9 +105,19 @@ export async function executeTree(
   // loop plus disconnected line(s)"). Such a sketch is consumed
   // directly by the revolve branch (which builds its own edges, excluding
   // the axis primitive), so we must NOT run `executeSketchFeature` on it.
+  //
+  // A sketch referenced by a hole's fromSketch placement is consumed
+  // directly by the hole branch (it reads circle primitives for axis
+  // locations) and must similarly bypass `executeSketchFeature`.
   const revolveSketchIds = new Set<string>();
+  const holeSketchIds = new Set<string>();
+  const sketchById = new Map<string, (typeof part.featureTree)[number]>();
   for (const f of part.featureTree) {
     if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
+    if (f.kind === 'hole' && f.placement.kind === 'fromSketch') {
+      holeSketchIds.add(f.placement.sketchId);
+    }
+    if (f.kind === 'sketch') sketchById.set(f.id, f);
   }
 
   for (const feature of part.featureTree) {
@@ -118,6 +129,10 @@ export async function executeTree(
       // by the revolve branch below; `executeSketchFeature` would reject it
       // as a disconnected-loop sketch. Skip it here.
       if (revolveSketchIds.has(feature.id)) continue;
+      // A hole-referenced sketch is consumed directly by the hole branch
+      // (circle primitives → axis locations). Skip `executeSketchFeature`
+      // so it stays raw in `sketchById` for the hole branch to read.
+      if (holeSketchIds.has(feature.id)) continue;
       const r = executeSketchFeature(oc, feature);
       if (!r.ok) {
         cleanupOnError();
@@ -558,8 +573,56 @@ export async function executeTree(
       }
       finalSolid = mirrorResult.value;
     } else if (feature.kind === 'hole') {
-      // Wired in Task 17
-      continue;
+      // Hole modifies an existing body — without one there's nothing to drill.
+      // Soft-fail mirroring fillet/chamfer/shell.
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Hole needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        // executeHoleFeature operates on raw OCCT handles (not OcctShape wrappers).
+        // Unwrap the running body's shape handle so the adapter's BRepBndLib / cut
+        // calls receive the raw OCCT shape, then rewrap the result back into an
+        // OcctShape so FeatureTree's disposeShape / tessellate calls work correctly.
+        const rawHandle = (finalSolid.shape as unknown as { handle: unknown }).handle;
+        const bodyForHole: typeof finalSolid = {
+          ...finalSolid,
+          shape: rawHandle as typeof finalSolid.shape
+        };
+        const holeResult = executeHoleFeature(
+          oc,
+          bodyForHole,
+          feature,
+          (p) => {
+            if (p.kind === 'literal') return p.value;
+            const param = part.parameters[p.paramName];
+            if (!param) throw new Error(`Parameter ${p.paramName} not found`);
+            const resolved = resolve(param.expression, param.unit);
+            if (!resolved.ok) throw new Error(resolved.error.message);
+            return resolved.value;
+          },
+          sketchById
+        );
+        // Rewrap: holeResult.shape is the raw OCCT handle returned by makeHole/cut.
+        finalSolid = {
+          ...holeResult,
+          shape: { __brand: 'OcctShape' as const, handle: holeResult.shape } as typeof finalSolid.shape
+        };
+      } catch (e) {
+        // Soft-fail: keep the pre-hole body intact and record the error.
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
     }
   }
 

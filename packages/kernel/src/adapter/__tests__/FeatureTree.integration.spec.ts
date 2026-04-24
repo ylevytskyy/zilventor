@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type {
   BooleanOperation,
   FilletFeature,
+  HoleFeature,
   PartDocument
 } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
@@ -399,5 +400,140 @@ describe('FeatureTree fillet execution', () => {
       expect(r.value.featureErrors?.get('f1')?.kind).toBe('invalidParameter');
       disposeShape(r.value.finalSolid);
     }
+  });
+});
+
+// ---- New tests: hole feature execution ----------------------------------------
+
+describe('FeatureTree — hole feature integration', () => {
+  it('hole references a fromSketch sketch, sketch is not extruded, body is drilled', async () => {
+    // 20×20×5 box, then drill a ⌀2 throughAll hole at (10,10) from XY sketch.
+    // The hole-referenced sketch (S1) must NOT be processed by executeSketchFeature
+    // (it would be rejected as a lone circle); the pre-scan must keep it raw.
+    // Expected volume after drilling: 20*20*5 - π*(1²)*5 = 2000 - 5π ≈ 1984.3
+    const part: PartDocument = {
+      id: 'p1',
+      name: 'Part1',
+      units: 'mm',
+      parameters: {
+        d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
+      },
+      featureTree: [
+        {
+          kind: 'sketch',
+          id: 'S0',
+          plane: 'XY',
+          primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
+          constraints: []
+        },
+        {
+          kind: 'extrude',
+          id: 'E1',
+          sketchRef: 'S0',
+          distanceParam: 'd0',
+          direction: 'forward',
+          operation: 'new'
+        },
+        {
+          kind: 'sketch',
+          id: 'S1',
+          plane: 'XY',
+          primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
+          constraints: []
+        },
+        {
+          kind: 'hole',
+          id: 'H1',
+          placement: { kind: 'fromSketch', sketchId: 'S1' },
+          profile: { kind: 'simple', diameter: { kind: 'literal', value: 2 } },
+          termination: { kind: 'throughAll' },
+          flipAxis: false
+        } as HoleFeature
+      ] as PartDocument['featureTree']
+    };
+
+    const result = await executeTree(occt, part);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const props = new occt.GProp_GProps_1();
+    try {
+      occt.BRepGProp.VolumeProperties_1(
+        result.value.finalSolid.handle as never,
+        props,
+        true as never,
+        false as never,
+        false as never
+      );
+      // 2000 - π·r²·h = 2000 - π·1²·5 = 2000 - 5π
+      expect(props.Mass()).toBeCloseTo(2000 - Math.PI * 5, 0);
+    } finally {
+      props.delete();
+    }
+    // No errors on the happy path
+    expect(result.value.featureErrors).toBeUndefined();
+    disposeShape(result.value.finalSolid);
+  });
+
+  it('hole referencing missing sketch soft-fails without aborting tree', async () => {
+    // 20×20×5 box, then a hole whose sketchId doesn't exist.
+    // The body should remain the pre-hole extrude (volume ≈ 2000).
+    // featureErrors should record an entry for H1.
+    const part: PartDocument = {
+      id: 'p1',
+      name: 'Part1',
+      units: 'mm',
+      parameters: {
+        d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
+      },
+      featureTree: [
+        {
+          kind: 'sketch',
+          id: 'S0',
+          plane: 'XY',
+          primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
+          constraints: []
+        },
+        {
+          kind: 'extrude',
+          id: 'E1',
+          sketchRef: 'S0',
+          distanceParam: 'd0',
+          direction: 'forward',
+          operation: 'new'
+        },
+        {
+          kind: 'hole',
+          id: 'H1',
+          placement: { kind: 'fromSketch', sketchId: 'NONEXISTENT' },
+          profile: { kind: 'simple', diameter: { kind: 'literal', value: 2 } },
+          termination: { kind: 'throughAll' },
+          flipAxis: false
+        } as HoleFeature
+      ] as PartDocument['featureTree']
+    };
+
+    const result = await executeTree(occt, part);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Body remains the pre-hole extrude: 20×20×5 = 2000 mm³
+    const props = new occt.GProp_GProps_1();
+    try {
+      occt.BRepGProp.VolumeProperties_1(
+        result.value.finalSolid.handle as never,
+        props,
+        true as never,
+        false as never,
+        false as never
+      );
+      expect(props.Mass()).toBeCloseTo(2000, 0);
+    } finally {
+      props.delete();
+    }
+
+    // Error is recorded for H1 in the featureErrors map
+    expect(result.value.featureErrors?.get('H1')).toBeDefined();
+    disposeShape(result.value.finalSolid);
   });
 });
