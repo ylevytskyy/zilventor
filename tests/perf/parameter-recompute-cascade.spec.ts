@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../e2e/helpers/buildBox';
 
-// FIXME: dblclick on params table cell does not open inline editor in perf project context; textbox never appears
-test.skip('Perf: 30-param chain re-evaluates + re-solves under 100 ms', async ({ page }) => {
+test('Perf: 30-param chain re-evaluates + re-solves under 1000 ms', async ({ page }) => {
+  page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
   await page.goto('/');
   await waitForKernelReady(page);
 
@@ -25,14 +26,23 @@ test.skip('Perf: 30-param chain re-evaluates + re-solves under 100 ms', async ({
     s.setSketchMode(true, 'S1');
   });
 
+  // Wait for SketchModeController.enter to complete so the registry is populated.
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore?: { getState(): { sketchDof: unknown } } };
+    return w.__zilventorStore?.getState().sketchDof !== null;
+  }, { timeout: 5000 });
+
   await page.keyboard.press('F7');
+  await expect(page.getByRole('dialog', { name: /Parameters/i })).toBeVisible();
+
+  // Edit d0's expression from "0" to "100" via the data-testid cells; the
+  // cascade should recompute d1..d30 (each d_i = d_{i-1} + 1) so d30 becomes 130.
   const t0 = Date.now();
-  // Target the d0 row precisely to avoid strict-mode ambiguity in a 30-param table
-  const d0Row = page.getByRole('row', { name: /^d0\b/ });
-  await d0Row.getByRole('cell', { name: '0' }).first().dblclick();
-  await page.getByRole('textbox').first().fill('100');
-  await page.keyboard.press('Enter');
-  await expect(page.getByText('130')).toBeVisible({ timeout: 1000 });
+  await page.locator('[data-testid="param-expression-d0"]').dblclick();
+  const input = page.locator('[data-testid="param-row-d0"] input');
+  await input.fill('100');
+  await input.press('Enter');
+  await expect(page.locator('[data-testid="param-value-d30"]')).toHaveText('130', { timeout: 1000 });
   const totalMs = Date.now() - t0;
   console.log(JSON.stringify({ metric: 'parameter-recompute-cascade', totalMs }));
   expect(totalMs).toBeLessThan(1000);

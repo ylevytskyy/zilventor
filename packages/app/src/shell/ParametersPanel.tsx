@@ -34,8 +34,8 @@ export function ParametersPanel({ registry, onClose }: Props) {
         </thead>
         <tbody>
           {params.map((p) => (
-            <tr key={p.name}>
-              <td>{p.name}</td>
+            <tr key={p.name} data-testid={`param-row-${p.name}`}>
+              <td data-testid={`param-name-${p.name}`}>{p.name}</td>
               <td>
                 {editing?.name === p.name ? (
                   <input
@@ -49,10 +49,10 @@ export function ParametersPanel({ registry, onClose }: Props) {
                     }}
                   />
                 ) : (
-                  <span onDoubleClick={() => setEditing({ name: p.name, expression: p.expression })}>{p.expression}</span>
+                  <span data-testid={`param-expression-${p.name}`} onDoubleClick={() => setEditing({ name: p.name, expression: p.expression })}>{p.expression}</span>
                 )}
               </td>
-              <td>{values.get(p.name) ?? '?'}</td>
+              <td data-testid={`param-value-${p.name}`}>{values.get(p.name) ?? '?'}</td>
               <td>{p.unit}</td>
             </tr>
           ))}
