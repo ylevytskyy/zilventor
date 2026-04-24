@@ -13,7 +13,7 @@ describe('FeatureTree.executeTree', () => {
       parameters: { d1: { name: 'd1', expression: '50', value: 50, unit: 'mm' as const } },
       featureTree: [
         { kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [{ id: 'p1', kind: 'rectangle' as const, x: 0, y: 0, w: 100, h: 200 }], constraints: [] },
-        { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }
+        { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ]
     };
     const res = await executeTree(occt, part);
@@ -43,7 +43,7 @@ describe('FeatureTree.executeTree', () => {
       id: 'p1', name: 'Part1', units: 'mm' as const,
       parameters: { d1: { name: 'd1', expression: '50', value: 50, unit: 'mm' as const } },
       featureTree: [
-        { kind: 'extrude' as const, id: 'e1', sketchRef: 'missing', distanceParam: 'd1', direction: 'forward' as const }
+        { kind: 'extrude' as const, id: 'e1', sketchRef: 'missing', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ]
     };
     const res = await executeTree(occt, part);

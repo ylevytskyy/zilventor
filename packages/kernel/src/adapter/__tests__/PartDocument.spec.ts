@@ -13,7 +13,7 @@ describe('PartDocument', () => {
   it('appends features in order', () => {
     let p = newPart('Part1');
     p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] });
-    p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
+    p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
     expect(p.featureTree.map((f) => f.id)).toEqual(['s1', 'e1']);
   });
 
@@ -44,7 +44,7 @@ describe('PartDocument', () => {
     let p = newPart('P');
     p = addFeature(p, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] });
     p = addFeature(p, { kind: 'sketch', id: 's2', plane: 'XY', primitives: [], constraints: [] });
-    p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
+    p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
     p = removeFeature(p, 's1');
     expect(p.featureTree.map((f) => f.id)).toEqual(['s2', 'e1']);
   });

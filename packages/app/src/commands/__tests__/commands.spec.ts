@@ -62,7 +62,7 @@ describe('AddSketchCommand', () => {
 describe('AddExtrusionCommand', () => {
   it('sets parameter, adds extrude feature, and reverts to prior part', async () => {
     const prior = makePart();
-    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
+    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }] };
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
     const removeFeature = vi.fn().mockResolvedValue(undefined);
@@ -74,7 +74,7 @@ describe('AddExtrusionCommand', () => {
       kernel,
       store: { activePart: prior, setActivePart },
       parameter: { name: 'd1', expression: '18', value: 18, unit: 'mm' },
-      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
+      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
     });
     await cmd.apply();
     expect(setParameter).toHaveBeenCalledWith(prior.id, expect.objectContaining({ name: 'd1', value: 18 }));
@@ -87,7 +87,7 @@ describe('AddExtrusionCommand', () => {
 
   it('revert calls deleteParameter when the parameter was freshly created', async () => {
     const prior = makePart();
-    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
+    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }] };
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
@@ -99,7 +99,7 @@ describe('AddExtrusionCommand', () => {
       kernel,
       store: { activePart: prior, setActivePart },
       parameter: { name: 'd1', expression: '18', value: 18, unit: 'mm' },
-      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
+      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
     });
     await cmd.apply();
     await cmd.revert();
@@ -110,7 +110,7 @@ describe('AddExtrusionCommand', () => {
   it('revert restores the prior parameter when one existed before apply', async () => {
     const priorParam = { name: 'd1', expression: '10', value: 10, unit: 'mm' as const };
     const prior: PartDocument = { id: 'part-1', name: 'Part1', units: 'mm', parameters: { d1: priorParam }, featureTree: [] };
-    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const }] };
+    const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }] };
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
     const setParameter = vi.fn().mockResolvedValue(undefined);
     const addFeature = vi.fn().mockResolvedValue(undefined);
@@ -122,7 +122,7 @@ describe('AddExtrusionCommand', () => {
       kernel,
       store: { activePart: prior, setActivePart },
       parameter: { name: 'd1', expression: '18', value: 18, unit: 'mm' },
-      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' }
+      feature: { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
     });
     await cmd.apply();
     await cmd.revert();

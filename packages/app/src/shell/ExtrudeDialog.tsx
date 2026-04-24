@@ -16,7 +16,7 @@ export default function ExtrudeDialog({ onClose }: { onClose(): void }) {
       kernel,
       store: { activePart, setActivePart },
       parameter: { name: 'd1', expression: String(d), value: d, unit: 'mm' },
-      feature: { kind: 'extrude', id: `e${Date.now()}`, sketchRef: lastSketch.id, distanceParam: 'd1', direction: 'forward' }
+      feature: { kind: 'extrude', id: `e${Date.now()}`, sketchRef: lastSketch.id, distanceParam: 'd1', direction: 'forward', operation: 'new' }
     }));
     onClose();
   };

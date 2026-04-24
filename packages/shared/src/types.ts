@@ -22,9 +22,11 @@ export type SketchPrimitive =
   | { id: string; kind: 'arc'; cx: number; cy: number; r: number; startAngle: number; endAngle: number }
   | { id: string; kind: 'spline'; controlPoints: ReadonlyArray<{ x: number; y: number }>; degree: 2 | 3; closed: boolean };
 
+export type BooleanOperation = 'new' | 'join' | 'cut';
+
 export type Feature =
   | { kind: 'sketch'; id: string; plane: 'XY' | 'XZ' | 'YZ'; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
-  | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric' };
+  | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation };
 
 export type CachedGeometry = {
   brepBlobId: string;

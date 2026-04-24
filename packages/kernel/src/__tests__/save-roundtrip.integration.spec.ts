@@ -33,7 +33,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
     const id = await api.createPart('Part1');
     await api.setParameter(id, { name: 'd1', expression: '50', value: 50, unit: 'mm' });
     await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: [] });
-    await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' });
+    await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
 
     const h = new FakeHandle();
     await api.save(id, h as unknown as FileSystemFileHandle);

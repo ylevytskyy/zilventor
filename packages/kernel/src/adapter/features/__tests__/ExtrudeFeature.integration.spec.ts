@@ -16,7 +16,7 @@ describe('ExtrudeFeature', () => {
     if (!sketch.ok) return;
 
     const ex = executeExtrudeFeature(occt, sketch.value, {
-      kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward'
+      kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new'
     }, 50);
     expect(ex.ok).toBe(true);
     if (!ex.ok) return;
@@ -39,7 +39,7 @@ describe('ExtrudeFeature', () => {
     if (!sketch.ok) return;
 
     const ex = executeExtrudeFeature(occt, sketch.value, {
-      kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward'
+      kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new'
     }, 0);
     expect(ex.ok).toBe(false);
     if (!ex.ok) expect(ex.error.kind).toBe('invalidParameter');
