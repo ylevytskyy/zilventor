@@ -429,6 +429,29 @@ The spec listed `symmetric` as pre-rotating the profile by `-angle/2` before rev
 
 3a ships XY-plane revolves only. `executeRevolveFeature` returns a `revolveFailed` error for any `sketchFeature.plane !== 'XY'`. XZ / YZ support is deferred — it requires the same sketch-plane transform work that `extrude` has for non-XY planes, which wasn't in scope.
 
+#### F5 status — BLOCKED on sketcher plane-selection sub-project
+
+Lifting the XY-only guard in `executeRevolveFeature` in isolation is NOT a valid incremental change. The entire sketch-processing stack is XY-only today, and the blocker is not just in `RevolveFeature.ts`:
+
+1. **`executeSketchFeature` (packages/kernel/src/adapter/features/SketchFeature.ts:51-58)** — hard-rejects any sketch whose `plane !== 'XY'` with an `invalidParameter` KernelError. No `SketchResult` can be produced for XZ/YZ sketches, so no downstream feature can consume them.
+2. **`SketchOps.ts` primitive builders** — `makeLineEdge`, `makeCircleEdge`, `makeArcEdge`, `makeRectangleEdges`, `makeSplineEdge`, and `makeRectangleWireXY` all hardcode Z=0 and (for circles/arcs) the axis normal `(0,0,1)`. They build wires in the world XY plane regardless of `sketchFeature.plane`.
+3. **`ExtrudeFeature.ts:68`** — extrusion direction is hardcoded to `gp_Vec_4(0, 0, distance)` (+Z only).
+4. **UI — no plane selector** — neither `SketchModeController` nor `useAppStore` expose a plane-selection UI. Every sketch in the app is created with `plane: 'XY'`. An XZ/YZ revolve cannot be reached from the shipping UI even if the kernel accepted it.
+
+A partial lift (axis-mapping helper only in `RevolveFeature.ts`) would pass the `sketchFeature.plane !== 'XY'` guard, then revolve an XY-plane profile wire around an axis mapped into XZ or YZ world coords — producing a skew profile/axis geometry that is geometrically meaningless. This would be a silent bug, not a stepping stone.
+
+**Scope of a proper F5 fix (future sub-project):**
+
+- `SketchFeature.ts` must accept XZ/YZ and transform edges into the sketch's world plane (via `gp_Trsf.SetTransformation` from a local XY `gp_Ax2` to the plane's `gp_Ax2`).
+- Either (a) extend all `SketchOps` builders to accept a `plane` argument and route Z correctly, or (b) build in local XY and post-transform the resulting wire/edges.
+- `ExtrudeFeature.ts` direction vector must derive from `sketch.plane`'s normal, not hardcoded `(0,0,1)`.
+- `RevolveFeature.ts` axis mapping becomes trivial once the profile wire is in the right plane (mapping `(axisPrim.x*, axisPrim.y*)` through the same `gp_Ax2` used for the sketch).
+- UI: sketcher needs a plane picker (XY / XZ / YZ, and eventually face-planar sketches). `SketchModeController` must thread the chosen plane through to `AddSketchCommand`.
+
+**Recommended sequencing:** Make non-XY sketch planes a dedicated sub-project (e.g., 3c or a targeted polish pass after 3b), because the change touches sketch creation, every primitive builder, extrude, revolve, and the sketcher UI simultaneously. An isolated F5 edit in `RevolveFeature` is worse than the current explicit rejection.
+
+**Current behavior is correct:** `revolveFailed` with `message: 'Revolve on {XZ|YZ} plane not supported in 3a'` is the right contract until the full stack supports non-XY planes.
+
 ### FeatureTree revolve-sketch pre-scan
 
 To prevent `executeSketchFeature` from rejecting profile+axis sketches as degenerate, `FeatureTree.executeTree` pre-scans for revolve features and collects their `sketchRef`s into a `revolveSketchIds: Set<string>`. The main loop then skips `executeSketchFeature` for any sketch whose id is in that set — the revolve executor handles wire construction itself.
