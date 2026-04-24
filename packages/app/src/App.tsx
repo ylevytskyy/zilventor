@@ -21,12 +21,25 @@ import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import type { Feature, DimensionConstraint } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
+import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
 import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
+
+function formatExpressionError(err: EvaluationError): string {
+  switch (err.code) {
+    case 'unknown-var':   return `Unknown parameter '${err.name}' in expression`;
+    case 'cycle':         return `Cycle detected: ${err.namesInCycle.join(' → ')}`;
+    case 'parse-error':   return `Parse error: ${err.message}`;
+    case 'div-by-zero':   return 'Division by zero';
+    case 'non-finite':    return 'Expression evaluates to non-finite value';
+    case 'name-in-use':   return `Parameter name '${err.name}' is already in use`;
+    case 'referenced':    return `Parameter '${err.name}' is referenced by: ${err.referencedBy.join(', ')}`;
+  }
+}
 
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
@@ -388,7 +401,7 @@ export default function App() {
     const unit = pendingDimension.kind === 'dim-angle' ? 'deg' : 'mm';
     const res = parameterRegistry.setParameter({ name: v.name, expression: v.expression, unit });
     if (!res.ok) {
-      console.warn('Invalid expression', res.error);
+      showToast(formatExpressionError(res.error));
       setPendingDimension(null);
       return;
     }
