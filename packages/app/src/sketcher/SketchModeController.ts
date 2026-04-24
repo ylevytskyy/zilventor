@@ -21,6 +21,7 @@ export type SketchModeControllerOpts = {
   scene: THREE.Scene;
   sketcherClient: SketcherClient;
   getActiveSketch: () => { primitives: SketchPrimitive[]; constraints: SketchConstraint[] } | null;
+  resolveParamValue?: (name: string) => number | undefined;
   setSketchDof: (v: DofStatus | null) => void;
 };
 
@@ -52,9 +53,20 @@ export function createSketchModeController(opts: SketchModeControllerOpts): Sket
       grid.visible = true;
       const sketch = opts.getActiveSketch();
       if (sketch) {
+        const dimensionResolvedValues: Record<string, number> = {};
+        if (opts.resolveParamValue) {
+          for (const c of sketch.constraints) {
+            if (!c.kind.startsWith('dim-')) continue;
+            const dim = c as { id: string; value: { kind: 'literal'; value: number } | { kind: 'param'; paramName: string } };
+            if (dim.value.kind !== 'param') continue;
+            const v = opts.resolveParamValue(dim.value.paramName);
+            if (v !== undefined) dimensionResolvedValues[dim.id] = v;
+          }
+        }
         const { dof } = await opts.sketcherClient.loadSketch({
           primitives: sketch.primitives,
-          constraints: sketch.constraints
+          constraints: sketch.constraints,
+          dimensionResolvedValues
         });
         opts.setSketchDof(dof);
       }

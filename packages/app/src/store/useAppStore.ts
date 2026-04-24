@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DimensionConstraint, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import type { DimensionConstraint, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -45,6 +45,7 @@ type AppState = {
   addDimensionToActiveSketch(sketchId: string, d: DimensionConstraint): void;
   removeDimensionFromActiveSketch(sketchId: string, dimensionId: string): void;
   updateDimensionValueInStore(sketchId: string, dimensionId: string, value: number): void;
+  setParameterInStore(param: SketchParameter): void;
   highlightedConstraintIds: string[];
   setHighlightedConstraintIds(ids: string[]): void;
 };
@@ -172,5 +173,15 @@ export const useAppStore = create<AppState>((set) => ({
       };
     });
     return { activePart: { ...part, featureTree: tree } };
+  }),
+  setParameterInStore: (param) => set((state) => {
+    const part = state.activePart;
+    if (!part) return state;
+    return {
+      activePart: {
+        ...part,
+        parameters: { ...part.parameters, [param.name]: param }
+      }
+    };
   })
 }));

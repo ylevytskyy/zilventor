@@ -179,7 +179,8 @@ export default function App() {
           const f = part.featureTree.find((x) => x.kind === 'sketch' && x.id === id);
           return f?.kind === 'sketch' ? { primitives: f.primitives, constraints: f.constraints } : null;
         },
-        setSketchDof: useAppStore.getState().setSketchDof
+        setSketchDof: useAppStore.getState().setSketchDof,
+        resolveParamValue: (name) => parameterRegistry.getValue(name)
       });
       const overlay = new SketchOverlay();
       const renderer = new CommittedSketchRenderer();
@@ -268,6 +269,35 @@ export default function App() {
       parameterRegistry.setParameter({ name: p.name, expression: p.expression, unit: p.unit });
     }
   }, [activePart?.id]);
+
+  // Cascade parameter changes to the solver + mirror into PartDocument.parameters.
+  // Fires on any successful ParameterRegistry mutation (setParameter / rename /
+  // removeParameter). For every dim-* constraint in the active sketch whose value
+  // is { kind: 'param' }, resolve the current parameter value and push it through
+  // sketcherClient.updateDimensionValue so the solver sees the change. Also
+  // mirrors the updated SketchParameter into the store so saves persist edits.
+  useEffect(() => {
+    return parameterRegistry.subscribe(() => {
+      const store = useAppStore.getState();
+      for (const p of parameterRegistry.getAll()) store.setParameterInStore(p);
+      const part = store.activePart;
+      const sketchId = store.activeSketchId;
+      const client = sketcherClientRef.current;
+      if (!part || !sketchId || !client) return;
+      const sketch = part.featureTree.find(
+        (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === sketchId
+      );
+      if (!sketch) return;
+      for (const c of sketch.constraints) {
+        if (!c.kind.startsWith('dim-')) continue;
+        const dim = c as DimensionConstraint;
+        if (dim.value.kind !== 'param') continue;
+        const resolved = parameterRegistry.getValue(dim.value.paramName);
+        if (resolved === undefined) continue;
+        void client.updateDimensionValue(dim.id, resolved);
+      }
+    });
+  }, []);
 
   // Enter/exit sketch mode (camera swap + grid + orbit lock).
   useEffect(() => {
