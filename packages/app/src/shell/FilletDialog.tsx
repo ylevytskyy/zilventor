@@ -27,6 +27,7 @@ type Props = {
   pickingMode: FilletSelectionMode;
   previewError: string | null;
   initialMode?: FilletMode;
+  initialRadius?: string | undefined;
   vertices?: FilletVertexDescriptor[];
   onCommit(v: FilletDialogValue): void;
   onApply(v: FilletDialogValue): void;
@@ -176,6 +177,7 @@ export function FilletDialog({
   pickingMode,
   previewError,
   initialMode = 'constant',
+  initialRadius,
   vertices,
   onCommit,
   onApply,
@@ -191,7 +193,7 @@ export function FilletDialog({
   validateExpression,
 }: Props): JSX.Element {
   const [mode, setMode] = useState<FilletMode>(initialMode);
-  const [radius, setRadius] = useState('1');
+  const [radius, setRadius] = useState(initialRadius ?? '1');
   const [tab, setTab] = useState<Tab>('edges');
   // Local per-edge variable-radius drafts keyed by canonical edge key.
   const [varDraft, setVarDraft] = useState<Record<string, { startR: string; endR: string }>>({});

@@ -30,6 +30,8 @@ type AppState = {
   revolveDialogOpen: boolean;
   filletDialogOpen: boolean;
   filletEdges: FilletEdgeSpec[];
+  editingFilletId: string | null;
+  filletInitialRadius: string | undefined;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -43,6 +45,9 @@ type AppState = {
   setRevolveDialogOpen(v: boolean): void;
   setFilletDialogOpen(v: boolean): void;
   setFilletEdges(edges: FilletEdgeSpec[]): void;
+  setEditingFilletId(id: string | null): void;
+  setFilletInitialRadius(radius: string | undefined): void;
+  openFilletForEdit(featureId: string): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -94,6 +99,36 @@ export const useAppStore = create<AppState>((set) => ({
   setFilletDialogOpen: (v) => set({ filletDialogOpen: v }),
   filletEdges: [],
   setFilletEdges: (edges) => set({ filletEdges: edges }),
+  editingFilletId: null,
+  setEditingFilletId: (id) => set({ editingFilletId: id }),
+  filletInitialRadius: undefined,
+  setFilletInitialRadius: (radius) => set({ filletInitialRadius: radius }),
+  openFilletForEdit: (featureId) => {
+    const state = useAppStore.getState();
+    const part = state.activePart;
+    if (!part) return;
+    const feature = part.featureTree.find(
+      (f): f is Extract<typeof f, { kind: 'fillet' }> => f.kind === 'fillet' && f.id === featureId
+    );
+    if (!feature) return;
+    const firstEdge = feature.edges[0];
+    const radiusSpec = firstEdge?.radius;
+    let initialRadius: string | undefined;
+    if (radiusSpec) {
+      if (radiusSpec.kind === 'literal') {
+        initialRadius = String(radiusSpec.value);
+      } else {
+        const param = part.parameters[radiusSpec.paramName];
+        initialRadius = param?.expression ?? radiusSpec.paramName;
+      }
+    }
+    set({
+      editingFilletId: feature.id,
+      filletEdges: feature.edges.map((e) => ({ ...e })),
+      filletInitialRadius: initialRadius,
+      filletDialogOpen: true,
+    });
+  },
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),

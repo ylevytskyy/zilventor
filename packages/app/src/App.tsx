@@ -98,6 +98,8 @@ export default function App() {
   // Fillet dialog state.
   const [filletSelectionMode, setFilletSelectionMode] = useState<FilletSelectionMode>('edge');
   const [filletMode, setFilletMode] = useState<FilletMode>('constant');
+  // `filletInitialRadius` lives in the store (seeded by `openFilletForEdit`)
+  // so the FilletDialog can mount with pre-populated radius when editing.
   const [filletPreviewError, setFilletPreviewError] = useState<string | null>(null);
   const [pickingFilletEdges, setPickingFilletEdges] = useState(false);
   // Hovered edge set — kept in state so a future highlight overlay in the
@@ -134,6 +136,10 @@ export default function App() {
   const setFilletDialogOpen = useAppStore((s) => s.setFilletDialogOpen);
   const filletEdges = useAppStore((s) => s.filletEdges);
   const setFilletEdges = useAppStore((s) => s.setFilletEdges);
+  const editingFilletId = useAppStore((s) => s.editingFilletId);
+  const setEditingFilletId = useAppStore((s) => s.setEditingFilletId);
+  const filletInitialRadius = useAppStore((s) => s.filletInitialRadius);
+  const setFilletInitialRadius = useAppStore((s) => s.setFilletInitialRadius);
   const parameterValues = useParameterValues(parameterRegistry);
 
   // Expose store and perf hooks to E2E/perf tests (dev only).
@@ -984,7 +990,7 @@ export default function App() {
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
       kind: 'fillet',
-      id: `f${Date.now()}`,
+      id: editingFilletId ?? `f${Date.now()}`,
       mode: v.mode,
       edges: filletEdges,
       setbacks: []
@@ -994,6 +1000,15 @@ export default function App() {
     };
     const store = useAppStore.getState();
     try {
+      // Edit path: remove the old feature first so the new one replaces it
+      // (same id preserves tree position). The remove lives outside the
+      // command bus; undo restores the new feature's prior state via
+      // AddFilletFeatureCommand.revert, but a second undo is needed to
+      // bring back the original — acceptable for now, cleaner than writing
+      // a bespoke EditFilletFeatureCommand.
+      if (editingFilletId) {
+        await kernel.removeFeature(activePart.id, editingFilletId);
+      }
       await store.bus.execute(new AddFilletFeatureCommand({
         partId: activePart.id,
         feature,
@@ -1002,25 +1017,25 @@ export default function App() {
         registry: parameterRegistry,
         store: { setActivePart: store.setActivePart }
       }));
-      // Commit consumed the scratch param into a real one — forget it so a
-      // later Cancel won't delete a committed param.
       filletScratchParamsRef.current.clear();
       clearFilletPreview();
       setFilletDialogOpen(false);
       setFilletEdges([]);
+      setEditingFilletId(null);
+      setFilletInitialRadius(undefined);
       setPickingFilletEdges(false);
       setHoveredEdgeSet(null);
     } catch (e) {
       showToast(`Fillet failed: ${(e as Error).message}`);
     }
-  }, [activePart, kernel, filletEdges, clearFilletPreview, setFilletDialogOpen, showToast]);
+  }, [activePart, kernel, filletEdges, editingFilletId, clearFilletPreview, setFilletDialogOpen, setEditingFilletId, showToast]);
 
   const onFilletApply = useCallback(async (v: FilletDialogValue) => {
     // Apply = commit but keep the dialog open. Mirrors onRevolveApply.
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
       kind: 'fillet',
-      id: `f${Date.now()}`,
+      id: editingFilletId ?? `f${Date.now()}`,
       mode: v.mode,
       edges: filletEdges,
       setbacks: []
@@ -1050,9 +1065,11 @@ export default function App() {
     void clearFilletScratchParams();
     setFilletDialogOpen(false);
     setFilletEdges([]);
+    setEditingFilletId(null);
+    setFilletInitialRadius(undefined);
     setPickingFilletEdges(false);
     setHoveredEdgeSet(null);
-  }, [clearFilletPreview, clearFilletScratchParams, setFilletDialogOpen]);
+  }, [clearFilletPreview, clearFilletScratchParams, setFilletDialogOpen, setEditingFilletId]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1147,6 +1164,7 @@ export default function App() {
           pickingMode={filletSelectionMode}
           previewError={filletPreviewError}
           initialMode={filletMode}
+          initialRadius={filletInitialRadius}
           onCommit={(v) => { void onFilletCommit(v); }}
           onApply={(v) => { void onFilletApply(v); }}
           onCancel={onFilletCancel}

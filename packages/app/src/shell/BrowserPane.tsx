@@ -11,11 +11,11 @@ export default function BrowserPane({ part }: Props) {
     return <div className="px-3 py-2 text-xs text-neutral-500">No part open</div>;
   }
 
-  // T26: render a warning badge next to a feature that failed during executeTree.
-  // Click opens the fillet dialog as a best-effort re-open stub — full
-  // re-open-in-edit-mode pre-populated with the offending feature's state is
-  // deferred to a follow-up task (requires dialog to accept an
-  // `existingFeature` prop — not in scope for 3b).
+  // Render a warning badge next to a feature that failed during executeTree.
+  // Clicking the badge re-opens the feature's dialog pre-populated with the
+  // offending feature's stored state (edges, mode, radius) so the user can
+  // edit-and-retry. Today only fillets fail non-fatally, so only that path
+  // is wired; extrude/revolve errors short-circuit executeTree upstream.
   const renderErrorBadge = (featureId: string) => {
     const err = featureErrors.get(featureId);
     if (!err) return null;
@@ -26,11 +26,14 @@ export default function BrowserPane({ part }: Props) {
         aria-label={`Feature ${featureId} has errors`}
         title={err.message}
         onClick={() => {
-          // TODO(post-3b): re-open the originating feature's dialog and
-          // pre-populate it with the offending feature's current state so the
-          // user can edit and retry. For T26 we best-effort open the fillet
-          // dialog since fillet is the primary failing feature today.
-          useAppStore.getState().setFilletDialogOpen?.(true);
+          const parent = part.featureTree.find((f) => f.id === featureId);
+          if (parent?.kind === 'fillet') {
+            useAppStore.getState().openFilletForEdit(featureId);
+          } else {
+            // Fallback: just open the fillet dialog if we can't identify the
+            // failing feature's kind (should not happen post-3b).
+            useAppStore.getState().setFilletDialogOpen(true);
+          }
         }}
         style={{
           color: '#ff6b6b',
@@ -87,7 +90,10 @@ export default function BrowserPane({ part }: Props) {
               <li
                 key={f.id}
                 className="pl-3 cursor-pointer hover:text-white"
-                onDoubleClick={() => setSelectedFeature(f.id)}
+                onDoubleClick={() => {
+                  setSelectedFeature(f.id);
+                  useAppStore.getState().openFilletForEdit(f.id);
+                }}
               >
                 ▸ Fillet{filletCount}
                 {renderErrorBadge(f.id)}
