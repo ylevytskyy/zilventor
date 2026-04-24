@@ -3,6 +3,8 @@ export type KernelErrorKind =
   | 'invalidParameter'
   | 'booleanFailed'
   | 'revolveFailed'
+  | 'filletFailed'
+  | 'edgeNotFound'
   | 'oom'
   | 'workerCrashed'
   | 'fileFormatTooNew'
