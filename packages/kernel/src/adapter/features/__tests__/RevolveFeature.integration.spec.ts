@@ -41,6 +41,8 @@ describe('executeRevolveFeature (integration)', () => {
     const bbox = computeBoundingBox(oc, r.value.solid);
     // X extent: full revolve around Y -> [-15, 15] -> extent 30
     expect(bbox[3] - bbox[0]).toBeCloseTo(30, 0.5);
+    expect(bbox[4] - bbox[1]).toBeCloseTo(5, 0.5);   // Y height
+    expect(bbox[5] - bbox[2]).toBeCloseTo(30, 0.5);  // Z diameter
     disposeShape(r.value.solid);
   });
 

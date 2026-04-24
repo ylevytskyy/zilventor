@@ -84,6 +84,14 @@ export function executeRevolveFeature(
       featureId: feature.id
     });
   }
+  if (axisPrim.x1 === axisPrim.x2 && axisPrim.y1 === axisPrim.y2) {
+    return err({
+      kind: 'revolveFailed',
+      message: `Axis line ${feature.axisPrimitiveId} has zero length`,
+      correlationId: newCorrelationId(),
+      featureId: feature.id
+    });
+  }
   const axisOrigin: [number, number, number] = [axisPrim.x1, axisPrim.y1, 0];
   const axisDir: [number, number, number] = [
     axisPrim.x2 - axisPrim.x1,
