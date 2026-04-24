@@ -366,6 +366,7 @@ export default function App() {
       if (kernelClient && part) {
         const names = Object.keys(part.parameters ?? {});
         void (async () => {
+          let changed = false;
           for (const name of names) {
             const p = parameterRegistry.getAll().find((x) => x.name === name);
             if (!p || p.value === undefined) continue;
@@ -376,6 +377,27 @@ export default function App() {
             await kernelClient.setParameter(part.id, {
               name: p.name, expression: p.expression, value: p.value, unit: p.unit
             });
+            changed = true;
+          }
+          // Explicitly re-execute after all setParameter calls complete so
+          // the activePart useEffect doesn't race ahead of them — it may
+          // fire synchronously when setParameterInStore mutates the store,
+          // before the async kernel.setParameter round-trip resolves.
+          if (!changed) return;
+          const freshPart = useAppStore.getState().activePart;
+          if (!freshPart || freshPart.id !== part.id) return;
+          if (useAppStore.getState().sketchMode) return;
+          const hasSolidFeature = freshPart.featureTree.some(
+            (f) => f.kind === 'extrude' || f.kind === 'revolve'
+          );
+          if (!hasSolidFeature) return;
+          const res = await kernelClient.execute(freshPart.id);
+          if (res.ok && viewportRef.current) {
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+          } else if (!res.ok) {
+            useAppStore.getState().setStatus(`Error: ${res.error.message}`);
+            useAppStore.getState().setFeatureErrors(new Map());
           }
         })();
       }

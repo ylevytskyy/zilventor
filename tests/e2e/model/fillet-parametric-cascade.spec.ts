@@ -11,7 +11,7 @@ import { seedKernelPart } from '../helpers/seedKernelPart';
  * fillet on the same cube, which only happens if the parameter-change cascade
  * reaches the fillet feature recomputation path.
  */
-test.skip('fillet geometry responds to radius parameter change (gap: cascade for fillet radius not yet wired through to re-tessellation)', async ({ page }) => {
+test.skip('fillet geometry responds to radius parameter change (partial fix: cascade now calls kernel.execute but fillet mesh does not re-tessellate with new radius)', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
 
