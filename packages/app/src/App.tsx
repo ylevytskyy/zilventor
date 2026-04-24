@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, EdgeName } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, PatternAxis, EdgeName } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -37,6 +37,8 @@ import { ChamferDialog, type ChamferDialogValue } from './shell/ChamferDialog';
 import { AddChamferFeatureCommand } from './commands/AddChamferFeatureCommand';
 import { ShellDialog, type ShellDialogValue } from './shell/ShellDialog';
 import { AddShellFeatureCommand } from './commands/AddShellFeatureCommand';
+import { LinearPatternDialog, type LinearPatternDialogValue } from './shell/LinearPatternDialog';
+import { AddLinearPatternFeatureCommand } from './commands/AddLinearPatternFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -529,6 +531,11 @@ export default function App() {
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         useAppStore.getState().setShellDialogOpen(true);
+        return;
+      }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        useAppStore.getState().setLinearPatternDialogOpen(true);
         return;
       }
       if (e.key === 'F7') {
@@ -1278,6 +1285,53 @@ export default function App() {
     setEditingShellId(null);
   }, [setShellDialogOpen, setShellFacesToRemove, setEditingShellId]);
 
+  // Linear pattern dialog handlers.
+  const linearPatternDialogOpen = useAppStore((s) => s.linearPatternDialogOpen);
+  const setLinearPatternDialogOpen = useAppStore((s) => s.setLinearPatternDialogOpen);
+
+  const patternableFeatures = (activePart?.featureTree ?? [])
+    .filter((f): f is Extract<Feature, { kind: 'extrude' | 'revolve' }> =>
+      f.kind === 'extrude' || f.kind === 'revolve'
+    )
+    .map((f, idx) => ({
+      id: f.id,
+      label: `${f.kind === 'extrude' ? 'Extrusion' : 'Revolve'}${idx + 1} (${f.id})`,
+    }));
+
+  const onLinearPatternCommit = useCallback(async (v: LinearPatternDialogValue) => {
+    if (!activePart || !kernel) return;
+    const feature: LinearPatternFeature = {
+      kind: 'pattern-linear',
+      id: `p${Date.now()}`,
+      sourceFeatureId: v.sourceFeatureId,
+      direction: v.direction,
+      spacing: { kind: 'param', paramName: 'pattern_pitch' },
+      count: v.count,
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      pattern_pitch: { expression: v.spacing, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      await store.bus.execute(new AddLinearPatternFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart },
+      }));
+      setLinearPatternDialogOpen(false);
+    } catch (e) {
+      showToast(`Linear pattern failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, setLinearPatternDialogOpen, showToast]);
+
+  const onLinearPatternCancel = useCallback(() => {
+    setLinearPatternDialogOpen(false);
+  }, [setLinearPatternDialogOpen]);
+
+
 
   return (
     <div className="flex flex-col h-full">
@@ -1437,6 +1491,22 @@ export default function App() {
               name: 't_shell_dry',
               expression: expr,
               unit: 'mm'
+            });
+            return res.ok ? null : formatExpressionError(res.error);
+          }}
+        />
+      )}
+      {linearPatternDialogOpen && (
+        <LinearPatternDialog
+          patternableFeatures={patternableFeatures}
+          previewError={null}
+          onCommit={(v) => { void onLinearPatternCommit(v); }}
+          onCancel={onLinearPatternCancel}
+          validateExpression={(expr) => {
+            const res = parameterRegistry.dryRun({
+              name: 'pattern_pitch_dry',
+              expression: expr,
+              unit: 'mm',
             });
             return res.ok ? null : formatExpressionError(res.error);
           }}

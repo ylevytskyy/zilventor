@@ -40,6 +40,7 @@ type AppState = {
   shellFacesToRemove: FaceName[];
   editingShellId: string | null;
   shellInitialThickness: string | undefined;
+  linearPatternDialogOpen: boolean;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -67,6 +68,7 @@ type AppState = {
   setEditingShellId(id: string | null): void;
   setShellInitialThickness(thickness: string | undefined): void;
   openShellForEdit(featureId: string): void;
+  setLinearPatternDialogOpen(v: boolean): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -222,6 +224,8 @@ export const useAppStore = create<AppState>((set) => ({
       shellDialogOpen: true,
     });
   },
+  linearPatternDialogOpen: false,
+  setLinearPatternDialogOpen: (v) => set({ linearPatternDialogOpen: v }),
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),
