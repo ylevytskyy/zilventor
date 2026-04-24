@@ -52,6 +52,7 @@ export default function BrowserPane({ part }: Props) {
   let revolveCount = 0;
   let filletCount = 0;
   let chamferCount = 0;
+  let shellCount = 0;
   return (
     <div className="px-3 py-2 text-xs text-neutral-200">
       <div className="font-semibold mb-1">{part.name}</div>
@@ -113,6 +114,22 @@ export default function BrowserPane({ part }: Props) {
                 }}
               >
                 ▸ Chamfer{chamferCount}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
+          if (f.kind === 'shell') {
+            shellCount += 1;
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onDoubleClick={() => {
+                  setSelectedFeature(f.id);
+                  useAppStore.getState().openShellForEdit(f.id);
+                }}
+              >
+                ▸ Shell{shellCount}
                 {renderErrorBadge(f.id)}
               </li>
             );

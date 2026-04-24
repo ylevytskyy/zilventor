@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, EdgeName } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, EdgeName } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -34,6 +34,8 @@ import { FilletDialog, type FilletDialogValue, type FilletMode } from './shell/F
 import { AddFilletFeatureCommand } from './commands/AddFilletFeatureCommand';
 import { ChamferDialog, type ChamferDialogValue } from './shell/ChamferDialog';
 import { AddChamferFeatureCommand } from './commands/AddChamferFeatureCommand';
+import { ShellDialog, type ShellDialogValue } from './shell/ShellDialog';
+import { AddShellFeatureCommand } from './commands/AddShellFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -76,6 +78,7 @@ export default function App() {
   // the NamedShape + tessellated edges so the Add button in FilletDialog can
   // actually populate the edge list.
   const tessellatedEdgesRef = useRef<TessellatedEdge[]>([]);
+  const [availableFaceNames, setAvailableFaceNames] = useState<FaceName[]>([]);
 
   const [numericVisible, setNumericVisible] = useState(false);
   const [numericFieldCount, setNumericFieldCount] = useState(0);
@@ -201,6 +204,7 @@ export default function App() {
       if (res.ok) {
         viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
+        setAvailableFaceNames(res.value.faceNames ?? []);
         useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -408,6 +412,7 @@ export default function App() {
           if (res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
+            setAvailableFaceNames(res.value.faceNames ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!res.ok) {
             useAppStore.getState().setStatus(`Error: ${res.error.message}`);
@@ -516,6 +521,11 @@ export default function App() {
         useAppStore.getState().setChamferDialogOpen(true);
         return;
       }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        useAppStore.getState().setShellDialogOpen(true);
+        return;
+      }
       if (e.key === 'F7') {
         e.preventDefault();
         useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
@@ -608,6 +618,7 @@ export default function App() {
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
+            setAvailableFaceNames(res.value.faceNames ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
           } else if (!unmountedRef.current) {
             useAppStore.getState().setFeatureErrors(new Map());
@@ -1200,6 +1211,57 @@ export default function App() {
     setHoveredEdgeSet(null);
   }, [setChamferDialogOpen, setChamferEdges, setEditingChamferId]);
 
+  // Shell dialog handlers — simplest of the 3D ops. One dialog, face list
+  // sourced from the last execute's `faceNames` (displayed as a checkbox
+  // list), thickness parameter. No interactive 3D pick yet — the dropdown
+  // is the current picker.
+  const shellDialogOpen = useAppStore((s) => s.shellDialogOpen);
+  const setShellDialogOpen = useAppStore((s) => s.setShellDialogOpen);
+  const shellFacesToRemove = useAppStore((s) => s.shellFacesToRemove);
+  const setShellFacesToRemove = useAppStore((s) => s.setShellFacesToRemove);
+  const toggleShellFace = useAppStore((s) => s.toggleShellFace);
+  const editingShellId = useAppStore((s) => s.editingShellId);
+  const setEditingShellId = useAppStore((s) => s.setEditingShellId);
+  const shellInitialThickness = useAppStore((s) => s.shellInitialThickness);
+
+  const onShellCommit = useCallback(async (v: ShellDialogValue) => {
+    if (!activePart || !kernel || v.facesToRemove.length === 0) return;
+    const feature: ShellFeature = {
+      kind: 'shell',
+      id: editingShellId ?? `sh${Date.now()}`,
+      facesToRemove: v.facesToRemove.map((f) => ({ ...f })),
+      thickness: { kind: 'param', paramName: 't_shell' }
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      t_shell: { expression: v.thickness, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      if (editingShellId) {
+        await kernel.removeFeature(activePart.id, editingShellId);
+      }
+      await store.bus.execute(new AddShellFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart }
+      }));
+      setShellDialogOpen(false);
+      setShellFacesToRemove([]);
+      setEditingShellId(null);
+    } catch (e) {
+      showToast(`Shell failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, editingShellId, setShellDialogOpen, setShellFacesToRemove, setEditingShellId, showToast]);
+
+  const onShellCancel = useCallback(() => {
+    setShellDialogOpen(false);
+    setShellFacesToRemove([]);
+    setEditingShellId(null);
+  }, [setShellDialogOpen, setShellFacesToRemove, setEditingShellId]);
+
 
   return (
     <div className="flex flex-col h-full">
@@ -1336,6 +1398,26 @@ export default function App() {
           validateExpression={(expr) => {
             const res = parameterRegistry.dryRun({
               name: 'd_chamfer_dry',
+              expression: expr,
+              unit: 'mm'
+            });
+            return res.ok ? null : formatExpressionError(res.error);
+          }}
+        />
+      )}
+      {shellDialogOpen && (
+        <ShellDialog
+          availableFaces={availableFaceNames}
+          selectedFaces={shellFacesToRemove}
+          previewError={null}
+          initialThickness={shellInitialThickness}
+          onCommit={(v) => { void onShellCommit(v); }}
+          onCancel={onShellCancel}
+          onToggleFace={(f) => toggleShellFace(f)}
+          onThicknessChange={() => { /* no preview for MVP */ }}
+          validateExpression={(expr) => {
+            const res = parameterRegistry.dryRun({
+              name: 't_shell_dry',
               expression: expr,
               unit: 'mm'
             });

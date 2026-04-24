@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChamferEdgeSpec, DimensionConstraint, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { ChamferEdgeSpec, DimensionConstraint, FaceName, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -36,6 +36,10 @@ type AppState = {
   chamferEdges: ChamferEdgeSpec[];
   editingChamferId: string | null;
   chamferInitialDistance: string | undefined;
+  shellDialogOpen: boolean;
+  shellFacesToRemove: FaceName[];
+  editingShellId: string | null;
+  shellInitialThickness: string | undefined;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -57,6 +61,12 @@ type AppState = {
   setEditingChamferId(id: string | null): void;
   setChamferInitialDistance(distance: string | undefined): void;
   openChamferForEdit(featureId: string): void;
+  setShellDialogOpen(v: boolean): void;
+  setShellFacesToRemove(faces: FaceName[]): void;
+  toggleShellFace(face: FaceName): void;
+  setEditingShellId(id: string | null): void;
+  setShellInitialThickness(thickness: string | undefined): void;
+  openShellForEdit(featureId: string): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -170,6 +180,46 @@ export const useAppStore = create<AppState>((set) => ({
       chamferEdges: feature.edges.map((e) => ({ ...e })),
       chamferInitialDistance: initialDistance,
       chamferDialogOpen: true,
+    });
+  },
+  shellDialogOpen: false,
+  setShellDialogOpen: (v) => set({ shellDialogOpen: v }),
+  shellFacesToRemove: [],
+  setShellFacesToRemove: (faces) => set({ shellFacesToRemove: faces }),
+  toggleShellFace: (face) => set((state) => {
+    const key = `${face.featureId}|${face.role}|${face.instance ?? 0}`;
+    const current = state.shellFacesToRemove;
+    const without = current.filter(
+      (f) => `${f.featureId}|${f.role}|${f.instance ?? 0}` !== key
+    );
+    return {
+      shellFacesToRemove: without.length === current.length ? [...current, face] : without
+    };
+  }),
+  editingShellId: null,
+  setEditingShellId: (id) => set({ editingShellId: id }),
+  shellInitialThickness: undefined,
+  setShellInitialThickness: (thickness) => set({ shellInitialThickness: thickness }),
+  openShellForEdit: (featureId) => {
+    const state = useAppStore.getState();
+    const part = state.activePart;
+    if (!part) return;
+    const feature = part.featureTree.find(
+      (f): f is Extract<typeof f, { kind: 'shell' }> => f.kind === 'shell' && f.id === featureId
+    );
+    if (!feature) return;
+    let initialThickness: string | undefined;
+    if (feature.thickness.kind === 'literal') {
+      initialThickness = String(feature.thickness.value);
+    } else {
+      const param = part.parameters[feature.thickness.paramName];
+      initialThickness = param?.expression ?? feature.thickness.paramName;
+    }
+    set({
+      editingShellId: feature.id,
+      shellFacesToRemove: feature.facesToRemove.map((f) => ({ ...f })),
+      shellInitialThickness: initialThickness,
+      shellDialogOpen: true,
     });
   },
   highlightedConstraintIds: [],

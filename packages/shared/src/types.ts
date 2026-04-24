@@ -29,7 +29,8 @@ export type Feature =
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation }
   | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation }
   | FilletFeature
-  | ChamferFeature;
+  | ChamferFeature
+  | ShellFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -128,4 +129,15 @@ export type ChamferFeature = {
   kind: 'chamfer';
   id: string;
   edges: ChamferEdgeSpec[];
+};
+
+export type ShellFeature = {
+  kind: 'shell';
+  id: string;
+  /** Faces to remove (become openings in the shelled body). */
+  facesToRemove: FaceName[];
+  /** Positive = thicken outward; negative = hollow inward. Typical hollow
+   * uses `{ kind: 'literal', value: -1 }` for a 1 mm wall.
+   */
+  thickness: ParamOrLiteral;
 };

@@ -1,5 +1,5 @@
 import type { OcctInstance } from '../occt/occtLoader';
-import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge } from '@zilventor/shared';
+import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge, FaceName } from '@zilventor/shared';
 import {
   ok,
   err,
@@ -16,6 +16,7 @@ import { executeExtrudeFeature } from './features/ExtrudeFeature';
 import { executeRevolveFeature } from './features/RevolveFeature';
 import { executeFilletFeature } from './features/FilletFeature';
 import { executeChamferFeature } from './features/ChamferFeature';
+import { executeShellFeature } from './features/ShellFeature';
 import { tessellate, tessellateEdges } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -37,6 +38,11 @@ export type ExecutionResult = {
   mesh: Mesh;
   finalSolid: OcctShape;
   tessellatedEdges?: TessellatedEdge[];
+  /** Face names of the final solid. Exposed so UI can populate pickers
+   *  (e.g. the Shell dialog's "face to remove" dropdown) without having
+   *  to reason about BRep topology.
+   */
+  faceNames?: FaceName[];
   featureErrors?: Map<string, KernelError>;
 };
 
@@ -277,6 +283,35 @@ export async function executeTree(
       }
       disposeShape(finalSolid.shape);
       finalSolid = result.value;
+    } else if (feature.kind === 'shell') {
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Shell needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      const result = executeShellFeature(oc, finalSolid, feature, (p) => {
+        if (p.kind === 'literal') return ok(p.value);
+        const param = part.parameters[p.paramName];
+        if (!param) {
+          return err({
+            kind: 'invalidParameter',
+            message: `Parameter ${p.paramName} not found`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+        }
+        return resolve(param.expression, param.unit);
+      });
+      if (!result.ok) {
+        featureErrors.set(feature.id, result.error);
+        continue;
+      }
+      disposeShape(finalSolid.shape);
+      finalSolid = result.value;
     }
   }
 
@@ -304,6 +339,7 @@ export async function executeTree(
     mesh,
     finalSolid: finalSolid.shape,
     tessellatedEdges,
+    faceNames: finalSolid.faceNames.map((f) => f.name),
     ...(featureErrors.size > 0 ? { featureErrors } : {})
   });
 }
