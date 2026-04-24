@@ -76,4 +76,33 @@ describe('KernelApi (end-to-end, in-process)', () => {
     const p = await api.getPart(partId);
     expect(p!.featureTree.filter((f) => f.kind === 'revolve')).toHaveLength(0);
   }, 120_000);
+
+  it('execute surfaces featureErrors for a fillet that fails to resolve', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const partId = await api.createPart('P');
+    await api.addFeature(partId, { kind: 'sketch', id: 'S1', plane: 'XY',
+      primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
+    await api.setParameter(partId, { name: 'd1', expression: '10', value: 10, unit: 'mm' });
+    await api.addFeature(partId, {
+      kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd1', direction: 'forward', operation: 'new'
+    });
+    // Fillet referencing a non-existent face.
+    await api.setParameter(partId, { name: 'r1', expression: '2', value: 2, unit: 'mm' });
+    await api.addFeature(partId, {
+      kind: 'fillet', id: 'F1', mode: 'constant',
+      edges: [{
+        edgeId: { faceA: { featureId: 'ZZZ', role: 'top' }, faceB: { featureId: 'ZZZ', role: 'bottom' } },
+        selectionMode: 'edge',
+        radius: { kind: 'param', paramName: 'r1' }
+      }],
+      setbacks: []
+    });
+    const r = await api.execute(partId);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.featureErrors).toBeDefined();
+      expect(r.value.featureErrors!.get('F1')?.kind).toBe('edgeNotFound');
+    }
+  }, 120_000);
 });

@@ -8,7 +8,23 @@ import { writeBRep } from './occt/BRepIO';
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 
-export type ExecuteResult = { mesh: Mesh };
+/**
+ * Result of a successful `execute` / `previewFeature` call. The mesh is the
+ * tessellated output of the final solid in the tree; `featureErrors` carries
+ * per-feature non-fatal errors (populated by the fillet branch in Sub-project
+ * 3b — see `ExecutionResult` in FeatureTree.ts). It is present only when the
+ * executor recorded at least one soft failure; callers should treat absence
+ * and an empty map as equivalent.
+ *
+ * The Map is kept as-is because the direct in-process API is exercised by the
+ * kernel's own integration tests; the Comlink-wrapped worker client already
+ * serializes structured-cloneable values and Map is one of them
+ * (https://developer.mozilla.org/docs/Web/API/Web_Workers_API/Structured_clone_algorithm).
+ */
+export type ExecuteResult = {
+  mesh: Mesh;
+  featureErrors?: Map<string, KernelError>;
+};
 
 export type KernelApi = {
   init(): Promise<void>;
@@ -95,7 +111,13 @@ export function createKernelApi(): KernelApi {
       if (!r.ok) return r;
       // Dispose the solid — we only ship the mesh across the worker boundary.
       disposeShape(r.value.finalSolid);
-      return { ok: true, value: { mesh: r.value.mesh } };
+      return {
+        ok: true,
+        value: {
+          mesh: r.value.mesh,
+          ...(r.value.featureErrors ? { featureErrors: r.value.featureErrors } : {})
+        }
+      };
     },
 
     async previewFeature(partId, feature) {
@@ -107,6 +129,10 @@ export function createKernelApi(): KernelApi {
       const r = await executeTree(occt, virtual);
       if (!r.ok) return r;
       disposeShape(r.value.finalSolid);
+      // Preview intentionally drops featureErrors: the scratch feature is the
+      // only one that matters here, and a hard failure on it already surfaces
+      // via the top-level `err` path. Historical soft failures in the stored
+      // tree are reported when the user actually runs `execute`.
       return { ok: true, value: { mesh: r.value.mesh } };
     },
 
