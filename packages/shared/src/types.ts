@@ -53,3 +53,27 @@ export type ProjectFile = {
   appVersion: string;
   document: PartDocument | AssemblyDocument;
 };
+
+export type FaceName = {
+  featureId: string;
+  role: string;
+  instance?: number;
+};
+
+export type EdgeName = {
+  faceA: FaceName;
+  faceB: FaceName;
+};
+
+function faceNameKey(f: FaceName): string {
+  return `${f.featureId}|${f.role}|${f.instance ?? 0}`;
+}
+
+/**
+ * Canonicalize the edge name so {A,B} and {B,A} compare structurally equal.
+ * Sort by the string key.
+ */
+export function canonicalEdgeName(a: FaceName, b: FaceName): EdgeName {
+  const [first, second] = faceNameKey(a) <= faceNameKey(b) ? [a, b] : [b, a];
+  return { faceA: first, faceB: second };
+}
