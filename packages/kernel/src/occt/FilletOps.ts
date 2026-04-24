@@ -9,10 +9,16 @@ import {
 } from '@zilventor/shared';
 
 /**
- * Fillet request. Supports constant radius (T9) and variable start/end radius
- * (T10). Per-vertex setbacks (`setbacks`) are reserved for T11; the shape of
- * `FilletRequest` is kept stable so downstream callers (feature adapter,
- * solver cascade) do not churn when the later task lands.
+ * Fillet request. Supports constant radius (T9), variable start/end radius
+ * (T10), and per-vertex-per-edge setbacks (T11). The shape of `FilletRequest`
+ * is stable so downstream callers (feature adapter, solver cascade) do not
+ * churn across tasks.
+ *
+ * NOTE: setbacks are accepted in the request but currently have NO effect —
+ * the opencascade.js 2.0.0-beta binding does not expose a per-vertex setback
+ * method on `BRepFilletAPI_MakeFillet`. Setbacks are stored in the feature
+ * data model so that when a future binding exposes it, wiring a single call
+ * inside `makeFillet` activates them without touching callers.
  */
 export type FilletRequest = {
   edges: Array<{
@@ -117,6 +123,25 @@ export function makeFillet(
           e.radius,
           e.edge as never
         );
+      }
+    }
+    // Per-vertex-per-edge setback. The opencascade.js 2.0.0-beta binding does
+    // NOT expose a `SetSetback` (or equivalent) method on
+    // `BRepFilletAPI_MakeFillet` — grep of `opencascade.full.d.ts` for
+    // `SetSetback|Setback` returns zero hits on the MakeFillet class; only
+    // `SetFilletShape` is exposed, which controls the global blend shape, not
+    // vertex-local pullback. Until the binding catches up, the loop below is
+    // a no-op guard: it probes for a future `SetSetback` method and, if
+    // present, calls it per entry. The feature data model still carries
+    // setbacks (T12) so UX, serialization, and solver cascade are unaffected
+    // by the missing binding — flipping this conditional live once the
+    // method appears is the only change needed to activate them.
+    const setFn = (mkFillet as unknown as {
+      SetSetback?: (edge: unknown, vertex: unknown, setback: number) => void;
+    }).SetSetback;
+    if (setFn) {
+      for (const sb of req.setbacks) {
+        setFn.call(mkFillet, sb.edge as never, sb.vertex as never, sb.setback);
       }
     }
     range = new oc.Message_ProgressRange_1();
