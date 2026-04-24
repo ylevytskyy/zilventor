@@ -2,6 +2,7 @@ export type KernelErrorKind =
   | 'degenerateSketch'
   | 'invalidParameter'
   | 'booleanFailed'
+  | 'revolveFailed'
   | 'oom'
   | 'workerCrashed'
   | 'fileFormatTooNew'
