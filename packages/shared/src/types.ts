@@ -30,7 +30,8 @@ export type Feature =
   | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation }
   | FilletFeature
   | ChamferFeature
-  | ShellFeature;
+  | ShellFeature
+  | LinearPatternFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -139,6 +140,23 @@ export type ChamferFeature = {
   kind: 'chamfer';
   id: string;
   edges: ChamferEdgeSpec[];
+};
+
+export type PatternAxis = 'x' | 'y' | 'z';
+
+export type LinearPatternFeature = {
+  kind: 'pattern-linear';
+  id: string;
+  /** Id of the extrude or revolve feature whose geometry is replicated. */
+  sourceFeatureId: string;
+  /** World-axis direction. Arbitrary directions (sketch edge / axis) are a
+   *  follow-up — today's MVP ships with axis-only picks.
+   */
+  direction: PatternAxis;
+  /** Spacing between consecutive copies (mm). */
+  spacing: ParamOrLiteral;
+  /** Total number of copies including the source (>= 1; 1 = no replication). */
+  count: number;
 };
 
 export type ShellFeature = {

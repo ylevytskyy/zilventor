@@ -17,6 +17,7 @@ import { executeRevolveFeature } from './features/RevolveFeature';
 import { executeFilletFeature } from './features/FilletFeature';
 import { executeChamferFeature } from './features/ChamferFeature';
 import { executeShellFeature } from './features/ShellFeature';
+import { executeLinearPatternFeature } from './features/LinearPatternFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -317,6 +318,139 @@ export async function executeTree(
       }
       disposeShape(finalSolid.shape);
       finalSolid = result.value;
+    } else if (feature.kind === 'pattern-linear') {
+      // Re-execute the source feature in isolation to get a standalone
+      // shape, then translate + boolean-op count-1 copies into the running
+      // body. Only extrude and revolve source features are supported today
+      // (fillet/chamfer/shell don't produce standalone shapes).
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Linear pattern needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      const source = part.featureTree.find((f) => f.id === feature.sourceFeatureId);
+      if (!source || (source.kind !== 'extrude' && source.kind !== 'revolve')) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: `Linear pattern source ${feature.sourceFeatureId} must be an extrude or revolve`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      let sourceShape: NamedShape | null = null;
+      if (source.kind === 'extrude') {
+        const sketch = sketches.get(source.sketchRef);
+        if (!sketch) {
+          featureErrors.set(feature.id, {
+            kind: 'featureNotFound',
+            message: `Source extrude's sketch ${source.sketchRef} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const param = part.parameters[source.distanceParam];
+        if (!param) {
+          featureErrors.set(feature.id, {
+            kind: 'invalidParameter',
+            message: `Source extrude parameter ${source.distanceParam} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const resolved = resolve(param.expression, param.unit);
+        if (!resolved.ok) {
+          featureErrors.set(feature.id, { ...resolved.error, featureId: feature.id });
+          continue;
+        }
+        const ex = executeExtrudeFeature(oc, sketch, source, resolved.value);
+        if (!ex.ok) {
+          featureErrors.set(feature.id, { ...ex.error, featureId: feature.id });
+          continue;
+        }
+        sourceShape = ex.value.named;
+      } else {
+        // revolve
+        const sketchFeature = part.featureTree.find(
+          (f) => f.kind === 'sketch' && f.id === source.sketchRef
+        );
+        if (!sketchFeature || sketchFeature.kind !== 'sketch') {
+          featureErrors.set(feature.id, {
+            kind: 'featureNotFound',
+            message: `Source revolve's sketch ${source.sketchRef} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const param = part.parameters[source.angleParam];
+        if (!param) {
+          featureErrors.set(feature.id, {
+            kind: 'invalidParameter',
+            message: `Source revolve parameter ${source.angleParam} missing`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+          continue;
+        }
+        const resolved = resolve(param.expression, param.unit);
+        if (!resolved.ok) {
+          featureErrors.set(feature.id, { ...resolved.error, featureId: feature.id });
+          continue;
+        }
+        const angleRad = (resolved.value * Math.PI) / 180;
+        const rv = executeRevolveFeature(oc, sketchFeature, source, angleRad);
+        if (!rv.ok) {
+          featureErrors.set(feature.id, { ...rv.error, featureId: feature.id });
+          continue;
+        }
+        sourceShape = rv.value.named;
+      }
+      let spacingResolved: Result<number, KernelError>;
+      if (feature.spacing.kind === 'literal') {
+        spacingResolved = ok(feature.spacing.value);
+      } else {
+        const p = part.parameters[feature.spacing.paramName];
+        if (!p) {
+          spacingResolved = err({
+            kind: 'invalidParameter',
+            message: `Pattern spacing param ${feature.spacing.paramName} not found`,
+            correlationId: newCorrelationId(),
+            featureId: feature.id
+          });
+        } else {
+          spacingResolved = resolve(p.expression, p.unit);
+        }
+      }
+      if (!spacingResolved.ok) {
+        disposeShape(sourceShape.shape);
+        featureErrors.set(feature.id, { ...spacingResolved.error, featureId: feature.id });
+        continue;
+      }
+      const patternResult = executeLinearPatternFeature(oc, {
+        runningBody: finalSolid,
+        sourceShape: sourceShape.shape,
+        operation: source.operation,
+        direction: feature.direction,
+        spacing: spacingResolved.value,
+        count: feature.count,
+        featureId: feature.id
+      });
+      disposeShape(sourceShape.shape);
+      if (!patternResult.ok) {
+        featureErrors.set(feature.id, patternResult.error);
+        continue;
+      }
+      // executeLinearPatternFeature consumed the running body when it
+      // boolean-op'd copies in. Update our pointer without a
+      // double-dispose.
+      finalSolid = patternResult.value;
     }
   }
 
