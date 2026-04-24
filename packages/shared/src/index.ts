@@ -1,5 +1,6 @@
 export * from './result';
 export * from './errors';
+export * from './parameters';
 export * from './types';
 export * from './fileFormat';
 export * from './constraints';

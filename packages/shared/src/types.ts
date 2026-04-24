@@ -1,13 +1,11 @@
 import type { SketchConstraint } from './constraints';
+import type { SketchParameter, ParameterUnit } from './parameters';
 
-export type UnitKind = 'mm' | 'deg';
+/** @deprecated Use ParameterUnit from './parameters' */
+export type UnitKind = ParameterUnit;
 
-export type Parameter = {
-  name: string;
-  expression: string;
-  value: number;
-  unit: UnitKind;
-};
+/** @deprecated Use SketchParameter from './parameters' */
+export type Parameter = SketchParameter;
 
 export type BoundingBox = readonly [number, number, number, number, number, number];
 
@@ -38,7 +36,7 @@ export type PartDocument = {
   id: string;
   name: string;
   units: 'mm';
-  parameters: Record<string, Parameter>;
+  parameters: Record<string, SketchParameter>;
   featureTree: Feature[];
   cachedGeometry?: CachedGeometry;
 };
