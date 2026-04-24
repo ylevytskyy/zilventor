@@ -115,6 +115,10 @@ export async function executeTree(
       // Replace any prior in-flight solid — we only return the last one.
       if (finalSolid) disposeShape(finalSolid);
       finalSolid = ex.value.solid;
+    } else if (feature.kind === 'revolve') {
+      // Implemented in T8. For now, do nothing — the feature is skipped so the
+      // tree execution completes with prior extrudes as the final solid.
+      continue;
     }
   }
 
