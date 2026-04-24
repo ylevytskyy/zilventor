@@ -113,9 +113,14 @@ export class ParameterRegistry {
     }
     const deps = Array.from(this.dependents.get(from) ?? []);
     const entry = this.entries.get(from)!;
+    const savedDepEntries = new Map<string, ParsedEntry>();
+    for (const d of deps) {
+      const e = this.entries.get(d);
+      if (e) savedDepEntries.set(d, e);
+    }
+
     this.entries.delete(from);
     this.entries.set(to, { ...entry, parameter: { ...entry.parameter, name: to } });
-
     this.dependents.set(to, this.dependents.get(from) ?? new Set());
     this.dependents.delete(from);
 
@@ -135,10 +140,12 @@ export class ParameterRegistry {
           refs
         });
       } catch {
+        // Full rollback: restore top-level rename AND all processed dep entries.
         this.entries.set(from, entry);
         this.entries.delete(to);
         this.dependents.set(from, this.dependents.get(to) ?? new Set());
         this.dependents.delete(to);
+        for (const [d, e] of savedDepEntries) this.entries.set(d, e);
         return { ok: false, error: { code: 'parse-error', message: `rewrite failed on ${dep}` } };
       }
     }
@@ -185,29 +192,30 @@ export class ParameterRegistry {
   }
 
   private wouldCauseCycle(newName: string, newRefs: readonly string[]): string[] | null {
-    const visited = new Set<string>();
-    const stack: string[] = [newName];
-
-    const walk = (node: string): string[] | null => {
-      if (node === newName) return [...stack, node];
-      if (visited.has(node)) return null;
-      visited.add(node);
-      stack.push(node);
-      const entry = this.entries.get(node);
-      const entryRefs = entry?.refs ?? [];
-      for (const r of entryRefs) {
-        if (WHITELIST_FNS.has(r)) continue;
-        const p = walk(r);
-        if (p) return p;
-      }
-      stack.pop();
-      return null;
+    const walkFrom = (startRef: string): string[] | null => {
+      const visited = new Set<string>();
+      const stack: string[] = [newName];
+      const dfs = (node: string): string[] | null => {
+        if (node === newName) return [...stack, node];
+        if (visited.has(node)) return null;
+        visited.add(node);
+        stack.push(node);
+        const entry = this.entries.get(node);
+        for (const r of entry?.refs ?? []) {
+          if (WHITELIST_FNS.has(r)) continue;
+          const p = dfs(r);
+          if (p) return p;
+        }
+        stack.pop();
+        return null;
+      };
+      return dfs(startRef);
     };
 
     for (const r of newRefs) {
       if (WHITELIST_FNS.has(r)) continue;
       if (r === newName) return [newName];
-      const p = walk(r);
+      const p = walkFrom(r);
       if (p) return p;
     }
     return null;

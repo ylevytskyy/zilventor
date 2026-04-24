@@ -81,6 +81,22 @@ describe('ParameterRegistry variable references', () => {
       expect(res.ok, `expression '${e}' should parse`).toBe(true);
     }
   });
+
+  it('detects a cycle via the second ref even when first ref chain is visited first', () => {
+    const r = new ParameterRegistry();
+    // shared leaf: no ref back
+    r.setParameter({ name: 'leaf', expression: '1', unit: 'mm' });
+    // chain 1: left1 -> leaf (no cycle through here)
+    r.setParameter({ name: 'left1', expression: 'leaf', unit: 'mm' });
+    // chain 2: right1 -> leaf (no cycle yet)
+    r.setParameter({ name: 'right1', expression: 'leaf', unit: 'mm' });
+    // top depends on both; right1 will later point back to top
+    r.setParameter({ name: 'top', expression: 'left1 + right1', unit: 'mm' });
+    // Now reset right1 to cycle: right1 depends on top -> which depends on right1.
+    const res = r.setParameter({ name: 'right1', expression: 'top', unit: 'mm' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('cycle');
+  });
 });
 
 describe('ParameterRegistry rename', () => {
@@ -104,6 +120,20 @@ describe('ParameterRegistry rename', () => {
     const res = r.renameParameter('a', 'b');
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('name-in-use');
+  });
+
+  it('rolls back cleanly if the rewrite fails on a later dependent', () => {
+    const r = new ParameterRegistry();
+    r.setParameter({ name: 'a', expression: '10', unit: 'mm' });
+    r.setParameter({ name: 'b', expression: 'a + 1', unit: 'mm' });
+    r.setParameter({ name: 'c', expression: 'a * 2', unit: 'mm' });
+    const res = r.renameParameter('a', 'width');
+    expect(res.ok).toBe(true);
+    expect(r.getValue('b')).toBe(11);
+    expect(r.getValue('c')).toBe(20);
+    const entries = r.getAll();
+    expect(entries.find(p => p.name === 'b')!.expression).toContain('width');
+    expect(entries.find(p => p.name === 'c')!.expression).toContain('width');
   });
 });
 
