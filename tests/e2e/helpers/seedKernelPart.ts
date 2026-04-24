@@ -34,11 +34,32 @@ export type SeedRevolve = {
   operation: 'new' | 'join' | 'cut';
 };
 
+export type SeedFilletEdge = {
+  edgeId: {
+    faceA: { featureId: string; role: string; instance?: number };
+    faceB: { featureId: string; role: string; instance?: number };
+  };
+  selectionMode: 'edge' | 'loop' | 'feature' | 'all-fillets' | 'all-rounds';
+  radius: { kind: 'param'; paramName: string } | { kind: 'literal'; value: number };
+  variableRadii?: {
+    startRadius: { kind: 'param'; paramName: string } | { kind: 'literal'; value: number };
+    endRadius: { kind: 'param'; paramName: string } | { kind: 'literal'; value: number };
+  };
+};
+
+export type SeedFillet = {
+  id: string;
+  mode: 'constant' | 'variable';
+  edges: SeedFilletEdge[];
+  setbacks?: Array<unknown>;
+};
+
 export type SeedKernelPartOptions = {
   sketches?: SeedSketch[];
   parameters?: SeedParameter[];
   extrudes?: SeedExtrude[];
   revolves?: SeedRevolve[];
+  fillets?: SeedFillet[];
 };
 
 /**
@@ -108,6 +129,15 @@ export async function seedKernelPart(page: Page, opts: SeedKernelPartOptions): P
         angleParam: rv.angleParam,
         direction: rv.direction ?? 'normal',
         operation: rv.operation,
+      });
+    }
+    for (const f of o.fillets ?? []) {
+      await s.kernel.addFeature(s.activePart.id, {
+        kind: 'fillet',
+        id: f.id,
+        mode: f.mode,
+        edges: f.edges.map((e) => ({ ...e })),
+        setbacks: f.setbacks ?? [],
       });
     }
     const next = await s.kernel.getPart(s.activePart.id);
