@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DimensionConstraint, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { DimensionConstraint, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -52,6 +52,8 @@ type AppState = {
   setParameterInStore(param: SketchParameter): void;
   highlightedConstraintIds: string[];
   setHighlightedConstraintIds(ids: string[]): void;
+  featureErrors: Map<string, KernelError>;
+  setFeatureErrors(m: Map<string, KernelError>): void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -90,6 +92,8 @@ export const useAppStore = create<AppState>((set) => ({
   setFilletDialogOpen: (v) => set({ filletDialogOpen: v }),
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
+  featureErrors: new Map(),
+  setFeatureErrors: (m) => set({ featureErrors: m }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {
     const part = state.activePart;
     if (!part) return state;

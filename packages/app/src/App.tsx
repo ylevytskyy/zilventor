@@ -188,8 +188,10 @@ export default function App() {
       if (cancelled) return;
       if (res.ok) {
         viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+        useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
+        useAppStore.getState().setFeatureErrors(new Map());
       }
     })();
     return () => { cancelled = true; };
@@ -321,6 +323,12 @@ export default function App() {
       committedSketchRendererRef.current = null;
     };
   }, []);
+
+  // Reset per-feature errors when the active part changes — stale errors from a
+  // previous part must not linger in the BrowserPane badge of the new part.
+  useEffect(() => {
+    useAppStore.getState().setFeatureErrors(new Map());
+  }, [activePart?.id]);
 
   // Sync ParameterRegistry with the active part's parameters on every part change.
   useEffect(() => {
@@ -558,6 +566,9 @@ export default function App() {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+          } else if (!unmountedRef.current) {
+            useAppStore.getState().setFeatureErrors(new Map());
           }
         }
       }
