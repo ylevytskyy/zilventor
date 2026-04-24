@@ -32,7 +32,8 @@ export type Feature =
   | ChamferFeature
   | ShellFeature
   | LinearPatternFeature
-  | MirrorFeature;
+  | MirrorFeature
+  | HoleFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -182,4 +183,46 @@ export type ShellFeature = {
    * uses `{ kind: 'literal', value: -1 }` for a 1 mm wall.
    */
   thickness: ParamOrLiteral;
+};
+
+export type HolePlacement =
+  | { kind: 'fromSketch'; sketchId: string }
+  | {
+      kind: 'linear';
+      faceName: FaceName;
+      refEdge1: EdgeName;
+      offset1: ParamOrLiteral;
+      refEdge2: EdgeName;
+      offset2: ParamOrLiteral;
+    }
+  | { kind: 'concentric'; faceName: FaceName; circularEdgeName: EdgeName };
+
+export type HoleProfile =
+  | { kind: 'simple'; diameter: ParamOrLiteral }
+  | {
+      kind: 'counterbore';
+      diameter: ParamOrLiteral;
+      cboreDiameter: ParamOrLiteral;
+      cboreDepth: ParamOrLiteral;
+    }
+  | {
+      kind: 'countersink';
+      diameter: ParamOrLiteral;
+      cskDiameter: ParamOrLiteral;
+      cskAngle: ParamOrLiteral;  // full included angle, default 82°
+    };
+
+export type HoleTermination =
+  | { kind: 'distance'; depth: ParamOrLiteral }
+  | { kind: 'throughAll' }
+  | { kind: 'toFace'; targetFaceName: FaceName }
+  | { kind: 'toNext' };
+
+export type HoleFeature = {
+  id: string;
+  kind: 'hole';
+  placement: HolePlacement;
+  profile: HoleProfile;
+  termination: HoleTermination;
+  flipAxis: boolean;
 };

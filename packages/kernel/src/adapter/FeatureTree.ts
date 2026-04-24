@@ -557,6 +557,9 @@ export async function executeTree(
         continue;
       }
       finalSolid = mirrorResult.value;
+    } else if (feature.kind === 'hole') {
+      // Wired in Task 17
+      continue;
     }
   }
 
