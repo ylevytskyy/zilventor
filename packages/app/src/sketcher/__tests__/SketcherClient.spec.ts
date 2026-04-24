@@ -30,6 +30,26 @@ describe('SketcherClient', () => {
     expect(api.loadSketch).toHaveBeenCalledOnce();
   });
 
+  it('forwards addDimension to the underlying worker api', async () => {
+    const api = makeFakeApi();
+    const client = new SketcherClient(api);
+    const r = await client.addDimension({
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    }, 50);
+    expect('ok' in r).toBe(true);
+    expect((api.addDimension as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1);
+  });
+
+  it('forwards removeDimension and updateDimensionValue', async () => {
+    const api = makeFakeApi();
+    const client = new SketcherClient(api);
+    await client.removeDimension('d0');
+    await client.updateDimensionValue('d0', 100);
+    expect(api.removeDimension).toHaveBeenCalledOnce();
+    expect(api.updateDimensionValue).toHaveBeenCalledOnce();
+  });
+
   it('exposes a typed drag bracket', async () => {
     const api = makeFakeApi();
     const client = new SketcherClient(api);

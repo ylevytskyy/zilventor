@@ -3,6 +3,7 @@ import type {
   DragSolveResult,
   LoadSketchResult,
   AddConstraintResult,
+  AddDimensionResult,
   DofStatus,
   PrimitiveCoordsDiff,
   SnapEvent
@@ -10,7 +11,8 @@ import type {
 import type {
   SketchPrimitive,
   SketchConstraint,
-  PointRef
+  PointRef,
+  DimensionConstraint
 } from '@zilventor/shared';
 
 export class SketcherClient {
@@ -27,6 +29,15 @@ export class SketcherClient {
   }
   addConstraint(c: SketchConstraint): Promise<AddConstraintResult> { return this.api.addConstraint(c); }
   removeConstraint(id: string): Promise<{ dof: DofStatus }> { return this.api.removeConstraint(id); }
+  addDimension(c: DimensionConstraint, resolvedValue: number): Promise<AddDimensionResult> {
+    return this.api.addDimension(c, resolvedValue);
+  }
+  removeDimension(id: string): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }> {
+    return this.api.removeDimension(id);
+  }
+  updateDimensionValue(id: string, resolvedValue: number): Promise<{ dof: DofStatus; coords: PrimitiveCoordsDiff[] }> {
+    return this.api.updateDimensionValue(id, resolvedValue);
+  }
   beginDrag(ref: PointRef): Promise<void> { return this.api.beginDrag(ref); }
   async dragTo(x: number, y: number): Promise<DragSolveResult> {
     const r = await this.api.dragTo(x, y);
