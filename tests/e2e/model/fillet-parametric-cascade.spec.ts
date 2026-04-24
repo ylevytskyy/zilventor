@@ -11,7 +11,7 @@ import { seedKernelPart } from '../helpers/seedKernelPart';
  * fillet on the same cube, which only happens if the parameter-change cascade
  * reaches the fillet feature recomputation path.
  */
-test.skip('fillet geometry responds to radius parameter change (partial fix: cascade now calls kernel.execute but fillet mesh does not re-tessellate with new radius)', async ({ page }) => {
+test.skip('fillet geometry responds to radius parameter change (deep gap: cascade reaches kernel with new r_fillet but mesh tri count identical before/after — OCCT MakeFillet behavior or viewport mesh staleness)', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
 
@@ -24,7 +24,7 @@ test.skip('fillet geometry responds to radius parameter change (partial fix: cas
   await seedKernelPart(page, {
     parameters: [
       { name: 'd1', expression: '10', value: 10, unit: 'mm' },
-      { name: 'r_fillet', expression: '1', value: 1, unit: 'mm' },
+      { name: 'r_fillet', expression: '0.5', value: 0.5, unit: 'mm' },
     ],
     sketches: [
       {
@@ -60,7 +60,7 @@ test.skip('fillet geometry responds to radius parameter change (partial fix: cas
     };
     w.__zilventorParameterRegistry.setParameter({
       name: 'r_fillet',
-      expression: '1',
+      expression: '0.5',
       unit: 'mm',
     });
     w.__zilventorParameterRegistry.setParameter({
@@ -80,15 +80,15 @@ test.skip('fillet geometry responds to radius parameter change (partial fix: cas
   // Open Parameters panel via F7 and edit r_fillet from 1 to 3.
   await page.keyboard.press('F7');
   await expect(page.getByRole('dialog', { name: /Parameters/i })).toBeVisible();
-  await expect(page.locator('[data-testid="param-expression-r_fillet"]')).toHaveText('1');
+  await expect(page.locator('[data-testid="param-expression-r_fillet"]')).toHaveText('0.5');
 
   await page.locator('[data-testid="param-expression-r_fillet"]').dblclick();
   const input = page.locator('[data-testid="param-row-r_fillet"] input');
-  await input.fill('3');
+  await input.fill('4.5');
   await input.press('Enter');
 
   // Registry recompute is synchronous.
-  await expect(page.locator('[data-testid="param-value-r_fillet"]')).toHaveText('3');
+  await expect(page.locator('[data-testid="param-value-r_fillet"]')).toHaveText('4.5');
 
   // The cascade must reach kernel → executeTree → viewport. A 3 mm fillet on a
   // 10 mm cube edge tessellates with a measurably different triangle count than
