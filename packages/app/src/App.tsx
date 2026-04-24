@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FilletEdgeSpec, FilletSelectionMode, FilletFeature, EdgeName } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -29,6 +29,9 @@ import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue }
 import { AxisPickController } from './model/AxisPickController';
 import { ProfilePickController } from './model/ProfilePickController';
 import { AddRevolveFeatureCommand } from './commands/AddRevolveFeatureCommand';
+import { EdgePickController, type TessellatedEdge } from './model/EdgePickController';
+import { FilletDialog, type FilletDialogValue, type FilletMode } from './shell/FilletDialog';
+import { AddFilletFeatureCommand } from './commands/AddFilletFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -64,6 +67,13 @@ export default function App() {
   const committedSketchRendererRef = useRef<CommittedSketchRenderer | null>(null);
   const axisPickerRef = useRef<AxisPickController>(new AxisPickController());
   const profilePickerRef = useRef<ProfilePickController>(new ProfilePickController());
+  const edgePickerRef = useRef<EdgePickController>(new EdgePickController());
+  // Tessellated-edge cache for edge picking. T23-T25 interim: left empty because
+  // ExecutionResult currently unwraps `finalSolid` to an OcctShape and drops the
+  // NamedShape face-name map. A future task can extend ExecutionResult to expose
+  // the NamedShape + tessellated edges so the Add button in FilletDialog can
+  // actually populate the edge list.
+  const tessellatedEdgesRef = useRef<TessellatedEdge[]>([]);
 
   const [numericVisible, setNumericVisible] = useState(false);
   const [numericFieldCount, setNumericFieldCount] = useState(0);
@@ -84,6 +94,21 @@ export default function App() {
   // preview-debounce path. Cleared on successful commit/apply so a subsequent
   // Cancel does not delete a legitimately-committed param.
   const scratchParamNameRef = useRef<string | null>(null);
+
+  // Fillet dialog state.
+  const [filletEdges, setFilletEdges] = useState<FilletEdgeSpec[]>([]);
+  const [filletSelectionMode, setFilletSelectionMode] = useState<FilletSelectionMode>('edge');
+  const [filletMode, setFilletMode] = useState<FilletMode>('constant');
+  const [filletPreviewError, setFilletPreviewError] = useState<string | null>(null);
+  const [pickingFilletEdges, setPickingFilletEdges] = useState(false);
+  // Hovered edge set — kept in state so a future highlight overlay in the
+  // viewport can subscribe. For the T23-T25 stub no renderer consumes it yet.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [hoveredEdgeSet, setHoveredEdgeSet] = useState<EdgeName[] | null>(null);
+  const filletPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks every scratch parameter name written during preview so Cancel can
+  // delete them. Used as a Set so repeated previews under the same name are idempotent.
+  const filletScratchParamsRef = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -106,6 +131,8 @@ export default function App() {
   const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
   const revolveDialogOpen = useAppStore((s) => s.revolveDialogOpen);
   const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
+  const filletDialogOpen = useAppStore((s) => s.filletDialogOpen);
+  const setFilletDialogOpen = useAppStore((s) => s.setFilletDialogOpen);
   const parameterValues = useParameterValues(parameterRegistry);
 
   // Expose store and perf hooks to E2E/perf tests (dev only).
@@ -435,6 +462,11 @@ export default function App() {
         useAppStore.getState().setRevolveDialogOpen(true);
         return;
       }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        useAppStore.getState().setFilletDialogOpen(true);
+        return;
+      }
       if (e.key === 'F7') {
         e.preventDefault();
         useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
@@ -540,6 +572,34 @@ export default function App() {
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
+    // Model-mode fillet edge pick. Hover highlights the candidate, click
+    // commits the pick into the dialog's edge list. screenToWorld returns 2D
+    // (x,y); EdgePickController expects Vec3 — we pad z=0 for the stub path.
+    // When tessellatedEdgesRef is wired to a real 3D shape a proper ray-hit
+    // will replace this.
+    if (!sketchMode && pickingFilletEdges) {
+      if (ev.type === 'move') {
+        const w = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+        const hover = edgePickerRef.current.highlight({ x: w.x, y: w.y, z: 0 });
+        setHoveredEdgeSet(hover);
+        return;
+      }
+      if (ev.type === 'click') {
+        const w = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+        const pick = edgePickerRef.current.pick({ x: w.x, y: w.y, z: 0 });
+        if (pick && pick.length > 0) {
+          const newSpecs: FilletEdgeSpec[] = pick.map((edgeId) => ({
+            edgeId,
+            selectionMode: filletSelectionMode,
+            radius: { kind: 'param', paramName: 'r_fillet' }
+          }));
+          setFilletEdges((prev) => [...prev, ...newSpecs]);
+          setPickingFilletEdges(false);
+          setHoveredEdgeSet(null);
+        }
+      }
+      return;
+    }
     // Model-mode profile pick: route a click to the ProfilePickController and
     // bail out. Movements/hovers are ignored.
     if (!sketchMode && pickingProfile) {
@@ -583,7 +643,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile]);
+  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, filletSelectionMode]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
@@ -796,8 +856,163 @@ export default function App() {
         clearTimeout(previewTimerRef.current);
         previewTimerRef.current = null;
       }
+      if (filletPreviewTimerRef.current) {
+        clearTimeout(filletPreviewTimerRef.current);
+        filletPreviewTimerRef.current = null;
+      }
     };
   }, []);
+
+  // Fillet dialog handlers.
+  // T23-T25 INTERIM: real edge picking requires tessellated-edge extraction
+  // from the executed NamedShape (currently dropped by ExecutionResult). Until
+  // that kernel extension lands, Add surfaces a stub toast but commit flow is
+  // fully wired — E2E tests can seed filletEdges directly via store
+  // manipulation to exercise the commit path.
+  const onFilletAddEdges = useCallback(() => {
+    if (!activePart) return;
+    if (tessellatedEdgesRef.current.length === 0) {
+      showToast('Edge picking not yet wired — tessellated-edge cache is empty.');
+      return;
+    }
+    edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
+    edgePickerRef.current.setMode(filletSelectionMode);
+    setPickingFilletEdges(true);
+  }, [activePart, filletSelectionMode, showToast]);
+
+  const onFilletRemoveEdge = useCallback((spec: FilletEdgeSpec) => {
+    setFilletEdges((prev) => prev.filter((e) => e !== spec));
+  }, []);
+
+  const scheduleFilletPreview = useCallback((v: FilletDialogValue) => {
+    if (filletPreviewTimerRef.current) clearTimeout(filletPreviewTimerRef.current);
+    if (!activePart || !kernel || filletEdges.length === 0) return;
+    const part = activePart;
+    const k = kernel;
+    filletPreviewTimerRef.current = setTimeout(async () => {
+      filletPreviewTimerRef.current = null;
+      try {
+        await k.setParameter(part.id, {
+          name: 'r_fillet', expression: v.radius, value: 0, unit: 'mm'
+        });
+        filletScratchParamsRef.current.add('r_fillet');
+        const scratch: FilletFeature = {
+          kind: 'fillet',
+          id: 'F_scratch',
+          mode: v.mode,
+          edges: filletEdges.map((e) => ({
+            ...e,
+            radius: { kind: 'param', paramName: 'r_fillet' }
+          })),
+          setbacks: []
+        };
+        const r = await k.previewFeature(part.id, scratch);
+        if (r.ok) {
+          viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
+          setFilletPreviewError(null);
+        } else {
+          viewportRef.current?.clearPreviewMesh();
+          setFilletPreviewError(r.error.message);
+        }
+        if (import.meta.env.DEV && typeof window !== 'undefined') {
+          const w = window as unknown as { __zilventorFilletPreviewCount?: number };
+          w.__zilventorFilletPreviewCount = (w.__zilventorFilletPreviewCount ?? 0) + 1;
+        }
+      } catch (e) {
+        viewportRef.current?.clearPreviewMesh();
+        setFilletPreviewError((e as Error).message);
+      }
+    }, 200);
+  }, [activePart, kernel, filletEdges]);
+
+  const clearFilletPreview = useCallback(() => {
+    if (filletPreviewTimerRef.current) clearTimeout(filletPreviewTimerRef.current);
+    filletPreviewTimerRef.current = null;
+    viewportRef.current?.clearPreviewMesh();
+    setFilletPreviewError(null);
+  }, []);
+
+  const clearFilletScratchParams = useCallback(async () => {
+    if (!activePart || !kernel) return;
+    for (const name of filletScratchParamsRef.current) {
+      await kernel.deleteParameter(activePart.id, name);
+    }
+    filletScratchParamsRef.current.clear();
+  }, [activePart, kernel]);
+
+  const onFilletCommit = useCallback(async (v: FilletDialogValue) => {
+    if (!activePart || !kernel || filletEdges.length === 0) return;
+    const feature: FilletFeature = {
+      kind: 'fillet',
+      id: `f${Date.now()}`,
+      mode: v.mode,
+      edges: filletEdges,
+      setbacks: []
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      r_fillet: { expression: v.radius, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      await store.bus.execute(new AddFilletFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart }
+      }));
+      // Commit consumed the scratch param into a real one — forget it so a
+      // later Cancel won't delete a committed param.
+      filletScratchParamsRef.current.clear();
+      clearFilletPreview();
+      setFilletDialogOpen(false);
+      setFilletEdges([]);
+      setPickingFilletEdges(false);
+      setHoveredEdgeSet(null);
+    } catch (e) {
+      showToast(`Fillet failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, filletEdges, clearFilletPreview, setFilletDialogOpen, showToast]);
+
+  const onFilletApply = useCallback(async (v: FilletDialogValue) => {
+    // Apply = commit but keep the dialog open. Mirrors onRevolveApply.
+    if (!activePart || !kernel || filletEdges.length === 0) return;
+    const feature: FilletFeature = {
+      kind: 'fillet',
+      id: `f${Date.now()}`,
+      mode: v.mode,
+      edges: filletEdges,
+      setbacks: []
+    };
+    const parameterExpressions: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {
+      r_fillet: { expression: v.radius, unit: 'mm' }
+    };
+    const store = useAppStore.getState();
+    try {
+      await store.bus.execute(new AddFilletFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions,
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart }
+      }));
+      filletScratchParamsRef.current.clear();
+      clearFilletPreview();
+    } catch (e) {
+      showToast(`Fillet failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, filletEdges, clearFilletPreview, showToast]);
+
+  const onFilletCancel = useCallback(() => {
+    clearFilletPreview();
+    void clearFilletScratchParams();
+    setFilletDialogOpen(false);
+    setFilletEdges([]);
+    setPickingFilletEdges(false);
+    setHoveredEdgeSet(null);
+  }, [clearFilletPreview, clearFilletScratchParams, setFilletDialogOpen]);
 
   return (
     <div className="flex flex-col h-full">
@@ -884,6 +1099,36 @@ export default function App() {
         <ParametersPanel
           registry={parameterRegistry}
           onClose={() => setParametersPanelOpen(false)}
+        />
+      )}
+      {filletDialogOpen && (
+        <FilletDialog
+          edges={filletEdges}
+          pickingMode={filletSelectionMode}
+          previewError={filletPreviewError}
+          initialMode={filletMode}
+          onCommit={(v) => { void onFilletCommit(v); }}
+          onApply={(v) => { void onFilletApply(v); }}
+          onCancel={onFilletCancel}
+          onAddEdges={onFilletAddEdges}
+          onRemoveEdge={onFilletRemoveEdge}
+          onClearEdges={() => setFilletEdges([])}
+          onSelectionModeChange={setFilletSelectionMode}
+          onModeChange={setFilletMode}
+          onRadiusChange={(e) => {
+            scheduleFilletPreview({ mode: filletMode, radius: e, edges: filletEdges, setbacks: [] });
+          }}
+          validateExpression={(expr) => {
+            // dryRun so the registry isn't mutated while the user types. We
+            // validate under 'r_fillet_dry' — the dialog's name is committed
+            // at onFilletCommit time.
+            const res = parameterRegistry.dryRun({
+              name: 'r_fillet_dry',
+              expression: expr,
+              unit: 'mm'
+            });
+            return res.ok ? null : formatExpressionError(res.error);
+          }}
         />
       )}
       {revolveDialogOpen && (

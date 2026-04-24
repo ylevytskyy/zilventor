@@ -51,7 +51,13 @@ export default function ModelTab() {
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>Revolve (R)</button>
       </RibbonPanel>
       <RibbonPanel title="Modify">
-        <button className="text-xs text-neutral-500" disabled>Fillet (SP3)</button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasSketch}
+          onClick={() => useAppStore.getState().setFilletDialogOpen(true)}
+        >
+          Fillet (F)
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Parameters">
         <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>Parameters…</button>
