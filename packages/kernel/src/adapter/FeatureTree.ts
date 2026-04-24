@@ -116,7 +116,7 @@ export async function executeTree(
         return ex;
       }
 
-      const applied = applyBooleanOp(oc, finalSolid, ex.value.solid, feature.operation);
+      const applied = applyBooleanOp(oc, finalSolid, ex.value.solid, feature.operation, feature.id);
       if (!applied.ok) {
         // applyBooleanOp has already disposed the freshly made solid (and the
         // running body for the fuse/cut branches); we only need to clear our
@@ -173,7 +173,8 @@ function applyBooleanOp(
   oc: OcctInstance,
   running: OcctShape | null,
   next: OcctShape,
-  op: BooleanOperation
+  op: BooleanOperation,
+  featureId: string
 ): Result<OcctShape, KernelError> {
   if (op === 'new') {
     if (running) disposeShape(running);
@@ -184,6 +185,7 @@ function applyBooleanOp(
     const r = fuseShapes(oc, running, next);
     disposeShape(running);
     disposeShape(next);
+    if (!r.ok) return err({ ...r.error, featureId });
     return r;
   }
   if (op === 'cut') {
@@ -192,19 +194,23 @@ function applyBooleanOp(
       return err({
         kind: 'booleanFailed',
         message: 'Cut needs a target body',
-        correlationId: newCorrelationId()
+        correlationId: newCorrelationId(),
+        featureId
       });
     }
     const r = cutShapes(oc, running, next);
     disposeShape(running);
     disposeShape(next);
+    if (!r.ok) return err({ ...r.error, featureId });
     return r;
   }
   disposeShape(next);
   if (running) disposeShape(running);
+  const _exhaustive: never = op;
   return err({
     kind: 'booleanFailed',
-    message: `Unknown operation: ${op as string}`,
-    correlationId: newCorrelationId()
+    message: `Unknown operation: ${String(_exhaustive)}`,
+    correlationId: newCorrelationId(),
+    featureId
   });
 }

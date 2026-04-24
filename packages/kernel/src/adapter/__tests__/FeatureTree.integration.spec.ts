@@ -164,6 +164,9 @@ describe('FeatureTree single-body execution', () => {
     });
     const r = await executeTree(occt, part);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.kind).toBe('booleanFailed');
+    if (!r.ok) {
+      expect(r.error.kind).toBe('booleanFailed');
+      expect(r.error.featureId).toBe('e1');
+    }
   });
 });
