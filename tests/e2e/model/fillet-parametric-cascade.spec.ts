@@ -11,7 +11,7 @@ import { seedKernelPart } from '../helpers/seedKernelPart';
  * fillet on the same cube, which only happens if the parameter-change cascade
  * reaches the fillet feature recomputation path.
  */
-test.skip('fillet geometry responds to radius parameter change (deep gap: cascade reaches kernel with new r_fillet but mesh tri count identical before/after — OCCT MakeFillet behavior or viewport mesh staleness)', async ({ page }) => {
+test('fillet geometry responds to radius parameter change', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
 
@@ -73,9 +73,11 @@ test.skip('fillet geometry responds to radius parameter change (deep gap: cascad
   const viewport = page.locator('[data-testid="viewport"]');
   await expect(viewport).toHaveAttribute('data-triangle-count', /[1-9]\d*/);
 
-  const beforeTris = await viewport.getAttribute('data-triangle-count');
-  expect(beforeTris).toBeTruthy();
-  expect(Number(beforeTris)).toBeGreaterThan(0);
+  // Wait for the initial execute to settle so the geometry hash reflects
+  // the r_fillet=0.5 body, not a pre-fillet cube.
+  await expect(viewport).toHaveAttribute('data-geometry-hash', /^[0-9a-f]+$/);
+  const beforeHash = await viewport.getAttribute('data-geometry-hash');
+  expect(beforeHash).toBeTruthy();
 
   // Open Parameters panel via F7 and edit r_fillet from 1 to 3.
   await page.keyboard.press('F7');
@@ -90,18 +92,19 @@ test.skip('fillet geometry responds to radius parameter change (deep gap: cascad
   // Registry recompute is synchronous.
   await expect(page.locator('[data-testid="param-value-r_fillet"]')).toHaveText('4.5');
 
-  // The cascade must reach kernel → executeTree → viewport. A 3 mm fillet on a
-  // 10 mm cube edge tessellates with a measurably different triangle count than
-  // a 1 mm fillet — wait for that difference to surface.
+  // The cascade must reach kernel → executeTree → viewport. A 4.5 mm fillet
+  // and a 0.5 mm fillet tessellate to different vertex positions; the
+  // viewport's geometry-hash attribute (FNV-1a over positions) detects that
+  // change even when the triangle count happens to coincide — which it does
+  // at linearDeflection=0.1 for this particular cube+edge combination.
   await expect
-    .poll(async () => viewport.getAttribute('data-triangle-count'), {
+    .poll(async () => viewport.getAttribute('data-geometry-hash'), {
       timeout: 10_000,
-      message: 'expected triangle count to change after r_fillet edit',
+      message: 'expected geometry hash to change after r_fillet edit',
     })
-    .not.toBe(beforeTris);
+    .not.toBe(beforeHash);
 
-  const afterTris = await viewport.getAttribute('data-triangle-count');
-  expect(afterTris).toBeTruthy();
-  expect(Number(afterTris)).toBeGreaterThan(0);
-  expect(afterTris).not.toBe(beforeTris);
+  const afterHash = await viewport.getAttribute('data-geometry-hash');
+  expect(afterHash).toBeTruthy();
+  expect(afterHash).not.toBe(beforeHash);
 });

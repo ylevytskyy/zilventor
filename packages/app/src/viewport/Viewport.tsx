@@ -21,6 +21,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<SceneManager | null>(null);
   const [triangles, setTriangles] = useState(0);
+  const [geometryHash, setGeometryHash] = useState('0');
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -57,6 +58,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setMesh(p, i);
       setTriangles(i.length / 3);
+      let h = 2166136261;
+      for (let k = 0; k < p.length; k++) {
+        h = Math.imul(h ^ Math.round(p[k]! * 1000), 16777619);
+      }
+      setGeometryHash((h >>> 0).toString(16));
     },
     setPreviewMesh: (p, i) => {
       if (!sceneRef.current) return;
@@ -99,7 +105,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
   }), []);
 
   return (
-    <div className="relative w-full h-full" data-testid="viewport" data-triangle-count={triangles}>
+    <div className="relative w-full h-full" data-testid="viewport" data-triangle-count={triangles} data-geometry-hash={geometryHash}>
       <canvas
         ref={canvasRef}
         className="block w-full h-full"

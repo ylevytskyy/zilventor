@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../../../occt/occtLoader';
 import { makeBox, disposeShape, type OcctShape } from '../../../occt/SolidOps';
+import { tessellate } from '../../../occt/Tessellator';
 import {
   namedFace,
   attachName,
@@ -141,5 +142,53 @@ describe('executeFilletFeature (integration)', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.kind).toBe('edgeNotFound');
     disposeShape(box);
+  });
+
+  it('produces geometry whose vertex positions vary with fillet radius', () => {
+    // Regression guard for the fillet parametric cascade. The triangle count
+    // alone is not a reliable signal that MakeFillet reacted to a radius
+    // change — at linearDeflection=0.1, a 10 mm cube filleted at 0.5 mm and
+    // at 4.5 mm happens to tessellate to the same number of tris (40). The
+    // vertex positions, however, do differ, because the blend face lives at
+    // different distances from the corner. Hash the tessellated positions
+    // (FNV-1a over 0.001 mm-quantised floats) to confirm MakeFillet is
+    // actually consuming the radius we hand it.
+    const mkPosHash = (radius: number): string => {
+      const box = makeBox(oc, 10, 10, 10);
+      const named = nameBoxFaces(oc, box, 'E1');
+      const feature: FilletFeature = {
+        kind: 'fillet',
+        id: 'F1',
+        mode: 'constant',
+        edges: [
+          {
+            edgeId: canonicalEdgeName(
+              namedFace('E1', 'top'),
+              namedFace('E1', 'side', 0)
+            ),
+            selectionMode: 'edge',
+            radius: { kind: 'literal', value: radius }
+          }
+        ],
+        setbacks: []
+      };
+      const r = executeFilletFeature(oc, named, feature, (p) =>
+        p.kind === 'literal' ? ok(p.value) : ok(2)
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) throw new Error('fillet failed');
+      const mesh = tessellate(oc, r.value.shape, { linearDeflection: 0.1 });
+      let h = 2166136261;
+      for (let i = 0; i < mesh.positions.length; i++) {
+        h = Math.imul(h ^ Math.round(mesh.positions[i]! * 1000), 16777619);
+      }
+      disposeShape(r.value.shape);
+      disposeShape(box);
+      return (h >>> 0).toString(16);
+    };
+
+    const hashSmall = mkPosHash(0.5);
+    const hashLarge = mkPosHash(4.5);
+    expect(hashSmall).not.toBe(hashLarge);
   });
 });
