@@ -74,6 +74,46 @@ export function makeSimpleCutter(
   return fuse.Shape();
 }
 
+export type CountersinkCutterOpts = {
+  diameter: number;
+  cylinderLength: number;
+  cskDiameter: number;
+  /** full included angle, e.g. 82 (wood screw) */
+  cskAngleDeg: number;
+  drillTipAngleDeg: number | null;
+};
+
+export function makeCountersinkCutter(
+  oc: any,
+  origin: any,
+  axis: any,
+  opts: CountersinkCutterOpts,
+): any {
+  const topRadius = opts.cskDiameter / 2;
+  const bottomRadius = opts.diameter / 2;
+  const halfAngleRad = (opts.cskAngleDeg / 2) * (Math.PI / 180);
+  // Frustum height: Δr / tan(halfAngle)
+  const cskHeight = (topRadius - bottomRadius) / Math.tan(halfAngleRad);
+
+  const cskFrame = new oc.gp_Ax2_3(origin, axis);
+  const cskCone = new oc.BRepPrimAPI_MakeCone_3(cskFrame, topRadius, bottomRadius, cskHeight).Shape();
+
+  const shankTop = new oc.gp_Pnt_3(
+    origin.X() + axis.X() * cskHeight,
+    origin.Y() + axis.Y() * cskHeight,
+    origin.Z() + axis.Z() * cskHeight,
+  );
+  const shank = makeSimpleCutter(oc, shankTop, axis, {
+    diameter: opts.diameter,
+    cylinderLength: opts.cylinderLength,
+    drillTipAngleDeg: opts.drillTipAngleDeg,
+  });
+
+  const fuse = new oc.BRepAlgoAPI_Fuse_3(cskCone, shank, new oc.Message_ProgressRange_1());
+  fuse.Build(new oc.Message_ProgressRange_1());
+  return fuse.Shape();
+}
+
 export type CounterboreCutterOpts = {
   diameter: number;
   cylinderLength: number;
