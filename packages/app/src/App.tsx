@@ -106,6 +106,7 @@ export default function App() {
       }
       w.__zilventorWorldToScreen = (wx: number, wy: number) =>
         viewportRef.current?.worldToScreen(wx, wy) ?? { x: 0, y: 0 };
+      w.__zilventorParameterRegistry = parameterRegistry;
     }
   }, []);
 
@@ -293,12 +294,17 @@ export default function App() {
     }
   }, [activePart?.id]);
 
-  // Cascade parameter changes to the solver + mirror into PartDocument.parameters.
+  // Cascade parameter changes to the solver + kernel + store.
   // Fires on any successful ParameterRegistry mutation (setParameter / rename /
-  // removeParameter). For every dim-* constraint in the active sketch whose value
-  // is { kind: 'param' }, resolve the current parameter value and push it through
-  // sketcherClient.updateDimensionValue so the solver sees the change. Also
-  // mirrors the updated SketchParameter into the store so saves persist edits.
+  // removeParameter).
+  //   1. Mirror every registry param into the store so saves persist edits.
+  //   2. Push every registry param that already lives in the active part's
+  //      parameters map down to the kernel — the kernel's executeTree reads
+  //      its OWN parts map, not the store, so without this step a parametric
+  //      revolve/extrude edit would not regenerate geometry on re-execute.
+  //   3. In sketch mode, for every dim-* constraint whose value is
+  //      { kind: 'param' }, resolve the current parameter value and push it
+  //      through sketcherClient.updateDimensionValue so the solver sees it.
   useEffect(() => {
     return parameterRegistry.subscribe(() => {
       const store = useAppStore.getState();
@@ -306,10 +312,31 @@ export default function App() {
       const part = store.activePart;
       const sketchId = store.activeSketchId;
       const client = sketcherClientRef.current;
-      // Only cascade when a sketch is actively loaded in the worker (sketchDof
-      // is non-null between SketchModeController.enter and exit). Otherwise the
-      // initial part-load burst of setParameter calls would fire updateDimensionValue
-      // before loadSketch, and the worker would throw "GcsSystem not loaded".
+      const kernelClient = store.kernel;
+      // Push changed params into the kernel's part so the next kernel.execute
+      // sees the new values. Only touch names already in part.parameters to
+      // avoid leaking sketch-dimension-only params into the part's map.
+      if (kernelClient && part) {
+        const names = Object.keys(part.parameters ?? {});
+        void (async () => {
+          for (const name of names) {
+            const p = parameterRegistry.getAll().find((x) => x.name === name);
+            if (!p || p.value === undefined) continue;
+            const stored = part.parameters[name];
+            // Only push if the expression or value actually changed — avoids a
+            // burst of no-op setParameter calls on the initial part-load sync.
+            if (stored && stored.expression === p.expression && stored.value === p.value) continue;
+            await kernelClient.setParameter(part.id, {
+              name: p.name, expression: p.expression, value: p.value, unit: p.unit
+            });
+          }
+        })();
+      }
+      // Only cascade to the sketcher worker when a sketch is actively loaded
+      // (sketchDof is non-null between SketchModeController.enter and exit).
+      // Otherwise the initial part-load burst of setParameter calls would fire
+      // updateDimensionValue before loadSketch, and the worker would throw
+      // "GcsSystem not loaded".
       if (!part || !sketchId || !client || store.sketchDof === null) return;
       const sketch = part.featureTree.find(
         (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === sketchId
