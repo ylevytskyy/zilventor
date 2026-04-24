@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct } from '../../../occt/occtLoader';
-import { makeHole } from '../../../occt/HoleOps';
-import { executeHoleFeature } from '../HoleFeature';
+import { makeHole, axisSolidCrossings } from '../../../occt/HoleOps';
+import { executeHoleFeature, resolveToFaceLength } from '../HoleFeature';
 import type { NamedShape } from '../../../occt/FaceNaming';
 import type { FaceName, EdgeName } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
@@ -223,5 +223,37 @@ describe('makeHole — integration (kernel)', () => {
     const origVol = Math.PI * 25 * 10;        // R²·π·H = 25π·10
     const holeVol = Math.PI * 1 * 1 * 10;     // r²·π·H = π·10
     expect(origVol - props.Mass()).toBeCloseTo(holeVol, 0);
+  });
+
+  it('resolveToFaceLength stops exactly at the picked face on a stacked-plate fixture', () => {
+    // Two plates fused: A z=0..5, B z=5..10. Total body z=0..10.
+    const a = new oc.BRepPrimAPI_MakeBox_2(20, 20, 5).Shape();
+    // Build second plate at origin then translate +5 along Z.
+    const bRaw = new oc.BRepPrimAPI_MakeBox_2(20, 20, 5).Shape();
+    const trsf = new oc.gp_Trsf_1();
+    trsf.SetTranslation_1(new oc.gp_Vec_4(0, 0, 5));
+    const bXform = new oc.BRepBuilderAPI_Transform_2(bRaw, trsf, false);
+    const bShape = bXform.Shape();
+    const fuse = new oc.BRepAlgoAPI_Fuse_3(a, bShape, new oc.Message_ProgressRange_1());
+    fuse.Build(new oc.Message_ProgressRange_1());
+    const body = fuse.Shape();
+
+    const { named, faceNameOf } = nameCubeFaces(oc, body, 'F1');
+    const bottomFaceName = faceNameOf['bottom'];
+
+    const origin = new oc.gp_Pnt_3(10, 10, 15);  // above top
+    const axis = new oc.gp_Dir_4(0, 0, -1);
+    const length = resolveToFaceLength(oc, body, named.faceNames, bottomFaceName!, origin, axis);
+    // Bottom face at z=0; origin at z=15; axis -Z → length = 15
+    expect(length).toBeCloseTo(15, 3);
+  });
+
+  it('toNext termination via axisSolidCrossings stops at first body face past entry', () => {
+    const cube = new oc.BRepPrimAPI_MakeBox_2(10, 10, 10).Shape();
+    const origin = new oc.gp_Pnt_3(5, 5, 15);  // above cube
+    const axis = new oc.gp_Dir_4(0, 0, -1);    // pointing down
+    const crossings = axisSolidCrossings(oc, cube, origin, axis);
+    // Entry: top face (z=10) at distance 5; "next" past entry = bottom face at distance 15
+    expect(crossings[1]!.distance).toBeCloseTo(15, 3);
   });
 });

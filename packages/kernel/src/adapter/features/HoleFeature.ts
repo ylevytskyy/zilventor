@@ -8,6 +8,7 @@ import {
 } from '../../occt/FaceNaming';
 import {
   makeHole,
+  axisSolidCrossings,
   type HoleLocation,
   type ResolvedHoleProfile,
   type ResolvedHoleTermination,
@@ -160,14 +161,47 @@ function resolveProfile(p: HoleProfile, resolve: (v: ParamOrLiteral) => number):
   };
 }
 
+/**
+ * Walk axis-ray crossings against the body and return the distance to the first crossing
+ * on a face that matches the target FaceName. Throws if no matching crossing exists.
+ *
+ * Exported for kernel-level testing of the toFace termination path.
+ */
+export function resolveToFaceLength(
+  oc: OcctInstance,
+  body: unknown,
+  faceNames: Array<{ name: FaceName; face: unknown }>,
+  targetFaceName: FaceName,
+  origin: unknown,
+  axis: unknown,
+): number {
+  const crossings = axisSolidCrossings(oc as any, body as any, origin as any, axis as any);
+  for (const crossing of crossings) {
+    for (const entry of faceNames) {
+      const isSame = (entry.face as { IsSame?: (o: unknown) => boolean }).IsSame?.(crossing.face);
+      if (!isSame) continue;
+      if (faceNamesEqual(entry.name, targetFaceName)) {
+        return crossing.distance;
+      }
+    }
+  }
+  throw new Error(`toFace: target face ${targetFaceName.role} not reached by axis`);
+}
+
 function resolveTermination(
+  oc: OcctInstance,
+  body: unknown,
+  faceNames: Array<{ name: FaceName; face: unknown }>,
   t: HoleTermination,
+  loc: HoleLocation,
   resolve: (v: ParamOrLiteral) => number,
-): ResolvedHoleTermination | null {
+): ResolvedHoleTermination {
   if (t.kind === 'distance') return { kind: 'distance', depth: resolve(t.depth), blindTip: true };
   if (t.kind === 'throughAll') return { kind: 'throughAll' };
   if (t.kind === 'toNext') return { kind: 'toNext' };
-  return null;  // toFace — implemented in Task 14
+  // toFace: translate to a distance with no drill tip
+  const length = resolveToFaceLength(oc, body, faceNames, t.targetFaceName, loc.origin, loc.axis);
+  return { kind: 'distance', depth: length, blindTip: false };
 }
 
 function resolveFromSketchLocations(
@@ -265,16 +299,25 @@ export function executeHoleFeature(
   }
 
   const profile = resolveProfile(feature.profile, resolveParam);
-  const termination = resolveTermination(feature.termination, resolveParam);
-  if (termination === null) throw new Error('hole: toFace termination not yet implemented');
 
-  const cutShape = makeHole(oc as any, runningBody.shape as any, locations, profile, termination);
+  // Per-location loop: each location resolves its own termination (required for toFace,
+  // which can yield a different depth per location depending on origin).
+  let runningShape: unknown = runningBody.shape;
+  const newNamesAccum = new Map<unknown, FaceName>();
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i]!;
+    const term = resolveTermination(
+      oc, runningShape, runningBody.faceNames,
+      feature.termination, loc, resolveParam,
+    );
+    runningShape = makeHole(oc as any, runningShape as any, [loc], profile, term);
+    const blind = term.kind === 'distance' && term.blindTip;
+    const tagged = tagHoleFaces(oc, runningShape as any, feature.id, i, feature.profile.kind, blind);
+    for (const [face, name] of tagged) newNamesAccum.set(face, name);
+  }
 
-  const blind = termination.kind === 'distance';
-  const newNames = tagHoleFaces(oc, cutShape, feature.id, 0, feature.profile.kind, blind);
-
-  const named: NamedShape = { shape: cutShape as any, faceNames: [...runningBody.faceNames] };
-  for (const [face, name] of newNames) {
+  const named: NamedShape = { shape: runningShape as any, faceNames: [...runningBody.faceNames] };
+  for (const [face, name] of newNamesAccum) {
     attachName(named, face, name);
   }
   return named;
