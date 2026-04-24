@@ -28,4 +28,12 @@ describe('Ribbon', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Drawing' }));
     expect(screen.getByText(/sub-project 6/i)).toBeTruthy();
   });
+
+  it('Model tab shows Fillet, Chamfer, Shell buttons in the Modify panel', () => {
+    render(<Ribbon />);
+    // Model is active by default, so the Modify panel buttons are rendered.
+    expect(screen.getByRole('button', { name: /Fillet/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Chamfer/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Shell/ })).toBeTruthy();
+  });
 });

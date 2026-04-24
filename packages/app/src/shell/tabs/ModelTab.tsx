@@ -53,10 +53,24 @@ export default function ModelTab() {
       <RibbonPanel title="Modify">
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
-          disabled={!hasSketch}
+          disabled={!hasRunningBody}
           onClick={() => useAppStore.getState().setFilletDialogOpen(true)}
         >
           Fillet (F)
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasRunningBody}
+          onClick={() => useAppStore.getState().setChamferDialogOpen(true)}
+        >
+          Chamfer (K)
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasRunningBody}
+          onClick={() => useAppStore.getState().setShellDialogOpen(true)}
+        >
+          Shell (S)
         </button>
       </RibbonPanel>
       <RibbonPanel title="Parameters">
