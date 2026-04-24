@@ -3,11 +3,11 @@ import { CURRENT_FORMAT_VERSION, migrateManifest, type AnyManifest } from '../fi
 
 describe('fileFormat', () => {
   it('exports a locked current version', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(4);
+    expect(CURRENT_FORMAT_VERSION).toBe(5);
   });
 
   it('returns the manifest unchanged when already current', () => {
-    const m = { formatVersion: 4, kind: 'part' as const };
+    const m = { formatVersion: 5, kind: 'part' as const };
     expect(migrateManifest(m)).toEqual(m);
   });
 
@@ -22,8 +22,8 @@ describe('fileFormat', () => {
 });
 
 describe('fileFormat v1 → v2', () => {
-  it('exports version 4 as current', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(4);
+  it('exports version 5 as current', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(5);
   });
 
   it('migrates a v1 manifest (rectangle without id) to v2 with synthesized id', () => {
@@ -41,7 +41,7 @@ describe('fileFormat v1 → v2', () => {
       }
     } as unknown as AnyManifest;
     const m = migrateManifest(v1);
-    expect(m.formatVersion).toBe(4);
+    expect(m.formatVersion).toBe(5);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
     expect(doc.featureTree[0]!.primitives[0]!.id).toBe('s1-p0');
   });
@@ -111,7 +111,7 @@ describe('fileFormat migrations', () => {
     };
     const out = migrateManifest(input);
     expect(out.formatVersion).toBe(CURRENT_FORMAT_VERSION);
-    expect(CURRENT_FORMAT_VERSION).toBe(4);
+    expect(CURRENT_FORMAT_VERSION).toBe(5);
   });
 
   it('v2 → v3 seeds constraints on sketches that have none', () => {
@@ -186,8 +186,8 @@ describe('fileFormat v3 → v4 migration', () => {
       }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(4);
-    expect(CURRENT_FORMAT_VERSION).toBe(4);
+    expect(out.formatVersion).toBe(5);
+    expect(CURRENT_FORMAT_VERSION).toBe(5);
     const params = (out.document as { parameters: Record<string, unknown> }).parameters;
     expect(params.d0).toEqual({ name: 'd0', expression: '50', value: 50, unit: 'mm' });
   });
@@ -198,8 +198,51 @@ describe('fileFormat v3 → v4 migration', () => {
       document: { featureTree: [] }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(4);
+    expect(out.formatVersion).toBe(5);
     const doc = out.document as { parameters?: Record<string, unknown> };
     expect(doc.parameters).toEqual({});
+  });
+});
+
+describe('fileFormat v4 → v5 migration', () => {
+  it('single-extrude v4 manifest gets operation: new', () => {
+    const input: AnyManifest = {
+      formatVersion: 4,
+      document: {
+        id: 'P1', name: 'P', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+          { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd0', direction: 'forward' }
+        ]
+      }
+    };
+    const out = migrateManifest(input);
+    expect(out.formatVersion).toBe(5);
+    expect(CURRENT_FORMAT_VERSION).toBe(5);
+    const tree = (out.document as { featureTree: Array<{ kind: string; operation?: string }> }).featureTree;
+    const ex = tree.find((f) => f.kind === 'extrude')!;
+    expect(ex.operation).toBe('new');
+  });
+
+  it('multi-extrude v4 manifest: first gets new, rest get join', () => {
+    const input: AnyManifest = {
+      formatVersion: 4,
+      document: {
+        featureTree: [
+          { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd0', direction: 'forward' },
+          { kind: 'extrude', id: 'E2', sketchRef: 'S2', distanceParam: 'd1', direction: 'forward' }
+        ]
+      }
+    };
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<{ kind: string; operation?: string }> }).featureTree;
+    expect(tree[0]!.operation).toBe('new');
+    expect(tree[1]!.operation).toBe('join');
+  });
+
+  it('empty tree migrates without change', () => {
+    const input: AnyManifest = { formatVersion: 4, document: { featureTree: [] } };
+    const out = migrateManifest(input);
+    expect(out.formatVersion).toBe(5);
   });
 });

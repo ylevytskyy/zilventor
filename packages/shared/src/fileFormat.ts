@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 4 as const;
+export const CURRENT_FORMAT_VERSION = 5 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -58,6 +58,26 @@ const migrations: Record<number, MigrateFn> = {
       doc.parameters = {};
     }
     return { ...m, formatVersion: 4 };
+  },
+
+  // v4 → v5: add operation field to extrude features.
+  // First extrude in the tree gets 'new' (creates the initial body);
+  // subsequent extrudes get 'join' (fuse into the running body).
+  4: (mIn) => {
+    const m = deepClone(mIn);
+    const doc = m.document as { featureTree?: Array<Record<string, unknown>> } | undefined;
+    if (doc?.featureTree) {
+      // Count any extrudes that already carry `operation` (none in canonical
+      // v4 files but guard against hand-edited or pre-release inputs so the
+      // migration stays idempotent).
+      let seenNew = doc.featureTree.some((f) => f.kind === 'extrude' && f.operation != null);
+      for (const f of doc.featureTree) {
+        if (f.kind !== 'extrude' || f.operation != null) continue;
+        if (!seenNew) { f.operation = 'new'; seenNew = true; }
+        else f.operation = 'join';
+      }
+    }
+    return { ...m, formatVersion: 5 };
   }
 };
 
