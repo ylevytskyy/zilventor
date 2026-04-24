@@ -15,10 +15,15 @@ import { ActiveToolController } from './sketcher/ActiveToolController';
 import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
 import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
+import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
-import type { Feature } from '@zilventor/shared';
+import { AddDimensionCommand } from './commands/AddDimensionCommand';
+import type { Feature, DimensionConstraint } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
+import { useParameterValues } from './parameters/useParameterValues';
+import { DimensionDialog } from './shell/DimensionDialog';
+import { ParametersPanel } from './shell/ParametersPanel';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -44,6 +49,7 @@ export default function App() {
   const [numericVisible, setNumericVisible] = useState(false);
   const [numericFieldCount, setNumericFieldCount] = useState(0);
   const [cursorScreenPos, setCursorScreenPos] = useState({ x: 0, y: 0 });
+  const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
 
   // Per-slice subscriptions (avoid subscribing to the full store).
   const activePart = useAppStore((s) => s.activePart);
@@ -53,6 +59,9 @@ export default function App() {
   const sketchMode = useAppStore((s) => s.sketchMode);
   const activeSketchId = useAppStore((s) => s.activeSketchId);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
+  const parametersPanelOpen = useAppStore((s) => s.parametersPanelOpen);
+  const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
+  const parameterValues = useParameterValues(parameterRegistry);
 
   // Expose store and perf hooks to E2E/perf tests (dev only).
   useEffect(() => {
@@ -194,6 +203,7 @@ export default function App() {
         onDof: (dof) => {
           useAppStore.getState().setSketchDof(dof);
         },
+        onDimensionReady: (d) => { setPendingDimension(d); },
         onPreview: (polyline, snap) => {
           const ov = sketchOverlayRef.current;
           if (!ov) return;
@@ -289,6 +299,7 @@ export default function App() {
       't': 'constrain-tangent',
       'q': 'constrain-equal',
       'y': 'constrain-symmetric',
+      'd': 'dimension',
     };
     const onKey = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -312,6 +323,11 @@ export default function App() {
           return;
         }
       }
+      if (e.key === 'F7') {
+        e.preventDefault();
+        useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
+        return;
+      }
       const bus = useAppStore.getState().bus;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -324,6 +340,34 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [sketchMode]);
+
+  // Dimension dialog handlers.
+  const onDialogCommit = useCallback(async (v: { name: string; expression: string }) => {
+    if (!pendingDimension) return;
+    const unit = pendingDimension.kind === 'dim-angle' ? 'deg' : 'mm';
+    const res = parameterRegistry.setParameter({ name: v.name, expression: v.expression, unit });
+    if (!res.ok) {
+      console.warn('Invalid expression', res.error);
+      setPendingDimension(null);
+      return;
+    }
+    const finalDim: DimensionConstraint = {
+      ...pendingDimension,
+      paramName: v.name,
+      value: { kind: 'param', paramName: v.name }
+    };
+    const addRes = await sketcherClientRef.current!.addDimension(finalDim, res.value.value);
+    if (!addRes.ok) {
+      console.warn('Over-defined', addRes.reason);
+      setPendingDimension(null);
+      return;
+    }
+    const store = useAppStore.getState();
+    await store.bus.execute(new AddDimensionCommand(store.activeSketchId!, finalDim));
+    setPendingDimension(null);
+  }, [pendingDimension]);
+
+  const onDialogCancel = useCallback(() => { setPendingDimension(null); }, []);
 
   // Handler for the kernel-offline banner's Restart button. Terminates the
   // current worker, spawns a new one, and re-executes the active part so the
@@ -413,12 +457,23 @@ export default function App() {
             const f = activePart?.featureTree.find((x) => x.kind === 'sketch' && x.id === activeSketchId);
             if (f?.kind !== 'sketch') return null;
             const worldToScreen = viewportRef.current?.worldToScreen ?? ((x: number, y: number) => ({ x, y }));
+            const dimensions = f.constraints.filter(
+              (c): c is DimensionConstraint => c.kind.startsWith('dim-')
+            );
             return (
-              <ConstraintBadgeRenderer
-                primitives={f.primitives}
-                constraints={f.constraints}
-                worldToScreen={worldToScreen}
-              />
+              <>
+                <ConstraintBadgeRenderer
+                  primitives={f.primitives}
+                  constraints={f.constraints}
+                  worldToScreen={worldToScreen}
+                />
+                <DimensionRenderer
+                  primitives={f.primitives}
+                  dimensions={dimensions}
+                  parameterValues={parameterValues}
+                  worldToScreen={worldToScreen}
+                />
+              </>
             );
           })()}
         </main>
@@ -439,6 +494,26 @@ export default function App() {
         }}
         onCancel={() => setNumericVisible(false)}
       />
+      {pendingDimension && (
+        <DimensionDialog
+          initialName={pendingDimension.paramName}
+          initialExpression={
+            pendingDimension.value.kind === 'literal'
+              ? pendingDimension.value.value.toFixed(2)
+              : pendingDimension.value.paramName
+          }
+          unit={pendingDimension.kind === 'dim-angle' ? 'deg' : 'mm'}
+          cursor={{ x: window.innerWidth / 2, y: window.innerHeight / 2 }}
+          onCommit={(v) => { void onDialogCommit(v); }}
+          onCancel={onDialogCancel}
+        />
+      )}
+      {parametersPanelOpen && (
+        <ParametersPanel
+          registry={parameterRegistry}
+          onClose={() => setParametersPanelOpen(false)}
+        />
+      )}
     </div>
   );
 }

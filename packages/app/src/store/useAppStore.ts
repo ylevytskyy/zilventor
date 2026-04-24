@@ -10,7 +10,8 @@ export type ToolKind =
   | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
-  | 'constrain-equal' | 'constrain-symmetric';
+  | 'constrain-equal' | 'constrain-symmetric'
+  | 'dimension';
 
 type AppState = {
   kernel: KernelClient | null;
@@ -25,6 +26,7 @@ type AppState = {
   activeToolKind: ToolKind | null;
   selectedPrimitiveId: string | null;
   sketchDof: DofStatus | null;
+  parametersPanelOpen: boolean;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -34,6 +36,7 @@ type AppState = {
   setActiveToolKind(kind: ToolKind | null): void;
   setSelectedPrimitive(id: string | null): void;
   setSketchDof(v: DofStatus | null): void;
+  setParametersPanelOpen(v: boolean): void;
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -56,6 +59,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeSketchId: null,
   activeToolKind: null,
   selectedPrimitiveId: null,
+  parametersPanelOpen: false,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
   setActivePart: (p) => set({ activePart: p }),
   setStatus: (msg) => set({ statusMessage: msg }),
@@ -72,6 +76,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedPrimitive: (id) => set({ selectedPrimitiveId: id }),
   sketchDof: null,
   setSketchDof: (v) => set({ sketchDof: v }),
+  setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {
     const part = state.activePart;
     if (!part) return state;

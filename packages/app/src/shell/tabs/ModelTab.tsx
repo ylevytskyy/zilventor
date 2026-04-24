@@ -25,6 +25,9 @@ export default function ModelTab() {
       <RibbonPanel title="Modify">
         <button className="text-xs text-neutral-500" disabled>Fillet (SP3)</button>
       </RibbonPanel>
+      <RibbonPanel title="Parameters">
+        <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>Parameters…</button>
+      </RibbonPanel>
       {extrudeOpen && <ExtrudeDialog onClose={() => setExtrudeOpen(false)} />}
     </div>
   );

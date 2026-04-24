@@ -108,6 +108,16 @@ export default function SketchTab() {
           ))}
         </div>
       </RibbonPanel>
+      <RibbonPanel title="Dimension">
+        <button
+          aria-pressed={activeToolKind === 'dimension'}
+          className={`text-xs ${activeToolKind === 'dimension' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('dimension')}
+        >
+          General Dimension <span className="text-neutral-500">(D)</span>
+        </button>
+      </RibbonPanel>
       <RibbonPanel title="Fallback">
         <button className="text-xs text-neutral-400 hover:text-white" onClick={() => setNumericFallbackOpen(true)}>Numeric rectangle…</button>
       </RibbonPanel>

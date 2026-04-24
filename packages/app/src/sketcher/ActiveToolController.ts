@@ -1,4 +1,4 @@
-import type { SketchPrimitive, SketchConstraint } from '@zilventor/shared';
+import type { SketchPrimitive, SketchConstraint, DimensionConstraint } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { Point2, SnapResult } from './snap';
 import { resolveSnap } from './snap';
@@ -10,6 +10,7 @@ import { ArcTool } from './tools/ArcTool';
 import { SplineTool } from './tools/SplineTool';
 import { SelectTool } from './tools/SelectTool';
 import { ConstraintTool } from './tools/ConstraintTool';
+import { GeneralDimensionTool } from './tools/GeneralDimensionTool';
 import type { SketcherClient } from './SketcherClient';
 
 export type ToolKind =
@@ -17,7 +18,8 @@ export type ToolKind =
   | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
-  | 'constrain-equal' | 'constrain-symmetric';
+  | 'constrain-equal' | 'constrain-symmetric'
+  | 'dimension';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
@@ -32,11 +34,12 @@ export type ControllerDeps = {
   sketcherClient?: SketcherClient;
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
+  onDimensionReady?(d: DimensionConstraint): void;
 };
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 
-type ActiveTool = SketchTool | SelectTool | ConstraintTool;
+type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool;
 
 export class ActiveToolController {
   private tool: ActiveTool | null = null;
@@ -48,9 +51,11 @@ export class ActiveToolController {
       this.tool.handle({ type: 'escapePressed' }); // abort any in-progress draw
     } else if (this.tool instanceof ConstraintTool) {
       this.tool.onEscapePressed();
+    } else if (this.tool instanceof GeneralDimensionTool) {
+      this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
-    if (!(this.tool instanceof SelectTool) && !(this.tool instanceof ConstraintTool)) {
+    if (!(this.tool instanceof SelectTool) && !(this.tool instanceof ConstraintTool) && !(this.tool instanceof GeneralDimensionTool)) {
       this.deps.onPreview(null, NEUTRAL_SNAP);
     }
   }
@@ -78,6 +83,11 @@ export class ActiveToolController {
         }
         return t;
       }
+
+      case 'dimension':
+        return new GeneralDimensionTool({
+          onDimensionReady: (d) => { this.deps.onDimensionReady?.(d); },
+        });
 
       case 'constrain-coincident':
       case 'constrain-horizontal':
@@ -122,6 +132,12 @@ export class ActiveToolController {
       return;
     }
 
+    if (this.tool instanceof GeneralDimensionTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') void this.tool.onPointerClick(event.point);
+      return;
+    }
+
     // SketchTool path
     const sketchTool = this.tool;
     const anchor = sketchTool.getAnchor();
@@ -144,6 +160,11 @@ export class ActiveToolController {
     if (!this.tool) return;
 
     if (this.tool instanceof ConstraintTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof GeneralDimensionTool) {
       if (key === 'Escape') this.tool.onEscapePressed();
       return;
     }
