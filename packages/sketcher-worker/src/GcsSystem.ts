@@ -33,6 +33,10 @@ export class GcsSystem {
   private decomp = new Map<string, Decomposition>();
   private domainPrimitives = new Map<string, SketchPrimitive>();
   private domainConstraints = new Map<string, SketchConstraint>();
+  /** Resolved numeric values for dim-* constraints, kept in sync with the
+   *  stored constraint's `value` field (which may be `{kind:'param'}`). Used by
+   *  rebuildGcs so param-kind dimensions replay with the current resolved value. */
+  private dimensionResolvedValue = new Map<string, number>();
   /** Frozen copy of primitives at load time — used as baseline for drag finalCoords. */
   private originalPrimitives = new Map<string, SketchPrimitive>();
 
@@ -45,6 +49,9 @@ export class GcsSystem {
   async loadSketch(args: {
     primitives: SketchPrimitive[];
     constraints: SketchConstraint[];
+    /** Pre-resolved numeric values keyed by dim constraint id, for any constraint
+     *  whose `value.kind === 'param'`. Literal-value dims ignore this map. */
+    dimensionResolvedValues?: Record<string, number>;
   }): Promise<LoadSketchResult> {
     if (this.loaded) throw new Error('GcsSystem already loaded — call unloadSketch first');
     this.loaded = true;
@@ -62,9 +69,18 @@ export class GcsSystem {
 
     for (const c of args.constraints) {
       this.domainConstraints.set(c.id, c);
-      const gcsConstraints = this.translateConstraint(c);
-      if (gcsConstraints !== null) {
-        for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+      if (isDimension(c)) {
+        const resolved = resolveDimensionValue(c, args.dimensionResolvedValues);
+        this.dimensionResolvedValue.set(c.id, resolved);
+        const gcsConstraints = this.translateDimensionConstraint(c, resolved);
+        if (gcsConstraints !== null) {
+          for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+        }
+      } else {
+        const gcsConstraints = this.translateConstraint(c);
+        if (gcsConstraints !== null) {
+          for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
+        }
       }
     }
 
@@ -81,6 +97,7 @@ export class GcsSystem {
     this.domainPrimitives.clear();
     this.originalPrimitives.clear();
     this.domainConstraints.clear();
+    this.dimensionResolvedValue.clear();
     this.dragRef = null;
     this.dragLockId = null;
     this.dragAnchorId = null;
@@ -251,7 +268,7 @@ export class GcsSystem {
     // Re-push remaining constraints
     for (const c of this.domainConstraints.values()) {
       if (isDimension(c)) {
-        const resolvedValue = c.value.kind === 'literal' ? c.value.value : 0;
+        const resolvedValue = this.dimensionResolvedValue.get(c.id) ?? (c.value.kind === 'literal' ? c.value.value : 0);
         const gcsConstraints = this.translateDimensionConstraint(c, resolvedValue);
         if (gcsConstraints !== null) {
           for (const gc of gcsConstraints) this.gcs.push_primitive(gc as never);
@@ -529,6 +546,7 @@ export class GcsSystem {
     }
 
     this.domainConstraints.set(constraint.id, constraint);
+    this.dimensionResolvedValue.set(constraint.id, resolvedValue);
     this.syncDomainFromGcs();
     return { ok: true, dof: this.readDof(), coords: this.coordDiffForAll() };
   }
@@ -538,6 +556,7 @@ export class GcsSystem {
     const c = this.domainConstraints.get(id);
     if (!c) return { dof: this.readDof(), coords: [] };
     this.domainConstraints.delete(id);
+    this.dimensionResolvedValue.delete(id);
     this.rebuildGcs();
     return { dof: this.readDof(), coords: this.coordDiffForAll() };
   }
@@ -549,8 +568,7 @@ export class GcsSystem {
     this.requireLoaded();
     const c = this.domainConstraints.get(id);
     if (!c || !isDimension(c)) return { dof: this.readDof(), coords: [] };
-    const updated = { ...c, value: { kind: 'literal' as const, value: resolvedValue } };
-    this.domainConstraints.set(id, updated);
+    this.dimensionResolvedValue.set(id, resolvedValue);
     this.rebuildGcs();
     return { dof: this.readDof(), coords: this.coordDiffForAll() };
   }
@@ -590,4 +608,12 @@ export class GcsSystem {
 
 function isDimension(c: SketchConstraint): c is DimensionConstraint {
   return c.kind.startsWith('dim-');
+}
+
+function resolveDimensionValue(
+  c: DimensionConstraint,
+  resolved: Record<string, number> | undefined
+): number {
+  if (c.value.kind === 'literal') return c.value.value;
+  return resolved?.[c.id] ?? 0;
 }

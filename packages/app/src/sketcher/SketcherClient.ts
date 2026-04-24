@@ -18,7 +18,7 @@ import type {
 export class SketcherClient {
   constructor(private api: SketcherWorkerApi) {}
 
-  loadSketch(args: { primitives: SketchPrimitive[]; constraints: SketchConstraint[] }): Promise<LoadSketchResult> {
+  loadSketch(args: { primitives: SketchPrimitive[]; constraints: SketchConstraint[]; dimensionResolvedValues?: Record<string, number> }): Promise<LoadSketchResult> {
     return this.api.loadSketch(args);
   }
   unloadSketch(): Promise<void> { return this.api.unloadSketch(); }

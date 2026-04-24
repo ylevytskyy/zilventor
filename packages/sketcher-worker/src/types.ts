@@ -30,7 +30,7 @@ export type SnapEvent =
   | { kind: 'axis'; axis: 'h' | 'v' };
 
 export interface SketcherWorkerApi {
-  loadSketch(args: { primitives: SketchPrimitive[]; constraints: SketchConstraint[] }): Promise<LoadSketchResult>;
+  loadSketch(args: { primitives: SketchPrimitive[]; constraints: SketchConstraint[]; dimensionResolvedValues?: Record<string, number> }): Promise<LoadSketchResult>;
   unloadSketch(): Promise<void>;
 
   addPrimitive(p: SketchPrimitive): Promise<{ dof: DofStatus }>;
