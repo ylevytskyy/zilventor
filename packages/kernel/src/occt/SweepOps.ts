@@ -23,6 +23,10 @@ export function buildWireFromSketch(oc: any, sketch: any): any {
     if (prim.kind === 'line') {
       const p1 = to3D(plane, prim.x1, prim.y1);
       const p2 = to3D(plane, prim.x2, prim.y2);
+      const dx = p2.x - p1.x, dy = p2.y - p1.y, dz = p2.z - p1.z;
+      if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 1e-9) {
+        throw new Error(`SweepOps: zero-length line primitive ${prim.id}`);
+      }
       const gp1 = new oc.gp_Pnt_3(p1.x, p1.y, p1.z);
       const gp2 = new oc.gp_Pnt_3(p2.x, p2.y, p2.z);
       const edge = new oc.BRepBuilderAPI_MakeEdge_3(gp1, gp2).Edge();
@@ -112,6 +116,10 @@ export function makeSweep(
       /* CurvilinearEquivalence */ true,
       oc.BRepFill_TypeOfContact.BRepFill_ContactOnBorder,
     );
+  }
+
+  if (!(profileWire as any).Closed_1?.()) {
+    throw new Error('SweepOps: profile wire is not closed');
   }
 
   // Add_1(profile, WithContact=false, WithCorrection=false)

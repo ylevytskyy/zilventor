@@ -162,5 +162,38 @@ describe('SweepOps — makeSweep', () => {
     // differs from a plain cylinder; assert only that a valid solid was produced.
     expect(props.Mass()).toBeGreaterThan(1);
   });
+
+  it('profile-not-closed throws', () => {
+    const openProfile: any = {
+      id: 'P', kind: 'sketch', plane: 'XY',
+      primitives: [
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 1, y2: 0 },
+        { id: 'L2', kind: 'line', x1: 1, y1: 0, x2: 1, y2: 1 },
+      ],
+      constraints: [],
+    };
+    const path: any = {
+      id: 'PA', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+      constraints: [],
+    };
+    const profileWire = buildWireFromSketch(oc, openProfile);
+    const pathWire = buildWireFromSketch(oc, path);
+    expect(() => makeSweep(oc, profileWire, pathWire, { kind: 'path' })).toThrow(/profile/i);
+  });
+});
+
+describe('SweepOps — validation', () => {
+  let oc: any;
+  beforeAll(async () => { oc = await loadOcct(); });
+
+  it('zero-length line primitive throws during wire build', () => {
+    const degen: any = {
+      id: 'PA', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 0 }],
+      constraints: [],
+    };
+    expect(() => buildWireFromSketch(oc, degen)).toThrow(/zero|degenerate|length/i);
+  });
 });
 
