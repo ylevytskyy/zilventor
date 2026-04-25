@@ -51,15 +51,25 @@ export type PartDocument = {
   cachedGeometry?: CachedGeometry;
 };
 
-export type AssemblyDocument = { id: string; name: string };
-
-export type ProjectFile = {
-  formatVersion: 7;
-  kind: 'part' | 'assembly';
-  createdAt: string;
-  appVersion: string;
-  document: PartDocument | AssemblyDocument;
+export type ComponentInstance = {
+  id: string;
+  partPath: string;
+  position: { x: number; y: number; z: number };
+  rotation: { rx: number; ry: number; rz: number };
+  visible: boolean;
 };
+
+export type AssemblyDocument = {
+  id: string;
+  name: string;
+  units: 'mm';
+  parameters: Record<string, SketchParameter>;
+  components: ComponentInstance[];
+};
+
+export type ProjectFile =
+  | { formatVersion: 7; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
 
 export type FaceName = {
   featureId: string;
