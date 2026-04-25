@@ -146,4 +146,38 @@ describe('useAppStore hole dialog slice', () => {
     expect(useAppStore.getState().holePlacementMode).toBe('fromSketch');
     expect(useAppStore.getState().holeRefEdges).toEqual([null, null]);
   });
+
+  it('openHoleForEdit seeds placement / picks / initial values from a stored CBORE feature', () => {
+    const stored: any = {
+      id: 'H1', kind: 'hole',
+      placement: { kind: 'linear',
+        faceName: { featureId: 'B1', role: 'top' },
+        refEdge1: { faceA: { featureId: 'B1', role: 'top' }, faceB: { featureId: 'B1', role: 'front' } },
+        offset1: { kind: 'literal', value: 3 },
+        refEdge2: { faceA: { featureId: 'B1', role: 'top' }, faceB: { featureId: 'B1', role: 'left' } },
+        offset2: { kind: 'literal', value: 4 },
+      },
+      profile: { kind: 'counterbore',
+        diameter: { kind: 'literal', value: 4 },
+        cboreDiameter: { kind: 'literal', value: 8 },
+        cboreDepth: { kind: 'literal', value: 2 },
+      },
+      termination: { kind: 'distance', depth: { kind: 'literal', value: 6 } },
+      flipAxis: true,
+    };
+    useAppStore.setState((s) => ({
+      ...s,
+      activePart: { id: 'P1', name: 'P', units: 'mm', parameters: {}, featureTree: [stored] } as any,
+    }));
+
+    useAppStore.getState().openHoleForEdit('H1');
+    const s = useAppStore.getState();
+    expect(s.holeDialogOpen).toBe(true);
+    expect(s.editingHoleId).toBe('H1');
+    expect(s.holeInitialValues).toEqual(stored);
+    expect(s.holePlacementMode).toBe('linear');
+    expect(s.holePlacementFace).toEqual({ featureId: 'B1', role: 'top' });
+    expect(s.holeRefEdges[0]).toBeTruthy();
+    expect(s.holeRefEdges[1]).toBeTruthy();
+  });
 });

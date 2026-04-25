@@ -9,6 +9,12 @@ function parseParamOrLiteral(s: string): ParamOrLiteral {
   return { kind: 'literal', value: Number.isFinite(v) ? v : 0 };
 }
 
+function paramOrLiteralToText(p: ParamOrLiteral | undefined): string {
+  if (!p) return '';
+  if (p.kind === 'param') return `=${p.paramName}`;
+  return String(p.value);
+}
+
 /**
  * Hole dialog. Skeleton scaffold — sections are populated by Tasks 21–23:
  *   - Placement section (T21)
@@ -105,6 +111,25 @@ export function HoleDialog(): JSX.Element | null {
   // Termination section local state
   const [termKind, setTermKind] = React.useState<'distance' | 'throughAll' | 'toFace' | 'toNext'>('throughAll');
   const [depth, setDepth] = React.useState('10');
+
+  const initial = useAppStore((s) => s.holeInitialValues);
+  React.useEffect(() => {
+    if (!initial) return;
+    setProfileKind(initial.profile.kind);
+    setDiameter(paramOrLiteralToText(initial.profile.diameter));
+    if (initial.profile.kind === 'counterbore') {
+      setCboreDiameter(paramOrLiteralToText(initial.profile.cboreDiameter));
+      setCboreDepth(paramOrLiteralToText(initial.profile.cboreDepth));
+    }
+    if (initial.profile.kind === 'countersink') {
+      setCskDiameter(paramOrLiteralToText(initial.profile.cskDiameter));
+      setCskAngle(paramOrLiteralToText(initial.profile.cskAngle));
+    }
+    setTermKind(initial.termination.kind);
+    if (initial.termination.kind === 'distance') {
+      setDepth(paramOrLiteralToText(initial.termination.depth));
+    }
+  }, [initial]);
 
   const placementMode = useAppStore((s) => s.holePlacementMode);
   const setPlacementMode = (m: 'fromSketch' | 'linear' | 'concentric') =>

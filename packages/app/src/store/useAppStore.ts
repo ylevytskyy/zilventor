@@ -251,10 +251,29 @@ export const useAppStore = create<AppState>((set) => ({
   holeTargetFace: null,
   editingHoleId: null,
   holeInitialValues: null,
-  openHoleForEdit: (id) => set({
-    holeDialogOpen: true,
-    editingHoleId: id,
-    holeInitialValues: null,
+  openHoleForEdit: (id) => set((s) => {
+    const feature = s.activePart?.featureTree?.find((f: any) => f.id === id) as HoleFeature | undefined;
+    if (!feature || feature.kind !== 'hole') {
+      return { ...s, holeDialogOpen: true, editingHoleId: id };
+    }
+    const placement = feature.placement;
+    return {
+      ...s,
+      holeDialogOpen: true,
+      editingHoleId: id,
+      holeInitialValues: feature,
+      holePlacementMode: placement.kind,
+      holeSketchId: placement.kind === 'fromSketch' ? placement.sketchId : null,
+      holePlacementFace:
+        placement.kind === 'linear' ? placement.faceName :
+        placement.kind === 'concentric' ? placement.faceName :
+        null,
+      holeRefEdges: placement.kind === 'linear'
+        ? [placement.refEdge1, placement.refEdge2]
+        : [null, null],
+      holeCircularEdge: placement.kind === 'concentric' ? placement.circularEdgeName : null,
+      holeTargetFace: feature.termination.kind === 'toFace' ? feature.termination.targetFaceName : null,
+    };
   }),
   resetHoleDialog: () => set({
     holeDialogOpen: false,

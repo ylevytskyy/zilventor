@@ -100,4 +100,29 @@ describe('HoleDialog', () => {
     const last = tree[tree.length - 1];
     expect(last?.kind).toBe('hole');
   });
+
+  it('rehydrate: opens a stored CBORE hole with all dialog fields populated', () => {
+    const stored: any = {
+      id: 'H1', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'S1' },
+      profile: { kind: 'counterbore',
+        diameter: { kind: 'literal', value: 4 },
+        cboreDiameter: { kind: 'literal', value: 8 },
+        cboreDepth: { kind: 'literal', value: 2 },
+      },
+      termination: { kind: 'distance', depth: { kind: 'literal', value: 6 } },
+      flipAxis: true,
+    };
+    useAppStore.setState((s) => ({
+      ...s,
+      activePart: { id: 'P1', name: 'P', units: 'mm', parameters: {}, featureTree: [stored] } as any,
+    }));
+    useAppStore.getState().openHoleForEdit('H1');
+
+    render(<HoleDialog />);
+    expect((screen.getByLabelText(/^Diameter$/i) as HTMLInputElement).value).toBe('4');
+    expect((screen.getByLabelText(/CBORE Ø/i) as HTMLInputElement).value).toBe('8');
+    expect((screen.getByLabelText(/CBORE depth/i) as HTMLInputElement).value).toBe('2');
+    expect((screen.getByLabelText(/^Depth$/i) as HTMLInputElement).value).toBe('6');
+  });
 });
