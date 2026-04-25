@@ -659,3 +659,58 @@ describe('FeatureTree — sweep feature integration', () => {
     disposeShape(result.value.finalSolid);
   });
 });
+
+describe('executeTree work features', () => {
+  it('returns workFeatures for parts with origin + derived work features', async () => {
+    const part: PartDocument = {
+      id: 'P1', name: 'p', units: 'mm', parameters: {
+        d: { name: 'd', expression: '5', value: 5, unit: 'mm' },
+      },
+      featureTree: [
+        { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
+        { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },
+        { kind: 'workAxis', id: 'origin.Z', visible: false, source: { mode: 'origin', axis: 'Z' } },
+        { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
+        { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
+        { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
+        { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
+        { kind: 'sketch', id: 'S1',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
+          primitives: [
+            { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+            { id: 'L2', kind: 'line', x1: 10, y1: 0, x2: 10, y2: 10 },
+            { id: 'L3', kind: 'line', x1: 10, y1: 10, x2: 0, y2: 10 },
+            { id: 'L4', kind: 'line', x1: 0, y1: 10, x2: 0, y2: 0 },
+          ],
+          constraints: [],
+        },
+        { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd', direction: 'forward', operation: 'new' },
+        { kind: 'workPlane', id: 'WP1', visible: true, source: {
+          mode: 'offsetFromPlane',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
+          offset: { kind: 'literal', value: 10 },
+        } },
+        { kind: 'workPoint', id: 'PT1', visible: true, source: {
+          mode: 'axisIntersectsPlane',
+          axis: { source: 'workAxis', featureId: 'origin.Z' },
+          plane: { source: 'workPlane', featureId: 'WP1' },
+        } },
+      ],
+    };
+    const r = await executeTree(occt, part);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const wfs = r.value.workFeatures;
+    expect(wfs).toBeDefined();
+    const wp1 = wfs!.find((w) => w.featureId === 'WP1');
+    expect(wp1?.kind).toBe('plane');
+    if (wp1?.kind === 'plane') expect(wp1.origin.z).toBeCloseTo(10, 5);
+    const pt1 = wfs!.find((w) => w.featureId === 'PT1');
+    expect(pt1?.kind).toBe('point');
+    if (pt1?.kind === 'point') expect(pt1.position.z).toBeCloseTo(10, 5);
+    // Origin features are also present
+    const originXY = wfs!.find((w) => w.featureId === 'origin.XY');
+    expect(originXY?.kind).toBe('plane');
+    disposeShape(r.value.finalSolid);
+  });
+});

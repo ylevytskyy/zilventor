@@ -1,5 +1,5 @@
 import type { OcctInstance } from '../occt/occtLoader';
-import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge, TessellatedFace, FaceName } from '@zilventor/shared';
+import type { PartDocument, Mesh, BooleanOperation, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue } from '@zilventor/shared';
 import {
   ok,
   err,
@@ -7,6 +7,7 @@ import {
   type KernelError,
   newCorrelationId
 } from '@zilventor/shared';
+import { evaluateWorkAxis, evaluateWorkPlane, evaluateWorkPoint } from '../occt/WorkFeatureOps';
 import {
   executeSketchFeature,
   disposeSketchResult,
@@ -53,6 +54,11 @@ export type ExecutionResult = {
    */
   tessellatedFaces?: TessellatedFace[];
   featureErrors?: Map<string, KernelError>;
+  /** Evaluated work-feature values (axes/planes/points), in feature-tree order.
+   *  Origin features always appear first; user-created features follow.
+   *  Failures populate `featureErrors` and are omitted from this list.
+   */
+  workFeatures?: WorkFeatureValue[];
 };
 
 /**
@@ -698,13 +704,48 @@ export async function executeTree(
   // except for `tessellatedEdges` which carries a pre-resolved (edgeName →
   // world-space segments) view so the app-layer edge picker does not need
   // to reason about BRep topology.
+
+  // Work-feature pass: evaluate axes/planes/points in feature-tree order so
+  // a downstream work feature can reference any upstream one via the cache.
+  // Origin features (always at the top of the tree) populate first, so
+  // user-created features see them. OCCT-bound modes (T14) are no-ops here
+  // until they're implemented; their evaluation simply returns notImplemented
+  // and the failure goes into featureErrors without breaking the rest.
+  const workFeatureCache = new Map<string, WorkFeatureValue>();
+  for (const f of part.featureTree) {
+    if (f.kind === 'workAxis') {
+      const r = evaluateWorkAxis(oc, finalSolid, f.source, workFeatureCache);
+      if (r.ok) {
+        workFeatureCache.set(f.id, { featureId: f.id, kind: 'axis', origin: r.value.origin, direction: r.value.direction });
+      } else {
+        featureErrors.set(f.id, r.error);
+      }
+    } else if (f.kind === 'workPlane') {
+      const r = evaluateWorkPlane(oc, finalSolid, f.source, workFeatureCache, part.parameters);
+      if (r.ok) {
+        workFeatureCache.set(f.id, { featureId: f.id, kind: 'plane', origin: r.value.origin, normal: r.value.normal });
+      } else {
+        featureErrors.set(f.id, r.error);
+      }
+    } else if (f.kind === 'workPoint') {
+      const r = evaluateWorkPoint(oc, finalSolid, f.source, workFeatureCache);
+      if (r.ok) {
+        workFeatureCache.set(f.id, { featureId: f.id, kind: 'point', position: r.value.position });
+      } else {
+        featureErrors.set(f.id, r.error);
+      }
+    }
+  }
+  const workFeatures = Array.from(workFeatureCache.values());
+
   return ok({
     mesh,
     finalSolid: finalSolid.shape,
     tessellatedEdges,
     faceNames: finalSolid.faceNames.map((f) => f.name),
     tessellatedFaces,
-    ...(featureErrors.size > 0 ? { featureErrors } : {})
+    ...(featureErrors.size > 0 ? { featureErrors } : {}),
+    workFeatures,
   });
 }
 
