@@ -41,11 +41,21 @@ const notImplemented = (what: string): KernelError => ({
   correlationId: newCorrelationId(),
 });
 
+const invalidGeometryFail = (what: string): { ok: false; error: KernelError } => ({
+  ok: false,
+  error: {
+    kind: 'invalidGeometry',
+    message: what,
+    correlationId: newCorrelationId(),
+  },
+});
+
+
 export function evaluateWorkAxis(
-  _occt: OcctInstance,
-  _shape: NamedShape | null,
+  occt: OcctInstance,
+  shape: NamedShape | null,
   source: WorkAxisFeature['source'],
-  _wfs: Map<string, WorkFeatureValue>,
+  wfs: Map<string, WorkFeatureValue>,
 ): Result<{ origin: Vec3; direction: Vec3 }, KernelError> {
   if (source.mode === 'origin') {
     const direction: Vec3 =
@@ -53,6 +63,55 @@ export function evaluateWorkAxis(
       source.axis === 'Y' ? { x: 0, y: 1, z: 0 } :
                             { x: 0, y: 0, z: 1 };
     return { ok: true, value: { origin: { x: 0, y: 0, z: 0 }, direction } };
+  }
+  if (source.mode === 'twoPoints') {
+    const a = resolveWorkPointRef(source.pointA, occt, shape, wfs);
+    if (!a.ok) return a;
+    const b = resolveWorkPointRef(source.pointB, occt, shape, wfs);
+    if (!b.ok) return b;
+    const dir = sub(b.value.position, a.value.position);
+    if (length(dir) < 1e-9) return invalidGeometryFail('twoPoints: pointA and pointB are coincident');
+    return { ok: true, value: { origin: a.value.position, direction: normalize(dir) } };
+  }
+  if (source.mode === 'normalToPlaneThroughPoint') {
+    const pl = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!pl.ok) return pl;
+    const pt = resolveWorkPointRef(source.point, occt, shape, wfs);
+    if (!pt.ok) return pt;
+    return { ok: true, value: { origin: pt.value.position, direction: normalize(pl.value.normal) } };
+  }
+  if (source.mode === 'twoPlanes') {
+    const pa = resolveWorkPlaneRef(source.planeA, occt, shape, wfs);
+    if (!pa.ok) return pa;
+    const pb = resolveWorkPlaneRef(source.planeB, occt, shape, wfs);
+    if (!pb.ok) return pb;
+    const raw = cross(pa.value.normal, pb.value.normal);
+    if (length(raw) < 1e-9) return invalidGeometryFail('twoPlanes: planes are parallel; no intersection axis');
+    const dir = normalize(raw);
+    const dA = dot(pa.value.normal, pa.value.origin);
+    const dB = dot(pb.value.normal, pb.value.origin);
+    const ax = Math.abs(dir.x);
+    const ay = Math.abs(dir.y);
+    const az = Math.abs(dir.z);
+    const fixCoord = ax >= ay && ax >= az ? 'x' : ay >= az ? 'y' : 'z';
+    let origin: Vec3;
+    if (fixCoord === 'x') {
+      const det = pa.value.normal.y * pb.value.normal.z - pa.value.normal.z * pb.value.normal.y;
+      const y = (dA * pb.value.normal.z - dB * pa.value.normal.z) / det;
+      const z = (pa.value.normal.y * dB - pb.value.normal.y * dA) / det;
+      origin = { x: 0, y, z };
+    } else if (fixCoord === 'y') {
+      const det = pa.value.normal.x * pb.value.normal.z - pa.value.normal.z * pb.value.normal.x;
+      const x = (dA * pb.value.normal.z - dB * pa.value.normal.z) / det;
+      const z = (pa.value.normal.x * dB - pb.value.normal.x * dA) / det;
+      origin = { x, y: 0, z };
+    } else {
+      const det = pa.value.normal.x * pb.value.normal.y - pa.value.normal.y * pb.value.normal.x;
+      const x = (dA * pb.value.normal.y - dB * pa.value.normal.y) / det;
+      const y = (pa.value.normal.x * dB - pb.value.normal.x * dA) / det;
+      origin = { x, y, z: 0 };
+    }
+    return { ok: true, value: { origin, direction: dir } };
   }
   return { ok: false, error: notImplemented(`evaluateWorkAxis: mode ${source.mode}`) };
 }

@@ -157,3 +157,88 @@ describe('resolveWorkPointRef', () => {
     if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
   });
 });
+
+describe('evaluateWorkAxis non-OCCT modes', () => {
+  it('twoPoints: origin → (10,0,0) ⇒ axis at origin direction +X', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.O', { featureId: 'origin.O', kind: 'point', position: { x: 0, y: 0, z: 0 } }],
+      ['P1', { featureId: 'P1', kind: 'point', position: { x: 10, y: 0, z: 0 } }],
+    ]);
+    const r = evaluateWorkAxis(occtStub, null, {
+      mode: 'twoPoints',
+      pointA: { source: 'workPoint', featureId: 'origin.O' },
+      pointB: { source: 'workPoint', featureId: 'P1' },
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({ x: 0, y: 0, z: 0 });
+      expect(r.value.direction.x).toBeCloseTo(1, 5);
+      expect(r.value.direction.y).toBeCloseTo(0, 5);
+      expect(r.value.direction.z).toBeCloseTo(0, 5);
+    }
+  });
+
+  it('twoPoints: propagates featureNotFound when one point is missing', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.O', { featureId: 'origin.O', kind: 'point', position: { x: 0, y: 0, z: 0 } }],
+    ]);
+    const r = evaluateWorkAxis(occtStub, null, {
+      mode: 'twoPoints',
+      pointA: { source: 'workPoint', featureId: 'origin.O' },
+      pointB: { source: 'workPoint', featureId: 'missing' },
+    }, wfs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+  });
+
+  it('normalToPlaneThroughPoint: XY through (3,4,0) ⇒ axis up at (3,4,0)', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['P', { featureId: 'P', kind: 'point', position: { x: 3, y: 4, z: 0 } }],
+    ]);
+    const r = evaluateWorkAxis(occtStub, null, {
+      mode: 'normalToPlaneThroughPoint',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      point: { source: 'workPoint', featureId: 'P' },
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({ x: 3, y: 4, z: 0 });
+      expect(r.value.direction.x).toBeCloseTo(0, 5);
+      expect(r.value.direction.y).toBeCloseTo(0, 5);
+      expect(r.value.direction.z).toBeCloseTo(1, 5);
+    }
+  });
+
+  it('twoPlanes: XY ∩ XZ ⇒ direction along ±X', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['origin.XZ', { featureId: 'origin.XZ', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 } }],
+    ]);
+    const r = evaluateWorkAxis(occtStub, null, {
+      mode: 'twoPlanes',
+      planeA: { source: 'workPlane', featureId: 'origin.XY' },
+      planeB: { source: 'workPlane', featureId: 'origin.XZ' },
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(Math.abs(r.value.direction.x)).toBeCloseTo(1, 5);
+      expect(r.value.direction.y).toBeCloseTo(0, 5);
+      expect(r.value.direction.z).toBeCloseTo(0, 5);
+    }
+  });
+
+  it('twoPlanes: parallel planes return invalidGeometry', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['A', { featureId: 'A', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['B', { featureId: 'B', kind: 'plane', origin: { x: 0, y: 0, z: 5 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkAxis(occtStub, null, {
+      mode: 'twoPlanes',
+      planeA: { source: 'workPlane', featureId: 'A' },
+      planeB: { source: 'workPlane', featureId: 'B' },
+    }, wfs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+});
