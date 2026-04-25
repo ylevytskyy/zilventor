@@ -11,6 +11,7 @@ export type KernelErrorKind =
   | 'fileFormatTooNew'
   | 'fileCorrupt'
   | 'featureNotFound'
+  | 'notImplemented'
   | 'unknown';
 
 export type KernelError = {
