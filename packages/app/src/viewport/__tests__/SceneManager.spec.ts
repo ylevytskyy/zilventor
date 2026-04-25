@@ -131,3 +131,108 @@ describe('SceneManager — component meshes', () => {
     expect(id).toBeNull();
   });
 });
+
+describe('SceneManager — work features', () => {
+  let mgr: SceneManager;
+  beforeEach(() => {
+    const canvas = document.createElement('canvas');
+    mgr = new SceneManager(canvas);
+  });
+
+  it('setWorkFeatures adds an axis renderer node', () => {
+    mgr.setWorkFeatures([
+      { featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, visible: true },
+    ]);
+    expect(mgr.workFeatureCount()).toBe(1);
+    const node = mgr.getWorkFeatureNode('WA1');
+    expect(node).toBeDefined();
+  });
+
+  it('setWorkFeatures updates same id in place', () => {
+    mgr.setWorkFeatures([{ featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, visible: true }]);
+    const a = mgr.getWorkFeatureNode('WA1');
+    mgr.setWorkFeatures([{ featureId: 'WA1', kind: 'axis', origin: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 1, z: 0 }, visible: true }]);
+    const b = mgr.getWorkFeatureNode('WA1');
+    expect(a).toBe(b);
+  });
+
+  it('setWorkFeatures removes nodes whose id is no longer in the spec list', () => {
+    mgr.setWorkFeatures([{ featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, visible: true }]);
+    mgr.setWorkFeatures([]);
+    expect(mgr.workFeatureCount()).toBe(0);
+  });
+
+  it('respects visible flag', () => {
+    mgr.setWorkFeatures([{ featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, visible: false }]);
+    expect(mgr.getWorkFeatureNode('WA1')!.visible).toBe(false);
+  });
+
+  it('clearWorkFeatures removes all', () => {
+    mgr.setWorkFeatures([
+      { featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 }, visible: true },
+      { featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, visible: true },
+    ]);
+    mgr.clearWorkFeatures();
+    expect(mgr.workFeatureCount()).toBe(0);
+  });
+
+  it('builds a plane node as a Group at the origin position', () => {
+    mgr.setWorkFeatures([
+      { featureId: 'WP1', kind: 'plane', origin: { x: 1, y: 2, z: 3 }, normal: { x: 0, y: 0, z: 1 }, visible: true },
+    ]);
+    const node = mgr.getWorkFeatureNode('WP1') as THREE.Group;
+    expect(node).toBeDefined();
+    expect(node.children.length).toBeGreaterThanOrEqual(1);
+    expect(node.position.x).toBeCloseTo(1, 5);
+    expect(node.position.y).toBeCloseTo(2, 5);
+    expect(node.position.z).toBeCloseTo(3, 5);
+  });
+
+  it('builds a point node at the spec origin', () => {
+    mgr.setWorkFeatures([
+      { featureId: 'WPT1', kind: 'point', origin: { x: 1, y: 2, z: 3 }, visible: true },
+    ]);
+    const node = mgr.getWorkFeatureNode('WPT1') as THREE.Group;
+    expect(node).toBeDefined();
+    expect(node.position.x).toBeCloseTo(1, 5);
+    expect(node.position.y).toBeCloseTo(2, 5);
+    expect(node.position.z).toBeCloseTo(3, 5);
+  });
+
+  it('geometry hash includes work-feature transforms', () => {
+    mgr.setWorkFeatures([{ featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, visible: true }]);
+    const a = mgr.geometryHash();
+    mgr.setWorkFeatures([{ featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 50 }, normal: { x: 0, y: 0, z: 1 }, visible: true }]);
+    const b = mgr.geometryHash();
+    expect(a).not.toBe(b);
+  });
+
+  it('hidden work features do not affect the hash', () => {
+    mgr.setWorkFeatures([{ featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, visible: false }]);
+    const a = mgr.geometryHash();
+    mgr.setWorkFeatures([]);
+    const b = mgr.geometryHash();
+    expect(a).toBe(b);
+  });
+
+  it('raycastWorkFeature returns the hit feature id', () => {
+    mgr.setWorkFeatures([{ featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, visible: true }]);
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
+    camera.position.set(0, 0, 200);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    const id = mgr.raycastWorkFeature(camera, new THREE.Vector2(0, 0));
+    expect(id).toBe('WP1');
+  });
+
+  it('raycastWorkFeature returns null when nothing is hit', () => {
+    mgr.setWorkFeatures([{ featureId: 'WP1', kind: 'plane', origin: { x: 1000, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, visible: true }]);
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
+    camera.position.set(0, 0, 200);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    // Plane is 1000mm off in +X; ray straight ahead misses.
+    const id = mgr.raycastWorkFeature(camera, new THREE.Vector2(0, 0));
+    expect(id).toBeNull();
+  });
+});

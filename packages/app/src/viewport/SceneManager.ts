@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+export type Vec3 = { x: number; y: number; z: number };
+export type WorkFeatureSpec =
+  | { featureId: string; kind: 'axis'; origin: Vec3; direction: Vec3; visible: boolean }
+  | { featureId: string; kind: 'plane'; origin: Vec3; normal: Vec3; visible: boolean }
+  | { featureId: string; kind: 'point'; origin: Vec3; visible: boolean };
+
+
 export class SceneManager {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
@@ -11,6 +18,16 @@ export class SceneManager {
   private componentMeshes = new Map<string, THREE.Mesh>();
   private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
   private partGeometryHash: number = 2166136261;
+  private workFeatureNodes = new Map<string, THREE.Object3D>();
+  private workFeatureMaterials = {
+    axis: new THREE.LineDashedMaterial({ color: 0xe8c36a, dashSize: 8, gapSize: 4, depthTest: false }),
+    planeFill: new THREE.MeshBasicMaterial({
+      color: 0x5b9ad8, opacity: 0.15, transparent: true,
+      side: THREE.DoubleSide, depthWrite: false,
+    }),
+    planeBorder: new THREE.LineBasicMaterial({ color: 0x5b9ad8, depthTest: false }),
+    point: new THREE.LineBasicMaterial({ color: 0x7ed957, depthTest: false }),
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -77,6 +94,26 @@ export class SceneManager {
       const e = mesh.matrix.elements;
       for (let i = 0; i < 16; i++) {
         h = Math.imul(h ^ Math.round(e[i]! * 1000), 16777619);
+      }
+    }
+    const wfIds = Array.from(this.workFeatureNodes.keys()).sort();
+    for (const id of wfIds) {
+      const node = this.workFeatureNodes.get(id)!;
+      if (!node.visible) continue;
+      const spec = node.userData.workFeatureSpec as WorkFeatureSpec | undefined;
+      if (!spec) continue;
+      for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+      h = Math.imul(h ^ Math.round(spec.origin.x * 1000), 16777619);
+      h = Math.imul(h ^ Math.round(spec.origin.y * 1000), 16777619);
+      h = Math.imul(h ^ Math.round(spec.origin.z * 1000), 16777619);
+      if (spec.kind === 'axis') {
+        h = Math.imul(h ^ Math.round(spec.direction.x * 10000), 16777619);
+        h = Math.imul(h ^ Math.round(spec.direction.y * 10000), 16777619);
+        h = Math.imul(h ^ Math.round(spec.direction.z * 10000), 16777619);
+      } else if (spec.kind === 'plane') {
+        h = Math.imul(h ^ Math.round(spec.normal.x * 10000), 16777619);
+        h = Math.imul(h ^ Math.round(spec.normal.y * 10000), 16777619);
+        h = Math.imul(h ^ Math.round(spec.normal.z * 10000), 16777619);
       }
     }
     return (h >>> 0).toString(16);
@@ -205,6 +242,124 @@ export class SceneManager {
     const id = hits[0]!.object.userData.componentId;
     return typeof id === 'string' ? id : null;
   }
+
+  setWorkFeatures(specs: Array<WorkFeatureSpec>): void {
+    const incoming = new Set(specs.map((s) => s.featureId));
+    for (const [id, node] of this.workFeatureNodes) {
+      if (!incoming.has(id)) {
+        this.scene.remove(node);
+        this.workFeatureNodes.delete(id);
+      }
+    }
+    for (const spec of specs) {
+      let node = this.workFeatureNodes.get(spec.featureId);
+      if (!node) {
+        node = this.buildWorkFeatureNode(spec);
+        node.userData.workFeatureId = spec.featureId;
+        this.scene.add(node);
+        this.workFeatureNodes.set(spec.featureId, node);
+      } else {
+        this.updateWorkFeatureNode(node, spec);
+      }
+      // Stash the spec on the node so geometryHash() and pickers can read it
+      // without re-deriving from the scene-graph geometry. Axis direction in
+      // particular isn't recoverable from a Line node's transform.
+      node.userData.workFeatureSpec = spec;
+      node.visible = spec.visible;
+    }
+  }
+
+  clearWorkFeatures(): void {
+    for (const n of this.workFeatureNodes.values()) this.scene.remove(n);
+    this.workFeatureNodes.clear();
+  }
+
+  workFeatureCount(): number { return this.workFeatureNodes.size; }
+  getWorkFeatureNode(id: string): THREE.Object3D | undefined { return this.workFeatureNodes.get(id); }
+
+  raycastWorkFeature(camera: THREE.Camera, ndc: THREE.Vector2): string | null {
+    if (this.workFeatureNodes.size === 0) return null;
+    for (const n of this.workFeatureNodes.values()) n.updateMatrixWorld(true);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, camera);
+    const objs = Array.from(this.workFeatureNodes.values());
+    const hits = raycaster.intersectObjects(objs, true);
+    if (hits.length === 0) return null;
+    let obj: THREE.Object3D | null = hits[0]!.object;
+    while (obj && !obj.userData.workFeatureId) obj = obj.parent ?? null;
+    if (obj && typeof obj.userData.workFeatureId === 'string') return obj.userData.workFeatureId;
+    return null;
+  }
+
+  private buildWorkFeatureNode(spec: WorkFeatureSpec): THREE.Object3D {
+    if (spec.kind === 'axis') {
+      const dir = new THREE.Vector3(spec.direction.x, spec.direction.y, spec.direction.z).normalize();
+      const half = 100;
+      const o = new THREE.Vector3(spec.origin.x, spec.origin.y, spec.origin.z);
+      const p1 = o.clone().addScaledVector(dir, -half);
+      const p2 = o.clone().addScaledVector(dir, half);
+      const g = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+      const line = new THREE.Line(g, this.workFeatureMaterials.axis);
+      line.computeLineDistances();
+      return line;
+    }
+    if (spec.kind === 'plane') {
+      const group = new THREE.Group();
+      const planeGeom = new THREE.PlaneGeometry(200, 200);
+      const fill = new THREE.Mesh(planeGeom, this.workFeatureMaterials.planeFill);
+      group.add(fill);
+      const edges = new THREE.EdgesGeometry(planeGeom);
+      const border = new THREE.LineSegments(edges, this.workFeatureMaterials.planeBorder);
+      group.add(border);
+      this.orientPlaneGroup(group, spec);
+      return group;
+    }
+    // point
+    const group = new THREE.Group();
+    const half = 3;
+    const make = (axis: 'x' | 'y' | 'z'): THREE.Line => {
+      const a = new THREE.Vector3();
+      const b = new THREE.Vector3();
+      a[axis] = -half;
+      b[axis] = half;
+      const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+      return new THREE.Line(g, this.workFeatureMaterials.point);
+    };
+    group.add(make('x'));
+    group.add(make('y'));
+    group.add(make('z'));
+    group.position.set(spec.origin.x, spec.origin.y, spec.origin.z);
+    return group;
+  }
+
+  private updateWorkFeatureNode(node: THREE.Object3D, spec: WorkFeatureSpec): void {
+    if (spec.kind === 'axis') {
+      const line = node as THREE.Line;
+      const dir = new THREE.Vector3(spec.direction.x, spec.direction.y, spec.direction.z).normalize();
+      const half = 100;
+      const o = new THREE.Vector3(spec.origin.x, spec.origin.y, spec.origin.z);
+      const p1 = o.clone().addScaledVector(dir, -half);
+      const p2 = o.clone().addScaledVector(dir, half);
+      line.geometry.setFromPoints([p1, p2]);
+      line.computeLineDistances();
+      return;
+    }
+    if (spec.kind === 'plane') {
+      this.orientPlaneGroup(node as THREE.Group, spec);
+      return;
+    }
+    // point
+    node.position.set(spec.origin.x, spec.origin.y, spec.origin.z);
+  }
+
+  private orientPlaneGroup(group: THREE.Group, spec: { origin: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } }): void {
+    const target = new THREE.Vector3(spec.normal.x, spec.normal.y, spec.normal.z).normalize();
+    const def = new THREE.Vector3(0, 0, 1);
+    const q = new THREE.Quaternion().setFromUnitVectors(def, target);
+    group.quaternion.copy(q);
+    group.position.set(spec.origin.x, spec.origin.y, spec.origin.z);
+  }
+
 
   dispose(): void {
     this.controls.dispose();
