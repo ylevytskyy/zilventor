@@ -56,6 +56,7 @@ import { EditComponentCommand } from './commands/EditComponentCommand';
 import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { ComponentInstance } from '@zilventor/shared';
 import * as THREE from 'three';
 
@@ -1399,6 +1400,59 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [assembly, kernel]);
+
+  // OPFS autosave — debounce 500 ms after the last activeDocument mutation.
+  // Parts are packed via kernel.saveToBytes (re-runs the feature tree to bake
+  // the BREP); assemblies are packed via packAssembly directly. Skipped when
+  // activeDocument is null. Counts writes for the perf E2E.
+  const activeDoc = useAppStore((s) => s.activeDocument);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const autosaveStatsRef = useRef({ writeCount: 0 });
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>;
+      if (w.__zilventorAutosaveStats === undefined) {
+        w.__zilventorAutosaveStats = () => autosaveStatsRef.current;
+      }
+    } else {
+      const w = window as unknown as Record<string, unknown>;
+      w.__zilventorAutosaveStats = () => autosaveStatsRef.current;
+    }
+  }, []);
+  useEffect(() => {
+    if (!activeDoc) return;
+    if (autosaveTimerRef.current !== null) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void (async () => {
+        try {
+          if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+          const opfs = opfsRef.current;
+          const doc = useAppStore.getState().activeDocument;
+          if (!doc) return;
+          if (doc.kind === 'assembly') {
+            const archive = await packAssembly(doc.document, new Uint8Array());
+            await opfs.write(`${doc.document.name}.ziasm`, archive);
+          } else {
+            if (!kernel) return;
+            const bytes = await kernel.saveToBytes(doc.document.id);
+            await opfs.write(`${doc.document.name}.zipt`, bytes);
+          }
+          autosaveStatsRef.current.writeCount += 1;
+        } catch (e) {
+          console.warn('autosave failed:', (e as Error).message);
+        }
+      })();
+    }, 500);
+    return () => {
+      if (autosaveTimerRef.current !== null) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [activeDoc, kernel]);
 
   // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
   const scheduleSweepPreview = useCallback(() => {
