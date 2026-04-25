@@ -45,6 +45,7 @@ import { HoleDialog, type HoleDraftValue } from './shell/HoleDialog';
 import { AddHoleFeatureCommand } from './commands/AddHoleFeatureCommand';
 import { OpenHoleDialogCommand } from './commands/OpenHoleDialogCommand';
 import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
+import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDialogCommand';
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { SketchPickController } from './model/SketchPickController';
@@ -589,6 +590,16 @@ export default function App() {
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'w') {
         e.preventDefault();
         OpenSweepDialogCommand();
+        return;
+      }
+      if (
+        !sketchMode
+        && !e.ctrlKey && !e.metaKey && !e.altKey
+        && e.key.toLowerCase() === 'p'
+        && useAppStore.getState().activeDocument?.kind === 'assembly'
+      ) {
+        e.preventDefault();
+        OpenPlaceComponentDialogCommand();
         return;
       }
       if (e.key === 'F7') {
