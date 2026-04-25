@@ -8,6 +8,8 @@ export class SceneManager {
   readonly controls: OrbitControls;
   private current: THREE.Mesh | null = null;
   private preview: THREE.Mesh | null = null;
+  private componentMeshes = new Map<string, THREE.Mesh>();
+  private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -117,6 +119,54 @@ export class SceneManager {
     this.setSize(prev.w || 1, prev.h || 1);
     if (!blob) throw new Error('thumbnail capture failed');
     return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  setComponentMeshes(specs: Array<{
+    componentId: string;
+    geometry: THREE.BufferGeometry;
+    transform: THREE.Matrix4;
+    visible: boolean;
+  }>): void {
+    const incomingIds = new Set(specs.map((s) => s.componentId));
+
+    // Remove meshes that aren't in the incoming list
+    for (const [id, mesh] of this.componentMeshes) {
+      if (!incomingIds.has(id)) {
+        this.scene.remove(mesh);
+        // Don't dispose geometry — it may be shared
+        this.componentMeshes.delete(id);
+      }
+    }
+
+    // Add or update
+    for (const spec of specs) {
+      let mesh = this.componentMeshes.get(spec.componentId);
+      if (!mesh) {
+        mesh = new THREE.Mesh(spec.geometry, this.componentMaterial);
+        mesh.matrixAutoUpdate = false;
+        mesh.userData.componentId = spec.componentId;
+        this.scene.add(mesh);
+        this.componentMeshes.set(spec.componentId, mesh);
+      }
+      mesh.geometry = spec.geometry;
+      mesh.matrix.copy(spec.transform);
+      mesh.visible = spec.visible;
+    }
+  }
+
+  clearComponentMeshes(): void {
+    for (const mesh of this.componentMeshes.values()) {
+      this.scene.remove(mesh);
+    }
+    this.componentMeshes.clear();
+  }
+
+  componentMeshCount(): number {
+    return this.componentMeshes.size;
+  }
+
+  getComponentMesh(id: string): THREE.Mesh | undefined {
+    return this.componentMeshes.get(id);
   }
 
   dispose(): void {
