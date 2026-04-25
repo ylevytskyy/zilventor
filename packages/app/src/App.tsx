@@ -44,6 +44,7 @@ import { AddMirrorFeatureCommand } from './commands/AddMirrorFeatureCommand';
 import { HoleDialog, type HoleDraftValue } from './shell/HoleDialog';
 import { AddHoleFeatureCommand } from './commands/AddHoleFeatureCommand';
 import { OpenHoleDialogCommand } from './commands/OpenHoleDialogCommand';
+import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -555,6 +556,11 @@ export default function App() {
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         OpenHoleDialogCommand();
+        return;
+      }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        OpenSweepDialogCommand();
         return;
       }
       if (e.key === 'F7') {
