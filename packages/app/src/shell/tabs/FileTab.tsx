@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
+import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
+import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 
 type FSAWindow = Window & {
   showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle>;
@@ -49,17 +51,37 @@ export default function FileTab() {
   };
 
   const handleOpen = async () => {
-    const { kernel, setActivePart, setStatus } = useAppStore.getState();
+    const { kernel, setActivePart, setActiveDocument, setStatus } = useAppStore.getState();
     if (!kernel) return;
     try {
       const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
-        types: [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }]
+        types: [
+          { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
+          { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
+        ]
       });
       if (!handle) return;
-      const partId = await kernel.load(handle);
-      const part = await kernel.getPart(partId);
-      setActivePart(part);
-      setStatus('Opened');
+
+      // Peek the manifest to discriminate kind before branching
+      const file = await handle.getFile();
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const entries = await readTarGz(bytes);
+      const manifestEntry = entries.find((e) => e.name === 'manifest.json');
+      if (!manifestEntry) throw new Error('No manifest.json in archive');
+      const manifest = JSON.parse(new TextDecoder().decode(manifestEntry.data));
+      const kind = manifest.kind ?? 'part'; // legacy v7 default
+
+      if (kind === 'assembly') {
+        const doc = await unpackAssembly(bytes);
+        setActiveDocument({ kind: 'assembly', document: doc });
+        setStatus('Opened');
+      } else {
+        // part path — keep calling kernel.load(handle) to preserve existing behaviour
+        const partId = await kernel.load(handle);
+        const part = await kernel.getPart(partId);
+        setActivePart(part);
+        setStatus('Opened');
+      }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       const msg = (e as Error).message;
