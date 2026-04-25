@@ -647,7 +647,16 @@ export async function executeTree(
         continue;
       }
       try {
-        const sweepResult = executeSweepFeature(oc, finalSolid ?? null, feature, sketchById);
+        // Unwrap the OcctShape wrapper before passing to executeSweepFeature —
+        // SweepFeature.ts expects runningBody.shape to be a raw OCCT handle
+        // (same pattern as the hole branch above at lines 605-608).
+        const sweepRunning = finalSolid
+          ? {
+              ...finalSolid,
+              shape: (finalSolid.shape as unknown as { handle: unknown }).handle as typeof finalSolid.shape
+            }
+          : null;
+        const sweepResult = executeSweepFeature(oc, sweepRunning, feature, sketchById);
         // executeSweepFeature returns a NamedShape where .shape is a raw OCCT
         // handle (not an OcctShape wrapper). Wrap it so disposeShape /
         // tessellate calls work correctly — same pattern as the hole branch.
