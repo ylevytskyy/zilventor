@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Ribbon from '../Ribbon';
+import { useAppStore } from '../../store/useAppStore';
 
 describe('Ribbon', () => {
   it('shows all 7 tabs and Model is active by default', () => {
@@ -35,5 +36,26 @@ describe('Ribbon', () => {
     expect(screen.getByRole('button', { name: /Fillet/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Chamfer/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Shell/ })).toBeTruthy();
+  });
+
+  it('Modify panel renders a Hole button that fires AddHoleFeatureCommand', () => {
+    // Give the store a part with a running body so the Modify buttons are enabled.
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+        { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd1', direction: 'forward', operation: 'new' },
+      ],
+    });
+    useAppStore.getState().resetHoleDialog();
+    render(<Ribbon />);
+    const btn = screen.getByRole('button', { name: /hole/i });
+    expect(btn).toBeTruthy();
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useAppStore.getState().holeDialogOpen).toBe(true);
+    // cleanup
+    useAppStore.getState().setActivePart(null);
+    useAppStore.getState().resetHoleDialog();
   });
 });

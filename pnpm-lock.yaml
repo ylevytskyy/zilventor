@@ -29,6 +29,9 @@ importers:
 
   packages/app:
     dependencies:
+      '@zilventor/icons':
+        specifier: workspace:*
+        version: link:../icons
       '@zilventor/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -102,6 +105,19 @@ importers:
       workbox-window:
         specifier: ^7.4.0
         version: 7.4.0
+
+  packages/icons:
+    dependencies:
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.28
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
 
   packages/kernel:
     dependencies:

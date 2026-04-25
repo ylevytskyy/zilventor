@@ -3,6 +3,7 @@ import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { AddExtrusionCommand } from '../../commands/AddExtrusionCommand';
+import { AddHoleFeatureCommand } from '../../commands/AddHoleFeatureCommand';
 import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
@@ -71,6 +72,15 @@ export default function ModelTab() {
           onClick={() => useAppStore.getState().setShellDialogOpen(true)}
         >
           Shell (S)
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasRunningBody}
+          onClick={() => AddHoleFeatureCommand()}
+          title="Hole (H)"
+          aria-label="Hole"
+        >
+          Hole (H)
         </button>
       </RibbonPanel>
       <RibbonPanel title="Pattern">
