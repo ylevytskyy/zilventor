@@ -49,6 +49,14 @@ import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDi
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { SketchPickController } from './model/SketchPickController';
+import { PlaceComponentDialog } from './shell/PlaceComponentDialog';
+import { EditComponentDialog } from './shell/EditComponentDialog';
+import { PlaceComponentCommand } from './commands/PlaceComponentCommand';
+import { EditComponentCommand } from './commands/EditComponentCommand';
+import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
+import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import type { ComponentInstance } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -1269,6 +1277,53 @@ export default function App() {
   const sweepGuideRailSketchId = useAppStore((s) => s.sweepGuideRailSketchId);
   const sweepOperation = useAppStore((s) => s.sweepOperation);
 
+  // Assembly placement/edit dialog selectors.
+  const placeOpen = useAppStore((s) => s.placeComponentDialogOpen);
+  const editOpen = useAppStore((s) => s.editComponentDialogOpen);
+  const editInitial = useAppStore((s) => s.editComponentInitialValues);
+
+  // Lazy OPFS singleton + tile list for the Place dialog.
+  const opfsRef = useRef<Opfs | null>(null);
+  const [tiles, setTiles] = useState<AssemblyTile[]>([]);
+
+  useEffect(() => {
+    if (!placeOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+        const t = await loadAssemblyTiles(opfsRef.current, unpackProject);
+        if (!cancelled) setTiles(t);
+      } catch (e) {
+        console.error('Failed to load tiles:', e);
+        if (!cancelled) setTiles([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [placeOpen]);
+
+  const handlePlace = async (partPath: string): Promise<void> => {
+    const cmd = new PlaceComponentCommand({ partPath });
+    try {
+      await cmd.apply();
+    } catch (e) {
+      console.error('Place failed:', e);
+    }
+    useAppStore.getState().resetPlaceComponentDialog();
+  };
+
+  const handleEditCommit = async (patch: Partial<ComponentInstance>): Promise<void> => {
+    const id = useAppStore.getState().editingComponentId;
+    if (!id) return;
+    const cmd = new EditComponentCommand({ id, patch });
+    try {
+      await cmd.apply();
+    } catch (e) {
+      console.error('Edit failed:', e);
+    }
+    useAppStore.getState().resetEditComponentDialog();
+  };
+
   // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
   const scheduleSweepPreview = useCallback(() => {
     if (sweepPreviewTimerRef.current) clearTimeout(sweepPreviewTimerRef.current);
@@ -1905,6 +1960,20 @@ export default function App() {
             return res.ok ? null : formatExpressionError(res.error);
           }}
           previewError={previewError}
+        />
+      )}
+      {placeOpen && (
+        <PlaceComponentDialog
+          tiles={tiles}
+          onPlace={(partPath) => { void handlePlace(partPath); }}
+          onCancel={() => useAppStore.getState().resetPlaceComponentDialog()}
+        />
+      )}
+      {editOpen && editInitial && (
+        <EditComponentDialog
+          initial={editInitial}
+          onCommit={(patch) => { void handleEditCommit(patch); }}
+          onCancel={() => useAppStore.getState().resetEditComponentDialog()}
         />
       )}
       {toast && (
