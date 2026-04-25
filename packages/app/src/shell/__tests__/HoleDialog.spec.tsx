@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useAppStore } from '../../store/useAppStore';
 import { HoleDialog } from '../HoleDialog';
+import type { HoleFeature } from '@zilventor/shared';
 
 describe('HoleDialog', () => {
   beforeEach(() => {
@@ -152,5 +153,38 @@ describe('HoleDialog', () => {
     expect(onDraftChange).toHaveBeenCalled();
     const lastCall = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1]![0];
     expect(lastCall.diameter).toBe('8');
+  });
+
+  it('calls onCommit with a HoleFeature when OK is clicked with onCommit prop', () => {
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, featureTree: [] };
+    useAppStore.getState().setActivePart(part);
+    useAppStore.getState().toggleHoleDialog(true);
+    useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1', holePlacementMode: 'fromSketch' as const }));
+    const onCommit = vi.fn();
+    render(<HoleDialog onCommit={onCommit} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    expect(onCommit).toHaveBeenCalledOnce();
+    const feature = onCommit.mock.calls[0]![0] as HoleFeature;
+    expect(feature.kind).toBe('hole');
+    expect(feature.placement).toMatchObject({ kind: 'fromSketch', sketchId: 'S1' });
+    // Dialog does NOT call resetHoleDialog itself when onCommit is provided —
+    // the host (App.tsx wrapper) is responsible for closing after the command.
+    expect(useAppStore.getState().holeDialogOpen).toBe(true);
+  });
+
+  it('OK without onCommit prop falls back to direct store update and closes dialog', () => {
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, featureTree: [] };
+    useAppStore.getState().setActivePart(part);
+    useAppStore.getState().toggleHoleDialog(true);
+    useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));
+    render(<HoleDialog />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    expect(useAppStore.getState().holeDialogOpen).toBe(false);
+    const tree = useAppStore.getState().activePart?.featureTree ?? [];
+    expect(tree.some((f) => f.kind === 'hole')).toBe(true);
   });
 });

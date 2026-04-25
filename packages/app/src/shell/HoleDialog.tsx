@@ -2,6 +2,8 @@ import React from 'react';
 import type { FaceName, HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
+export type { HoleFeature };
+
 export type HoleDraftValue = {
   placementMode: 'fromSketch' | 'linear' | 'concentric';
   sketchId: string | null;
@@ -126,9 +128,16 @@ type HoleDialogProps = {
    * the most recent preview failure. Cleared by the host on commit/cancel.
    */
   previewError?: string | null;
+  /**
+   * Called when the user clicks OK. Receives the fully-constructed HoleFeature.
+   * The host (App.tsx wrapper) dispatches AddHoleFeatureCommand and calls
+   * resetHoleDialog() after the command resolves — the dialog does NOT mutate
+   * the store directly.
+   */
+  onCommit?: (feature: HoleFeature) => void;
 };
 
-export function HoleDialog({ onDraftChange, previewError }: HoleDialogProps = {}): JSX.Element | null {
+export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialogProps = {}): JSX.Element | null {
   const open = useAppStore((s) => s.holeDialogOpen);
   const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
 
@@ -251,21 +260,29 @@ export function HoleDialog({ onDraftChange, previewError }: HoleDialogProps = {}
     const id = s.editingHoleId ?? `H${Date.now()}`;
     const feature: HoleFeature = { id, kind: 'hole', placement, profile, termination, flipAxis: false };
 
-    const part = s.activePart;
-    if (part) {
-      if (s.editingHoleId) {
-        s.setActivePart({
-          ...part,
-          featureTree: part.featureTree.map((f) => f.id === id ? feature : f),
-        });
-      } else {
-        s.setActivePart({
-          ...part,
-          featureTree: [...part.featureTree, feature],
-        });
+    // Delegate to the host (App.tsx wrapper) which will dispatch
+    // AddHoleFeatureCommand → kernel.addFeature + execute + setActivePart,
+    // then call resetHoleDialog(). Do NOT mutate the store directly here.
+    if (onCommit) {
+      onCommit(feature);
+    } else {
+      // Fallback for tests that render HoleDialog standalone without a wrapper.
+      const part = s.activePart;
+      if (part) {
+        if (s.editingHoleId) {
+          s.setActivePart({
+            ...part,
+            featureTree: part.featureTree.map((f) => f.id === id ? feature : f),
+          });
+        } else {
+          s.setActivePart({
+            ...part,
+            featureTree: [...part.featureTree, feature],
+          });
+        }
       }
+      s.resetHoleDialog();
     }
-    s.resetHoleDialog();
   };
 
   if (!open) return null;

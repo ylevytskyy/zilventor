@@ -42,6 +42,8 @@ import { AddLinearPatternFeatureCommand } from './commands/AddLinearPatternFeatu
 import { MirrorDialog, type MirrorDialogValue } from './shell/MirrorDialog';
 import { AddMirrorFeatureCommand } from './commands/AddMirrorFeatureCommand';
 import { HoleDialog, type HoleDraftValue } from './shell/HoleDialog';
+import { AddHoleFeatureCommand } from './commands/AddHoleFeatureCommand';
+import { OpenHoleDialogCommand } from './commands/OpenHoleDialogCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -552,8 +554,7 @@ export default function App() {
       }
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
-        useAppStore.getState().resetHoleDialog();
-        useAppStore.getState().toggleHoleDialog(true);
+        OpenHoleDialogCommand();
         return;
       }
       if (e.key === 'F7') {
@@ -1183,6 +1184,32 @@ export default function App() {
     }
   }, [holeDialogOpen, clearHolePreview]);
 
+  // Hole dialog commit handler — mirrors onShellCommit pattern.
+  const editingHoleId = useAppStore((s) => s.editingHoleId);
+  const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
+
+  const onHoleCommit = useCallback(async (feature: import('@zilventor/shared').HoleFeature) => {
+    if (!activePart || !kernel) return;
+    const store = useAppStore.getState();
+    try {
+      if (editingHoleId) {
+        await kernel.removeFeature(activePart.id, editingHoleId);
+      }
+      await store.bus.execute(new AddHoleFeatureCommand({
+        partId: activePart.id,
+        feature,
+        parameterExpressions: {},
+        kernel,
+        registry: parameterRegistry,
+        store: { setActivePart: store.setActivePart },
+      }));
+      clearHolePreview();
+      resetHoleDialog();
+    } catch (e) {
+      showToast(`Hole failed: ${(e as Error).message}`);
+    }
+  }, [activePart, kernel, editingHoleId, clearHolePreview, resetHoleDialog, showToast]);
+
   const onFilletCommit = useCallback(async (v: FilletDialogValue) => {
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
@@ -1684,6 +1711,7 @@ export default function App() {
       <HoleDialog
         onDraftChange={scheduleHolePreview}
         previewError={holePreviewError}
+        onCommit={(feature) => { void onHoleCommit(feature); }}
       />
       {revolveDialogOpen && (
         <RevolveDialog

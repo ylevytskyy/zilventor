@@ -8,17 +8,14 @@ import { seedKernelPart } from '../helpers/seedKernelPart';
  * Seeds a 20×20×10mm box, adds a second sketch with two circles, opens the
  * Hole dialog via H key, seeds holeSketchId directly on the store (the
  * interactive SketchPickController button is a stub — T27), clicks OK, then
- * finalises the commit through the kernel RPC. Asserts the viewport geometry
- * hash changes, confirming two holes were drilled.
+ * asserts the viewport geometry hash changes, confirming two holes were drilled.
+ *
+ * The dialog OK now dispatches AddHoleFeatureCommand which calls
+ * kernel.addFeature + execute + setActivePart — no manual page.evaluate
+ * workaround is needed.
  *
  * UI limitations:
  *   - holeSketchId is seeded via page.evaluate (pick button is stub, T27).
- *   - After dialog OK the kernel's internal part is updated via a second
- *     page.evaluate because HoleDialog.onOk only writes to the store's
- *     featureTree; the kernel re-execute triggered by setActivePart reads
- *     the kernel's own parts map which still lacks the hole. The second
- *     evaluate adds the hole to the kernel and re-executes so the viewport
- *     mesh is recomputed. This covers the full kernel + adapter pipeline.
  */
 test('from-sketch simple through hole drills per circle center', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
@@ -102,45 +99,12 @@ test('from-sketch simple through hole drills per circle center', async ({ page }
   const termSelect = dialog.getByLabel('Termination');
   await termSelect.selectOption('throughAll');
 
-  // 8. Commit via OK.
+  // 8. Commit via OK — AddHoleFeatureCommand drives kernel.addFeature + execute +
+  //    setActivePart, so the viewport mesh is updated automatically.
   await dialog.getByRole('button', { name: 'OK' }).click();
   await expect(dialog).not.toBeVisible();
 
-  // 9. The dialog's onOk updated the store's featureTree but the kernel's
-  //    internal parts map still lacks the hole (see class-level comment).
-  //    We finalize by adding the hole to the kernel and re-executing so the
-  //    viewport mesh reflects the two drilled holes.
-  await page.evaluate(async () => {
-    const w = window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          kernel: {
-            addFeature(partId: string, feature: unknown): Promise<void>;
-            execute(partId: string): Promise<unknown>;
-            getPart(partId: string): Promise<unknown>;
-          };
-          activePart: { id: string } | null;
-          setActivePart(p: unknown): void;
-        };
-      };
-    };
-    const s = w.__zilventorStore.getState();
-    const partId = s.activePart!.id;
-    await s.kernel.addFeature(partId, {
-      kind: 'hole',
-      id: 'H1',
-      placement: { kind: 'fromSketch', sketchId: 'S2' },
-      profile: { kind: 'simple', diameter: { kind: 'literal', value: 2 } },
-      termination: { kind: 'throughAll' },
-      flipAxis: false,
-    });
-    const res = await s.kernel.execute(partId) as { ok: boolean; value?: { mesh: unknown } };
-    if (!res.ok) throw new Error('kernel.execute failed after adding hole');
-    const next = await s.kernel.getPart(partId);
-    s.setActivePart(next);
-  });
-
-  // 10. Assert the feature tree contains the hole from the dialog commit.
+  // 9. Assert the feature tree contains the hole from the dialog commit.
   const afterState = await page.evaluate(() => {
     const w = window as unknown as {
       __zilventorStore: {
@@ -157,7 +121,7 @@ test('from-sketch simple through hole drills per circle center', async ({ page }
   });
   expect(afterState.holeCount).toBeGreaterThanOrEqual(1);
 
-  // 11. Geometry hash must have changed — two holes were drilled.
+  // 10. Geometry hash must have changed — two holes were drilled.
   await expect
     .poll(async () => viewport.getAttribute('data-geometry-hash'), {
       timeout: 8_000,

@@ -3,7 +3,7 @@ import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { AddExtrusionCommand } from '../../commands/AddExtrusionCommand';
-import { AddHoleFeatureCommand } from '../../commands/AddHoleFeatureCommand';
+import { OpenHoleDialogCommand } from '../../commands/OpenHoleDialogCommand';
 import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
@@ -76,7 +76,7 @@ export default function ModelTab() {
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!hasRunningBody}
-          onClick={() => AddHoleFeatureCommand()}
+          onClick={() => OpenHoleDialogCommand()}
           title="Hole (H)"
           aria-label="Hole"
         >
