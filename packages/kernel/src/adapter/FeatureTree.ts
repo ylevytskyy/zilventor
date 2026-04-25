@@ -662,7 +662,7 @@ export async function executeTree(
         // tessellate calls work correctly — same pattern as the hole branch.
         finalSolid = {
           ...sweepResult,
-          shape: { __brand: 'OcctShape' as const, handle: sweepResult.shape } as typeof finalSolid.shape
+          shape: { __brand: 'OcctShape' as const, handle: sweepResult.shape } as OcctShape
         };
       } catch (e) {
         // Soft-fail: keep the pre-sweep body intact and record the error.
