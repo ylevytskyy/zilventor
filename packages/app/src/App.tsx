@@ -1150,6 +1150,12 @@ export default function App() {
         termination,
         flipAxis: false,
       };
+      // Perf-test instrumentation (T30): count debounce timer firings so
+      // tests can verify the 150 ms debounce coalesces rapid input.
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as { __zilventorHolePreviewCount?: number };
+        w.__zilventorHolePreviewCount = (w.__zilventorHolePreviewCount ?? 0) + 1;
+      }
       try {
         const r = await k.previewFeature(part.id, scratch);
         if (r.ok) {
