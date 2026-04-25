@@ -1,5 +1,36 @@
 import type { OcctInstance } from './occtLoader';
 
+export type Vec3 = { x: number; y: number; z: number };
+
+/**
+ * 3D placement of a sketch's local 2D plane in world space. (x, y) sketch
+ * coords map to world via `origin + x*u + y*v`. `n` is the plane normal
+ * (used for circle/arc orientation and downstream extrude direction).
+ * For the XY origin plane this is the identity frame.
+ */
+export type SketchFrame = {
+  origin: Vec3;
+  u: Vec3;
+  v: Vec3;
+  n: Vec3;
+};
+
+export const XY_FRAME: SketchFrame = {
+  origin: { x: 0, y: 0, z: 0 },
+  u: { x: 1, y: 0, z: 0 },
+  v: { x: 0, y: 1, z: 0 },
+  n: { x: 0, y: 0, z: 1 },
+};
+
+function frameTo3D(frame: SketchFrame, x: number, y: number): Vec3 {
+  return {
+    x: frame.origin.x + x * frame.u.x + y * frame.v.x,
+    y: frame.origin.y + x * frame.u.y + y * frame.v.y,
+    z: frame.origin.z + x * frame.u.z + y * frame.v.z,
+  };
+}
+
+
 /**
  * Opaque branded handle around an OCCT TopoDS_Wire. The underlying
  * `wire` is kept as `unknown` so callers cannot invoke OCCT methods on
@@ -113,9 +144,16 @@ export type ArcParams = {
  *     `opencascade.full.d.ts` (two-point ctor, same one `makeRectangleWireXY`
  *     uses).
  */
-export function makeLineEdge(oc: OcctInstance, a: Point2, b: Point2): EdgeHandle {
-  const p1 = new oc.gp_Pnt_3(a.x, a.y, 0);
-  const p2 = new oc.gp_Pnt_3(b.x, b.y, 0);
+export function makeLineEdge(
+  oc: OcctInstance,
+  a: Point2,
+  b: Point2,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle {
+  const a3 = frameTo3D(frame, a.x, a.y);
+  const b3 = frameTo3D(frame, b.x, b.y);
+  const p1 = new oc.gp_Pnt_3(a3.x, a3.y, a3.z);
+  const p2 = new oc.gp_Pnt_3(b3.x, b3.y, b3.z);
   const mk = new oc.BRepBuilderAPI_MakeEdge_3(p1, p2);
   const edge = mk.Edge();
   mk.delete();
@@ -135,10 +173,15 @@ export function makeLineEdge(oc: OcctInstance, a: Point2, b: Point2): EdgeHandle
  *   - `gp_Circ_2(gp_Ax2, radius)` — axis + radius.
  *   - `BRepBuilderAPI_MakeEdge_9(gp_Circ, p1, p2)` — trim-by-parameter arc.
  */
-export function makeArcEdge(oc: OcctInstance, a: ArcParams): EdgeHandle {
-  const center = new oc.gp_Pnt_3(a.cx, a.cy, 0);
-  const axisDir = new oc.gp_Dir_4(0, 0, 1);
-  const xDir = new oc.gp_Dir_4(1, 0, 0);
+export function makeArcEdge(
+  oc: OcctInstance,
+  a: ArcParams,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle {
+  const c3 = frameTo3D(frame, a.cx, a.cy);
+  const center = new oc.gp_Pnt_3(c3.x, c3.y, c3.z);
+  const axisDir = new oc.gp_Dir_4(frame.n.x, frame.n.y, frame.n.z);
+  const xDir = new oc.gp_Dir_4(frame.u.x, frame.u.y, frame.u.z);
   const ax2 = new oc.gp_Ax2_2(center, axisDir, xDir);
   const circ = new oc.gp_Circ_2(ax2, a.r);
   const mk = new oc.BRepBuilderAPI_MakeEdge_9(circ, a.startAngle, a.endAngle);
@@ -204,10 +247,15 @@ export type RectangleParams = { x: number; y: number; w: number; h: number };
  *   - `BRepBuilderAPI_MakeEdge_8(gp_Circ)` — closed-circle single-arg form
  *     (verified in `opencascade.full.d.ts`).
  */
-export function makeCircleEdge(oc: OcctInstance, c: CircleParams): EdgeHandle {
-  const center = new oc.gp_Pnt_3(c.cx, c.cy, 0);
-  const axisDir = new oc.gp_Dir_4(0, 0, 1);
-  const xDir = new oc.gp_Dir_4(1, 0, 0);
+export function makeCircleEdge(
+  oc: OcctInstance,
+  c: CircleParams,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle {
+  const c3 = frameTo3D(frame, c.cx, c.cy);
+  const center = new oc.gp_Pnt_3(c3.x, c3.y, c3.z);
+  const axisDir = new oc.gp_Dir_4(frame.n.x, frame.n.y, frame.n.z);
+  const xDir = new oc.gp_Dir_4(frame.u.x, frame.u.y, frame.u.z);
   const ax2 = new oc.gp_Ax2_2(center, axisDir, xDir);
   const circ = new oc.gp_Circ_2(ax2, c.r);
   const mk = new oc.BRepBuilderAPI_MakeEdge_8(circ);
@@ -242,7 +290,11 @@ export function makeCircleEdge(oc: OcctInstance, c: CircleParams): EdgeHandle {
  *     (yielding the raw `Geom_BSplineCurve*`, which is-a `Geom_Curve`)
  *     and rewrap as a `Handle_Geom_Curve_2(thePtr)`.
  */
-export function makeSplineEdge(oc: OcctInstance, s: SplineParams): EdgeHandle {
+export function makeSplineEdge(
+  oc: OcctInstance,
+  s: SplineParams,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle {
   if (s.controlPoints.length < 2) {
     throw new Error(
       `spline requires at least 2 control points, got ${s.controlPoints.length}`
@@ -253,7 +305,8 @@ export function makeSplineEdge(oc: OcctInstance, s: SplineParams): EdgeHandle {
   const allocated: unknown[] = [];
   for (let i = 0; i < nbPoles; i++) {
     const cp = s.controlPoints[i]!;
-    const p = new oc.gp_Pnt_3(cp.x, cp.y, 0);
+    const cp3 = frameTo3D(frame, cp.x, cp.y);
+    const p = new oc.gp_Pnt_3(cp3.x, cp3.y, cp3.z);
     poles.SetValue(i + 1, p);
     allocated.push(p);
   }
@@ -287,7 +340,11 @@ export function makeSplineEdge(oc: OcctInstance, s: SplineParams): EdgeHandle {
  * Unlike `makeRectangleWireXY`, this returns the raw edges (not a wire)
  * so callers can mix them with other edges before constructing a wire.
  */
-export function makeRectangleEdges(oc: OcctInstance, r: RectangleParams): EdgeHandle[] {
+export function makeRectangleEdges(
+  oc: OcctInstance,
+  r: RectangleParams,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle[] {
   const corners: Point2[] = [
     { x: r.x, y: r.y },
     { x: r.x + r.w, y: r.y },
@@ -295,10 +352,10 @@ export function makeRectangleEdges(oc: OcctInstance, r: RectangleParams): EdgeHa
     { x: r.x, y: r.y + r.h }
   ];
   return [
-    makeLineEdge(oc, corners[0]!, corners[1]!),
-    makeLineEdge(oc, corners[1]!, corners[2]!),
-    makeLineEdge(oc, corners[2]!, corners[3]!),
-    makeLineEdge(oc, corners[3]!, corners[0]!)
+    makeLineEdge(oc, corners[0]!, corners[1]!, frame),
+    makeLineEdge(oc, corners[1]!, corners[2]!, frame),
+    makeLineEdge(oc, corners[2]!, corners[3]!, frame),
+    makeLineEdge(oc, corners[3]!, corners[0]!, frame)
   ];
 }
 

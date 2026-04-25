@@ -68,7 +68,8 @@ export function executeExtrudeFeature(
   );
   const face = mkFace.Face();
 
-  const dir = new oc.gp_Vec_4(0, 0, distance);
+  const n = sketch.plane.normal;
+  const dir = new oc.gp_Vec_4(n.x * distance, n.y * distance, n.z * distance);
 
   const mkPrism = new oc.BRepPrimAPI_MakePrism_1(
     face as never,
@@ -126,20 +127,30 @@ export function executeExtrudeFeature(
     return { face: f, c: coord };
   });
 
-  // Sort by Z to identify top/bottom.
-  withCentroids.sort((a, b) => a.c[2] - b.c[2]);
+  // Sort by signed projection onto the sketch plane normal: bottom is the
+  // face whose centroid projects to the smallest value (closest to the
+  // sketch plane); top is the largest (farthest along +normal).
+  const proj = (c: [number, number, number]): number => c[0] * n.x + c[1] * n.y + c[2] * n.z;
+  withCentroids.sort((a, b) => proj(a.c) - proj(b.c));
   const bottom = withCentroids[0]!;
   const top = withCentroids[withCentroids.length - 1]!;
   const sides = withCentroids.slice(1, withCentroids.length - 1);
   attachName(namedResult, bottom.face, namedFace(feature.id, 'bottom'));
   attachName(namedResult, top.face, namedFace(feature.id, 'top'));
-  // Sort sides by atan2(cY - center, cX - center) for stable instance indexing.
+  // Sort sides by polar angle in the sketch plane (u, v frame) around the
+  // solid's centroid so the instance indexing is stable across rebuilds.
+  const u = sketch.plane.xDir;
+  const v = { x: n.y * u.z - n.z * u.y, y: n.z * u.x - n.x * u.z, z: n.x * u.y - n.y * u.x };
   const cx = (top.c[0] + bottom.c[0]) / 2;
   const cy = (top.c[1] + bottom.c[1]) / 2;
-  sides.sort(
-    (a, b) =>
-      Math.atan2(a.c[1] - cy, a.c[0] - cx) - Math.atan2(b.c[1] - cy, b.c[0] - cx)
-  );
+  const cz = (top.c[2] + bottom.c[2]) / 2;
+  const polar = (c: [number, number, number]): number => {
+    const dx = c[0] - cx, dy = c[1] - cy, dz = c[2] - cz;
+    const uc = dx * u.x + dy * u.y + dz * u.z;
+    const vc = dx * v.x + dy * v.y + dz * v.z;
+    return Math.atan2(vc, uc);
+  };
+  sides.sort((a, b) => polar(a.c) - polar(b.c));
   sides.forEach((s, i) =>
     attachName(namedResult, s.face, namedFace(feature.id, 'side', i))
   );

@@ -96,6 +96,7 @@ export async function executeTree(
   const sketches = new Map<string, SketchResult>();
   let finalSolid: NamedShape | null = null;
   const featureErrors = new Map<string, KernelError>();
+  const workFeatureCache = new Map<string, WorkFeatureValue>();
 
   const cleanupOnError = (): void => {
     for (const s of sketches.values()) disposeSketchResult(oc, s);
@@ -136,6 +137,38 @@ export async function executeTree(
   }
 
   for (const feature of part.featureTree) {
+    // Inline work-feature evaluation: origin features come first in the tree
+    // (seeded by newPart / migration), so by the time a downstream sketch or
+    // user-created work feature references the cache, prior entries are
+    // already populated. Failures route to featureErrors and skip the rest of
+    // the tree at this index.
+    if (feature.kind === 'workAxis') {
+      const r = evaluateWorkAxis(oc, finalSolid, feature.source, workFeatureCache);
+      if (r.ok) {
+        workFeatureCache.set(feature.id, { featureId: feature.id, kind: 'axis', origin: r.value.origin, direction: r.value.direction });
+      } else {
+        featureErrors.set(feature.id, r.error);
+      }
+      continue;
+    }
+    if (feature.kind === 'workPlane') {
+      const r = evaluateWorkPlane(oc, finalSolid, feature.source, workFeatureCache, part.parameters);
+      if (r.ok) {
+        workFeatureCache.set(feature.id, { featureId: feature.id, kind: 'plane', origin: r.value.origin, normal: r.value.normal });
+      } else {
+        featureErrors.set(feature.id, r.error);
+      }
+      continue;
+    }
+    if (feature.kind === 'workPoint') {
+      const r = evaluateWorkPoint(oc, finalSolid, feature.source, workFeatureCache);
+      if (r.ok) {
+        workFeatureCache.set(feature.id, { featureId: feature.id, kind: 'point', position: r.value.position });
+      } else {
+        featureErrors.set(feature.id, r.error);
+      }
+      continue;
+    }
     if (feature.kind === 'sketch') {
       // Skip empty sketches — they are under construction, not an error.
       // An extrude that references one will fail with a clearer error below.
@@ -152,7 +185,7 @@ export async function executeTree(
       // directly by the sweep branch via `sketchById`. Skip
       // `executeSketchFeature` so it stays raw for the sweep branch to read.
       if (sweepSketchIds.has(feature.id)) continue;
-      const r = executeSketchFeature(oc, feature);
+      const r = executeSketchFeature(oc, feature, workFeatureCache);
       if (!r.ok) {
         cleanupOnError();
         return r;
@@ -705,37 +738,6 @@ export async function executeTree(
   // world-space segments) view so the app-layer edge picker does not need
   // to reason about BRep topology.
 
-  // Work-feature pass: evaluate axes/planes/points in feature-tree order so
-  // a downstream work feature can reference any upstream one via the cache.
-  // Origin features (always at the top of the tree) populate first, so
-  // user-created features see them. OCCT-bound modes (T14) are no-ops here
-  // until they're implemented; their evaluation simply returns notImplemented
-  // and the failure goes into featureErrors without breaking the rest.
-  const workFeatureCache = new Map<string, WorkFeatureValue>();
-  for (const f of part.featureTree) {
-    if (f.kind === 'workAxis') {
-      const r = evaluateWorkAxis(oc, finalSolid, f.source, workFeatureCache);
-      if (r.ok) {
-        workFeatureCache.set(f.id, { featureId: f.id, kind: 'axis', origin: r.value.origin, direction: r.value.direction });
-      } else {
-        featureErrors.set(f.id, r.error);
-      }
-    } else if (f.kind === 'workPlane') {
-      const r = evaluateWorkPlane(oc, finalSolid, f.source, workFeatureCache, part.parameters);
-      if (r.ok) {
-        workFeatureCache.set(f.id, { featureId: f.id, kind: 'plane', origin: r.value.origin, normal: r.value.normal });
-      } else {
-        featureErrors.set(f.id, r.error);
-      }
-    } else if (f.kind === 'workPoint') {
-      const r = evaluateWorkPoint(oc, finalSolid, f.source, workFeatureCache);
-      if (r.ok) {
-        workFeatureCache.set(f.id, { featureId: f.id, kind: 'point', position: r.value.position });
-      } else {
-        featureErrors.set(f.id, r.error);
-      }
-    }
-  }
   const workFeatures = Array.from(workFeatureCache.values());
 
   return ok({

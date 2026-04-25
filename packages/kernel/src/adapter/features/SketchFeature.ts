@@ -6,7 +6,8 @@ import {
   type KernelError,
   newCorrelationId,
   type Feature,
-  originPlaneLiteralOf
+  type WorkFeatureValue,
+  type Vec3,
 } from '@zilventor/shared';
 import {
   makeLineEdge,
@@ -17,19 +18,25 @@ import {
   combineEdgesIntoWires,
   disposeEdge,
   type EdgeHandle,
-  type WireHandle
+  type WireHandle,
+  type SketchFrame,
 } from '../../occt/SketchOps';
+import { resolveWorkPlaneRef, normalize, cross } from '../../occt/WorkFeatureOps';
 import type { NamedShape } from '../../occt/FaceNaming';
 
 /**
  * The adapter-level result of executing a sketch feature. `wire` owns
  * the OCCT topology; callers must hand it to `disposeSketchResult` once
  * the downstream consumer (e.g. ExtrudeFeature) is done with it.
+ *
+ * `plane` carries the full 3D placement of the sketch's local frame
+ * (origin + normal + xDir) so downstream features (extrude, revolve)
+ * can build prisms / axes in the correct world-space direction.
  */
 export type SketchResult = {
   sketchId: string;
   wire: WireHandle;
-  plane: 'XY' | 'XZ' | 'YZ';
+  plane: { origin: Vec3; normal: Vec3; xDir: Vec3 };
   closed: boolean;
   /** Placeholder NamedShape that downstream features (extrude/revolve) will
    *  attach faces to. Sketches themselves produce only edges/wires; the
@@ -40,37 +47,28 @@ export type SketchResult = {
 };
 
 /**
- * Translates a domain `sketch` feature into a single closed OCCT wire.
+ * Translates a domain `sketch` feature into a single closed OCCT wire
+ * placed on the resolved work plane.
  *
- * Sub-project 2a contract:
- *   - Accepts any combination of line / rectangle / circle / arc / spline primitives.
- *   - Plane must be `XY`.
- *   - The primitives, after stitching via `combineEdgesIntoWires`, must form
- *     exactly one closed wire with no leftover open chains.
- *
- * Violations yield typed KernelErrors (either `invalidParameter` for the
- * plane restriction or `degenerateSketch` with a diagnostic message the UI
- * can surface to the user) rather than throws.
+ * The `workFeatures` cache must contain an entry for any work plane
+ * referenced by `feature.plane.featureId` (origin work planes are seeded
+ * by `newPart()` and migration; derived planes populate as `executeTree`
+ * iterates the feature tree). Sketches that target a plane source not
+ * yet implemented (e.g. a face — Plan T14) return `notImplemented`.
  */
 export function executeSketchFeature(
   oc: OcctInstance,
-  feature: Extract<Feature, { kind: 'sketch' }>
+  feature: Extract<Feature, { kind: 'sketch' }>,
+  workFeatures: Map<string, WorkFeatureValue> = new Map(),
 ): Result<SketchResult, KernelError> {
-  const planeLit = originPlaneLiteralOf(feature.plane);
-  if (planeLit === null) {
+  const cache = ensureOriginPlanes(workFeatures);
+  const planeRes = resolveWorkPlaneRef(feature.plane, oc, null, cache);
+  if (!planeRes.ok) {
     return err({
-      kind: 'invalidGeometry',
-      message: `SketchFeature: only origin work planes supported until WorkFeatureOps lands. Got ${JSON.stringify(feature.plane)}`,
+      kind: planeRes.error.kind,
+      message: `SketchFeature: ${planeRes.error.message}`,
       correlationId: newCorrelationId(),
-      featureId: feature.id
-    });
-  }
-  if (planeLit !== 'XY') {
-    return err({
-      kind: 'invalidParameter',
-      message: 'Sub-project 2a only supports the XY sketch plane.',
-      correlationId: newCorrelationId(),
-      featureId: feature.id
+      featureId: feature.id,
     });
   }
   if (feature.primitives.length === 0) {
@@ -78,28 +76,40 @@ export function executeSketchFeature(
       kind: 'degenerateSketch',
       message: 'Sketch is empty — cannot extrude. Draw a closed profile first.',
       correlationId: newCorrelationId(),
-      featureId: feature.id
+      featureId: feature.id,
     });
   }
+
+  const { origin, normal: rawNormal } = planeRes.value;
+  const normal = normalize(rawNormal);
+  // Pick xDir as the in-plane projection of the global vector that's least
+  // parallel to the normal. This keeps origin XY/YZ/XZ frames identical to
+  // the legacy SweepOps.sketchPlaneFrame mapping for backward compatibility.
+  const xCandidate: Vec3 =
+    Math.abs(normal.x) > 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+  const xProj = sub(xCandidate, scale(normal, dotV(xCandidate, normal)));
+  const u = normalize(xProj);
+  const v = cross(normal, u);
+  const frame: SketchFrame = { origin, u, v, n: normal };
 
   const edges: EdgeHandle[] = [];
   try {
     for (const p of feature.primitives) {
       switch (p.kind) {
         case 'line':
-          edges.push(makeLineEdge(oc, { x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }));
+          edges.push(makeLineEdge(oc, { x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }, frame));
           break;
         case 'rectangle':
-          edges.push(...makeRectangleEdges(oc, p));
+          edges.push(...makeRectangleEdges(oc, p, frame));
           break;
         case 'circle':
-          edges.push(makeCircleEdge(oc, p));
+          edges.push(makeCircleEdge(oc, p, frame));
           break;
         case 'arc':
-          edges.push(makeArcEdge(oc, p));
+          edges.push(makeArcEdge(oc, p, frame));
           break;
         case 'spline':
-          edges.push(makeSplineEdge(oc, p));
+          edges.push(makeSplineEdge(oc, p, frame));
           break;
       }
     }
@@ -110,13 +120,12 @@ export function executeSketchFeature(
       return ok({
         sketchId: feature.id,
         wire: closedWires[0]!,
-        plane: planeLit,
+        plane: { origin, normal, xDir: u },
         closed: true,
-        named: { shape: { __brand: 'OcctShape', handle: null }, faceNames: [] }
+        named: { shape: { __brand: 'OcctShape', handle: null }, faceNames: [] },
       });
     }
 
-    // Error path — dispose any closed wires we aren't returning.
     closedWires.forEach((w) => (w.wire as { delete?: () => void }).delete?.());
 
     let message: string;
@@ -135,12 +144,39 @@ export function executeSketchFeature(
       kind: 'degenerateSketch',
       message,
       correlationId: newCorrelationId(),
-      featureId: feature.id
+      featureId: feature.id,
     });
   } finally {
     edges.forEach(disposeEdge);
   }
 }
+
+const sub = (a: Vec3, b: Vec3): Vec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const scale = (v: Vec3, s: number): Vec3 => ({ x: v.x * s, y: v.y * s, z: v.z * s });
+const dotV = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const ORIGIN_PLANE_VALUES: ReadonlyArray<WorkFeatureValue> = [
+  { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } },
+  { featureId: 'origin.YZ', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+  { featureId: 'origin.XZ', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+];
+
+/**
+ * Ensures the workFeature cache has entries for the three origin work
+ * planes. Lets unit tests call `executeSketchFeature` with an empty cache
+ * and still resolve `origin.XY/YZ/XZ` references; in production execution
+ * `executeTree` populates these entries from the feature tree before any
+ * sketch is processed.
+ */
+function ensureOriginPlanes(cache: Map<string, WorkFeatureValue>): Map<string, WorkFeatureValue> {
+  if (cache.has('origin.XY') && cache.has('origin.YZ') && cache.has('origin.XZ')) return cache;
+  const next = new Map(cache);
+  for (const v of ORIGIN_PLANE_VALUES) {
+    if (!next.has(v.featureId)) next.set(v.featureId, v);
+  }
+  return next;
+}
+
 
 /**
  * Releases the OCCT topology owned by a SketchResult. Safe to call

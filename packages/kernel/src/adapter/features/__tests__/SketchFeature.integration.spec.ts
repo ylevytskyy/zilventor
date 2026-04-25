@@ -21,7 +21,7 @@ describe('SketchFeature — rectangle on XY', () => {
     }
   });
 
-  it('rejects non-XY planes in MVP', () => {
+  it('accepts an origin.XZ sketch plane (3c-T16: arbitrary origin planes supported)', () => {
     const result = executeSketchFeature(occt, {
       kind: 'sketch',
       id: 's1',
@@ -29,8 +29,11 @@ describe('SketchFeature — rectangle on XY', () => {
       primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }],
       constraints: []
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.kind).toBe('invalidParameter');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.plane.normal).toEqual({ x: 0, y: 1, z: 0 });
+      disposeSketchResult(occt, result.value);
+    }
   });
 
   it('rejects an empty sketch with a degenerateSketch error', () => {
