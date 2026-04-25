@@ -3,10 +3,19 @@ import * as THREE from 'three';
 import { SceneManager } from './SceneManager';
 import ViewCube from './ViewCube';
 
+export type ComponentMeshSpec = {
+  componentId: string;
+  geometry: THREE.BufferGeometry;
+  transform: THREE.Matrix4;
+  visible: boolean;
+};
+
 export type ViewportRef = {
   setMesh(positions: Float32Array, indices: Uint32Array): void;
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
   clearPreviewMesh(): void;
+  setComponentMeshes(specs: ComponentMeshSpec[]): void;
+  clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
@@ -74,6 +83,16 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     clearPreviewMesh: () => {
       if (!sceneRef.current) return;
       sceneRef.current.clearPreviewMesh();
+    },
+    setComponentMeshes: (specs) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setComponentMeshes(specs);
+      setGeometryHash(sceneRef.current.geometryHash());
+    },
+    clearComponentMeshes: () => {
+      if (!sceneRef.current) return;
+      sceneRef.current.clearComponentMeshes();
+      setGeometryHash(sceneRef.current.geometryHash());
     },
     captureThumbnail: async (w, h) => {
       if (!sceneRef.current) throw new Error('viewport not ready');

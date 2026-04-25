@@ -55,7 +55,7 @@ import { PlaceComponentCommand } from './commands/PlaceComponentCommand';
 import { EditComponentCommand } from './commands/EditComponentCommand';
 import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
-import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { ComponentInstance } from '@zilventor/shared';
 import * as THREE from 'three';
 
@@ -214,6 +214,11 @@ export default function App() {
       w.__zilventorWorldToScreen3d = (wx: number, wy: number, wz: number) =>
         viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
+      w.__zilventorPackProject = packProject;
+      w.__zilventorGetOpfs = async () => {
+        if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+        return opfsRef.current;
+      };
     }
   }, []);
 
@@ -1337,10 +1342,10 @@ export default function App() {
   // Runs whenever the activeAssembly (or its components) changes.
   // Cache is keyed by partPath — same part rendered N times tessellates once.
   useEffect(() => {
-    const sm = viewportRef.current?.getSceneManager();
-    if (!sm) return;
+    const vp = viewportRef.current;
+    if (!vp) return;
     if (!assembly) {
-      sm.clearComponentMeshes();
+      vp.clearComponentMeshes();
       return;
     }
     let cancelled = false;
@@ -1387,7 +1392,7 @@ export default function App() {
         specs.push({ componentId: c.id, geometry: geom, transform, visible: c.visible });
       }
       if (!cancelled) {
-        sm.setComponentMeshes(specs);
+        vp.setComponentMeshes(specs);
         useAppStore.getState().setComponentDiagnostics(diagnostics);
       }
     })();
