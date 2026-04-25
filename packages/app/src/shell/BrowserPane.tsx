@@ -134,6 +134,21 @@ export default function BrowserPane({ part }: Props) {
               </li>
             );
           }
+          if (f.kind === 'hole') {
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onDoubleClick={() => {
+                  setSelectedFeature(f.id);
+                  useAppStore.getState().openHoleForEdit(f.id);
+                }}
+              >
+                ▸ Hole {f.id}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
           extrudeCount += 1;
           return (
             <li
