@@ -45,3 +45,27 @@ describe('Work feature types', () => {
     expect([f1.kind, f2.kind, f3.kind]).toEqual(['workAxis', 'workPlane', 'workPoint']);
   });
 });
+
+describe('SketchFeature.plane is a WorkPlaneRef', () => {
+  it('accepts a workPlane reference', () => {
+    const f: Feature = {
+      kind: 'sketch', id: 'S1',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [], constraints: [],
+    };
+    if (f.kind === 'sketch' && f.plane.source === 'workPlane') {
+      expect(f.plane.featureId).toBe('origin.XY');
+    }
+  });
+
+  it('accepts a face reference', () => {
+    const f: Feature = {
+      kind: 'sketch', id: 'S2',
+      plane: { source: 'face', face: { featureId: 'E1', role: 'top' } },
+      primitives: [], constraints: [],
+    };
+    if (f.kind === 'sketch' && f.plane.source === 'face') {
+      expect(f.plane.face.role).toBe('top');
+    }
+  });
+});
