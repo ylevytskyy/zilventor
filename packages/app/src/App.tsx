@@ -135,6 +135,10 @@ export default function App() {
   const [holePreviewError, setHolePreviewError] = useState<string | null>(null);
   const holePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sweep dialog preview state — mirrors hole/fillet/revolve pattern.
+  const [sweepPreviewError, setSweepPreviewError] = useState<string | null>(null);
+  const sweepPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Sweep sketch-pick wiring (T19).
   // A discriminator ref tracks which of the three sweep slots is waiting for a pick.
   const sweepActivePickRef = useRef<'profile' | 'path' | 'guideRail' | null>(null);
@@ -1254,6 +1258,67 @@ export default function App() {
   const sweepGuideRailSketchId = useAppStore((s) => s.sweepGuideRailSketchId);
   const sweepOperation = useAppStore((s) => s.sweepOperation);
 
+  // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
+  const scheduleSweepPreview = useCallback(() => {
+    if (sweepPreviewTimerRef.current) clearTimeout(sweepPreviewTimerRef.current);
+    if (!activePart || !kernel) return;
+    const part = activePart;
+    const k = kernel;
+    sweepPreviewTimerRef.current = setTimeout(async () => {
+      sweepPreviewTimerRef.current = null;
+      const s = useAppStore.getState();
+      if (!s.sweepProfileSketchId || !s.sweepPathSketchId) return;
+      if (s.sweepOrientationKind === 'guideRail' && !s.sweepGuideRailSketchId) return;
+      const orientation: SweepOrientation =
+        s.sweepOrientationKind === 'path' ? { kind: 'path' } :
+        s.sweepOrientationKind === 'parallel' ? { kind: 'parallel' } :
+        { kind: 'guideRail', guideRailSketchId: s.sweepGuideRailSketchId! };
+      const feature: SweepFeature = {
+        id: 'SW_PREVIEW', kind: 'sweep',
+        profileSketchId: s.sweepProfileSketchId,
+        pathSketchId: s.sweepPathSketchId,
+        orientation,
+        operation: s.sweepOperation,
+      };
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as { __zilventorSweepPreviewCount?: number };
+        w.__zilventorSweepPreviewCount = (w.__zilventorSweepPreviewCount ?? 0) + 1;
+      }
+      try {
+        const r = await k.previewFeature(part.id, feature);
+        if (r.ok) {
+          viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
+          setSweepPreviewError(null);
+        } else {
+          viewportRef.current?.clearPreviewMesh();
+          setSweepPreviewError(r.error.message);
+        }
+      } catch (e) {
+        viewportRef.current?.clearPreviewMesh();
+        setSweepPreviewError((e as Error).message);
+      }
+    }, 150);
+  }, [activePart, kernel]);
+
+  const clearSweepPreview = useCallback(() => {
+    if (sweepPreviewTimerRef.current) {
+      clearTimeout(sweepPreviewTimerRef.current);
+      sweepPreviewTimerRef.current = null;
+    }
+    viewportRef.current?.clearPreviewMesh();
+    setSweepPreviewError(null);
+  }, []);
+
+  // Trigger preview whenever sweep dialog state changes.
+  useEffect(() => {
+    if (sweepOpen) scheduleSweepPreview();
+  }, [sweepOpen, sweepProfileSketchId, sweepPathSketchId, sweepOrientationKind, sweepGuideRailSketchId, sweepOperation, scheduleSweepPreview]);
+
+  // Clear sweep preview whenever the dialog closes.
+  useEffect(() => {
+    if (!sweepOpen) clearSweepPreview();
+  }, [sweepOpen, clearSweepPreview]);
+
   // Sweep dialog commit handler — mirrors onHoleCommit pattern.
   const onSweepCommit = useCallback(async (v: { orientation: SweepOrientation; operation: BooleanOperation }) => {
     if (!activePart || !kernel) return;
@@ -1796,7 +1861,7 @@ export default function App() {
           guideRailSketchId={sweepGuideRailSketchId}
           operation={sweepOperation}
           hasRunningBody={Boolean(activePart && activePart.featureTree.length > 0)}
-          previewError={null}
+          previewError={sweepPreviewError}
           onCommit={(v) => { void onSweepCommit(v); }}
           onCancel={() => useAppStore.getState().resetSweepDialog()}
           onPickProfile={() => { sweepActivePickRef.current = 'profile'; sweepPickerRef.current?.activate(); }}
