@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
+import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 
 type FSAWindow = Window & {
   showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle>;
@@ -15,6 +16,10 @@ export default function FileTab() {
     const { kernel, bus, setActivePart } = useAppStore.getState();
     if (!kernel) return;
     await bus.execute(new CreatePartCommand({ kernel, store: { setActivePart }, name: 'Part1' }));
+  };
+
+  const handleNewAssembly = (): void => {
+    NewAssemblyCommand({ name: 'untitled-assembly' });
   };
 
   const handleSaveAs = async () => {
@@ -71,6 +76,7 @@ export default function FileTab() {
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
       <button className="hover:text-white" onClick={handleNewPart}>New Part</button>
+      <button className="hover:text-white" onClick={handleNewAssembly}>New Assembly</button>
       <button className="hover:text-white" onClick={handleOpen}>Open…</button>
       <button className="hover:text-white" disabled>Save</button>
       <button className="hover:text-white disabled:text-neutral-500" disabled={!activePart} onClick={handleSaveAs}>Save As…</button>
