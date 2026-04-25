@@ -51,9 +51,49 @@ const okBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const pickRowStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '4px 8px',
+  fontSize: 11,
+  background: '#222',
+  border: '1px solid #444',
+  color: '#eee',
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const pickRowFlexStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '4px 8px',
+  fontSize: 11,
+  background: '#222',
+  border: '1px solid #444',
+  color: '#eee',
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const offsetInputStyle: React.CSSProperties = {
+  width: 56,
+  background: '#222',
+  border: '1px solid #444',
+  color: '#eee',
+  padding: '4px 6px',
+  fontSize: 11,
+};
+
 export function HoleDialog(): JSX.Element | null {
   const open = useAppStore((s) => s.holeDialogOpen);
   const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
+
+  const placementMode = useAppStore((s) => s.holePlacementMode);
+  const setPlacementMode = (m: 'fromSketch' | 'linear' | 'concentric') =>
+    useAppStore.setState((s) => ({ ...s, holePlacementMode: m }));
+
+  const sketchId = useAppStore((s) => s.holeSketchId);
+  const placementFace = useAppStore((s) => s.holePlacementFace);
+  const refEdges = useAppStore((s) => s.holeRefEdges);
+  const circularEdge = useAppStore((s) => s.holeCircularEdge);
 
   if (!open) return null;
 
@@ -63,7 +103,70 @@ export function HoleDialog(): JSX.Element | null {
 
       <div style={sectionStyle}>
         <h2 style={sectionHeadingStyle}>Placement</h2>
-        {/* T21 */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {(['fromSketch', 'linear', 'concentric'] as const).map((m) => (
+            <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+              <input
+                type="radio"
+                name="holePlacement"
+                checked={placementMode === m}
+                onChange={() => setPlacementMode(m)}
+              />
+              {m === 'fromSketch' ? 'From Sketch' : m[0]!.toUpperCase() + m.slice(1)}
+            </label>
+          ))}
+        </div>
+
+        {placementMode === 'fromSketch' && (
+          <button
+            type="button"
+            style={pickRowStyle}
+            onClick={() => { /* T27 wires the SketchPickController activation */ }}
+          >
+            {sketchId ? `Sketch: ${sketchId}` : 'Pick sketch'}
+          </button>
+        )}
+
+        {placementMode === 'linear' && (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <button type="button" style={pickRowStyle}>
+              {placementFace ? `Face: ${placementFace}` : 'Pick face'}
+            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button type="button" style={pickRowFlexStyle}>
+                {refEdges[0] ? 'Edge 1 ✓' : 'Pick edge 1'}
+              </button>
+              <input
+                aria-label="offset 1"
+                type="text"
+                defaultValue="5"
+                style={offsetInputStyle}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button type="button" style={pickRowFlexStyle}>
+                {refEdges[1] ? 'Edge 2 ✓' : 'Pick edge 2'}
+              </button>
+              <input
+                aria-label="offset 2"
+                type="text"
+                defaultValue="5"
+                style={offsetInputStyle}
+              />
+            </div>
+          </div>
+        )}
+
+        {placementMode === 'concentric' && (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <button type="button" style={pickRowStyle}>
+              {placementFace ? `Face: ${placementFace}` : 'Pick face'}
+            </button>
+            <button type="button" style={pickRowStyle}>
+              {circularEdge ? 'Circular edge ✓' : 'Pick circular edge'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={sectionStyle}>
