@@ -118,6 +118,14 @@ export function makeSweep(
   builder.Add_1(profileWire, false, false);
   builder.Build(new oc.Message_ProgressRange_1());
   if (!builder.IsDone()) throw new Error('SweepOps: MakePipeShell.Build failed');
-  if (!builder.MakeSolid()) throw new Error('SweepOps: MakePipeShell.MakeSolid failed (profile may not be closed)');
+
+  const isClosedPath = (pathWire as any).Closed_1?.() === true;
+  if (!isClosedPath) {
+    if (!builder.MakeSolid()) throw new Error('SweepOps: MakePipeShell.MakeSolid failed (profile may not be closed)');
+  }
+  // For closed-loop paths, MakeSolid() produces a degenerate result because
+  // the ring-like shell has open corners at sharp-angle path vertices.
+  // Return builder.Shape() directly (a shell); the tessellator and adapter
+  // can consume it as-is.
   return builder.Shape();
 }
