@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 6 as const;
+export const CURRENT_FORMAT_VERSION = 7 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -84,7 +84,13 @@ const migrations: Record<number, MigrateFn> = {
   5: (mIn) => {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 6 };
-  }
+  },
+
+  // v6 → v7 is additive (SweepFeature variant added). No-op migration.
+  6: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 7 };
+  },
 };
 
 export function migrateManifest(m: AnyManifest): AnyManifest {
