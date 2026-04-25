@@ -1,6 +1,6 @@
 import { useEffect, useRef, useImperativeHandle, useState, forwardRef } from 'react';
 import * as THREE from 'three';
-import { SceneManager } from './SceneManager';
+import { SceneManager, type WorkFeatureSpec } from './SceneManager';
 import ViewCube from './ViewCube';
 
 export type ComponentMeshSpec = {
@@ -28,6 +28,7 @@ export type ViewportRef = {
   raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
   raycastComponent(clientX: number, clientY: number): string | null;
   raycastWorkFeature(clientX: number, clientY: number): string | null;
+  setWorkFeatures(specs: WorkFeatureSpec[]): void;
 };
 
 type Props = {
@@ -179,6 +180,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
         -(((clientY - rect.top) / rect.height) * 2 - 1)
       );
       return sceneRef.current.raycastWorkFeature(sceneRef.current.getCamera(), ndc);
+    },
+    setWorkFeatures: (specs) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setWorkFeatures(specs);
+      setGeometryHash(sceneRef.current.geometryHash());
     },
     worldToScreen3d: (wx, wy, wz) => {
       if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };

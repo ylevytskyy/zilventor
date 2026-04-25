@@ -235,6 +235,30 @@ export default function App() {
     }
   }, [pendingWorkFeaturePick]);
 
+  // Map kernel ExecutionResult.workFeatures + part.featureTree visibility into
+  // the SceneManager renderer. Without this wire the work-feature renderer
+  // never receives data, so origin planes stay invisible and the geometry
+  // hash never reflects work-plane parameter changes.
+  const applyWorkFeaturesToViewport = useCallback((
+    workFeatures: ReadonlyArray<import('@zilventor/shared').WorkFeatureValue> | undefined,
+    tree: ReadonlyArray<{ kind: string; id: string; visible?: boolean }>,
+  ) => {
+    if (!viewportRef.current) return;
+    const visibleById = new Map<string, boolean>();
+    for (const f of tree) {
+      if (f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint') {
+        visibleById.set(f.id, !!f.visible);
+      }
+    }
+    const specs = (workFeatures ?? []).map((wf) => {
+      const visible = visibleById.get(wf.featureId) ?? false;
+      if (wf.kind === 'axis') return { featureId: wf.featureId, kind: 'axis' as const, origin: wf.origin, direction: wf.direction, visible };
+      if (wf.kind === 'plane') return { featureId: wf.featureId, kind: 'plane' as const, origin: wf.origin, normal: wf.normal, visible };
+      return { featureId: wf.featureId, kind: 'point' as const, origin: wf.position, visible };
+    });
+    viewportRef.current.setWorkFeatures(specs);
+  }, []);
+
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(action ? { message, action } : { message });
@@ -322,8 +346,8 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep');
-      if (!hasSolidFeature) return;
+      const hasExecutableFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint');
+      if (!hasExecutableFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
@@ -332,6 +356,7 @@ export default function App() {
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
         useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+        applyWorkFeaturesToViewport(res.value.workFeatures, activePart.featureTree);
       } else {
         useAppStore.getState().setStatus(`Error: ${res.error.message}`);
         useAppStore.getState().setFeatureErrors(new Map());
@@ -530,10 +555,10 @@ export default function App() {
           const freshPart = useAppStore.getState().activePart;
           if (!freshPart || freshPart.id !== part.id) return;
           if (useAppStore.getState().sketchMode) return;
-          const hasSolidFeature = freshPart.featureTree.some(
-            (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep'
+          const hasExecutableFeature = freshPart.featureTree.some(
+            (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint'
           );
-          if (!hasSolidFeature) return;
+          if (!hasExecutableFeature) return;
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
             viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
@@ -541,6 +566,7 @@ export default function App() {
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+            applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree);
           } else if (!res.ok) {
             useAppStore.getState().setStatus(`Error: ${res.error.message}`);
             useAppStore.getState().setFeatureErrors(new Map());
@@ -796,6 +822,7 @@ export default function App() {
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+            applyWorkFeaturesToViewport(res.value.workFeatures, ap.featureTree);
           } else if (!unmountedRef.current) {
             useAppStore.getState().setFeatureErrors(new Map());
           }
