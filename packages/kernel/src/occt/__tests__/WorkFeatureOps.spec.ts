@@ -77,7 +77,7 @@ describe('evaluateWorkPlane origin', () => {
     ['YZ', { x: 1, y: 0, z: 0 }],
     ['XZ', { x: 0, y: 1, z: 0 }],
   ] as const)('plane %s normal is %j', (plane, expected) => {
-    const r = evaluateWorkPlane(occtStub, null, { mode: 'origin', plane }, new Map());
+    const r = evaluateWorkPlane(occtStub, null, { mode: 'origin', plane }, new Map(), {});
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.origin).toEqual({ x: 0, y: 0, z: 0 });
@@ -240,5 +240,140 @@ describe('evaluateWorkAxis non-OCCT modes', () => {
     }, wfs);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+});
+
+import type { SketchParameter } from '@zilventor/shared';
+
+const noParams: Record<string, SketchParameter> = {};
+
+describe('evaluateWorkPlane non-OCCT modes', () => {
+  it('offsetFromPlane: XY + 10mm ⇒ origin (0,0,10) normal (0,0,1)', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'offsetFromPlane',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      offset: { kind: 'literal', value: 10 },
+    }, wfs, noParams);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin.z).toBeCloseTo(10, 5);
+      expect(r.value.normal.z).toBeCloseTo(1, 5);
+    }
+  });
+
+  it('offsetFromPlane: param-driven offset reads from params map', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const params: Record<string, SketchParameter> = {
+      d0: { name: 'd0', expression: '25', value: 25, unit: 'mm' },
+    };
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'offsetFromPlane',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      offset: { kind: 'param', paramName: 'd0' },
+    }, wfs, params);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.origin.z).toBeCloseTo(25, 5);
+  });
+
+  it('threePoints: (0,0,0) (1,0,0) (0,1,0) ⇒ normal +Z', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['A', { featureId: 'A', kind: 'point', position: { x: 0, y: 0, z: 0 } }],
+      ['B', { featureId: 'B', kind: 'point', position: { x: 1, y: 0, z: 0 } }],
+      ['C', { featureId: 'C', kind: 'point', position: { x: 0, y: 1, z: 0 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'threePoints',
+      points: [
+        { source: 'workPoint', featureId: 'A' },
+        { source: 'workPoint', featureId: 'B' },
+        { source: 'workPoint', featureId: 'C' },
+      ],
+    }, wfs, noParams);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.normal.z).toBeCloseTo(1, 5);
+  });
+
+  it('threePoints: collinear inputs return invalidGeometry', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['A', { featureId: 'A', kind: 'point', position: { x: 0, y: 0, z: 0 } }],
+      ['B', { featureId: 'B', kind: 'point', position: { x: 1, y: 0, z: 0 } }],
+      ['C', { featureId: 'C', kind: 'point', position: { x: 2, y: 0, z: 0 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'threePoints',
+      points: [
+        { source: 'workPoint', featureId: 'A' },
+        { source: 'workPoint', featureId: 'B' },
+        { source: 'workPoint', featureId: 'C' },
+      ],
+    }, wfs, noParams);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+
+  it('midplane: parallel XY at z=0 + z=10 ⇒ plane at z=5', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['P0', { featureId: 'P0', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['P1', { featureId: 'P1', kind: 'plane', origin: { x: 0, y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'midplane',
+      planeA: { source: 'workPlane', featureId: 'P0' },
+      planeB: { source: 'workPlane', featureId: 'P1' },
+    }, wfs, noParams);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.origin.z).toBeCloseTo(5, 5);
+  });
+
+  it('midplane: non-parallel input planes return invalidGeometry', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['xy', { featureId: 'xy', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['yz', { featureId: 'yz', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'midplane',
+      planeA: { source: 'workPlane', featureId: 'xy' },
+      planeB: { source: 'workPlane', featureId: 'yz' },
+    }, wfs, noParams);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+
+  it('axisPerpendicularToPlane: X-axis + XY ⇒ plane normal ±Y', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['ax', { featureId: 'ax', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }],
+      ['xy', { featureId: 'xy', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'axisPerpendicularToPlane',
+      axis: { source: 'workAxis', featureId: 'ax' },
+      plane: { source: 'workPlane', featureId: 'xy' },
+    }, wfs, noParams);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(Math.abs(r.value.normal.y)).toBeCloseTo(1, 5);
+      expect(r.value.normal.x).toBeCloseTo(0, 5);
+      expect(r.value.normal.z).toBeCloseTo(0, 5);
+    }
+  });
+
+  it('axisAtAngleToPlane: 90° rotation of XY normal about X-axis ⇒ normal ±Y', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['ax', { featureId: 'ax', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }],
+      ['xy', { featureId: 'xy', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPlane(occtStub, null, {
+      mode: 'axisAtAngleToPlane',
+      axis: { source: 'workAxis', featureId: 'ax' },
+      plane: { source: 'workPlane', featureId: 'xy' },
+      angle: { kind: 'literal', value: 90 },
+    }, wfs, noParams);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(Math.abs(r.value.normal.y)).toBeCloseTo(1, 5);
   });
 });

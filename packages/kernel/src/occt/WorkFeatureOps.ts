@@ -8,6 +8,8 @@ import type {
   WorkFeatureValue,
   Vec3,
 } from '@zilventor/shared';
+import type { ParamOrLiteral, SketchParameter } from '@zilventor/shared';
+
 import type { Result } from '@zilventor/shared';
 import { type KernelError, newCorrelationId } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
@@ -49,6 +51,12 @@ const invalidGeometryFail = (what: string): { ok: false; error: KernelError } =>
     correlationId: newCorrelationId(),
   },
 });
+
+function resolveParam(p: ParamOrLiteral, params: Record<string, SketchParameter>): number {
+  if (p.kind === 'literal') return p.value;
+  return params[p.paramName]?.value ?? 0;
+}
+
 
 
 export function evaluateWorkAxis(
@@ -117,10 +125,11 @@ export function evaluateWorkAxis(
 }
 
 export function evaluateWorkPlane(
-  _occt: OcctInstance,
-  _shape: NamedShape | null,
+  occt: OcctInstance,
+  shape: NamedShape | null,
   source: WorkPlaneFeature['source'],
-  _wfs: Map<string, WorkFeatureValue>,
+  wfs: Map<string, WorkFeatureValue>,
+  params: Record<string, SketchParameter>,
 ): Result<{ origin: Vec3; normal: Vec3 }, KernelError> {
   if (source.mode === 'origin') {
     const normal: Vec3 =
@@ -128,6 +137,66 @@ export function evaluateWorkPlane(
       source.plane === 'YZ' ? { x: 1, y: 0, z: 0 } :
                               { x: 0, y: 1, z: 0 };
     return { ok: true, value: { origin: { x: 0, y: 0, z: 0 }, normal } };
+  }
+  if (source.mode === 'offsetFromPlane') {
+    const pl = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!pl.ok) return pl;
+    const off = resolveParam(source.offset, params);
+    return {
+      ok: true,
+      value: {
+        origin: add(pl.value.origin, scale(normalize(pl.value.normal), off)),
+        normal: pl.value.normal,
+      },
+    };
+  }
+  if (source.mode === 'threePoints') {
+    const a = resolveWorkPointRef(source.points[0], occt, shape, wfs);
+    if (!a.ok) return a;
+    const b = resolveWorkPointRef(source.points[1], occt, shape, wfs);
+    if (!b.ok) return b;
+    const c = resolveWorkPointRef(source.points[2], occt, shape, wfs);
+    if (!c.ok) return c;
+    const ab = sub(b.value.position, a.value.position);
+    const ac = sub(c.value.position, a.value.position);
+    const n = cross(ab, ac);
+    if (length(n) < 1e-9) return invalidGeometryFail('threePoints: collinear points cannot define a plane');
+    return { ok: true, value: { origin: a.value.position, normal: normalize(n) } };
+  }
+  if (source.mode === 'midplane') {
+    const a = resolveWorkPlaneRef(source.planeA, occt, shape, wfs);
+    if (!a.ok) return a;
+    const b = resolveWorkPlaneRef(source.planeB, occt, shape, wfs);
+    if (!b.ok) return b;
+    const dotN = Math.abs(dot(normalize(a.value.normal), normalize(b.value.normal)));
+    if (dotN < 0.999) return invalidGeometryFail('midplane: input planes are not parallel');
+    const mid = scale(add(a.value.origin, b.value.origin), 0.5);
+    return { ok: true, value: { origin: mid, normal: normalize(a.value.normal) } };
+  }
+  if (source.mode === 'axisPerpendicularToPlane') {
+    const ax = resolveWorkAxisRef(source.axis, occt, shape, wfs);
+    if (!ax.ok) return ax;
+    const pl = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!pl.ok) return pl;
+    const raw = cross(ax.value.direction, pl.value.normal);
+    if (length(raw) < 1e-9) return invalidGeometryFail('axisPerpendicularToPlane: axis is parallel to plane normal');
+    return { ok: true, value: { origin: ax.value.origin, normal: normalize(raw) } };
+  }
+  if (source.mode === 'axisAtAngleToPlane') {
+    const ax = resolveWorkAxisRef(source.axis, occt, shape, wfs);
+    if (!ax.ok) return ax;
+    const pl = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!pl.ok) return pl;
+    const angle = (resolveParam(source.angle, params) * Math.PI) / 180;
+    const k = normalize(ax.value.direction);
+    const n0 = pl.value.normal;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const term1 = scale(n0, cosA);
+    const term2 = scale(cross(k, n0), sinA);
+    const term3 = scale(k, dot(k, n0) * (1 - cosA));
+    const n = normalize(add(add(term1, term2), term3));
+    return { ok: true, value: { origin: ax.value.origin, normal: n } };
   }
   return { ok: false, error: notImplemented(`evaluateWorkPlane: mode ${source.mode}`) };
 }
