@@ -416,3 +416,52 @@ describe('useAppStore work-feature dialog slices', () => {
     expect((tree[1] as any).visible).toBe(false);
   });
 });
+
+describe('useAppStore work-feature pick slice', () => {
+  beforeEach(() => {
+    useAppStore.getState().clearWorkFeaturePick();
+  });
+
+  it('defaults to no pending pick and no pick result', () => {
+    const s = useAppStore.getState();
+    expect(s.pendingWorkFeaturePick).toBeNull();
+    expect(s.workFeaturePickResult).toBeNull();
+  });
+
+  it('requestWorkFeaturePick stores the pending request', () => {
+    useAppStore.getState().requestWorkFeaturePick({ kind: 'plane', role: 'planeA', mode: 'workPlane' });
+    const s = useAppStore.getState();
+    expect(s.pendingWorkFeaturePick).toEqual({ kind: 'plane', role: 'planeA', mode: 'workPlane' });
+    expect(s.workFeaturePickResult).toBeNull();
+  });
+
+  it('setWorkFeaturePickResult populates result and clears the pending request', () => {
+    useAppStore.getState().requestWorkFeaturePick({ kind: 'plane', role: 'planeA', mode: 'workPlane' });
+    useAppStore.getState().setWorkFeaturePickResult({
+      kind: 'plane',
+      role: 'planeA',
+      hit: { kind: 'workPlane', featureId: 'origin.XY' },
+    });
+    const s = useAppStore.getState();
+    expect(s.pendingWorkFeaturePick).toBeNull();
+    expect(s.workFeaturePickResult).toEqual({
+      kind: 'plane',
+      role: 'planeA',
+      hit: { kind: 'workPlane', featureId: 'origin.XY' },
+    });
+  });
+
+  it('clearWorkFeaturePick wipes both pending and result', () => {
+    useAppStore.getState().requestWorkFeaturePick({ kind: 'axis', role: 'axisRef', mode: 'workAxis' });
+    useAppStore.getState().setWorkFeaturePickResult({
+      kind: 'axis',
+      role: 'axisRef',
+      hit: { kind: 'workAxis', featureId: 'origin.X' },
+    });
+    useAppStore.getState().clearWorkFeaturePick();
+    const s = useAppStore.getState();
+    expect(s.pendingWorkFeaturePick).toBeNull();
+    expect(s.workFeaturePickResult).toBeNull();
+  });
+});
+

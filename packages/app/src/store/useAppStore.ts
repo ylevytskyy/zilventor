@@ -17,6 +17,36 @@ export type ActiveDocument =
   | { kind: 'part'; document: PartDocument }
   | { kind: 'assembly'; document: AssemblyDocument };
 
+/**
+ * Coordination types for work-feature picker routing.
+ * Dialog calls `requestWorkFeaturePick` to arm a pick; App.tsx watches
+ * `pendingWorkFeaturePick`, activates the matching picker, and routes the
+ * viewport hit back to `setWorkFeaturePickResult`. The dialog reads from
+ * `workFeaturePickResult` and updates its bound input slot.
+ */
+export type WorkFeaturePickKind = 'plane' | 'axis' | 'point';
+export type WorkFeaturePickRequest = {
+  kind: WorkFeaturePickKind;
+  /** Identifies which slot in the dialog the result should populate (e.g. 'planeA', 'axisRef', 'pointA'). */
+  role: string;
+  /** Picker-specific mode token (e.g. 'workPlane', 'face', 'edge', 'workAxis', 'vertex', 'workPoint', 'cylindricalFace'). */
+  mode: string;
+};
+export type WorkFeaturePickHitPlane =
+  | { kind: 'face'; face: import('@zilventor/shared').FaceName }
+  | { kind: 'workPlane'; featureId: string };
+export type WorkFeaturePickHitAxis =
+  | { kind: 'cylindricalFace'; face: import('@zilventor/shared').FaceName }
+  | { kind: 'edge'; edge: import('@zilventor/shared').EdgeName }
+  | { kind: 'workAxis'; featureId: string };
+export type WorkFeaturePickHitPoint =
+  | { kind: 'vertex'; edge: import('@zilventor/shared').EdgeName; end: 'start' | 'end' }
+  | { kind: 'workPoint'; featureId: string };
+export type WorkFeaturePickResultPayload =
+  | { kind: 'plane'; role: string; hit: WorkFeaturePickHitPlane }
+  | { kind: 'axis'; role: string; hit: WorkFeaturePickHitAxis }
+  | { kind: 'point'; role: string; hit: WorkFeaturePickHitPoint };
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -152,6 +182,11 @@ type AppState = {
   setHighlightedConstraintIds(ids: string[]): void;
   featureErrors: Map<string, KernelError>;
   setFeatureErrors(m: Map<string, KernelError>): void;
+  pendingWorkFeaturePick: WorkFeaturePickRequest | null;
+  workFeaturePickResult: WorkFeaturePickResultPayload | null;
+  requestWorkFeaturePick: (req: WorkFeaturePickRequest) => void;
+  setWorkFeaturePickResult: (result: WorkFeaturePickResultPayload) => void;
+  clearWorkFeaturePick: () => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -504,6 +539,11 @@ export const useAppStore = create<AppState>((set) => ({
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),
   setFeatureErrors: (m) => set({ featureErrors: m }),
+  pendingWorkFeaturePick: null,
+  workFeaturePickResult: null,
+  requestWorkFeaturePick: (req) => set({ pendingWorkFeaturePick: req, workFeaturePickResult: null }),
+  setWorkFeaturePickResult: (result) => set({ pendingWorkFeaturePick: null, workFeaturePickResult: result }),
+  clearWorkFeaturePick: () => set({ pendingWorkFeaturePick: null, workFeaturePickResult: null }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {
     const part = state.activePart;
     if (!part) return state;

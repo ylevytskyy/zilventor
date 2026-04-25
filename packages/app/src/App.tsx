@@ -60,6 +60,9 @@ import { OpenWorkPlaneDialogCommand } from './commands/OpenWorkPlaneDialogComman
 import { OpenWorkAxisDialogCommand } from './commands/OpenWorkAxisDialogCommand';
 import { OpenWorkPointDialogCommand } from './commands/OpenWorkPointDialogCommand';
 import { SketchPickController } from './model/SketchPickController';
+import { WorkPlanePickController } from './model/WorkPlanePickController';
+import { WorkAxisPickController } from './model/WorkAxisPickController';
+import { WorkPointPickController } from './model/WorkPointPickController';
 import { PlaceComponentDialog } from './shell/PlaceComponentDialog';
 import { EditComponentDialog } from './shell/EditComponentDialog';
 import { PlaceComponentCommand } from './commands/PlaceComponentCommand';
@@ -181,6 +184,56 @@ export default function App() {
       },
     });
   }, []);
+
+  // Work-feature pickers (T38). Each is constructed once and routes its
+  // onPick result back into the store via setWorkFeaturePickResult. App.tsx's
+  // handleViewportPointer arms a picker by reading the dialog-issued
+  // `pendingWorkFeaturePick` request and forwarding viewport hits.
+  const workPlanePickerRef = useRef<WorkPlanePickController | null>(null);
+  const workAxisPickerRef = useRef<WorkAxisPickController | null>(null);
+  const workPointPickerRef = useRef<WorkPointPickController | null>(null);
+  useEffect(() => {
+    workPlanePickerRef.current = new WorkPlanePickController({
+      onPick: (hit) => {
+        const req = useAppStore.getState().pendingWorkFeaturePick;
+        if (!req || req.kind !== 'plane') return;
+        useAppStore.getState().setWorkFeaturePickResult({ kind: 'plane', role: req.role, hit });
+      },
+    });
+    workAxisPickerRef.current = new WorkAxisPickController({
+      onPick: (hit) => {
+        const req = useAppStore.getState().pendingWorkFeaturePick;
+        if (!req || req.kind !== 'axis') return;
+        useAppStore.getState().setWorkFeaturePickResult({ kind: 'axis', role: req.role, hit });
+      },
+    });
+    workPointPickerRef.current = new WorkPointPickController({
+      onPick: (hit) => {
+        const req = useAppStore.getState().pendingWorkFeaturePick;
+        if (!req || req.kind !== 'point') return;
+        useAppStore.getState().setWorkFeaturePickResult({ kind: 'point', role: req.role, hit });
+      },
+    });
+  }, []);
+
+  // Activate the matching picker whenever a dialog issues a pending request.
+  // The store keeps `pendingWorkFeaturePick` until pickFromViewport delivers
+  // a hit (which clears it via setWorkFeaturePickResult).
+  const pendingWorkFeaturePick = useAppStore((s) => s.pendingWorkFeaturePick);
+  useEffect(() => {
+    const req = pendingWorkFeaturePick;
+    workPlanePickerRef.current?.deactivate();
+    workAxisPickerRef.current?.deactivate();
+    workPointPickerRef.current?.deactivate();
+    if (!req) return;
+    if (req.kind === 'plane') {
+      workPlanePickerRef.current?.activate(req.mode as 'face' | 'workPlane');
+    } else if (req.kind === 'axis') {
+      workAxisPickerRef.current?.activate(req.mode as 'cylindricalFace' | 'edge' | 'workAxis');
+    } else if (req.kind === 'point') {
+      workPointPickerRef.current?.activate(req.mode as 'vertex' | 'workPoint');
+    }
+  }, [pendingWorkFeaturePick]);
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -853,6 +906,32 @@ export default function App() {
         setSelectedAxisRef({ primitiveId: hitId });
         setPickingAxis(false);
       }
+      return;
+    }
+    // Model-mode work-feature pick: route a click to the active picker.
+    // The pending request was issued by a dialog via store; the activate
+    // useEffect armed the matching picker. We raycast the appropriate
+    // viewport target by mode token and forward the hit.
+    const wfReq = useAppStore.getState().pendingWorkFeaturePick;
+    if (!sketchMode && wfReq) {
+      if (ev.type !== 'click') return;
+      if (wfReq.kind === 'plane' && wfReq.mode === 'workPlane') {
+        const id = viewportRef.current.raycastWorkFeature(ev.clientX, ev.clientY);
+        if (id) workPlanePickerRef.current?.pickFromViewport({ kind: 'workPlane', featureId: id });
+        return;
+      }
+      if (wfReq.kind === 'axis' && wfReq.mode === 'workAxis') {
+        const id = viewportRef.current.raycastWorkFeature(ev.clientX, ev.clientY);
+        if (id) workAxisPickerRef.current?.pickFromViewport({ kind: 'workAxis', featureId: id });
+        return;
+      }
+      if (wfReq.kind === 'point' && wfReq.mode === 'workPoint') {
+        const id = viewportRef.current.raycastWorkFeature(ev.clientX, ev.clientY);
+        if (id) workPointPickerRef.current?.pickFromViewport({ kind: 'workPoint', featureId: id });
+        return;
+      }
+      // OCCT-bound modes (face/edge/cylindricalFace/vertex) require T14 wiring;
+      // for v1 we drop the click silently rather than guessing a hit.
       return;
     }
     if (!sketchMode || !activeToolCtrlRef.current) return;
