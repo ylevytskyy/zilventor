@@ -307,6 +307,36 @@ describe('T14d — vertex point resolver', () => {
   });
 });
 
+describe('T14e — midpointOfEdge point evaluator', () => {
+  it('evaluateWorkPoint({ mode: "midpointOfEdge" }) returns a point between the edge endpoints', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    let proven = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const a = evaluateWorkPoint(oc, nm, { mode: 'vertex', edge: edgeName, end: 'start' }, new Map());
+        const b = evaluateWorkPoint(oc, nm, { mode: 'vertex', edge: edgeName, end: 'end' }, new Map());
+        const m = evaluateWorkPoint(oc, nm, { mode: 'midpointOfEdge', edge: edgeName }, new Map());
+        if (a.ok && b.ok && m.ok) {
+          const expected = {
+            x: (a.value.position.x + b.value.position.x) / 2,
+            y: (a.value.position.y + b.value.position.y) / 2,
+            z: (a.value.position.z + b.value.position.z) / 2,
+          };
+          expect(m.value.position.x).toBeCloseTo(expected.x, 5);
+          expect(m.value.position.y).toBeCloseTo(expected.y, 5);
+          expect(m.value.position.z).toBeCloseTo(expected.z, 5);
+          proven = true;
+          break outer;
+        }
+      }
+    }
+    expect(proven).toBe(true);
+    cleanup();
+  });
+});
+
+
 
 
   it('resolveWorkAxisRef returns featureNotFound when face is non-cylindrical', () => {

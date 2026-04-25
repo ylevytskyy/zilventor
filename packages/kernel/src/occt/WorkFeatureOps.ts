@@ -259,6 +259,11 @@ export function evaluateWorkPoint(
     if (!pt) return { ok: false, error: featureNotFound('vertex', `${source.edge.faceA.featureId}|${source.edge.faceB.featureId}#${source.end}`) };
     return { ok: true, value: { position: pt } };
   }
+  if (source.mode === 'midpointOfEdge') {
+    const pt = extractEdgeMidpoint(occt, shape, source.edge);
+    if (!pt) return { ok: false, error: featureNotFound('edge', `${source.edge.faceA.featureId}|${source.edge.faceB.featureId}`) };
+    return { ok: true, value: { position: pt } };
+  }
   return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${(source as { mode: string }).mode}`) };
 }
 
@@ -477,6 +482,41 @@ export function extractEdgeEndpoint(
   const adaptor = new ocAny.BRepAdaptor_Curve_2(typedEdge);
   try {
     const t = end === 'start' ? adaptor.FirstParameter() : adaptor.LastParameter();
+    const p = adaptor.Value(t);
+    return { x: p.X(), y: p.Y(), z: p.Z() };
+  } finally {
+    adaptor.delete?.();
+  }
+}
+
+/**
+ * Look up an edge by name and return the midpoint of its parameter range
+ * — i.e. Value((FirstParameter + LastParameter) / 2). For straight
+ * edges this is the geometric midpoint; for curves the parametric midpoint
+ * (which OCCT chooses to coincide with arc-length midpoint for arcs of
+ * circles).
+ */
+export function extractEdgeMidpoint(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  edgeName: EdgeName,
+): Vec3 | null {
+  if (!shape) return null;
+  const edge = resolveEdgeByName(oc, shape, edgeName);
+  if (!edge) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Edge_1: (s: unknown) => unknown };
+    BRepAdaptor_Curve_2: new (edge: unknown) => {
+      FirstParameter: () => number;
+      LastParameter: () => number;
+      Value: (t: number) => { X: () => number; Y: () => number; Z: () => number };
+      delete?: () => void;
+    };
+  };
+  const typedEdge = ocAny.TopoDS.Edge_1(edge);
+  const adaptor = new ocAny.BRepAdaptor_Curve_2(typedEdge);
+  try {
+    const t = (adaptor.FirstParameter() + adaptor.LastParameter()) / 2;
     const p = adaptor.Value(t);
     return { x: p.X(), y: p.Y(), z: p.Z() };
   } finally {
