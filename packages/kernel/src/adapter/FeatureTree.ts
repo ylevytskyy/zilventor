@@ -20,6 +20,7 @@ import { executeShellFeature } from './features/ShellFeature';
 import { executeLinearPatternFeature } from './features/LinearPatternFeature';
 import { executeMirrorFeature } from './features/MirrorFeature';
 import { executeHoleFeature } from './features/HoleFeature';
+import { executeSweepFeature } from './features/SweepFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -111,11 +112,19 @@ export async function executeTree(
   // locations) and must similarly bypass `executeSketchFeature`.
   const revolveSketchIds = new Set<string>();
   const holeSketchIds = new Set<string>();
+  const sweepSketchIds = new Set<string>();
   const sketchById = new Map<string, (typeof part.featureTree)[number]>();
   for (const f of part.featureTree) {
     if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
     if (f.kind === 'hole' && f.placement.kind === 'fromSketch') {
       holeSketchIds.add(f.placement.sketchId);
+    }
+    if (f.kind === 'sweep') {
+      sweepSketchIds.add(f.profileSketchId);
+      sweepSketchIds.add(f.pathSketchId);
+      if (f.orientation.kind === 'guideRail') {
+        sweepSketchIds.add(f.orientation.guideRailSketchId);
+      }
     }
     if (f.kind === 'sketch') sketchById.set(f.id, f);
   }
@@ -133,6 +142,10 @@ export async function executeTree(
       // (circle primitives → axis locations). Skip `executeSketchFeature`
       // so it stays raw in `sketchById` for the hole branch to read.
       if (holeSketchIds.has(feature.id)) continue;
+      // A sweep-referenced sketch (profile, path, or guide rail) is consumed
+      // directly by the sweep branch via `sketchById`. Skip
+      // `executeSketchFeature` so it stays raw for the sweep branch to read.
+      if (sweepSketchIds.has(feature.id)) continue;
       const r = executeSketchFeature(oc, feature);
       if (!r.ok) {
         cleanupOnError();
@@ -624,8 +637,34 @@ export async function executeTree(
         continue;
       }
     } else if (feature.kind === 'sweep') {
-      // Wired in Task 13
-      continue;
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Sweep needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        const sweepResult = executeSweepFeature(oc, finalSolid, feature, sketchById);
+        // executeSweepFeature returns a NamedShape where .shape is a raw OCCT
+        // handle (not an OcctShape wrapper). Wrap it so disposeShape /
+        // tessellate calls work correctly — same pattern as the hole branch.
+        finalSolid = {
+          ...sweepResult,
+          shape: { __brand: 'OcctShape' as const, handle: sweepResult.shape } as typeof finalSolid.shape
+        };
+      } catch (e) {
+        // Soft-fail: keep the pre-sweep body intact and record the error.
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
     }
   }
 

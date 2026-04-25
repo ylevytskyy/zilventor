@@ -3,6 +3,7 @@ import type {
   BooleanOperation,
   FilletFeature,
   HoleFeature,
+  SweepFeature,
   PartDocument
 } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
@@ -534,6 +535,127 @@ describe('FeatureTree — hole feature integration', () => {
 
     // Error is recorded for H1 in the featureErrors map
     expect(result.value.featureErrors?.get('H1')).toBeDefined();
+    disposeShape(result.value.finalSolid);
+  });
+});
+
+// ---- New tests: sweep feature execution ----------------------------------------
+
+describe('FeatureTree — sweep feature integration', () => {
+  it('sweep references two sketches; both stay raw, swept body is produced', async () => {
+    // Profile: circle r=1 in XY. Path: line from (0,0) to (0,0,10) in XZ plane.
+    // Sweep volume = π * r² * length = π * 1 * 10 ≈ 31.4 mm³
+    const part: PartDocument = {
+      id: 'p1',
+      name: 'Part1',
+      units: 'mm',
+      parameters: {},
+      featureTree: [
+        {
+          kind: 'sketch',
+          id: 'PROF',
+          plane: 'XY',
+          primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
+          constraints: []
+        },
+        {
+          kind: 'sketch',
+          id: 'PATH',
+          plane: 'XZ',
+          primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+          constraints: []
+        },
+        {
+          kind: 'sweep',
+          id: 'SW1',
+          profileSketchId: 'PROF',
+          pathSketchId: 'PATH',
+          orientation: { kind: 'path' },
+          operation: 'new'
+        } as SweepFeature
+      ] as PartDocument['featureTree']
+    };
+
+    const result = await executeTree(occt, part);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const props = new occt.GProp_GProps_1();
+    try {
+      occt.BRepGProp.VolumeProperties_1(
+        result.value.finalSolid.handle as never,
+        props,
+        true as never,
+        false as never,
+        false as never
+      );
+      // π * 1² * 10 = 10π ≈ 31.4
+      expect(props.Mass()).toBeCloseTo(Math.PI * 10, 0);
+    } finally {
+      props.delete();
+    }
+    expect(result.value.featureErrors).toBeUndefined();
+    disposeShape(result.value.finalSolid);
+  });
+
+  it('sweep with missing profile sketch soft-fails without aborting', async () => {
+    // 20×20×5 box from extrude, then a sweep with nonexistent sketch refs.
+    // Tree should continue; final body is the pre-sweep extrude (volume ≈ 2000).
+    const part: PartDocument = {
+      id: 'p1',
+      name: 'Part1',
+      units: 'mm',
+      parameters: {
+        d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
+      },
+      featureTree: [
+        {
+          kind: 'sketch',
+          id: 'S0',
+          plane: 'XY',
+          primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
+          constraints: []
+        },
+        {
+          kind: 'extrude',
+          id: 'E1',
+          sketchRef: 'S0',
+          distanceParam: 'd0',
+          direction: 'forward',
+          operation: 'new'
+        },
+        {
+          kind: 'sweep',
+          id: 'SW1',
+          profileSketchId: 'NONEXISTENT',
+          pathSketchId: 'NONE2',
+          orientation: { kind: 'path' },
+          operation: 'new'
+        } as SweepFeature
+      ] as PartDocument['featureTree']
+    };
+
+    const result = await executeTree(occt, part);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Body remains the pre-sweep extrude: 20×20×5 = 2000 mm³
+    const props = new occt.GProp_GProps_1();
+    try {
+      occt.BRepGProp.VolumeProperties_1(
+        result.value.finalSolid.handle as never,
+        props,
+        true as never,
+        false as never,
+        false as never
+      );
+      expect(props.Mass()).toBeCloseTo(2000, 0);
+    } finally {
+      props.delete();
+    }
+
+    // Error is recorded for SW1 in the featureErrors map
+    expect(result.value.featureErrors?.get('SW1')).toBeDefined();
     disposeShape(result.value.finalSolid);
   });
 });
