@@ -5,6 +5,9 @@ import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { AddExtrusionCommand } from '../../commands/AddExtrusionCommand';
 import { OpenHoleDialogCommand } from '../../commands/OpenHoleDialogCommand';
 import { OpenSweepDialogCommand } from '../../commands/OpenSweepDialogCommand';
+import { OpenWorkPlaneDialogCommand } from '../../commands/OpenWorkPlaneDialogCommand';
+import { OpenWorkAxisDialogCommand } from '../../commands/OpenWorkAxisDialogCommand';
+import { OpenWorkPointDialogCommand } from '../../commands/OpenWorkPointDialogCommand';
 import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
@@ -59,6 +62,35 @@ export default function ModelTab() {
           title="Sweep (W)"
         >
           Sweep
+        </button>
+      </RibbonPanel>
+      <RibbonPanel title="Work Features">
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!activePart}
+          onClick={() => OpenWorkPlaneDialogCommand()}
+          aria-label="Work Plane"
+          title="Work Plane (Ctrl+Shift+P)"
+        >
+          Plane
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!activePart}
+          onClick={() => OpenWorkAxisDialogCommand()}
+          aria-label="Work Axis"
+          title="Work Axis (Ctrl+Shift+A)"
+        >
+          Axis
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!activePart}
+          onClick={() => OpenWorkPointDialogCommand()}
+          aria-label="Work Point"
+          title="Work Point (Ctrl+Shift+W)"
+        >
+          Point
         </button>
       </RibbonPanel>
       <RibbonPanel title="Modify">

@@ -77,4 +77,59 @@ describe('Ribbon', () => {
     useAppStore.getState().setActivePart(null);
     useAppStore.getState().resetSweepDialog();
   });
+
+  it('Model tab Work Features panel opens the WorkPlane dialog when Plane is clicked', () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
+      ],
+    } as any);
+    useAppStore.getState().resetWorkPlaneDialog();
+    render(<Ribbon />);
+    const btn = screen.getByRole('button', { name: /work plane/i });
+    expect(btn).toBeTruthy();
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useAppStore.getState().workPlaneDialogOpen).toBe(true);
+    useAppStore.getState().setActivePart(null);
+    useAppStore.getState().resetWorkPlaneDialog();
+  });
+
+  it('Model tab Work Features panel opens the WorkAxis dialog when Axis is clicked', () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
+      ],
+    } as any);
+    useAppStore.getState().resetWorkAxisDialog();
+    render(<Ribbon />);
+    const btn = screen.getByRole('button', { name: /work axis/i });
+    expect(btn).toBeTruthy();
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useAppStore.getState().workAxisDialogOpen).toBe(true);
+    useAppStore.getState().setActivePart(null);
+    useAppStore.getState().resetWorkAxisDialog();
+  });
+
+  it('Model tab Work Features panel opens the WorkPoint dialog when Point is clicked', () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
+      ],
+    } as any);
+    useAppStore.getState().resetWorkPointDialog();
+    render(<Ribbon />);
+    const btn = screen.getByRole('button', { name: /work point/i });
+    expect(btn).toBeTruthy();
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useAppStore.getState().workPointDialogOpen).toBe(true);
+    useAppStore.getState().setActivePart(null);
+    useAppStore.getState().resetWorkPointDialog();
+  });
+
 });
