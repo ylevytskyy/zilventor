@@ -1,4 +1,4 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
@@ -27,6 +27,7 @@ export type ExecuteResult = {
   faceNames?: FaceName[];
   tessellatedFaces?: TessellatedFace[];
   featureErrors?: Map<string, KernelError>;
+  workFeatures?: WorkFeatureValue[];
 };
 
 export type KernelApi = {

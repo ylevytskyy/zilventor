@@ -301,3 +301,8 @@ export type WorkPointFeature = {
     | { mode: 'threePlanes'; planes: [WorkPlaneRef, WorkPlaneRef, WorkPlaneRef] }
     | { mode: 'origin' };
 };
+
+export type WorkFeatureValue =
+  | { featureId: string; kind: 'axis'; origin: Vec3; direction: Vec3 }
+  | { featureId: string; kind: 'plane'; origin: Vec3; normal: Vec3 }
+  | { featureId: string; kind: 'point'; position: Vec3 };

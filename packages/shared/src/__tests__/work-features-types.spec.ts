@@ -69,3 +69,19 @@ describe('SketchFeature.plane is a WorkPlaneRef', () => {
     }
   });
 });
+
+import type { WorkFeatureValue, Vec3 } from '../types';
+
+describe('WorkFeatureValue', () => {
+  it('discriminates axis | plane | point', () => {
+    const a: WorkFeatureValue = { featureId: 'WA1', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } };
+    const p: WorkFeatureValue = { featureId: 'WP1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } };
+    const pt: WorkFeatureValue = { featureId: 'WPT1', kind: 'point', position: { x: 0, y: 0, z: 0 } };
+    expect([a.kind, p.kind, pt.kind]).toEqual(['axis', 'plane', 'point']);
+  });
+
+  it('Vec3 is { x, y, z }', () => {
+    const v: Vec3 = { x: 1, y: 2, z: 3 };
+    expect(v).toEqual({ x: 1, y: 2, z: 3 });
+  });
+});
