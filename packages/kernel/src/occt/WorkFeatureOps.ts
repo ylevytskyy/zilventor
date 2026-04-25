@@ -13,7 +13,8 @@ import type { ParamOrLiteral, SketchParameter } from '@zilventor/shared';
 import type { Result } from '@zilventor/shared';
 import { type KernelError, newCorrelationId } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
-import type { NamedShape } from './FaceNaming';
+import { faceNamesEqual, type NamedShape } from './FaceNaming';
+import type { FaceName } from '@zilventor/shared';
 
 export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
@@ -267,6 +268,44 @@ export function resolveWorkAxisRef(
   return { ok: false, error: notImplemented(`resolveWorkAxisRef: source ${ref.source}`) };
 }
 
+/**
+ * Look up a face by name in a NamedShape and extract its plane (origin +
+ * outward normal). Returns null when the face isn't named or isn't planar.
+ * Uses BRepAdaptor_Surface — same pattern HoleFeature uses for face plane.
+ */
+export function extractFacePlane(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  faceName: FaceName,
+): { origin: Vec3; normal: Vec3 } | null {
+  if (!shape) return null;
+  const entry = shape.faceNames.find((e) => faceNamesEqual(e.name, faceName));
+  if (!entry) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Face_1: (s: unknown) => unknown };
+    BRepAdaptor_Surface_2: new (face: unknown, restriction: boolean) => {
+      GetType: () => unknown;
+      Plane: () => { Location: () => { X: () => number; Y: () => number; Z: () => number }; Axis: () => { Direction: () => { X: () => number; Y: () => number; Z: () => number } } };
+      delete?: () => void;
+    };
+    GeomAbs_SurfaceType: { GeomAbs_Plane: unknown };
+  };
+  const typedFace = ocAny.TopoDS.Face_1(entry.face);
+  const adaptor = new ocAny.BRepAdaptor_Surface_2(typedFace, true);
+  try {
+    if (adaptor.GetType() !== ocAny.GeomAbs_SurfaceType.GeomAbs_Plane) return null;
+    const pln = adaptor.Plane();
+    const loc = pln.Location();
+    const dir = pln.Axis().Direction();
+    return {
+      origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
+      normal: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+    };
+  } finally {
+    adaptor.delete?.();
+  }
+}
+
 export function resolveWorkPlaneRef(
   ref: WorkPlaneRef,
   _occt: OcctInstance | null,
@@ -278,7 +317,14 @@ export function resolveWorkPlaneRef(
     if (!v || v.kind !== 'plane') return { ok: false, error: featureNotFound('work plane', ref.featureId) };
     return { ok: true, value: { origin: v.origin, normal: v.normal } };
   }
-  return { ok: false, error: notImplemented(`resolveWorkPlaneRef: source ${ref.source}`) };
+  if (ref.source === 'face') {
+    const plane = _occt && _shape ? extractFacePlane(_occt, _shape, ref.face) : null;
+    if (!plane) {
+      return { ok: false, error: featureNotFound('face', `${ref.face.featureId}/${ref.face.role}`) };
+    }
+    return { ok: true, value: plane };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkPlaneRef: source ${(ref as { source: string }).source}`) };
 }
 
 export function resolveWorkPointRef(

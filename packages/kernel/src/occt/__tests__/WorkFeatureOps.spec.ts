@@ -114,10 +114,10 @@ describe('resolveWorkPlaneRef', () => {
     if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
   });
 
-  it('returns notImplemented for face source (Task 14)', () => {
+  it('returns featureNotFound for face source when no shape is provided (T14a wired the OCCT path)', () => {
     const r = resolveWorkPlaneRef({ source: 'face', face: { featureId: 'X', role: 'top' } }, occtStub, null, new Map());
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.kind).toBe('notImplemented');
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
   });
 });
 
