@@ -209,7 +209,24 @@ export function evaluateWorkPlane(
     const n = normalize(add(add(term1, term2), term3));
     return { ok: true, value: { origin: ax.value.origin, normal: n } };
   }
-  return { ok: false, error: notImplemented(`evaluateWorkPlane: mode ${source.mode}`) };
+  if (source.mode === 'tangentToSurfaceParallelToPlane') {
+    const refPlane = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!refPlane.ok) return refPlane;
+    const cyl = extractCylinderInfo(occt, shape, source.face);
+    if (!cyl) return { ok: false, error: featureNotFound('cylindrical face', `${source.face.featureId}/${source.face.role}`) };
+    const nRef = normalize(refPlane.value.normal);
+    const D = normalize(cyl.direction);
+    // Project nRef onto the plane perpendicular to the cylinder axis. The
+    // surface normal at the tangent point is parallel to that projection.
+    const nPerp = sub(nRef, scale(D, dot(nRef, D)));
+    if (length(nPerp) < 1e-9) {
+      return invalidGeometryFail('tangentToSurfaceParallelToPlane: reference plane normal is parallel to cylinder axis');
+    }
+    const nUnit = normalize(nPerp);
+    const tangentPoint = add(cyl.origin, scale(nUnit, cyl.radius));
+    return { ok: true, value: { origin: tangentPoint, normal: nRef } };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkPlane: mode ${(source as { mode: string }).mode}`) };
 }
 
 export function evaluateWorkPoint(
@@ -379,6 +396,49 @@ export function extractCylinderAxis(
     return {
       origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
       direction: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+    };
+  } finally {
+    adaptor.delete?.();
+  }
+}
+
+/**
+ * Look up a cylindrical face by name and extract its axis (origin + unit
+ * direction) plus radius. Returns null when the face isn't named or isn't
+ * cylindrical. Superset of extractCylinderAxis.
+ */
+export function extractCylinderInfo(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  faceName: FaceName,
+): { origin: Vec3; direction: Vec3; radius: number } | null {
+  if (!shape) return null;
+  const entry = shape.faceNames.find((e) => faceNamesEqual(e.name, faceName));
+  if (!entry) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Face_1: (s: unknown) => unknown };
+    BRepAdaptor_Surface_2: new (face: unknown, restriction: boolean) => {
+      GetType: () => unknown;
+      Cylinder: () => {
+        Location: () => { X: () => number; Y: () => number; Z: () => number };
+        Axis: () => { Direction: () => { X: () => number; Y: () => number; Z: () => number } };
+        Radius: () => number;
+      };
+      delete?: () => void;
+    };
+    GeomAbs_SurfaceType: { GeomAbs_Cylinder: unknown };
+  };
+  const typedFace = ocAny.TopoDS.Face_1(entry.face);
+  const adaptor = new ocAny.BRepAdaptor_Surface_2(typedFace, true);
+  try {
+    if (adaptor.GetType() !== ocAny.GeomAbs_SurfaceType.GeomAbs_Cylinder) return null;
+    const cyl = adaptor.Cylinder();
+    const loc = cyl.Location();
+    const dir = cyl.Axis().Direction();
+    return {
+      origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
+      direction: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+      radius: cyl.Radius(),
     };
   } finally {
     adaptor.delete?.();

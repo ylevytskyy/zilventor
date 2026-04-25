@@ -359,6 +359,56 @@ describe('T14f — centerOfArc point evaluator', () => {
   });
 });
 
+describe('T14g — tangentToSurfaceParallelToPlane evaluator', () => {
+  it('cylinder R=5 along Z + parallel to YZ plane (normal +X) → tangent at x=±5', () => {
+    const { nm, cylinderFace, cleanup } = buildNamedCylinder(5, 10);
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.YZ', { featureId: 'origin.YZ', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } }],
+    ]);
+    const r = evaluateWorkPlane(
+      oc, nm,
+      {
+        mode: 'tangentToSurfaceParallelToPlane',
+        face: cylinderFace,
+        plane: { source: 'workPlane', featureId: 'origin.YZ' },
+      },
+      wfs,
+      {},
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Origin sits on the cylinder surface where the surface normal is
+      // parallel to ±X.
+      expect(Math.abs(r.value.origin.x)).toBeCloseTo(5, 5);
+      expect(r.value.origin.y).toBeCloseTo(0, 5);
+      // Plane normal matches the reference plane normal (+X).
+      expect(Math.abs(r.value.normal.x)).toBeCloseTo(1, 5);
+    }
+    cleanup();
+  });
+
+  it('returns invalidGeometry when reference plane normal is parallel to cylinder axis', () => {
+    const { nm, cylinderFace, cleanup } = buildNamedCylinder(5, 10);
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPlane(
+      oc, nm,
+      {
+        mode: 'tangentToSurfaceParallelToPlane',
+        face: cylinderFace,
+        plane: { source: 'workPlane', featureId: 'origin.XY' },
+      },
+      wfs,
+      {},
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+    cleanup();
+  });
+});
+
+
 
 
 
