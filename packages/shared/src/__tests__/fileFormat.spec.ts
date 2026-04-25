@@ -43,7 +43,8 @@ describe('fileFormat v1 → v2', () => {
     const m = migrateManifest(v1);
     expect(m.formatVersion).toBe(7);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
-    expect(doc.featureTree[0]!.primitives[0]!.id).toBe('s1-p0');
+    const sketch = doc.featureTree.find((f) => (f as { id?: string }).id === 's1') as { primitives: Array<{ id: string }> };
+    expect(sketch.primitives[0]!.id).toBe('s1-p0');
   });
 
   it('synthesizes unique ids per-primitive within a sketch', () => {
@@ -62,7 +63,8 @@ describe('fileFormat v1 → v2', () => {
     } as unknown as AnyManifest;
     const m = migrateManifest(v1);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
-    expect(doc.featureTree[0]!.primitives.map((p) => p.id)).toEqual(['s1-p0', 's1-p1']);
+    const sketch = doc.featureTree.find((f) => (f as { id?: string }).id === 's1') as { primitives: Array<{ id: string }> };
+    expect(sketch.primitives.map((p) => p.id)).toEqual(['s1-p0', 's1-p1']);
   });
 
   it('does NOT overwrite existing ids on primitives that already have them', () => {
@@ -80,7 +82,8 @@ describe('fileFormat v1 → v2', () => {
     } as unknown as AnyManifest;
     const m = migrateManifest(v1Partial);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
-    expect(doc.featureTree[0]!.primitives[0]!.id).toBe('custom-id');
+    const sketch = doc.featureTree.find((f) => (f as { id?: string }).id === 's1') as { primitives: Array<{ id: string }> };
+    expect(sketch.primitives[0]!.id).toBe('custom-id');
   });
 
   it('throws "no migration from formatVersion 0" — exercises the missing-migration path', () => {
@@ -125,7 +128,8 @@ describe('fileFormat migrations', () => {
       }
     };
     const out = migrateManifest(input);
-    const sketch = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree[0];
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const sketch = tree.find((f) => f.id === 's1');
     const constraints = sketch!.constraints as Array<{ kind: string; source?: string }>;
     expect(constraints.some((c) => c.kind === 'horizontal')).toBe(true);
     for (const c of constraints) expect(c.source).toBe('inferred-migration');
@@ -142,7 +146,8 @@ describe('fileFormat migrations', () => {
       }
     };
     const out = migrateManifest(input);
-    const sketch = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree[0];
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const sketch = tree.find((f) => f.id === 's1');
     expect((sketch!.constraints as unknown[])).toHaveLength(1);
   });
 });
@@ -165,7 +170,8 @@ describe('v2 → v3 with rectangle-as-4-lines infers H/V + coincident', () => {
       }
     } as const;
     const out = migrateManifest(v2 as unknown as Parameters<typeof migrateManifest>[0]);
-    const sketch = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree[0];
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const sketch = tree.find((f) => f.id === 's1');
     const constraints = sketch!.constraints as Array<{ kind: string; source?: string }>;
     // 2 horizontals + 2 verticals + 4 coincidents (at each corner) = 8 constraints
     expect(constraints.filter((c) => c.kind === 'horizontal')).toHaveLength(2);
@@ -236,8 +242,10 @@ describe('fileFormat v4 → v5 migration', () => {
     };
     const out = migrateManifest(input);
     const tree = (out.document as { featureTree: Array<{ kind: string; operation?: string }> }).featureTree;
-    expect(tree[0]!.operation).toBe('new');
-    expect(tree[1]!.operation).toBe('join');
+    const e1 = tree.find((f) => (f as { id?: string }).id === 'E1') as { operation?: string };
+    const e2 = tree.find((f) => (f as { id?: string }).id === 'E2') as { operation?: string };
+    expect(e1!.operation).toBe('new');
+    expect(e2!.operation).toBe('join');
   });
 
   it('empty tree migrates without change', () => {
@@ -261,9 +269,10 @@ describe('fileFormat v5 → v6 migration', () => {
     };
     const out = migrateManifest(input);
     expect(out.formatVersion).toBe(7);
-    const tree = (out.document as { featureTree: Array<{ kind: string }> }).featureTree;
-    expect(tree).toHaveLength(2);
-    expect(tree.map((f) => f.kind)).toEqual(['sketch', 'extrude']);
+    const tree = (out.document as { featureTree: Array<{ kind: string; id?: string }> }).featureTree;
+    const userFeatures = tree.filter((f) => !(typeof f.id === 'string' && f.id.startsWith('origin.')));
+    expect(userFeatures).toHaveLength(2);
+    expect(userFeatures.map((f) => f.kind)).toEqual(['sketch', 'extrude']);
   });
 
   it('v5 manifest with mixed features survives migration untouched', () => {
@@ -352,3 +361,67 @@ describe('ProjectFile kind discriminator', () => {
     expect((out as any).kind).toBe('part');
   });
 });
+
+describe('migrateManifest origin features', () => {
+  it('legacy v7 part without origin features gets origin features prepended', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+        ],
+      },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<{ id: string }> }).featureTree;
+    expect(tree[0]!.id).toBe('origin.X');
+    expect(tree[1]!.id).toBe('origin.Y');
+    expect(tree[2]!.id).toBe('origin.Z');
+    expect(tree[3]!.id).toBe('origin.XY');
+    expect(tree[4]!.id).toBe('origin.YZ');
+    expect(tree[5]!.id).toBe('origin.XZ');
+    expect(tree[6]!.id).toBe('origin.O');
+    expect(tree[7]!.id).toBe('S1');
+  });
+
+  it('manifest with existing origin features is left untouched', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
+          { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },
+          { kind: 'workAxis', id: 'origin.Z', visible: false, source: { mode: 'origin', axis: 'Z' } },
+          { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
+          { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
+          { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
+          { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
+        ],
+      },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<unknown> }).featureTree;
+    expect(tree.length).toBe(7);
+  });
+
+  it('assembly manifests are untouched (no origin features)', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      kind: 'assembly',
+      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    expect((out.document as { components: unknown[] }).components).toEqual([]);
+    expect((out.document as Record<string, unknown>).featureTree).toBeUndefined();
+  });
+
+  it('part manifest without document is left structurally unchanged', () => {
+    const m = { formatVersion: 7, kind: 'part' as const };
+    expect(migrateManifest(m)).toEqual(m);
+  });
+});
+

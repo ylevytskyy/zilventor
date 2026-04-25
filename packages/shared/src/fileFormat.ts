@@ -100,6 +100,32 @@ function normalizeKind(m: AnyManifest): AnyManifest {
   return m;
 }
 
+const ORIGIN_FEATURES: ReadonlyArray<Record<string, unknown>> = [
+  { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
+  { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },
+  { kind: 'workAxis', id: 'origin.Z', visible: false, source: { mode: 'origin', axis: 'Z' } },
+  { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
+  { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
+  { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
+  { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
+];
+
+function injectOriginFeatures(m: AnyManifest): AnyManifest {
+  const anyM = m as { kind?: string; document?: { featureTree?: Array<Record<string, unknown>> } };
+  if (anyM.kind !== 'part') return m;
+  const doc = anyM.document;
+  if (!doc || !Array.isArray(doc.featureTree)) return m;
+  const tree = doc.featureTree;
+  const hasOrigin = tree.some((f) => typeof f.id === 'string' && (f.id as string).startsWith('origin.'));
+  if (hasOrigin) return m;
+  const next = {
+    ...(m as Record<string, unknown>),
+    document: { ...doc, featureTree: [...ORIGIN_FEATURES.map((f) => ({ ...f })), ...tree] },
+  };
+  return next as unknown as AnyManifest;
+}
+
+
 export function migrateManifest(m: AnyManifest): AnyManifest {
   if (typeof m.formatVersion !== 'number') {
     throw new Error('formatVersion missing from manifest');
@@ -119,5 +145,5 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
       throw new Error(`migration from formatVersion ${priorVersion} did not advance the version`);
     }
   }
-  return normalizeKind(current);
+  return injectOriginFeatures(normalizeKind(current));
 }
