@@ -81,4 +81,25 @@ describe('SceneManager — component meshes', () => {
     mgr.clearComponentMeshes();
     expect(mgr.componentMeshCount()).toBe(0);
   });
+
+  it('geometry hash includes component transforms', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true }]);
+    const hashA = mgr.geometryHash();
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4().setPosition(50, 0, 0), visible: true }]);
+    const hashB = mgr.geometryHash();
+    expect(hashA).not.toBe(hashB);
+  });
+
+  it('geometry hash differs by component count', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true }]);
+    const hashA = mgr.geometryHash();
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true },
+    ]);
+    const hashB = mgr.geometryHash();
+    expect(hashA).not.toBe(hashB);
+  });
 });

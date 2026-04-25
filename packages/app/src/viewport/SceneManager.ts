@@ -10,6 +10,7 @@ export class SceneManager {
   private preview: THREE.Mesh | null = null;
   private componentMeshes = new Map<string, THREE.Mesh>();
   private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
+  private partGeometryHash: number = 2166136261;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -58,6 +59,27 @@ export class SceneManager {
     const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);
+    let h = 2166136261;
+    for (let k = 0; k < positions.length; k++) {
+      h = Math.imul(h ^ Math.round(positions[k]! * 1000), 16777619);
+    }
+    this.partGeometryHash = h;
+  }
+
+  geometryHash(): string {
+    let h = this.partGeometryHash >>> 0;
+    const ids = Array.from(this.componentMeshes.keys()).sort();
+    for (const id of ids) {
+      const mesh = this.componentMeshes.get(id)!;
+      for (let i = 0; i < id.length; i++) {
+        h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+      }
+      const e = mesh.matrix.elements;
+      for (let i = 0; i < 16; i++) {
+        h = Math.imul(h ^ Math.round(e[i]! * 1000), 16777619);
+      }
+    }
+    return (h >>> 0).toString(16);
   }
 
   /**

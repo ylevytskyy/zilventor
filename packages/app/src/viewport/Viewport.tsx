@@ -64,11 +64,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setMesh(p, i);
       setTriangles(i.length / 3);
-      let h = 2166136261;
-      for (let k = 0; k < p.length; k++) {
-        h = Math.imul(h ^ Math.round(p[k]! * 1000), 16777619);
-      }
-      setGeometryHash((h >>> 0).toString(16));
+      setGeometryHash(sceneRef.current.geometryHash());
     },
     setPreviewMesh: (p, i) => {
       if (!sceneRef.current) return;
