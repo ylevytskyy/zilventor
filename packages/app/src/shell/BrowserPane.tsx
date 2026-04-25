@@ -151,6 +151,21 @@ export default function BrowserPane({ part, sketchPicker }: Props) {
               </li>
             );
           }
+          if (f.kind === 'sweep') {
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onDoubleClick={() => {
+                  setSelectedFeature(f.id);
+                  useAppStore.getState().openSweepForEdit(f.id);
+                }}
+              >
+                ▸ Sweep {f.id}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
           extrudeCount += 1;
           return (
             <li

@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { AddExtrusionCommand } from '../../commands/AddExtrusionCommand';
 import { OpenHoleDialogCommand } from '../../commands/OpenHoleDialogCommand';
+import { OpenSweepDialogCommand } from '../../commands/OpenSweepDialogCommand';
 import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
@@ -50,6 +51,15 @@ export default function ModelTab() {
         <button className="text-xs hover:text-white" onClick={handleNewPart}>New Part</button>
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch} onClick={() => setExtrudeOpen(true)}>Extrude</button>
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>Revolve (R)</button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!hasSketch}
+          onClick={() => OpenSweepDialogCommand()}
+          aria-label="Sweep"
+          title="Sweep (W)"
+        >
+          Sweep
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Modify">
         <button

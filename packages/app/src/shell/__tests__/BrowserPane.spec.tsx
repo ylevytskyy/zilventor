@@ -74,4 +74,23 @@ describe('BrowserPane', () => {
     expect(s.holeDialogOpen).toBe(true);
     expect(s.editingHoleId).toBe('H1');
   });
+
+  it('renders Sweep node and double-click opens dialog in edit mode', () => {
+    const stored: any = {
+      id: 'SW1', kind: 'sweep',
+      profileSketchId: 'P', pathSketchId: 'A',
+      orientation: { kind: 'path' },
+      operation: 'new',
+    };
+    const part: PartDocument = {
+      id: 'P1', name: 'P', units: 'mm', parameters: {},
+      featureTree: [stored],
+    } as any;
+    render(<BrowserPane part={part} />);
+    expect(screen.getByText(/Sweep SW1/)).toBeTruthy();
+    fireEvent.doubleClick(screen.getByText(/Sweep SW1/));
+    const s = useAppStore.getState();
+    expect(s.sweepDialogOpen).toBe(true);
+    expect(s.editingSweepId).toBe('SW1');
+  });
 });

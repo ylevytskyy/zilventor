@@ -58,4 +58,23 @@ describe('Ribbon', () => {
     useAppStore.getState().setActivePart(null);
     useAppStore.getState().resetHoleDialog();
   });
+
+  it('Model → Create → Sweep button opens the sweep dialog', () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+      ],
+    });
+    useAppStore.getState().resetSweepDialog();
+    render(<Ribbon />);
+    const btn = screen.getByRole('button', { name: /sweep/i });
+    expect(btn).toBeTruthy();
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useAppStore.getState().sweepDialogOpen).toBe(true);
+    // cleanup
+    useAppStore.getState().setActivePart(null);
+    useAppStore.getState().resetSweepDialog();
+  });
 });
