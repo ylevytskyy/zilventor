@@ -87,4 +87,21 @@ describe('Save/Load round-trip via FakeHandle', () => {
     expect(part3?.featureTree.length).toBe(2);
     expect(part3?.parameters.d1?.value).toBe(20);
   }, 120_000);
+
+  it('saveToBytes: returns archive bytes that loadFromBytes can re-hydrate', async () => {
+    const id = await api.createPart('P3');
+    await api.setParameter(id, { name: 'd1', expression: '15', value: 15, unit: 'mm' });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
+    await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
+
+    const bytes = await api.saveToBytes(id);
+    expect(bytes.length).toBeGreaterThan(0);
+
+    const api2 = createKernelApi();
+    await api2.init();
+    const id2 = await api2.loadFromBytes(bytes);
+    const part2 = await api2.getPart(id2);
+    expect(part2?.featureTree.length).toBe(2);
+    expect(part2?.parameters.d1?.value).toBe(15);
+  }, 120_000);
 });

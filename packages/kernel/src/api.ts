@@ -44,6 +44,7 @@ export type KernelApi = {
   previewFeature(partId: string, feature: Feature): Promise<Result<ExecuteResult, KernelError>>;
   getPart(partId: string): Promise<PartDocument | null>;
   save(partId: string, handle: FileSystemFileHandle, thumbnail?: Uint8Array): Promise<void>;
+  saveToBytes(partId: string, thumbnail?: Uint8Array): Promise<Uint8Array>;
   load(handle: FileSystemFileHandle): Promise<string>;
   loadFromBytes(bytes: Uint8Array): Promise<string>;
 };
@@ -148,6 +149,11 @@ export function createKernelApi(): KernelApi {
     },
 
     async save(partId, handle, thumbnail) {
+      const archive = await this.saveToBytes(partId, thumbnail);
+      await writeToHandle(handle, archive);
+    },
+
+    async saveToBytes(partId, thumbnail) {
       if (!occt) throw new Error('kernel not initialized');
       const part = parts.get(partId);
       if (!part) throw new Error(`no part ${partId}`);
@@ -172,12 +178,11 @@ export function createKernelApi(): KernelApi {
             }
           }
         };
-        const archive = await packProject({
+        return await packProject({
           manifest,
           blobs: { main: brep },
           ...(thumbnail ? { thumbnail } : {})
         });
-        await writeToHandle(handle, archive);
       } finally {
         disposeShape(r.value.finalSolid);
       }
