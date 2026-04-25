@@ -47,6 +47,7 @@ import { OpenHoleDialogCommand } from './commands/OpenHoleDialogCommand';
 import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
+import { SketchPickController } from './model/SketchPickController';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -133,6 +134,27 @@ export default function App() {
   // Hole dialog preview state — mirrors fillet/revolve pattern.
   const [holePreviewError, setHolePreviewError] = useState<string | null>(null);
   const holePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sweep sketch-pick wiring (T19).
+  // A discriminator ref tracks which of the three sweep slots is waiting for a pick.
+  const sweepActivePickRef = useRef<'profile' | 'path' | 'guideRail' | null>(null);
+  const sweepPickerRef = useRef<SketchPickController | null>(null);
+  useEffect(() => {
+    sweepPickerRef.current = new SketchPickController({
+      onPick: (sketchId) => {
+        const slot = sweepActivePickRef.current;
+        if (slot === 'profile') {
+          useAppStore.setState((s) => ({ ...s, sweepProfileSketchId: sketchId }));
+        } else if (slot === 'path') {
+          useAppStore.setState((s) => ({ ...s, sweepPathSketchId: sketchId }));
+        } else if (slot === 'guideRail') {
+          useAppStore.setState((s) => ({ ...s, sweepGuideRailSketchId: sketchId }));
+        }
+        sweepPickerRef.current?.deactivate();
+        sweepActivePickRef.current = null;
+      },
+    });
+  }, []);
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -1597,7 +1619,7 @@ export default function App() {
           <Ribbon />
         </div>
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-          <BrowserPane part={activePart} />
+          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} />
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
           <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
@@ -1777,9 +1799,9 @@ export default function App() {
           previewError={null}
           onCommit={(v) => { void onSweepCommit(v); }}
           onCancel={() => useAppStore.getState().resetSweepDialog()}
-          onPickProfile={() => { /* T19 */ }}
-          onPickPath={() => { /* T19 */ }}
-          onPickGuideRail={() => { /* T19 */ }}
+          onPickProfile={() => { sweepActivePickRef.current = 'profile'; sweepPickerRef.current?.activate(); }}
+          onPickPath={() => { sweepActivePickRef.current = 'path'; sweepPickerRef.current?.activate(); }}
+          onPickGuideRail={() => { sweepActivePickRef.current = 'guideRail'; sweepPickerRef.current?.activate(); }}
           onSetOrientation={(k) => useAppStore.setState((s) => ({ ...s, sweepOrientationKind: k }))}
           onSetOperation={(op) => useAppStore.setState((s) => ({ ...s, sweepOperation: op }))}
         />

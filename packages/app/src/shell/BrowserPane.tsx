@@ -1,9 +1,10 @@
 import type { PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import type { SketchPickController } from '../model/SketchPickController';
 
-type Props = { part: PartDocument | null };
+type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null };
 
-export default function BrowserPane({ part }: Props) {
+export default function BrowserPane({ part, sketchPicker }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
 
@@ -66,6 +67,7 @@ export default function BrowserPane({ part }: Props) {
                 key={f.id}
                 className="pl-3 cursor-pointer hover:text-white"
                 data-sketch-primitive-count={f.primitives.length}
+                onClick={() => sketchPicker?.selectFromBrowser(f.id)}
                 onDoubleClick={() => setSelectedFeature(f.id)}
               >
                 ▸ Sketch{sketchCount} ({f.primitives.length})
