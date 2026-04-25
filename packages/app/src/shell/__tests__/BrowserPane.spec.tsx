@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BrowserPane from '../BrowserPane';
-import type { PartDocument } from '@zilventor/shared';
+import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 
 describe('BrowserPane', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
   it('shows the empty state when no part is loaded', () => {
     render(<BrowserPane part={null} />);
     expect(screen.getByText(/no part open/i)).toBeTruthy();
@@ -92,5 +94,38 @@ describe('BrowserPane', () => {
     const s = useAppStore.getState();
     expect(s.sweepDialogOpen).toBe(true);
     expect(s.editingSweepId).toBe('SW1');
+  });
+
+  it('assembly mode renders Components node + N component leaves', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      components: [
+        { id: 'C1', partPath: 'parts/leg.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'C2', partPath: 'parts/shelf.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<BrowserPane part={null} />);
+    expect(screen.getByText(/Assembly: cabinet/)).toBeInTheDocument();
+    expect(screen.getByText(/Components \(2\)/)).toBeInTheDocument();
+    expect(screen.getByText(/leg/)).toBeInTheDocument();
+    expect(screen.getByText(/shelf/)).toBeInTheDocument();
+  });
+
+  it('double-clicking a component opens the edit dialog', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      components: [
+        { id: 'C1', partPath: 'parts/leg.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<BrowserPane part={null} />);
+    fireEvent.doubleClick(screen.getByText(/leg/));
+    expect(useAppStore.getState().editComponentDialogOpen).toBe(true);
+    expect(useAppStore.getState().editingComponentId).toBe('C1');
   });
 });

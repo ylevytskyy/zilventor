@@ -7,6 +7,34 @@ type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | 
 export default function BrowserPane({ part, sketchPicker }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
+  const activeDoc = useAppStore((s) => s.activeDocument);
+
+  if (activeDoc?.kind === 'assembly') {
+    const asm = activeDoc.document;
+    return (
+      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        <div className="font-semibold mb-1">Assembly: {asm.name}</div>
+        <ul className="space-y-0.5">
+          <li className="pl-3">Origin</li>
+          <li className="pl-3">Components ({asm.components.length})</li>
+          {asm.components.map((c) => {
+            const partFileName = c.partPath.split('/').pop()!.replace(/\.zipt$/, '');
+            return (
+              <li
+                key={c.id}
+                className="pl-6 cursor-pointer hover:text-white"
+                onDoubleClick={() => {
+                  useAppStore.getState().openEditComponentDialog(c.id);
+                }}
+              >
+                ▸ {c.id} — {partFileName}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
 
   if (!part) {
     return <div className="px-3 py-2 text-xs text-neutral-500">No part open</div>;
