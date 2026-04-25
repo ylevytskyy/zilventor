@@ -354,3 +354,65 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
   });
 });
+
+describe('useAppStore work-feature dialog slices', () => {
+  beforeEach(() => {
+    useAppStore.getState().resetWorkAxisDialog();
+    useAppStore.getState().resetWorkPlaneDialog();
+    useAppStore.getState().resetWorkPointDialog();
+  });
+
+  it('work-feature dialog defaults are sane', () => {
+    const s = useAppStore.getState();
+    expect(s.workAxisDialogOpen).toBe(false);
+    expect(s.workAxisInitialValues).toBeNull();
+    expect(s.editingWorkAxisId).toBeNull();
+    expect(s.workPlaneDialogOpen).toBe(false);
+    expect(s.workPlaneInitialValues).toBeNull();
+    expect(s.editingWorkPlaneId).toBeNull();
+    expect(s.workPointDialogOpen).toBe(false);
+    expect(s.workPointInitialValues).toBeNull();
+    expect(s.editingWorkPointId).toBeNull();
+  });
+
+  it('toggleWorkPlaneDialog opens + closes', () => {
+    useAppStore.getState().toggleWorkPlaneDialog(true);
+    expect(useAppStore.getState().workPlaneDialogOpen).toBe(true);
+    useAppStore.getState().toggleWorkPlaneDialog(false);
+    expect(useAppStore.getState().workPlaneDialogOpen).toBe(false);
+  });
+
+  it('toggleWorkAxisDialog and toggleWorkPointDialog mirror the plane dialog', () => {
+    useAppStore.getState().toggleWorkAxisDialog(true);
+    useAppStore.getState().toggleWorkPointDialog(true);
+    expect(useAppStore.getState().workAxisDialogOpen).toBe(true);
+    expect(useAppStore.getState().workPointDialogOpen).toBe(true);
+  });
+
+  it('openWorkPlaneForEdit primes initialValues from the active part', () => {
+    const wp = { kind: 'workPlane', id: 'WP1', visible: true, source: { mode: 'origin', plane: 'XY' } } as any;
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'p', units: 'mm', parameters: {},
+      featureTree: [wp],
+    });
+    useAppStore.getState().openWorkPlaneForEdit('WP1');
+    const s = useAppStore.getState();
+    expect(s.workPlaneDialogOpen).toBe(true);
+    expect(s.editingWorkPlaneId).toBe('WP1');
+    expect(s.workPlaneInitialValues).toEqual(wp);
+  });
+
+  it('setWorkFeatureVisible updates a feature without touching others', () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'p', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } } as any,
+        { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } } as any,
+      ],
+    });
+    useAppStore.getState().setWorkFeatureVisible('origin.XY', true);
+    const tree = useAppStore.getState().activePart!.featureTree;
+    expect((tree[0] as any).visible).toBe(true);
+    expect((tree[1] as any).visible).toBe(false);
+  });
+});

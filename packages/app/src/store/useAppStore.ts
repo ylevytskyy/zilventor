@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -60,6 +60,25 @@ type AppState = {
   openHoleForEdit: (id: string) => void;
   resetHoleDialog: () => void;
   toggleHoleDialog: (open: boolean) => void;
+  workAxisDialogOpen: boolean;
+  workAxisInitialValues: WorkAxisFeature | null;
+  editingWorkAxisId: string | null;
+  toggleWorkAxisDialog: (open: boolean) => void;
+  resetWorkAxisDialog: () => void;
+  openWorkAxisForEdit: (id: string) => void;
+  workPlaneDialogOpen: boolean;
+  workPlaneInitialValues: WorkPlaneFeature | null;
+  editingWorkPlaneId: string | null;
+  toggleWorkPlaneDialog: (open: boolean) => void;
+  resetWorkPlaneDialog: () => void;
+  openWorkPlaneForEdit: (id: string) => void;
+  workPointDialogOpen: boolean;
+  workPointInitialValues: WorkPointFeature | null;
+  editingWorkPointId: string | null;
+  toggleWorkPointDialog: (open: boolean) => void;
+  resetWorkPointDialog: () => void;
+  openWorkPointForEdit: (id: string) => void;
+  setWorkFeatureVisible: (featureId: string, visible: boolean) => void;
   sweepDialogOpen: boolean;
   sweepProfileSketchId: string | null;
   sweepPathSketchId: string | null;
@@ -403,6 +422,46 @@ export const useAppStore = create<AppState>((set) => ({
     holeInitialValues: null,
   }),
   toggleHoleDialog: (open) => set({ holeDialogOpen: open }),
+  workAxisDialogOpen: false,
+  workAxisInitialValues: null,
+  editingWorkAxisId: null,
+  toggleWorkAxisDialog: (open) => set({ workAxisDialogOpen: open }),
+  resetWorkAxisDialog: () => set({ workAxisDialogOpen: false, workAxisInitialValues: null, editingWorkAxisId: null }),
+  openWorkAxisForEdit: (id) => set((s) => {
+    const f = s.activePart?.featureTree?.find((x: any) => x.id === id) as WorkAxisFeature | undefined;
+    if (!f || f.kind !== 'workAxis') return { ...s, workAxisDialogOpen: true, editingWorkAxisId: id };
+    return { ...s, workAxisDialogOpen: true, editingWorkAxisId: id, workAxisInitialValues: f };
+  }),
+  workPlaneDialogOpen: false,
+  workPlaneInitialValues: null,
+  editingWorkPlaneId: null,
+  toggleWorkPlaneDialog: (open) => set({ workPlaneDialogOpen: open }),
+  resetWorkPlaneDialog: () => set({ workPlaneDialogOpen: false, workPlaneInitialValues: null, editingWorkPlaneId: null }),
+  openWorkPlaneForEdit: (id) => set((s) => {
+    const f = s.activePart?.featureTree?.find((x: any) => x.id === id) as WorkPlaneFeature | undefined;
+    if (!f || f.kind !== 'workPlane') return { ...s, workPlaneDialogOpen: true, editingWorkPlaneId: id };
+    return { ...s, workPlaneDialogOpen: true, editingWorkPlaneId: id, workPlaneInitialValues: f };
+  }),
+  workPointDialogOpen: false,
+  workPointInitialValues: null,
+  editingWorkPointId: null,
+  toggleWorkPointDialog: (open) => set({ workPointDialogOpen: open }),
+  resetWorkPointDialog: () => set({ workPointDialogOpen: false, workPointInitialValues: null, editingWorkPointId: null }),
+  openWorkPointForEdit: (id) => set((s) => {
+    const f = s.activePart?.featureTree?.find((x: any) => x.id === id) as WorkPointFeature | undefined;
+    if (!f || f.kind !== 'workPoint') return { ...s, workPointDialogOpen: true, editingWorkPointId: id };
+    return { ...s, workPointDialogOpen: true, editingWorkPointId: id, workPointInitialValues: f };
+  }),
+  setWorkFeatureVisible: (featureId, visible) => set((s) => {
+    const part = s.activePart;
+    if (!part) return s;
+    const tree = part.featureTree.map((f: any) =>
+      f.id === featureId && (f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint')
+        ? { ...f, visible }
+        : f,
+    );
+    return { ...s, activePart: { ...part, featureTree: tree } };
+  }),
   sweepDialogOpen: false,
   sweepProfileSketchId: null,
   sweepPathSketchId: null,
