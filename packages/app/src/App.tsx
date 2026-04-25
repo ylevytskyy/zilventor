@@ -48,6 +48,14 @@ import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
 import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDialogCommand';
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
+import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
+import type { WorkAxisCommit } from './shell/WorkAxisDialog';
+import type { WorkPointCommit } from './shell/WorkPointDialog';
+import { AddWorkPlaneFeatureCommand } from './commands/AddWorkPlaneFeatureCommand';
+import { AddWorkAxisFeatureCommand } from './commands/AddWorkAxisFeatureCommand';
+import { AddWorkPointFeatureCommand } from './commands/AddWorkPointFeatureCommand';
+import type { WorkPlaneFeature, WorkAxisFeature, WorkPointFeature } from '@zilventor/shared';
+import { WorkFeatureDialogsHost } from './shell/WorkFeatureDialogsHost';
 import { SketchPickController } from './model/SketchPickController';
 import { PlaceComponentDialog } from './shell/PlaceComponentDialog';
 import { EditComponentDialog } from './shell/EditComponentDialog';
@@ -1547,6 +1555,58 @@ export default function App() {
     useAppStore.getState().resetSweepDialog();
   }, [activePart, kernel, sweepProfileSketchId, sweepPathSketchId]);
 
+  const onWorkPlaneCommit = useCallback(async (c: WorkPlaneCommit) => {
+    if (!activePart || !kernel) return;
+    const editingId = useAppStore.getState().editingWorkPlaneId;
+    const id = editingId ?? `WP${Date.now()}`;
+    const feature: WorkPlaneFeature = { kind: 'workPlane', id, visible: true, source: c.source };
+    if (editingId) {
+      try { await kernel.removeFeature(activePart.id, editingId); } catch {}
+    }
+    const cmd = new AddWorkPlaneFeatureCommand({
+      partId: activePart.id, feature, parameterExpressions: c.parameterExpressions,
+      kernel, registry: parameterRegistry,
+      store: { setActivePart: useAppStore.getState().setActivePart },
+    });
+    try { await cmd.apply(); } catch (e) { console.error('WorkPlane commit failed:', e); }
+    useAppStore.getState().resetWorkPlaneDialog();
+  }, [activePart, kernel]);
+
+  const onWorkAxisCommit = useCallback(async (c: WorkAxisCommit) => {
+    if (!activePart || !kernel) return;
+    const editingId = useAppStore.getState().editingWorkAxisId;
+    const id = editingId ?? `WA${Date.now()}`;
+    const feature: WorkAxisFeature = { kind: 'workAxis', id, visible: true, source: c.source };
+    if (editingId) {
+      try { await kernel.removeFeature(activePart.id, editingId); } catch {}
+    }
+    const cmd = new AddWorkAxisFeatureCommand({
+      partId: activePart.id, feature, parameterExpressions: c.parameterExpressions,
+      kernel, registry: parameterRegistry,
+      store: { setActivePart: useAppStore.getState().setActivePart },
+    });
+    try { await cmd.apply(); } catch (e) { console.error('WorkAxis commit failed:', e); }
+    useAppStore.getState().resetWorkAxisDialog();
+  }, [activePart, kernel]);
+
+  const onWorkPointCommit = useCallback(async (c: WorkPointCommit) => {
+    if (!activePart || !kernel) return;
+    const editingId = useAppStore.getState().editingWorkPointId;
+    const id = editingId ?? `WPT${Date.now()}`;
+    const feature: WorkPointFeature = { kind: 'workPoint', id, visible: true, source: c.source };
+    if (editingId) {
+      try { await kernel.removeFeature(activePart.id, editingId); } catch {}
+    }
+    const cmd = new AddWorkPointFeatureCommand({
+      partId: activePart.id, feature, parameterExpressions: c.parameterExpressions,
+      kernel, registry: parameterRegistry,
+      store: { setActivePart: useAppStore.getState().setActivePart },
+    });
+    try { await cmd.apply(); } catch (e) { console.error('WorkPoint commit failed:', e); }
+    useAppStore.getState().resetWorkPointDialog();
+  }, [activePart, kernel]);
+
+
   const onFilletCommit = useCallback(async (v: FilletDialogValue) => {
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
@@ -2068,6 +2128,11 @@ export default function App() {
           onSetOperation={(op) => useAppStore.setState((s) => ({ ...s, sweepOperation: op }))}
         />
       )}
+      <WorkFeatureDialogsHost
+        onWorkPlaneCommit={onWorkPlaneCommit}
+        onWorkAxisCommit={onWorkAxisCommit}
+        onWorkPointCommit={onWorkPointCommit}
+      />
       {revolveDialogOpen && (
         <RevolveDialog
           profile={computeProfileRef()}
