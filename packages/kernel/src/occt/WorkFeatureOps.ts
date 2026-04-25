@@ -264,6 +264,14 @@ export function evaluateWorkPoint(
     if (!pt) return { ok: false, error: featureNotFound('edge', `${source.edge.faceA.featureId}|${source.edge.faceB.featureId}`) };
     return { ok: true, value: { position: pt } };
   }
+  if (source.mode === 'centerOfArc') {
+    // Reuse the cylinder-axis extractor: gp_Cylinder.Location() is the
+    // basepoint of the axis, which on default cylinder construction is the
+    // arc/circle center.
+    const ax = extractCylinderAxis(occt, shape, source.face);
+    if (!ax) return { ok: false, error: featureNotFound('arc/cylinder face', `${source.face.featureId}/${source.face.role}`) };
+    return { ok: true, value: { position: ax.origin } };
+  }
   return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${(source as { mode: string }).mode}`) };
 }
 

@@ -336,6 +336,30 @@ describe('T14e — midpointOfEdge point evaluator', () => {
   });
 });
 
+describe('T14f — centerOfArc point evaluator', () => {
+  it('evaluateWorkPoint({ mode: "centerOfArc" }) returns the cylinder axis basepoint', () => {
+    const { nm, cylinderFace, cleanup } = buildNamedCylinder(5, 10);
+    const r = evaluateWorkPoint(oc, nm, { mode: 'centerOfArc', face: cylinderFace }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // BRepPrimAPI_MakeCylinder_3 frame at origin, axis +Z → location (0,0,0).
+      expect(r.value.position.x).toBeCloseTo(0, 5);
+      expect(r.value.position.y).toBeCloseTo(0, 5);
+      expect(r.value.position.z).toBeCloseTo(0, 5);
+    }
+    cleanup();
+  });
+
+  it('returns featureNotFound when face is non-circular (planar box face)', () => {
+    const { nm, cleanup } = buildNamedBox(10, 10, 10);
+    const r = evaluateWorkPoint(oc, nm, { mode: 'centerOfArc', face: namedFace('B1', 'F0') }, new Map());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+    cleanup();
+  });
+});
+
+
 
 
 
