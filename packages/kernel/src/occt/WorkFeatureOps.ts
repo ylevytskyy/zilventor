@@ -254,7 +254,12 @@ export function evaluateWorkPoint(
       value: { position: { x: det3(Mx) / D, y: det3(My) / D, z: det3(Mz) / D } },
     };
   }
-  return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${source.mode}`) };
+  if (source.mode === 'vertex') {
+    const pt = extractEdgeEndpoint(occt, shape, source.edge, source.end);
+    if (!pt) return { ok: false, error: featureNotFound('vertex', `${source.edge.faceA.featureId}|${source.edge.faceB.featureId}#${source.end}`) };
+    return { ok: true, value: { position: pt } };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${(source as { mode: string }).mode}`) };
 }
 
 const featureNotFound = (kind: string, featureId: string): KernelError => ({
@@ -437,5 +442,44 @@ export function resolveWorkPointRef(
     if (!v || v.kind !== 'point') return { ok: false, error: featureNotFound('work point', ref.featureId) };
     return { ok: true, value: { position: v.position } };
   }
-  return { ok: false, error: notImplemented(`resolveWorkPointRef: source ${ref.source}`) };
+  if (ref.source === 'vertex') {
+    const pt = _occt && _shape ? extractEdgeEndpoint(_occt, _shape, ref.edge, ref.end) : null;
+    if (!pt) return { ok: false, error: featureNotFound('vertex', `${ref.edge.faceA.featureId}|${ref.edge.faceB.featureId}#${ref.end}`) };
+    return { ok: true, value: { position: pt } };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkPointRef: source ${(ref as { source: string }).source}`) };
+}
+
+/**
+ * Look up an edge by name and return either its start or end vertex
+ * position by walking the curve to FirstParameter / LastParameter.
+ * Returns null when the edge isn't named.
+ */
+export function extractEdgeEndpoint(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  edgeName: EdgeName,
+  end: 'start' | 'end',
+): Vec3 | null {
+  if (!shape) return null;
+  const edge = resolveEdgeByName(oc, shape, edgeName);
+  if (!edge) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Edge_1: (s: unknown) => unknown };
+    BRepAdaptor_Curve_2: new (edge: unknown) => {
+      FirstParameter: () => number;
+      LastParameter: () => number;
+      Value: (t: number) => { X: () => number; Y: () => number; Z: () => number };
+      delete?: () => void;
+    };
+  };
+  const typedEdge = ocAny.TopoDS.Edge_1(edge);
+  const adaptor = new ocAny.BRepAdaptor_Curve_2(typedEdge);
+  try {
+    const t = end === 'start' ? adaptor.FirstParameter() : adaptor.LastParameter();
+    const p = adaptor.Value(t);
+    return { x: p.X(), y: p.Y(), z: p.Z() };
+  } finally {
+    adaptor.delete?.();
+  }
 }

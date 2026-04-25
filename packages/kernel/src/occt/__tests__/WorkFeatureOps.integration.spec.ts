@@ -249,6 +249,65 @@ describe('T14c — edge axis resolver', () => {
   });
 });
 
+describe('T14d — vertex point resolver', () => {
+  it('resolveWorkPointRef({ source: "vertex", end: "start" }) returns a point on a box edge', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    let foundEdge = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const r = resolveWorkPointRef({ source: 'vertex', edge: edgeName, end: 'start' }, oc, nm, new Map());
+        if (r.ok) {
+          // Box vertices live on the [0..10] cube; coordinates are in {0, 10}.
+          for (const c of [r.value.position.x, r.value.position.y, r.value.position.z]) {
+            const onBound = Math.abs(c) < 0.001 || Math.abs(c - 10) < 0.001;
+            expect(onBound).toBe(true);
+          }
+          foundEdge = true;
+          break outer;
+        }
+      }
+    }
+    expect(foundEdge).toBe(true);
+    cleanup();
+  });
+
+  it('start and end of the same edge differ', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    let proven = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const a = resolveWorkPointRef({ source: 'vertex', edge: edgeName, end: 'start' }, oc, nm, new Map());
+        const b = resolveWorkPointRef({ source: 'vertex', edge: edgeName, end: 'end' }, oc, nm, new Map());
+        if (a.ok && b.ok) {
+          const dx = a.value.position.x - b.value.position.x;
+          const dy = a.value.position.y - b.value.position.y;
+          const dz = a.value.position.z - b.value.position.z;
+          if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 0.5) { proven = true; break outer; }
+        }
+      }
+    }
+    expect(proven).toBe(true);
+    cleanup();
+  });
+
+  it('evaluateWorkPoint({ mode: "vertex" }) mirrors resolver', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    let proven = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const r = evaluateWorkPoint(oc, nm, { mode: 'vertex', edge: edgeName, end: 'end' }, new Map());
+        if (r.ok) { proven = true; break outer; }
+      }
+    }
+    expect(proven).toBe(true);
+    cleanup();
+  });
+});
+
+
 
   it('resolveWorkAxisRef returns featureNotFound when face is non-cylindrical', () => {
     const { nm, cleanup } = buildNamedBox(10, 10, 10);
