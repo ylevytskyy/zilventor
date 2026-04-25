@@ -56,7 +56,7 @@ import { EditComponentCommand } from './commands/EditComponentCommand';
 import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { ComponentInstance } from '@zilventor/shared';
 import * as THREE from 'three';
 
@@ -216,6 +216,7 @@ export default function App() {
         viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
       w.__zilventorPackProject = packProject;
+      w.__zilventorUnpackAssembly = unpackAssembly;
       w.__zilventorGetOpfs = async () => {
         if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
         return opfsRef.current;
