@@ -102,4 +102,32 @@ describe('SceneManager — component meshes', () => {
     const hashB = mgr.geometryHash();
     expect(hashA).not.toBe(hashB);
   });
+
+  it('raycastComponent returns the componentId of the hit mesh', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    const t = new THREE.Matrix4();
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t, visible: true }]);
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
+    camera.position.set(0, 0, 200);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    // NDC at center → straight ahead — should hit the cube at origin
+    const ndc = new THREE.Vector2(0, 0);
+    const id = mgr.raycastComponent(camera, ndc);
+    expect(id).toBe('C1');
+  });
+
+  it('raycastComponent returns null when nothing is hit', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    const t = new THREE.Matrix4().setPosition(1000, 0, 0);
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t, visible: true }]);
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
+    camera.position.set(0, 0, 200);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    // NDC at center → straight ahead, but cube is way off to +X
+    const ndc = new THREE.Vector2(0, 0);
+    const id = mgr.raycastComponent(camera, ndc);
+    expect(id).toBeNull();
+  });
 });

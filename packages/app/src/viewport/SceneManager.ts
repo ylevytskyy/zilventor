@@ -191,6 +191,21 @@ export class SceneManager {
     return this.componentMeshes.get(id);
   }
 
+  raycastComponent(camera: THREE.Camera, ndc: THREE.Vector2): string | null {
+    if (this.componentMeshes.size === 0) return null;
+    // Component meshes are matrixAutoUpdate=false; force world matrices to reflect manually-set local matrices
+    for (const m of this.componentMeshes.values()) {
+      m.updateMatrixWorld(true);
+    }
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, camera);
+    const meshes = Array.from(this.componentMeshes.values());
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length === 0) return null;
+    const id = hits[0]!.object.userData.componentId;
+    return typeof id === 'string' ? id : null;
+  }
+
   dispose(): void {
     this.controls.dispose();
     this.renderer.dispose();

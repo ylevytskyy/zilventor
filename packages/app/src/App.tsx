@@ -722,6 +722,12 @@ export default function App() {
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
+    const docKind = useAppStore.getState().activeDocument?.kind;
+    if (docKind === 'assembly' && ev.type === 'click') {
+      const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
+      useAppStore.getState().selectComponent(hit);
+      return;
+    }
     // Model-mode fillet edge pick. Hover highlights the candidate, click
     // commits the pick into the dialog's edge list. Uses a camera-space ray
     // (origin + direction in world coords) against the kernel's tessellated

@@ -17,6 +17,7 @@ export type ViewportRef = {
   worldToScreen(worldX: number, worldY: number): { x: number; y: number };
   worldToScreen3d(worldX: number, worldY: number, worldZ: number): { x: number; y: number };
   raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
+  raycastComponent(clientX: number, clientY: number): string | null;
 };
 
 type Props = {
@@ -138,6 +139,16 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const x = ((vec.x + 1) / 2) * rect.width;
       const y = ((-vec.y + 1) / 2) * rect.height;
       return { x, y };
+    },
+    raycastComponent: (clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) return null;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      return sceneRef.current.raycastComponent(sceneRef.current.getCamera(), ndc);
     },
     worldToScreen3d: (wx, wy, wz) => {
       if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };
