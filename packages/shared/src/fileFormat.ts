@@ -125,6 +125,28 @@ function injectOriginFeatures(m: AnyManifest): AnyManifest {
   return next as unknown as AnyManifest;
 }
 
+function migrateSketchPlanes(m: AnyManifest): AnyManifest {
+  const anyM = m as { kind?: string; document?: { featureTree?: Array<Record<string, unknown>> } };
+  if (anyM.kind !== 'part') return m;
+  const doc = anyM.document;
+  if (!doc || !Array.isArray(doc.featureTree)) return m;
+  let changed = false;
+  const next = doc.featureTree.map((f) => {
+    if (f.kind !== 'sketch') return f;
+    if (typeof f.plane === 'string') {
+      changed = true;
+      return { ...f, plane: { source: 'workPlane', featureId: `origin.${f.plane}` } };
+    }
+    return f;
+  });
+  if (!changed) return m;
+  return {
+    ...(m as Record<string, unknown>),
+    document: { ...doc, featureTree: next },
+  } as unknown as AnyManifest;
+}
+
+
 
 export function migrateManifest(m: AnyManifest): AnyManifest {
   if (typeof m.formatVersion !== 'number') {
@@ -145,5 +167,5 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
       throw new Error(`migration from formatVersion ${priorVersion} did not advance the version`);
     }
   }
-  return injectOriginFeatures(normalizeKind(current));
+  return migrateSketchPlanes(injectOriginFeatures(normalizeKind(current)));
 }

@@ -425,3 +425,58 @@ describe('migrateManifest origin features', () => {
   });
 });
 
+describe('migrateManifest sketch.plane migration', () => {
+  it('migrates plane: "XY" to { source: "workPlane", featureId: "origin.XY" }', () => {
+    const input: AnyManifest = {
+      formatVersion: 7, kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+        ],
+      },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const sketch = tree.find((f) => f.id === 'S1') as { plane: unknown };
+    expect(sketch.plane).toEqual({ source: 'workPlane', featureId: 'origin.XY' });
+  });
+
+  it('migrates plane: "YZ" and "XZ" to matching origin work plane refs', () => {
+    const input: AnyManifest = {
+      formatVersion: 7, kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'sketch', id: 'S1', plane: 'YZ', primitives: [], constraints: [] },
+          { kind: 'sketch', id: 'S2', plane: 'XZ', primitives: [], constraints: [] },
+        ],
+      },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const s1 = tree.find((f) => f.id === 'S1') as { plane: unknown };
+    const s2 = tree.find((f) => f.id === 'S2') as { plane: unknown };
+    expect(s1.plane).toEqual({ source: 'workPlane', featureId: 'origin.YZ' });
+    expect(s2.plane).toEqual({ source: 'workPlane', featureId: 'origin.XZ' });
+  });
+
+  it('leaves WorkPlaneRef sketches untouched', () => {
+    const planeRef = { source: 'workPlane', featureId: 'origin.YZ' };
+    const input: AnyManifest = {
+      formatVersion: 7, kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [
+          { kind: 'sketch', id: 'S1', plane: planeRef, primitives: [], constraints: [] },
+        ],
+      },
+    } as AnyManifest;
+    const out = migrateManifest(input);
+    const tree = (out.document as { featureTree: Array<Record<string, unknown>> }).featureTree;
+    const sketch = tree.find((f) => f.id === 'S1') as { plane: unknown };
+    expect(sketch.plane).toEqual(planeRef);
+  });
+});
+
+
