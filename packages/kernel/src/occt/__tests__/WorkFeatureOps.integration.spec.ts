@@ -195,6 +195,61 @@ describe('T14b — cylindricalFace axis resolver', () => {
     cleanup();
   });
 
+describe('T14c — edge axis resolver', () => {
+  it('resolveWorkAxisRef({ source: "edge" }) returns origin + unit direction for a box edge', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    // Try every pair of distinct faces — at least one pair shares an edge.
+    let foundEdge = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const r = resolveWorkAxisRef({ source: 'edge', edge: edgeName }, oc, nm, new Map());
+        if (r.ok) {
+          const d = r.value.direction;
+          const len = Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+          expect(len).toBeCloseTo(1, 5);
+          foundEdge = true;
+          break outer;
+        }
+      }
+    }
+    expect(foundEdge).toBe(true);
+    cleanup();
+  });
+
+  it('evaluateWorkAxis({ mode: "edge" }) mirrors resolver', () => {
+    const { nm, faceNames, cleanup } = buildNamedBox(10, 10, 10);
+    let foundEdge = false;
+    outer: for (let i = 0; i < faceNames.length; i++) {
+      for (let j = i + 1; j < faceNames.length; j++) {
+        const edgeName = canonicalEdgeName(faceNames[i]!, faceNames[j]!);
+        const r = evaluateWorkAxis(oc, nm, { mode: 'edge', edge: edgeName }, new Map());
+        if (r.ok) {
+          foundEdge = true;
+          break outer;
+        }
+      }
+    }
+    expect(foundEdge).toBe(true);
+    cleanup();
+  });
+
+  it('returns featureNotFound when edge faces are missing', () => {
+    const { nm, cleanup } = buildNamedBox(10, 10, 10);
+    const r = resolveWorkAxisRef(
+      {
+        source: 'edge',
+        edge: canonicalEdgeName(namedFace('NoSuch', 'a'), namedFace('NoSuch', 'b')),
+      },
+      oc, nm, new Map(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+    cleanup();
+  });
+});
+
+
   it('resolveWorkAxisRef returns featureNotFound when face is non-cylindrical', () => {
     const { nm, cleanup } = buildNamedBox(10, 10, 10);
     const r = resolveWorkAxisRef(

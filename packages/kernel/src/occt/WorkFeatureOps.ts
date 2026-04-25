@@ -13,8 +13,8 @@ import type { ParamOrLiteral, SketchParameter } from '@zilventor/shared';
 import type { Result } from '@zilventor/shared';
 import { type KernelError, newCorrelationId } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
-import { faceNamesEqual, type NamedShape } from './FaceNaming';
-import type { FaceName } from '@zilventor/shared';
+import { faceNamesEqual, resolveEdge as resolveEdgeByName, type NamedShape } from './FaceNaming';
+import type { EdgeName, FaceName } from '@zilventor/shared';
 
 export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
@@ -127,7 +127,12 @@ export function evaluateWorkAxis(
     if (!ax) return { ok: false, error: featureNotFound('cylindrical face', `${source.face.featureId}/${source.face.role}`) };
     return { ok: true, value: ax };
   }
-  return { ok: false, error: notImplemented(`evaluateWorkAxis: mode ${source.mode}`) };
+  if (source.mode === 'edge') {
+    const ax = extractEdgeLine(occt, shape, source.edge);
+    if (!ax) return { ok: false, error: featureNotFound('edge', `${source.edge.faceA.featureId}|${source.edge.faceB.featureId}`) };
+    return { ok: true, value: ax };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkAxis: mode ${(source as { mode: string }).mode}`) };
 }
 
 export function evaluateWorkPlane(
@@ -275,6 +280,11 @@ export function resolveWorkAxisRef(
     if (!ax) return { ok: false, error: featureNotFound('cylindrical face', `${ref.face.featureId}/${ref.face.role}`) };
     return { ok: true, value: ax };
   }
+  if (ref.source === 'edge') {
+    const ax = _occt && _shape ? extractEdgeLine(_occt, _shape, ref.edge) : null;
+    if (!ax) return { ok: false, error: featureNotFound('edge', `${ref.edge.faceA.featureId}|${ref.edge.faceB.featureId}`) };
+    return { ok: true, value: ax };
+  }
   return { ok: false, error: notImplemented(`resolveWorkAxisRef: source ${(ref as { source: string }).source}`) };
 }
 
@@ -352,6 +362,44 @@ export function extractCylinderAxis(
       origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
       direction: { x: dir.X(), y: dir.Y(), z: dir.Z() },
     };
+  } finally {
+    adaptor.delete?.();
+  }
+}
+
+/**
+ * Look up an edge by name and extract the line it represents (origin =
+ * curve start point, direction = normalized vector from start to end).
+ * Returns null when the edge isn't named or has degenerate length.
+ */
+export function extractEdgeLine(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  edgeName: EdgeName,
+): { origin: Vec3; direction: Vec3 } | null {
+  if (!shape) return null;
+  const edge = resolveEdgeByName(oc, shape, edgeName);
+  if (!edge) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Edge_1: (s: unknown) => unknown };
+    BRepAdaptor_Curve_2: new (edge: unknown) => {
+      FirstParameter: () => number;
+      LastParameter: () => number;
+      Value: (t: number) => { X: () => number; Y: () => number; Z: () => number };
+      delete?: () => void;
+    };
+  };
+  const typedEdge = ocAny.TopoDS.Edge_1(edge);
+  const adaptor = new ocAny.BRepAdaptor_Curve_2(typedEdge);
+  try {
+    const t0 = adaptor.FirstParameter();
+    const t1 = adaptor.LastParameter();
+    const p0 = adaptor.Value(t0);
+    const p1 = adaptor.Value(t1);
+    const origin: Vec3 = { x: p0.X(), y: p0.Y(), z: p0.Z() };
+    const raw: Vec3 = { x: p1.X() - p0.X(), y: p1.Y() - p0.Y(), z: p1.Z() - p0.Z() };
+    if (length(raw) < 1e-12) return null;
+    return { origin, direction: normalize(raw) };
   } finally {
     adaptor.delete?.();
   }
