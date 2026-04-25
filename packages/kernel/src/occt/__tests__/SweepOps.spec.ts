@@ -44,4 +44,16 @@ describe('SweepOps — buildWireFromSketch', () => {
     const wire = buildWireFromSketch(oc, sketch);
     expect((wire as any).Closed?.()).toBe(true);
   });
+
+  it('builds an open wire from a single 90° arc primitive', () => {
+    const sketch: any = {
+      id: 'S1', kind: 'sketch', plane: 'XY',
+      primitives: [{ id: 'A1', kind: 'arc', cx: 0, cy: 0, r: 5, startAngle: 0, endAngle: Math.PI / 2 }],
+      constraints: [],
+    };
+    const wire = buildWireFromSketch(oc, sketch);
+    expect((wire as any).IsNull?.()).not.toBe(true);
+    // Arc is not a closed loop
+    expect((wire as any).Closed?.()).toBe(false);
+  });
 });

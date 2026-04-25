@@ -36,6 +36,16 @@ export function buildWireFromSketch(oc: any, sketch: any): any {
       const circ = new oc.gp_Circ_2(ax2, prim.r);
       const edge = new oc.BRepBuilderAPI_MakeEdge_8(circ).Edge();
       wireBuilder.Add_1(edge);
+    } else if (prim.kind === 'arc') {
+      const c = to3D(plane, prim.cx, prim.cy);
+      const f = sketchPlaneFrame(plane);
+      const center = new oc.gp_Pnt_3(c.x, c.y, c.z);
+      const axis = new oc.gp_Dir_4(f.n.x, f.n.y, f.n.z);
+      const ax2 = new oc.gp_Ax2_3(center, axis);
+      const circ = new oc.gp_Circ_2(ax2, prim.r);
+      // BRepBuilderAPI_MakeEdge_9: constructor(L: gp_Circ, p1: Standard_Real, p2: Standard_Real)
+      const edge = new oc.BRepBuilderAPI_MakeEdge_9(circ, prim.startAngle, prim.endAngle).Edge();
+      wireBuilder.Add_1(edge);
     } else {
       throw new Error(`SweepOps: unsupported primitive kind '${prim.kind}'`);
     }
