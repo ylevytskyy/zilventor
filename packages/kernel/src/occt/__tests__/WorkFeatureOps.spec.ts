@@ -377,3 +377,99 @@ describe('evaluateWorkPlane non-OCCT modes', () => {
     if (r.ok) expect(Math.abs(r.value.normal.y)).toBeCloseTo(1, 5);
   });
 });
+
+describe('evaluateWorkPoint non-OCCT modes', () => {
+  it('axisIntersectsPlane: Z-axis through origin ∩ XY at z=10 ⇒ (0,0,10)', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['ax', { featureId: 'ax', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }],
+      ['pl', { featureId: 'pl', kind: 'plane', origin: { x: 0, y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPoint(occtStub, null, {
+      mode: 'axisIntersectsPlane',
+      axis: { source: 'workAxis', featureId: 'ax' },
+      plane: { source: 'workPlane', featureId: 'pl' },
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.position.x).toBeCloseTo(0, 5);
+      expect(r.value.position.y).toBeCloseTo(0, 5);
+      expect(r.value.position.z).toBeCloseTo(10, 5);
+    }
+  });
+
+  it('axisIntersectsPlane: axis parallel to plane ⇒ invalidGeometry', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['ax', { featureId: 'ax', kind: 'axis', origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }],
+      ['pl', { featureId: 'pl', kind: 'plane', origin: { x: 0, y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPoint(occtStub, null, {
+      mode: 'axisIntersectsPlane',
+      axis: { source: 'workAxis', featureId: 'ax' },
+      plane: { source: 'workPlane', featureId: 'pl' },
+    }, wfs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+
+  it('threePlanes: XY ∩ YZ ∩ XZ ⇒ origin (0,0,0)', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['xy', { featureId: 'xy', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['yz', { featureId: 'yz', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } }],
+      ['xz', { featureId: 'xz', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 } }],
+    ]);
+    const r = evaluateWorkPoint(occtStub, null, {
+      mode: 'threePlanes',
+      planes: [
+        { source: 'workPlane', featureId: 'xy' },
+        { source: 'workPlane', featureId: 'yz' },
+        { source: 'workPlane', featureId: 'xz' },
+      ],
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.position.x).toBeCloseTo(0, 5);
+      expect(r.value.position.y).toBeCloseTo(0, 5);
+      expect(r.value.position.z).toBeCloseTo(0, 5);
+    }
+  });
+
+  it('threePlanes: offset planes XY z=2, YZ x=3, XZ y=5 ⇒ (3,5,2)', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['xy', { featureId: 'xy', kind: 'plane', origin: { x: 0, y: 0, z: 2 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['yz', { featureId: 'yz', kind: 'plane', origin: { x: 3, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } }],
+      ['xz', { featureId: 'xz', kind: 'plane', origin: { x: 0, y: 5, z: 0 }, normal: { x: 0, y: 1, z: 0 } }],
+    ]);
+    const r = evaluateWorkPoint(occtStub, null, {
+      mode: 'threePlanes',
+      planes: [
+        { source: 'workPlane', featureId: 'xy' },
+        { source: 'workPlane', featureId: 'yz' },
+        { source: 'workPlane', featureId: 'xz' },
+      ],
+    }, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.position.x).toBeCloseTo(3, 5);
+      expect(r.value.position.y).toBeCloseTo(5, 5);
+      expect(r.value.position.z).toBeCloseTo(2, 5);
+    }
+  });
+
+  it('threePlanes: linearly dependent planes ⇒ invalidGeometry', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['p1', { featureId: 'p1', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['p2', { featureId: 'p2', kind: 'plane', origin: { x: 0, y: 0, z: 5 }, normal: { x: 0, y: 0, z: 1 } }],
+      ['p3', { featureId: 'p3', kind: 'plane', origin: { x: 0, y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = evaluateWorkPoint(occtStub, null, {
+      mode: 'threePlanes',
+      planes: [
+        { source: 'workPlane', featureId: 'p1' },
+        { source: 'workPlane', featureId: 'p2' },
+        { source: 'workPlane', featureId: 'p3' },
+      ],
+    }, wfs);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalidGeometry');
+  });
+});

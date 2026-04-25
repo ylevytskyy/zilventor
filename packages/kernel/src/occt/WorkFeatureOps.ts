@@ -202,13 +202,46 @@ export function evaluateWorkPlane(
 }
 
 export function evaluateWorkPoint(
-  _occt: OcctInstance,
-  _shape: NamedShape | null,
+  occt: OcctInstance,
+  shape: NamedShape | null,
   source: WorkPointFeature['source'],
-  _wfs: Map<string, WorkFeatureValue>,
+  wfs: Map<string, WorkFeatureValue>,
 ): Result<{ position: Vec3 }, KernelError> {
   if (source.mode === 'origin') {
     return { ok: true, value: { position: { x: 0, y: 0, z: 0 } } };
+  }
+  if (source.mode === 'axisIntersectsPlane') {
+    const ax = resolveWorkAxisRef(source.axis, occt, shape, wfs);
+    if (!ax.ok) return ax;
+    const pl = resolveWorkPlaneRef(source.plane, occt, shape, wfs);
+    if (!pl.ok) return pl;
+    const denom = dot(ax.value.direction, pl.value.normal);
+    if (Math.abs(denom) < 1e-9) return invalidGeometryFail('axisIntersectsPlane: axis is parallel to plane');
+    const t = dot(sub(pl.value.origin, ax.value.origin), pl.value.normal) / denom;
+    return { ok: true, value: { position: add(ax.value.origin, scale(ax.value.direction, t)) } };
+  }
+  if (source.mode === 'threePlanes') {
+    const planes: { origin: Vec3; normal: Vec3 }[] = [];
+    for (const ref of source.planes) {
+      const r = resolveWorkPlaneRef(ref, occt, shape, wfs);
+      if (!r.ok) return r;
+      planes.push(r.value);
+    }
+    const M: number[][] = planes.map((p) => [p.normal.x, p.normal.y, p.normal.z]);
+    const d: number[] = planes.map((p) => dot(p.normal, p.origin));
+    const det3 = (m: number[][]): number =>
+      m[0]![0]! * (m[1]![1]! * m[2]![2]! - m[1]![2]! * m[2]![1]!)
+      - m[0]![1]! * (m[1]![0]! * m[2]![2]! - m[1]![2]! * m[2]![0]!)
+      + m[0]![2]! * (m[1]![0]! * m[2]![1]! - m[1]![1]! * m[2]![0]!);
+    const D = det3(M);
+    if (Math.abs(D) < 1e-9) return invalidGeometryFail('threePlanes: planes are linearly dependent');
+    const Mx = M.map((row, i) => [d[i]!, row[1]!, row[2]!]);
+    const My = M.map((row, i) => [row[0]!, d[i]!, row[2]!]);
+    const Mz = M.map((row, i) => [row[0]!, row[1]!, d[i]!]);
+    return {
+      ok: true,
+      value: { position: { x: det3(Mx) / D, y: det3(My) / D, z: det3(Mz) / D } },
+    };
   }
   return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${source.mode}`) };
 }
