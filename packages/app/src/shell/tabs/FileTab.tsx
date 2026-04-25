@@ -3,7 +3,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
-import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { writeToHandle } from '@zilventor/kernel/src/storage/FileSystemAccess';
 
 type FSAWindow = Window & {
   showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle>;
@@ -12,6 +13,7 @@ type FSAWindow = Window & {
 
 export default function FileTab() {
   const activePart = useAppStore((s) => s.activePart);
+  const activeDoc = useAppStore((s) => s.activeDocument);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
 
   const handleNewPart = async () => {
@@ -25,11 +27,10 @@ export default function FileTab() {
   };
 
   const handleSaveAs = async () => {
-    const { kernel, viewport, setStatus } = useAppStore.getState();
-    if (!kernel || !activePart) return;
+    const { kernel, viewport, setStatus, activeDocument } = useAppStore.getState();
+    if (!activeDocument) return;
+
     try {
-      // Thumbnail is a nice-to-have — if the viewport isn't ready or the
-      // canvas read-back fails for any reason, proceed with the save anyway.
       let thumbnail: Uint8Array | undefined;
       if (viewport) {
         try {
@@ -38,6 +39,21 @@ export default function FileTab() {
           thumbnail = undefined;
         }
       }
+
+      if (activeDocument.kind === 'assembly') {
+        const doc = activeDocument.document;
+        const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
+          suggestedName: `${doc.name}.ziasm`,
+          types: [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }]
+        });
+        const archive = await packAssembly(doc, thumbnail ?? new Uint8Array());
+        await writeToHandle(handle, archive);
+        setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        return;
+      }
+
+      // Part path (existing behavior)
+      if (!kernel || !activePart) return;
       const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
         suggestedName: `${activePart.name}.zipt`,
         types: [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }]
@@ -101,7 +117,7 @@ export default function FileTab() {
       <button className="hover:text-white" onClick={handleNewAssembly}>New Assembly</button>
       <button className="hover:text-white" onClick={handleOpen}>Open…</button>
       <button className="hover:text-white" disabled>Save</button>
-      <button className="hover:text-white disabled:text-neutral-500" disabled={!activePart} onClick={handleSaveAs}>Save As…</button>
+      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
       {errorDialog && (
         <div role="alertdialog" aria-label="Error" className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-shell-panel border border-shell-border p-4 w-80 text-xs">

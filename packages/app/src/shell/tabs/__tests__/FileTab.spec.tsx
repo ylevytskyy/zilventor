@@ -10,6 +10,11 @@ vi.mock('@zilventor/kernel/src/storage/tarGzipUtil', () => ({
 }));
 vi.mock('@zilventor/kernel/src/storage/AssemblyPacker', () => ({
   unpackAssembly: vi.fn(),
+  packAssembly: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
+}));
+vi.mock('@zilventor/kernel/src/storage/FileSystemAccess', () => ({
+  writeToHandle: vi.fn().mockResolvedValue(undefined),
+  readFromHandle: vi.fn(),
 }));
 
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
@@ -59,5 +64,29 @@ describe('FileTab', () => {
       expect(useAppStore.getState().activeDocument?.kind).toBe('assembly');
     });
     expect(useAppStore.getState().activeAssembly?.name).toBe('cabinet');
+  });
+
+  it('Save As writes a .ziasm archive when active document is an assembly', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      components: [{
+        id: 'C1', partPath: 'parts/leg.zipt',
+        position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+      }],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+
+    const fakeHandle = { kind: 'file' } as unknown as FileSystemFileHandle;
+    (window as any).showSaveFilePicker = vi.fn().mockResolvedValue(fakeHandle);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /save as/i }));
+
+    await waitFor(() => {
+      expect((window as any).showSaveFilePicker).toHaveBeenCalled();
+    });
+    const args = (window as any).showSaveFilePicker.mock.calls[0]![0];
+    expect(args.suggestedName).toBe('cabinet.ziasm');
+    expect(args.types[0].accept['application/zilinventor-assembly']).toContain('.ziasm');
   });
 });
