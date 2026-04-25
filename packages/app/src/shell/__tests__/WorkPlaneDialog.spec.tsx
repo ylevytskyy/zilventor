@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { WorkPlaneDialog } from '../WorkPlaneDialog';
+import { useAppStore } from '../../store/useAppStore';
 
 describe('WorkPlaneDialog', () => {
   const baseProps = { onCommit: () => {}, onCancel: () => {} };
@@ -55,4 +56,43 @@ describe('WorkPlaneDialog', () => {
     fireEvent.click(screen.getByText('Cancel'));
     expect(onCancel).toHaveBeenCalled();
   });
+
+  describe('Pick… buttons', () => {
+    beforeEach(() => { useAppStore.getState().clearWorkFeaturePick(); });
+
+    it('clicking Pick on the offset Plane ref issues a pendingWorkFeaturePick', () => {
+      render(<WorkPlaneDialog {...baseProps} />);
+      fireEvent.change(screen.getByLabelText('mode'), { target: { value: 'offsetFromPlane' } });
+      fireEvent.click(screen.getByLabelText('Pick plane ref'));
+      const req = useAppStore.getState().pendingWorkFeaturePick;
+      expect(req).toEqual({ kind: 'plane', role: 'planeA', mode: 'workPlane' });
+    });
+
+    it('a delivered pick result populates the planeA input', () => {
+      render(<WorkPlaneDialog {...baseProps} />);
+      fireEvent.change(screen.getByLabelText('mode'), { target: { value: 'offsetFromPlane' } });
+      act(() => {
+        useAppStore.getState().setWorkFeaturePickResult({
+          kind: 'plane', role: 'planeA',
+          hit: { kind: 'workPlane', featureId: 'origin.YZ' },
+        });
+      });
+      const planeInput = screen.getByLabelText('plane ref') as HTMLInputElement;
+      expect(planeInput.value).toBe('origin.YZ');
+    });
+
+    it('mismatched role result is ignored', () => {
+      render(<WorkPlaneDialog {...baseProps} />);
+      fireEvent.change(screen.getByLabelText('mode'), { target: { value: 'offsetFromPlane' } });
+      act(() => {
+        useAppStore.getState().setWorkFeaturePickResult({
+          kind: 'plane', role: 'somethingElse',
+          hit: { kind: 'workPlane', featureId: 'origin.YZ' },
+        });
+      });
+      const planeInput = screen.getByLabelText('plane ref') as HTMLInputElement;
+      expect(planeInput.value).toBe('origin.XY');
+    });
+  });
+
 });

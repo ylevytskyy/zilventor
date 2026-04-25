@@ -1,5 +1,6 @@
 import React from 'react';
 import type { WorkAxisFeature, WorkPlaneRef, WorkPointRef } from '@zilventor/shared';
+import { useAppStore } from '../store/useAppStore';
 
 export type WorkAxisCommit = {
   source: WorkAxisFeature['source'];
@@ -25,7 +26,7 @@ const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
 
 const panel: React.CSSProperties = {
   position: 'fixed', top: 80, right: 20, background: '#1a1a1a',
-  border: '1px solid #444', borderRadius: 6, padding: 12, width: 360,
+  border: '1px solid #444', borderRadius: 6, padding: 12, width: 380,
   color: '#eee', zIndex: 50, fontSize: 12,
 };
 const row: React.CSSProperties = { display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' };
@@ -33,6 +34,7 @@ const label: React.CSSProperties = { width: 100, color: '#aaa' };
 const input: React.CSSProperties = { flex: 1, background: '#0c0c0c', color: '#eee', border: '1px solid #444', padding: '2px 6px' };
 const btn: React.CSSProperties = { background: '#2a2a2a', color: '#eee', border: '1px solid #444', padding: '4px 10px', cursor: 'pointer' };
 const ok: React.CSSProperties = { ...btn, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const pickBtn: React.CSSProperties = { ...btn, padding: '2px 8px', fontSize: 11 };
 
 const planeRef = (text: string): WorkPlaneRef => ({ source: 'workPlane', featureId: text.trim() || 'origin.XY' });
 const pointRef = (text: string): WorkPointRef => ({ source: 'workPoint', featureId: text.trim() || 'origin.O' });
@@ -49,12 +51,38 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
   const [face, setFace] = React.useState('');
   const [edgeText, setEdgeText] = React.useState('');
 
+  const pickResult = useAppStore((s) => s.workFeaturePickResult);
+
   React.useEffect(() => {
     if (!initialValues) return;
     const s = initialValues.source;
     setMode(s.mode);
     if (s.mode === 'origin') setOriginAxis(s.axis);
   }, [initialValues]);
+
+  React.useEffect(() => {
+    if (!pickResult) return;
+    const setters: Record<string, ((v: string) => void) | undefined> = {
+      pointA: setPointA,
+      pointB: setPointB,
+      planeA: setPlaneA,
+      planeB: setPlaneB,
+    };
+    const setter = setters[pickResult.role];
+    if (!setter) return;
+    let featureId: string | null = null;
+    if (pickResult.hit.kind === 'workPlane' || pickResult.hit.kind === 'workAxis' || pickResult.hit.kind === 'workPoint') {
+      featureId = pickResult.hit.featureId;
+    }
+    if (featureId) {
+      setter(featureId);
+      useAppStore.getState().clearWorkFeaturePick();
+    }
+  }, [pickResult]);
+
+  const requestPick = (kind: 'plane' | 'axis' | 'point', role: string, pickMode: string) => {
+    useAppStore.getState().requestWorkFeaturePick({ kind, role, mode: pickMode });
+  };
 
   function handleOk(): void {
     const params: Record<string, { expression: string; unit: 'mm' | 'deg' }> = {};
@@ -76,7 +104,7 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
         source = { mode: 'cylindricalFace', face: { featureId: face, role: 'side' } };
         break;
       case 'edge':
-        // Stub edge name — interactive picker fills both faces in T34.
+        // Stub edge name — interactive edge picker fills both faces in T14.
         source = { mode: 'edge', edge: { faceA: { featureId: edgeText, role: 'top' }, faceB: { featureId: edgeText, role: 'side' } } };
         break;
     }
@@ -105,17 +133,33 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
       )}
 
       {(mode === 'twoPoints' || mode === 'normalToPlaneThroughPoint') && (
-        <div style={row}><label style={label}>Point A</label><input aria-label="point A" value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} /></div>
+        <div style={row}>
+          <label style={label}>Point A</label>
+          <input aria-label="point A" value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} />
+          <button type="button" aria-label="Pick point A" style={pickBtn} onClick={() => requestPick('point', 'pointA', 'workPoint')}>Pick…</button>
+        </div>
       )}
       {mode === 'twoPoints' && (
-        <div style={row}><label style={label}>Point B</label><input aria-label="point B" value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} /></div>
+        <div style={row}>
+          <label style={label}>Point B</label>
+          <input aria-label="point B" value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} />
+          <button type="button" aria-label="Pick point B" style={pickBtn} onClick={() => requestPick('point', 'pointB', 'workPoint')}>Pick…</button>
+        </div>
       )}
 
       {(mode === 'twoPlanes' || mode === 'normalToPlaneThroughPoint') && (
-        <div style={row}><label style={label}>Plane</label><input aria-label="plane ref" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} /></div>
+        <div style={row}>
+          <label style={label}>Plane</label>
+          <input aria-label="plane ref" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+          <button type="button" aria-label="Pick plane ref" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+        </div>
       )}
       {mode === 'twoPlanes' && (
-        <div style={row}><label style={label}>Plane B</label><input aria-label="plane B" value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} /></div>
+        <div style={row}>
+          <label style={label}>Plane B</label>
+          <input aria-label="plane B" value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
+          <button type="button" aria-label="Pick plane B" style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>Pick…</button>
+        </div>
       )}
 
       {mode === 'cylindricalFace' && (
