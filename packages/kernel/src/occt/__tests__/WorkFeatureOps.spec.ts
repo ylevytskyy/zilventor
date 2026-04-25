@@ -47,3 +47,48 @@ describe('Vec3 helpers', () => {
     expect(length({ x: 3, y: 4, z: 0 })).toBeCloseTo(5, 5);
   });
 });
+
+import { evaluateWorkAxis, evaluateWorkPlane, evaluateWorkPoint } from '../WorkFeatureOps';
+import type { OcctInstance } from '../occtLoader';
+
+const occtStub = null as unknown as OcctInstance;
+
+describe('evaluateWorkAxis origin', () => {
+  it('axis X returns origin (0,0,0) direction (1,0,0)', () => {
+    const r = evaluateWorkAxis(occtStub, null, { mode: 'origin', axis: 'X' }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual({ origin: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } });
+  });
+
+  it.each([
+    ['Y', { x: 0, y: 1, z: 0 }],
+    ['Z', { x: 0, y: 0, z: 1 }],
+  ] as const)('axis %s direction is %j', (axis, expected) => {
+    const r = evaluateWorkAxis(occtStub, null, { mode: 'origin', axis }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.direction).toEqual(expected);
+  });
+});
+
+describe('evaluateWorkPlane origin', () => {
+  it.each([
+    ['XY', { x: 0, y: 0, z: 1 }],
+    ['YZ', { x: 1, y: 0, z: 0 }],
+    ['XZ', { x: 0, y: 1, z: 0 }],
+  ] as const)('plane %s normal is %j', (plane, expected) => {
+    const r = evaluateWorkPlane(occtStub, null, { mode: 'origin', plane }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({ x: 0, y: 0, z: 0 });
+      expect(r.value.normal).toEqual(expected);
+    }
+  });
+});
+
+describe('evaluateWorkPoint origin', () => {
+  it('returns position (0,0,0)', () => {
+    const r = evaluateWorkPoint(occtStub, null, { mode: 'origin' }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.position).toEqual({ x: 0, y: 0, z: 0 });
+  });
+});

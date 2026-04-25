@@ -41,26 +41,43 @@ const notImplemented = (what: string): KernelError => ({
 export function evaluateWorkAxis(
   _occt: OcctInstance,
   _shape: NamedShape | null,
-  _source: WorkAxisFeature['source'],
+  source: WorkAxisFeature['source'],
   _wfs: Map<string, WorkFeatureValue>,
 ): Result<{ origin: Vec3; direction: Vec3 }, KernelError> {
-  return { ok: false, error: notImplemented('evaluateWorkAxis') };
+  if (source.mode === 'origin') {
+    const direction: Vec3 =
+      source.axis === 'X' ? { x: 1, y: 0, z: 0 } :
+      source.axis === 'Y' ? { x: 0, y: 1, z: 0 } :
+                            { x: 0, y: 0, z: 1 };
+    return { ok: true, value: { origin: { x: 0, y: 0, z: 0 }, direction } };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkAxis: mode ${source.mode}`) };
 }
 
 export function evaluateWorkPlane(
   _occt: OcctInstance,
   _shape: NamedShape | null,
-  _source: WorkPlaneFeature['source'],
+  source: WorkPlaneFeature['source'],
   _wfs: Map<string, WorkFeatureValue>,
 ): Result<{ origin: Vec3; normal: Vec3 }, KernelError> {
-  return { ok: false, error: notImplemented('evaluateWorkPlane') };
+  if (source.mode === 'origin') {
+    const normal: Vec3 =
+      source.plane === 'XY' ? { x: 0, y: 0, z: 1 } :
+      source.plane === 'YZ' ? { x: 1, y: 0, z: 0 } :
+                              { x: 0, y: 1, z: 0 };
+    return { ok: true, value: { origin: { x: 0, y: 0, z: 0 }, normal } };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkPlane: mode ${source.mode}`) };
 }
 
 export function evaluateWorkPoint(
   _occt: OcctInstance,
   _shape: NamedShape | null,
-  _source: WorkPointFeature['source'],
+  source: WorkPointFeature['source'],
   _wfs: Map<string, WorkFeatureValue>,
 ): Result<{ position: Vec3 }, KernelError> {
-  return { ok: false, error: notImplemented('evaluateWorkPoint') };
+  if (source.mode === 'origin') {
+    return { ok: true, value: { position: { x: 0, y: 0, z: 0 } } };
+  }
+  return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${source.mode}`) };
 }
