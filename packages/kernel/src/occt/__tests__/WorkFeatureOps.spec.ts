@@ -48,7 +48,8 @@ describe('Vec3 helpers', () => {
   });
 });
 
-import { evaluateWorkAxis, evaluateWorkPlane, evaluateWorkPoint } from '../WorkFeatureOps';
+import { evaluateWorkAxis, evaluateWorkPlane, evaluateWorkPoint, resolveWorkAxisRef, resolveWorkPlaneRef, resolveWorkPointRef } from '../WorkFeatureOps';
+import type { WorkFeatureValue } from '@zilventor/shared';
 import type { OcctInstance } from '../occtLoader';
 
 const occtStub = null as unknown as OcctInstance;
@@ -90,5 +91,69 @@ describe('evaluateWorkPoint origin', () => {
     const r = evaluateWorkPoint(occtStub, null, { mode: 'origin' }, new Map());
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.position).toEqual({ x: 0, y: 0, z: 0 });
+  });
+});
+
+
+describe('resolveWorkPlaneRef', () => {
+  it('resolves a workPlane reference from the cache', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.XY', { featureId: 'origin.XY', kind: 'plane', origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = resolveWorkPlaneRef({ source: 'workPlane', featureId: 'origin.XY' }, occtStub, null, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({ x: 0, y: 0, z: 0 });
+      expect(r.value.normal).toEqual({ x: 0, y: 0, z: 1 });
+    }
+  });
+
+  it('returns featureNotFound when work plane is missing', () => {
+    const r = resolveWorkPlaneRef({ source: 'workPlane', featureId: 'missing' }, occtStub, null, new Map());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+  });
+
+  it('returns notImplemented for face source (Task 14)', () => {
+    const r = resolveWorkPlaneRef({ source: 'face', face: { featureId: 'X', role: 'top' } }, occtStub, null, new Map());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('notImplemented');
+  });
+});
+
+describe('resolveWorkAxisRef', () => {
+  it('resolves a workAxis reference from the cache', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['WA1', { featureId: 'WA1', kind: 'axis', origin: { x: 1, y: 2, z: 3 }, direction: { x: 0, y: 0, z: 1 } }],
+    ]);
+    const r = resolveWorkAxisRef({ source: 'workAxis', featureId: 'WA1' }, occtStub, null, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({ x: 1, y: 2, z: 3 });
+      expect(r.value.direction).toEqual({ x: 0, y: 0, z: 1 });
+    }
+  });
+
+  it('returns featureNotFound when missing', () => {
+    const r = resolveWorkAxisRef({ source: 'workAxis', featureId: 'no' }, occtStub, null, new Map());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+  });
+});
+
+describe('resolveWorkPointRef', () => {
+  it('resolves a workPoint reference', () => {
+    const wfs = new Map<string, WorkFeatureValue>([
+      ['origin.O', { featureId: 'origin.O', kind: 'point', position: { x: 0, y: 0, z: 0 } }],
+    ]);
+    const r = resolveWorkPointRef({ source: 'workPoint', featureId: 'origin.O' }, occtStub, null, wfs);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.position).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it('returns featureNotFound when missing', () => {
+    const r = resolveWorkPointRef({ source: 'workPoint', featureId: 'missing' }, occtStub, null, new Map());
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
   });
 });

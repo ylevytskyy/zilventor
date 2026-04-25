@@ -2,6 +2,9 @@ import type {
   WorkAxisFeature,
   WorkPlaneFeature,
   WorkPointFeature,
+  WorkAxisRef,
+  WorkPlaneRef,
+  WorkPointRef,
   WorkFeatureValue,
   Vec3,
 } from '@zilventor/shared';
@@ -80,4 +83,53 @@ export function evaluateWorkPoint(
     return { ok: true, value: { position: { x: 0, y: 0, z: 0 } } };
   }
   return { ok: false, error: notImplemented(`evaluateWorkPoint: mode ${source.mode}`) };
+}
+
+const featureNotFound = (kind: string, featureId: string): KernelError => ({
+  kind: 'featureNotFound',
+  message: `${kind} ${featureId} not found in work-feature cache`,
+  correlationId: newCorrelationId(),
+  featureId,
+});
+
+export function resolveWorkAxisRef(
+  ref: WorkAxisRef,
+  _occt: OcctInstance | null,
+  _shape: NamedShape | null,
+  wfs: Map<string, WorkFeatureValue>,
+): Result<{ origin: Vec3; direction: Vec3 }, KernelError> {
+  if (ref.source === 'workAxis') {
+    const v = wfs.get(ref.featureId);
+    if (!v || v.kind !== 'axis') return { ok: false, error: featureNotFound('work axis', ref.featureId) };
+    return { ok: true, value: { origin: v.origin, direction: v.direction } };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkAxisRef: source ${ref.source}`) };
+}
+
+export function resolveWorkPlaneRef(
+  ref: WorkPlaneRef,
+  _occt: OcctInstance | null,
+  _shape: NamedShape | null,
+  wfs: Map<string, WorkFeatureValue>,
+): Result<{ origin: Vec3; normal: Vec3 }, KernelError> {
+  if (ref.source === 'workPlane') {
+    const v = wfs.get(ref.featureId);
+    if (!v || v.kind !== 'plane') return { ok: false, error: featureNotFound('work plane', ref.featureId) };
+    return { ok: true, value: { origin: v.origin, normal: v.normal } };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkPlaneRef: source ${ref.source}`) };
+}
+
+export function resolveWorkPointRef(
+  ref: WorkPointRef,
+  _occt: OcctInstance | null,
+  _shape: NamedShape | null,
+  wfs: Map<string, WorkFeatureValue>,
+): Result<{ position: Vec3 }, KernelError> {
+  if (ref.source === 'workPoint') {
+    const v = wfs.get(ref.featureId);
+    if (!v || v.kind !== 'point') return { ok: false, error: featureNotFound('work point', ref.featureId) };
+    return { ok: true, value: { position: v.position } };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkPointRef: source ${ref.source}`) };
 }
