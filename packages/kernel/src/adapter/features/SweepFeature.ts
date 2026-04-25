@@ -6,6 +6,7 @@ import {
   makeSweep,
   type ResolvedSweepOrientation,
 } from '../../occt/SweepOps';
+import { fuseShapes, cutShapes } from '../../occt/BooleanOps';
 
 function getSketch(sketchById: Map<string, Feature>, id: string, role: string): Extract<Feature, { kind: 'sketch' }> {
   const s = sketchById.get(id);
@@ -47,11 +48,22 @@ export function executeSweepFeature(
 
   const sweptSolid = makeSweep(oc as any, profileWire, pathWire, orientation);
 
+  const sweptOcct = { __brand: 'OcctShape' as const, handle: sweptSolid };
+
   let resultShape: any;
   if (feature.operation === 'new' || runningBody === null) {
     resultShape = sweptSolid;
+  } else if (feature.operation === 'join') {
+    const bodyOcct = { __brand: 'OcctShape' as const, handle: runningBody.shape };
+    const r = fuseShapes(oc, bodyOcct, sweptOcct);
+    if (!r.ok) throw new Error(`sweep: fuseShapes failed: ${JSON.stringify(r.error)}`);
+    resultShape = r.value.handle;
   } else {
-    throw new Error(`sweep: operation '${feature.operation}' not yet implemented in Task 10`);
+    // 'cut'
+    const bodyOcct = { __brand: 'OcctShape' as const, handle: runningBody.shape };
+    const r = cutShapes(oc, bodyOcct, sweptOcct);
+    if (!r.ok) throw new Error(`sweep: cutShapes failed: ${JSON.stringify(r.error)}`);
+    resultShape = r.value.handle;
   }
 
   // Face naming wired in Task 12. Empty for now.
