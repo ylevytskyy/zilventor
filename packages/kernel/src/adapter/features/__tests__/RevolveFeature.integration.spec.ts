@@ -17,7 +17,7 @@ describe('executeRevolveFeature (integration)', () => {
     const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
       kind: 'sketch',
       id: 'S1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
@@ -65,7 +65,7 @@ describe('executeRevolveFeature (integration)', () => {
     const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
       kind: 'sketch',
       id: 'S1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
@@ -111,7 +111,7 @@ describe('executeRevolveFeature (integration)', () => {
     const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
       kind: 'sketch',
       id: 'S1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'R1', kind: 'rectangle', x: 5, y: 0, w: 10, h: 5 },
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }
@@ -168,7 +168,7 @@ describe('executeRevolveFeature (integration)', () => {
     const sketchFeature: Extract<Feature, { kind: 'sketch' }> = {
       kind: 'sketch',
       id: 'S1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 5 }],
       constraints: []
     };

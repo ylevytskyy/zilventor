@@ -10,7 +10,7 @@ beforeAll(async () => { occt = await loadOcct(); }, 60_000);
 describe('ExtrudeFeature', () => {
   it('extrudes a 100x200 rect by 50 to a 100x200x50 solid', () => {
     const sketch = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
     });
     expect(sketch.ok).toBe(true);
     if (!sketch.ok) return;
@@ -33,7 +33,7 @@ describe('ExtrudeFeature', () => {
 
   it('executeExtrudeFeature labels 6 faces for a rectangle prism', () => {
     const sketch = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
     });
     expect(sketch.ok).toBe(true);
     if (!sketch.ok) return;
@@ -54,7 +54,7 @@ describe('ExtrudeFeature', () => {
 
   it('rejects non-positive extrude distance', () => {
     const sketch = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: []
     });
     expect(sketch.ok).toBe(true);
     if (!sketch.ok) return;

@@ -110,7 +110,7 @@ describe('makeHole — integration (kernel)', () => {
     const running = { shape: body, faceNames: [] };
 
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'C1', kind: 'circle', cx: 5, cy: 5, r: 1 },
         { id: 'C2', kind: 'circle', cx: 15, cy: 15, r: 1 },
@@ -138,7 +138,7 @@ describe('makeHole — integration (kernel)', () => {
     const body = new oc.BRepPrimAPI_MakeBox_2(20, 20, 20).Shape();
     const running = { shape: body, faceNames: [] };
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XZ',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
       constraints: [],
     };
@@ -160,7 +160,7 @@ describe('makeHole — integration (kernel)', () => {
     const body = new oc.BRepPrimAPI_MakeBox_2(20, 20, 20).Shape();
     const running = { shape: body, faceNames: [] };
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
       constraints: [],
     };

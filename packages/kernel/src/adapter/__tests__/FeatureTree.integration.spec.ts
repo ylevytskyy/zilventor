@@ -69,7 +69,7 @@ function makePart(opts: {
       return {
         kind: 'sketch' as const,
         id: f.id,
-        plane: 'XY' as const,
+        plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
         primitives: [{ id: `${f.id}-r`, kind: 'rectangle' as const, x: f.x, y: f.y, w: f.w, h: f.h }],
         constraints: []
       };
@@ -78,7 +78,7 @@ function makePart(opts: {
       return {
         kind: 'sketch' as const,
         id: f.id,
-        plane: 'XY' as const,
+        plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
         primitives: [
           { id: `${f.id}-r`, kind: 'rectangle' as const, x: f.x, y: f.y, w: f.w, h: f.h },
           { id: `${f.id}-axis`, kind: 'line' as const, x1: f.ax1, y1: f.ay1, x2: f.ax2, y2: f.ay2 }
@@ -126,7 +126,7 @@ describe('FeatureTree.executeTree', () => {
       id: 'p1', name: 'Part1', units: 'mm' as const,
       parameters: { d1: { name: 'd1', expression: '50', value: 50, unit: 'mm' as const } },
       featureTree: [
-        { kind: 'sketch' as const, id: 's1', plane: 'XY' as const, primitives: [{ id: 'p1', kind: 'rectangle' as const, x: 0, y: 0, w: 100, h: 200 }], constraints: [] },
+        { kind: 'sketch' as const, id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const, primitives: [{ id: 'p1', kind: 'rectangle' as const, x: 0, y: 0, w: 100, h: 200 }], constraints: [] },
         { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ]
     };
@@ -423,7 +423,7 @@ describe('FeatureTree — hole feature integration', () => {
         {
           kind: 'sketch',
           id: 'S0',
-          plane: 'XY',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
           primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
           constraints: []
         },
@@ -438,7 +438,7 @@ describe('FeatureTree — hole feature integration', () => {
         {
           kind: 'sketch',
           id: 'S1',
-          plane: 'XY',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
           primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
           constraints: []
         },
@@ -491,7 +491,7 @@ describe('FeatureTree — hole feature integration', () => {
         {
           kind: 'sketch',
           id: 'S0',
-          plane: 'XY',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
           primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
           constraints: []
         },
@@ -554,14 +554,14 @@ describe('FeatureTree — sweep feature integration', () => {
         {
           kind: 'sketch',
           id: 'PROF',
-          plane: 'XY',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
           primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
           constraints: []
         },
         {
           kind: 'sketch',
           id: 'PATH',
-          plane: 'XZ',
+          plane: { source: 'workPlane', featureId: 'origin.XZ' },
           primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
           constraints: []
         },
@@ -612,7 +612,7 @@ describe('FeatureTree — sweep feature integration', () => {
         {
           kind: 'sketch',
           id: 'S0',
-          plane: 'XY',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
           primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
           constraints: []
         },

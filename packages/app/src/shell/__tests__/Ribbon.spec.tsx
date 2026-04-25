@@ -43,7 +43,7 @@ describe('Ribbon', () => {
     useAppStore.getState().setActivePart({
       id: 'P1', name: 'Part1', units: 'mm', parameters: {},
       featureTree: [
-        { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+        { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
         { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd1', direction: 'forward', operation: 'new' },
       ],
     });
@@ -63,7 +63,7 @@ describe('Ribbon', () => {
     useAppStore.getState().setActivePart({
       id: 'P1', name: 'Part1', units: 'mm', parameters: {},
       featureTree: [
-        { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] },
+        { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
       ],
     });
     useAppStore.getState().resetSweepDialog();

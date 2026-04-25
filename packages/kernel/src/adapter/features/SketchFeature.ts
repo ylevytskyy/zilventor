@@ -5,7 +5,8 @@ import {
   type Result,
   type KernelError,
   newCorrelationId,
-  type Feature
+  type Feature,
+  originPlaneLiteralOf
 } from '@zilventor/shared';
 import {
   makeLineEdge,
@@ -55,7 +56,16 @@ export function executeSketchFeature(
   oc: OcctInstance,
   feature: Extract<Feature, { kind: 'sketch' }>
 ): Result<SketchResult, KernelError> {
-  if (feature.plane !== 'XY') {
+  const planeLit = originPlaneLiteralOf(feature.plane);
+  if (planeLit === null) {
+    return err({
+      kind: 'invalidGeometry',
+      message: `SketchFeature: only origin work planes supported until WorkFeatureOps lands. Got ${JSON.stringify(feature.plane)}`,
+      correlationId: newCorrelationId(),
+      featureId: feature.id
+    });
+  }
+  if (planeLit !== 'XY') {
     return err({
       kind: 'invalidParameter',
       message: 'Sub-project 2a only supports the XY sketch plane.',
@@ -100,7 +110,7 @@ export function executeSketchFeature(
       return ok({
         sketchId: feature.id,
         wire: closedWires[0]!,
-        plane: feature.plane,
+        plane: planeLit,
         closed: true,
         named: { shape: { __brand: 'OcctShape', handle: null }, faceNames: [] }
       });

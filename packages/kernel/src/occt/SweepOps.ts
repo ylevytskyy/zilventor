@@ -1,3 +1,5 @@
+import { originPlaneLiteralOf, type WorkPlaneRef } from '@zilventor/shared';
+
 type Vec3 = { x: number; y: number; z: number };
 
 function sketchPlaneFrame(plane: 'XY' | 'XZ' | 'YZ'): { u: Vec3; v: Vec3; n: Vec3 } {
@@ -16,7 +18,11 @@ function to3D(plane: 'XY' | 'XZ' | 'YZ', x: number, y: number): Vec3 {
 }
 
 export function buildWireFromSketch(oc: any, sketch: any): any {
-  const plane = sketch.plane as 'XY' | 'XZ' | 'YZ';
+  const planeLit = originPlaneLiteralOf(sketch.plane as WorkPlaneRef);
+  if (planeLit === null) {
+    throw new Error(`SweepOps: only origin work planes supported. Got ${JSON.stringify(sketch.plane)}`);
+  }
+  const plane = planeLit;
   const wireBuilder = new oc.BRepBuilderAPI_MakeWire_1();
 
   for (const prim of sketch.primitives) {

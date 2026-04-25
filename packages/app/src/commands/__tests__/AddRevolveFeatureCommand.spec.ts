@@ -10,7 +10,7 @@ describe('AddRevolveFeatureCommand', () => {
     useAppStore.getState().setActivePart({
       id: 'P1', name: 'P', units: 'mm',
       parameters: {},
-      featureTree: [{ kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] }]
+      featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }]
     });
 
     const kernel = {

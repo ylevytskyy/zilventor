@@ -9,12 +9,12 @@ describe('executeSweepFeature — integration', () => {
 
   it('Path orientation + new operation produces a cylinder solid', () => {
     const profile: any = {
-      id: 'PROF', kind: 'sketch', plane: 'XY',
+      id: 'PROF', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PATH', kind: 'sketch', plane: 'XZ',
+      id: 'PATH', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };
@@ -39,7 +39,7 @@ describe('executeSweepFeature — integration', () => {
 
     // Profile: unit circle at (5,5) on XY → world (5,5,0), normal +Z.
     const profile: any = {
-      id: 'PROF', kind: 'sketch', plane: 'XY',
+      id: 'PROF', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 5, cy: 5, r: 1 }],
       constraints: [],
     };
@@ -49,7 +49,7 @@ describe('executeSweepFeature — integration', () => {
     // Swept cylinder r=1 length=10 sits entirely above the cube.
     // Fuse volume = cube + cylinder = 1000 + π·1²·10.
     const path: any = {
-      id: 'PATH', kind: 'sketch', plane: 'XZ',
+      id: 'PATH', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 5, y1: 10, x2: 5, y2: 20 }],
       constraints: [],
     };
@@ -79,12 +79,12 @@ describe('executeSweepFeature — integration', () => {
     const running: any = { shape: cube, faceNames: [] };
 
     const profile: any = {
-      id: 'PROF', kind: 'sketch', plane: 'XY',
+      id: 'PROF', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 5, cy: 5, r: 1 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PATH', kind: 'sketch', plane: 'XZ',
+      id: 'PATH', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 5, y1: -1, x2: 5, y2: 11 }],
       constraints: [],
     };
@@ -105,12 +105,12 @@ describe('executeSweepFeature — integration', () => {
 
   it('face naming: cylindrical sweep tags lateral/0 + capStart + capEnd', () => {
     const profile: any = {
-      id: 'PROF', kind: 'sketch', plane: 'XY',
+      id: 'PROF', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PATH', kind: 'sketch', plane: 'XZ',
+      id: 'PATH', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };

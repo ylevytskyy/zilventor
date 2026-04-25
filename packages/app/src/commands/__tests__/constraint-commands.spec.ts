@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 
 const mkPart = () => ({
   id: 'P1', name: 'Part1', units: 'mm' as const, parameters: {},
-  featureTree: [{ kind: 'sketch' as const, id: 'S1', plane: 'XY' as const, primitives: [], constraints: [] }]
+  featureTree: [{ kind: 'sketch' as const, id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const, primitives: [], constraints: [] }]
 });
 
 describe('AddConstraintCommand / RemoveConstraintCommand', () => {
@@ -24,7 +24,7 @@ describe('AddConstraintCommand / RemoveConstraintCommand', () => {
     const c: SketchConstraint = { id: 'c1', kind: 'horizontal', line: 'L1' };
     useAppStore.getState().setActivePart({
       ...mkPart(),
-      featureTree: [{ kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [c] }]
+      featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [c] }]
     });
     const cmd = new RemoveConstraintCommand('S1', c);
     await cmd.apply();

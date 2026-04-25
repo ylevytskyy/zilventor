@@ -22,6 +22,7 @@ import type {
   ParamOrLiteral,
   FaceName,
 } from '@zilventor/shared';
+import { originPlaneLiteralOf } from '@zilventor/shared';
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -209,7 +210,11 @@ function resolveFromSketchLocations(
   sketch: Extract<Feature, { kind: 'sketch' }>,
   flipAxis: boolean,
 ): HoleLocation[] {
-  const frame = sketchPlaneFrame(sketch.plane as 'XY' | 'XZ' | 'YZ');
+  const planeLit = originPlaneLiteralOf(sketch.plane);
+  if (planeLit === null) {
+    throw new Error(`Hole on non-origin plane not yet supported: ${JSON.stringify(sketch.plane)}`);
+  }
+  const frame = sketchPlaneFrame(planeLit);
   const axisVec = flipAxis ? neg(frame.n) : frame.n;
   const locations: HoleLocation[] = [];
   for (const prim of sketch.primitives) {

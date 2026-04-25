@@ -15,7 +15,7 @@ describe('KernelClient', () => {
     };
     const client = createKernelClient(fakeProxy as never);
     expect(await client.createPart('Part1')).toBe('part-1');
-    await client.addFeature('part-1', { kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: [] });
+    await client.addFeature('part-1', { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
     expect(fakeProxy.addFeature).toHaveBeenCalledWith('part-1', expect.objectContaining({ kind: 'sketch' }));
   });
 });

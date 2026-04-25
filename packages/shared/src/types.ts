@@ -306,3 +306,19 @@ export type WorkFeatureValue =
   | { featureId: string; kind: 'axis'; origin: Vec3; direction: Vec3 }
   | { featureId: string; kind: 'plane'; origin: Vec3; normal: Vec3 }
   | { featureId: string; kind: 'point'; position: Vec3 };
+
+/**
+ * Extract the origin-plane literal ('XY' | 'YZ' | 'XZ') from a WorkPlaneRef
+ * if it points at an origin work plane. Returns null otherwise.
+ *
+ * Used by feature evaluators that haven't yet been ported to the full
+ * resolveWorkPlaneRef chain (Plan Tasks 8-14). After 3c is complete
+ * this helper can be removed in favor of the full resolver.
+ */
+export function originPlaneLiteralOf(ref: WorkPlaneRef): 'XY' | 'YZ' | 'XZ' | null {
+  if (ref.source !== 'workPlane') return null;
+  if (ref.featureId === 'origin.XY') return 'XY';
+  if (ref.featureId === 'origin.YZ') return 'YZ';
+  if (ref.featureId === 'origin.XZ') return 'XZ';
+  return null;
+}

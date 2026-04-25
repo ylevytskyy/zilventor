@@ -1,6 +1,7 @@
 export type KernelErrorKind =
   | 'degenerateSketch'
   | 'invalidParameter'
+  | 'invalidGeometry'
   | 'booleanFailed'
   | 'revolveFailed'
   | 'filletFailed'

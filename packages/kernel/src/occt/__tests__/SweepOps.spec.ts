@@ -8,7 +8,7 @@ describe('SweepOps — buildWireFromSketch', () => {
 
   it('builds a closed wire from a 4-line rectangle sketch', () => {
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
         { id: 'L2', kind: 'line', x1: 10, y1: 0, x2: 10, y2: 5 },
@@ -24,7 +24,7 @@ describe('SweepOps — buildWireFromSketch', () => {
 
   it('builds an open wire from two connected line segments', () => {
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
         { id: 'L2', kind: 'line', x1: 10, y1: 0, x2: 10, y2: 5 },
@@ -37,7 +37,7 @@ describe('SweepOps — buildWireFromSketch', () => {
 
   it('builds a closed wire from a single full circle', () => {
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 5 }],
       constraints: [],
     };
@@ -47,7 +47,7 @@ describe('SweepOps — buildWireFromSketch', () => {
 
   it('builds an open wire from a single 90° arc primitive', () => {
     const sketch: any = {
-      id: 'S1', kind: 'sketch', plane: 'XY',
+      id: 'S1', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'A1', kind: 'arc', cx: 0, cy: 0, r: 5, startAngle: 0, endAngle: Math.PI / 2 }],
       constraints: [],
     };
@@ -63,7 +63,7 @@ describe('SweepOps — makeSweep', () => {
 
   it('Parallel orientation: line spine + offset square profile produces axis-aligned prism', () => {
     const profile: any = {
-      id: 'P', kind: 'sketch', plane: 'XY',
+      id: 'P', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 2, y2: 0 },
         { id: 'L2', kind: 'line', x1: 2, y1: 0, x2: 2, y2: 2 },
@@ -73,7 +73,7 @@ describe('SweepOps — makeSweep', () => {
       constraints: [],
     };
     const path: any = {
-      id: 'PA', kind: 'sketch', plane: 'XZ',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };
@@ -88,12 +88,12 @@ describe('SweepOps — makeSweep', () => {
 
   it('Path orientation: line + circle profile produces a cylinder', () => {
     const profile: any = {
-      id: 'P', kind: 'sketch', plane: 'XY',
+      id: 'P', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PA', kind: 'sketch', plane: 'XZ',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };
@@ -107,12 +107,12 @@ describe('SweepOps — makeSweep', () => {
 
   it('closed-loop path (rectangle) + circle profile produces a ring', () => {
     const profile: any = {
-      id: 'P', kind: 'sketch', plane: 'XZ',
+      id: 'P', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 0.5 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PA', kind: 'sketch', plane: 'XY',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
         { id: 'L2', kind: 'line', x1: 10, y1: 0, x2: 10, y2: 10 },
@@ -138,17 +138,17 @@ describe('SweepOps — makeSweep', () => {
 
   it('Guide Rail orientation: line spine + parallel rail produces a tracked sweep', () => {
     const profile: any = {
-      id: 'P', kind: 'sketch', plane: 'XY',
+      id: 'P', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
       constraints: [],
     };
     const path: any = {
-      id: 'PA', kind: 'sketch', plane: 'XZ',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };
     const guide: any = {
-      id: 'G', kind: 'sketch', plane: 'XZ',
+      id: 'G', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 3, y1: 0, x2: 3, y2: 10 }],
       constraints: [],
     };
@@ -165,7 +165,7 @@ describe('SweepOps — makeSweep', () => {
 
   it('profile-not-closed throws', () => {
     const openProfile: any = {
-      id: 'P', kind: 'sketch', plane: 'XY',
+      id: 'P', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 1, y2: 0 },
         { id: 'L2', kind: 'line', x1: 1, y1: 0, x2: 1, y2: 1 },
@@ -173,7 +173,7 @@ describe('SweepOps — makeSweep', () => {
       constraints: [],
     };
     const path: any = {
-      id: 'PA', kind: 'sketch', plane: 'XZ',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     };
@@ -189,7 +189,7 @@ describe('SweepOps — validation', () => {
 
   it('zero-length line primitive throws during wire build', () => {
     const degen: any = {
-      id: 'PA', kind: 'sketch', plane: 'XZ',
+      id: 'PA', kind: 'sketch', plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 0 }],
       constraints: [],
     };

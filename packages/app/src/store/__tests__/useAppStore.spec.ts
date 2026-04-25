@@ -8,7 +8,7 @@ const mkPart = (): PartDocument => ({
   units: 'mm',
   parameters: {},
   featureTree: [
-    { kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] }
+    { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }
   ]
 });
 
@@ -78,7 +78,7 @@ describe('useAppStore dimension CRUD', () => {
   beforeEach(() => {
     useAppStore.getState().setActivePart({
       id: 'P1', name: 'Part1', units: 'mm', parameters: {},
-      featureTree: [{ kind: 'sketch', id: 'S1', plane: 'XY', primitives: [], constraints: [] }]
+      featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }]
     });
   });
 

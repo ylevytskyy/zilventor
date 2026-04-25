@@ -19,7 +19,8 @@ import {
   type KernelError,
   newCorrelationId,
   type Feature,
-  type SketchPrimitive
+  type SketchPrimitive,
+  originPlaneLiteralOf
 } from '@zilventor/shared';
 
 /**
@@ -67,10 +68,19 @@ export function executeRevolveFeature(
   angleRad: number
 ): Result<RevolveResult, KernelError> {
   // 1. Plane must be XY in 3a.
-  if (sketchFeature.plane !== 'XY') {
+  const planeLit = originPlaneLiteralOf(sketchFeature.plane);
+  if (planeLit === null) {
+    return err({
+      kind: 'invalidGeometry',
+      message: `RevolveFeature: only origin work planes supported until WorkFeatureOps lands. Got ${JSON.stringify(sketchFeature.plane)}`,
+      correlationId: newCorrelationId(),
+      featureId: feature.id
+    });
+  }
+  if (planeLit !== 'XY') {
     return err({
       kind: 'revolveFailed',
-      message: `Revolve on ${sketchFeature.plane} plane not supported in 3a`,
+      message: `Revolve on ${planeLit} plane not supported in 3a`,
       correlationId: newCorrelationId(),
       featureId: feature.id
     });

@@ -32,7 +32,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
   it('preserves feature tree and re-executes to produce the same geometry', async () => {
     const id = await api.createPart('Part1');
     await api.setParameter(id, { name: 'd1', expression: '50', value: 50, unit: 'mm' });
-    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: [] });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }], constraints: [] });
     await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
 
     const h = new FakeHandle();
@@ -70,7 +70,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
   it('loadFromBytes: round-trip preserves feature tree without a FileHandle', async () => {
     const id = await api.createPart('P2');
     await api.setParameter(id, { name: 'd1', expression: '20', value: 20, unit: 'mm' });
-    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
     await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
 
     const h = new FakeHandle();
@@ -91,7 +91,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
   it('saveToBytes: returns archive bytes that loadFromBytes can re-hydrate', async () => {
     const id = await api.createPart('P3');
     await api.setParameter(id, { name: 'd1', expression: '15', value: 15, unit: 'mm' });
-    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
     await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
 
     const bytes = await api.saveToBytes(id);

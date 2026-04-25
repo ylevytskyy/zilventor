@@ -10,7 +10,7 @@ describe('SketchFeature — rectangle on XY', () => {
     const result = executeSketchFeature(occt, {
       kind: 'sketch',
       id: 's1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }],
       constraints: []
     });
@@ -25,7 +25,7 @@ describe('SketchFeature — rectangle on XY', () => {
     const result = executeSketchFeature(occt, {
       kind: 'sketch',
       id: 's1',
-      plane: 'XZ',
+      plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 200 }],
       constraints: []
     });
@@ -37,7 +37,7 @@ describe('SketchFeature — rectangle on XY', () => {
     const result = executeSketchFeature(occt, {
       kind: 'sketch',
       id: 's1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [],
       constraints: []
     });
@@ -47,7 +47,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('executes a sketch with one line + one arc + two lines forming a closed D-shape', () => {
     const result = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY',
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 100, y2: 0 },
         { id: 'p2', kind: 'arc', cx: 100, cy: 50, r: 50, startAngle: -Math.PI / 2, endAngle: Math.PI / 2 },
@@ -65,7 +65,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('returns degenerateSketch error with "not closed" message for open polyline', () => {
     const result = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY',
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 100, y2: 0 },
         { id: 'p2', kind: 'line', x1: 100, y1: 0, x2: 100, y2: 50 }
@@ -81,7 +81,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('returns "multiple loops" error for two rectangles', () => {
     const result = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY',
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 100 },
         { id: 'p2', kind: 'rectangle', x: 200, y: 0, w: 50, h: 50 }
@@ -97,7 +97,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('returns "empty" error for a sketch with no primitives', () => {
     const result = executeSketchFeature(occt, {
-      kind: 'sketch', id: 's1', plane: 'XY', primitives: [], constraints: []
+      kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: []
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toMatch(/empty/i);
@@ -105,7 +105,7 @@ describe('SketchFeature — rectangle on XY', () => {
 
   it('executeSketchFeature result has NamedShape with empty faceNames', () => {
     const sketchFeature = {
-      kind: 'sketch' as const, id: 'S1', plane: 'XY' as const,
+      kind: 'sketch' as const, id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
       primitives: [{ id: 'R1', kind: 'rectangle' as const, x: 0, y: 0, w: 10, h: 10 }],
       constraints: []
     };

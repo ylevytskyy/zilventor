@@ -10,7 +10,7 @@ describe('DragPrimitivesCommand', () => {
     useAppStore.getState().setActivePart({
       id: 'P1', name: 'Part1', units: 'mm', parameters: {},
       featureTree: [{
-        kind: 'sketch', id: 'S1', plane: 'XY', constraints: [],
+        kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, constraints: [],
         primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]
       }]
     });
