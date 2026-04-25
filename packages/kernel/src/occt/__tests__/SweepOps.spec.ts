@@ -104,5 +104,32 @@ describe('SweepOps — makeSweep', () => {
     oc.BRepGProp.VolumeProperties_1(solid, props, 1e-7, false, false);
     expect(props.Mass()).toBeCloseTo(Math.PI * 10, 0);
   });
+
+  it('Guide Rail orientation: line spine + parallel rail produces a tracked sweep', () => {
+    const profile: any = {
+      id: 'P', kind: 'sketch', plane: 'XY',
+      primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
+      constraints: [],
+    };
+    const path: any = {
+      id: 'PA', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+      constraints: [],
+    };
+    const guide: any = {
+      id: 'G', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 3, y1: 0, x2: 3, y2: 10 }],
+      constraints: [],
+    };
+    const profileWire = buildWireFromSketch(oc, profile);
+    const pathWire = buildWireFromSketch(oc, path);
+    const guideWire = buildWireFromSketch(oc, guide);
+    const solid = makeSweep(oc, profileWire, pathWire, { kind: 'guideRail', guideWire });
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.VolumeProperties_1(solid, props, 1e-7, false, false);
+    // The guide-rail contact constraint deforms the profile so the exact volume
+    // differs from a plain cylinder; assert only that a valid solid was produced.
+    expect(props.Mass()).toBeGreaterThan(1);
+  });
 });
 

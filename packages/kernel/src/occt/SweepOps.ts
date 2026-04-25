@@ -104,7 +104,14 @@ export function makeSweep(
     // SetMode_2(Axe: gp_Ax2) — Parallel frame by axis
     builder.SetMode_2(ax2);
   } else {
-    throw new Error('SweepOps: guideRail orientation not yet implemented in this task');
+    // Guide rail orientation:
+    // SetMode_5(AuxiliarySpine, CurvilinearEquivalence, KeepContact: BRepFill_TypeOfContact)
+    // BRepFill_ContactOnBorder is the tightest-fit contact mode.
+    builder.SetMode_5(
+      orientation.guideWire,
+      /* CurvilinearEquivalence */ true,
+      oc.BRepFill_TypeOfContact.BRepFill_ContactOnBorder,
+    );
   }
 
   // Add_1(profile, WithContact=false, WithCorrection=false)
