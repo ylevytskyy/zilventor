@@ -103,3 +103,107 @@ describe('T14a — face plane resolver', () => {
     cleanup();
   });
 });
+
+function buildNamedCylinder(radius: number, height: number): {
+  nm: NamedShape;
+  cylinderFace: FaceName;
+  faces: unknown[];
+  cleanup: () => void;
+} {
+  // Build a cylinder via BRepPrimAPI_MakeCylinder_2 (radius, height) at the
+  // default frame (axis = +Z, origin at world origin).
+  // Build a cylinder via BRepPrimAPI_MakeCylinder_3(Ax2, R, H) at the
+  // default frame (Ax2 origin = (0,0,0), axis = +Z).
+  const occBuild = oc as unknown as {
+    gp_Pnt_3: new (x: number, y: number, z: number) => unknown;
+    gp_Dir_4: new (x: number, y: number, z: number) => unknown;
+    gp_Ax2_3: new (origin: unknown, dir: unknown) => unknown;
+    BRepPrimAPI_MakeCylinder_3: new (frame: unknown, r: number, h: number) => { Shape: () => unknown };
+  };
+  const cylOrigin = new occBuild.gp_Pnt_3(0, 0, 0);
+  const cylDir = new occBuild.gp_Dir_4(0, 0, 1);
+  const cylFrame = new occBuild.gp_Ax2_3(cylOrigin, cylDir);
+  const cyl = new occBuild.BRepPrimAPI_MakeCylinder_3(cylFrame, radius, height);
+  const shape = cyl.Shape() as unknown as { handle: unknown };
+  // Cylinder has 3 faces: side (cylindrical), top, bottom. Enumerate and
+  // pick the cylindrical one by surface type.
+  const explorer = new oc.TopExp_Explorer_2(
+    shape as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+  const faces: unknown[] = [];
+  while (explorer.More()) {
+    faces.push(explorer.Current());
+    explorer.Next();
+  }
+  explorer.delete();
+  const occAny = oc as unknown as {
+    TopoDS: { Face_1: (s: unknown) => unknown };
+    BRepAdaptor_Surface_2: new (face: unknown, restriction: boolean) => {
+      GetType: () => unknown;
+      delete?: () => void;
+    };
+    GeomAbs_SurfaceType: { GeomAbs_Cylinder: unknown };
+  };
+  let cylindricalIdx = -1;
+  for (let i = 0; i < faces.length; i++) {
+    const adaptor = new occAny.BRepAdaptor_Surface_2(occAny.TopoDS.Face_1(faces[i]!), true);
+    const t = adaptor.GetType();
+    adaptor.delete?.();
+    if (t === occAny.GeomAbs_SurfaceType.GeomAbs_Cylinder) { cylindricalIdx = i; break; }
+  }
+  if (cylindricalIdx < 0) throw new Error('cylinder build produced no cylindrical face');
+  // Use the SolidOps OcctShape wrapper shape so disposeShape works the same.
+  const nm: NamedShape = { shape: { handle: shape } as never, faceNames: [] };
+  const cylinderFace: FaceName = namedFace('C1', 'side');
+  attachName(nm, faces[cylindricalIdx], cylinderFace);
+  // Also tag the caps so downstream extractions don't choke on missing names.
+  faces.forEach((f, i) => {
+    if (i === cylindricalIdx) return;
+    attachName(nm, f, namedFace('C1', `cap${i}`));
+  });
+  return {
+    nm,
+    cylinderFace,
+    faces,
+    cleanup: () => {
+      // shape lives inside cyl; let GC handle. Faces explicitly cleaned.
+      for (const f of faces) (f as { delete?: () => void }).delete?.();
+    },
+  };
+}
+
+describe('T14b — cylindricalFace axis resolver', () => {
+  it('resolveWorkAxisRef({ source: "cylindricalFace" }) returns origin + +Z direction for a default cylinder', () => {
+    const { nm, cylinderFace, cleanup } = buildNamedCylinder(5, 10);
+    const r = resolveWorkAxisRef({ source: 'cylindricalFace', face: cylinderFace }, oc, nm, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(Math.abs(r.value.direction.z)).toBeCloseTo(1, 5);
+      expect(r.value.direction.x).toBeCloseTo(0, 5);
+      expect(r.value.direction.y).toBeCloseTo(0, 5);
+    }
+    cleanup();
+  });
+
+  it('evaluateWorkAxis({ mode: "cylindricalFace" }) mirrors resolver', () => {
+    const { nm, cylinderFace, cleanup } = buildNamedCylinder(3, 7);
+    const r = evaluateWorkAxis(oc, nm, { mode: 'cylindricalFace', face: cylinderFace }, new Map());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(Math.abs(r.value.direction.z)).toBeCloseTo(1, 5);
+    cleanup();
+  });
+
+  it('resolveWorkAxisRef returns featureNotFound when face is non-cylindrical', () => {
+    const { nm, cleanup } = buildNamedBox(10, 10, 10);
+    const r = resolveWorkAxisRef(
+      { source: 'cylindricalFace', face: namedFace('B1', 'F0') },
+      oc, nm, new Map(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('featureNotFound');
+    cleanup();
+  });
+});
+

@@ -122,6 +122,11 @@ export function evaluateWorkAxis(
     }
     return { ok: true, value: { origin, direction: dir } };
   }
+  if (source.mode === 'cylindricalFace') {
+    const ax = extractCylinderAxis(occt, shape, source.face);
+    if (!ax) return { ok: false, error: featureNotFound('cylindrical face', `${source.face.featureId}/${source.face.role}`) };
+    return { ok: true, value: ax };
+  }
   return { ok: false, error: notImplemented(`evaluateWorkAxis: mode ${source.mode}`) };
 }
 
@@ -265,7 +270,12 @@ export function resolveWorkAxisRef(
     if (!v || v.kind !== 'axis') return { ok: false, error: featureNotFound('work axis', ref.featureId) };
     return { ok: true, value: { origin: v.origin, direction: v.direction } };
   }
-  return { ok: false, error: notImplemented(`resolveWorkAxisRef: source ${ref.source}`) };
+  if (ref.source === 'cylindricalFace') {
+    const ax = _occt && _shape ? extractCylinderAxis(_occt, _shape, ref.face) : null;
+    if (!ax) return { ok: false, error: featureNotFound('cylindrical face', `${ref.face.featureId}/${ref.face.role}`) };
+    return { ok: true, value: ax };
+  }
+  return { ok: false, error: notImplemented(`resolveWorkAxisRef: source ${(ref as { source: string }).source}`) };
 }
 
 /**
@@ -300,6 +310,47 @@ export function extractFacePlane(
     return {
       origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
       normal: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+    };
+  } finally {
+    adaptor.delete?.();
+  }
+}
+
+/**
+ * Look up a face by name and extract its cylinder axis (origin = a point
+ * on the axis, direction = unit vector along the axis). Returns null when
+ * the face isn't named or isn't cylindrical.
+ */
+export function extractCylinderAxis(
+  oc: OcctInstance,
+  shape: NamedShape | null,
+  faceName: FaceName,
+): { origin: Vec3; direction: Vec3 } | null {
+  if (!shape) return null;
+  const entry = shape.faceNames.find((e) => faceNamesEqual(e.name, faceName));
+  if (!entry) return null;
+  const ocAny = oc as unknown as {
+    TopoDS: { Face_1: (s: unknown) => unknown };
+    BRepAdaptor_Surface_2: new (face: unknown, restriction: boolean) => {
+      GetType: () => unknown;
+      Cylinder: () => {
+        Location: () => { X: () => number; Y: () => number; Z: () => number };
+        Axis: () => { Direction: () => { X: () => number; Y: () => number; Z: () => number } };
+      };
+      delete?: () => void;
+    };
+    GeomAbs_SurfaceType: { GeomAbs_Cylinder: unknown };
+  };
+  const typedFace = ocAny.TopoDS.Face_1(entry.face);
+  const adaptor = new ocAny.BRepAdaptor_Surface_2(typedFace, true);
+  try {
+    if (adaptor.GetType() !== ocAny.GeomAbs_SurfaceType.GeomAbs_Cylinder) return null;
+    const cyl = adaptor.Cylinder();
+    const loc = cyl.Location();
+    const dir = cyl.Axis().Direction();
+    return {
+      origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
+      direction: { x: dir.X(), y: dir.Y(), z: dir.Z() },
     };
   } finally {
     adaptor.delete?.();
