@@ -1,5 +1,13 @@
 import React from 'react';
+import type { HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+
+function parseParamOrLiteral(s: string): ParamOrLiteral {
+  const trimmed = s.trim();
+  if (trimmed.startsWith('=')) return { kind: 'param', paramName: trimmed.slice(1).trim() };
+  const v = Number(trimmed);
+  return { kind: 'literal', value: Number.isFinite(v) ? v : 0 };
+}
 
 /**
  * Hole dialog. Skeleton scaffold — sections are populated by Tasks 21–23:
@@ -94,6 +102,10 @@ export function HoleDialog(): JSX.Element | null {
   const [cskDiameter, setCskDiameter] = React.useState('10');
   const [cskAngle, setCskAngle] = React.useState('82');
 
+  // Termination section local state
+  const [termKind, setTermKind] = React.useState<'distance' | 'throughAll' | 'toFace' | 'toNext'>('throughAll');
+  const [depth, setDepth] = React.useState('10');
+
   const placementMode = useAppStore((s) => s.holePlacementMode);
   const setPlacementMode = (m: 'fromSketch' | 'linear' | 'concentric') =>
     useAppStore.setState((s) => ({ ...s, holePlacementMode: m }));
@@ -103,7 +115,75 @@ export function HoleDialog(): JSX.Element | null {
   const refEdges = useAppStore((s) => s.holeRefEdges);
   const circularEdge = useAppStore((s) => s.holeCircularEdge);
 
+  const onOk = () => {
+    const s = useAppStore.getState();
+
+    const placement: HolePlacement = (() => {
+      if (s.holePlacementMode === 'fromSketch') {
+        return { kind: 'fromSketch', sketchId: s.holeSketchId ?? '' };
+      }
+      if (s.holePlacementMode === 'linear') {
+        return {
+          kind: 'linear',
+          faceName: s.holePlacementFace ?? { featureId: '', role: '' },
+          refEdge1: s.holeRefEdges[0] ?? { faceA: { featureId: '', role: '' }, faceB: { featureId: '', role: '' } },
+          offset1: { kind: 'literal', value: 5 },
+          refEdge2: s.holeRefEdges[1] ?? { faceA: { featureId: '', role: '' }, faceB: { featureId: '', role: '' } },
+          offset2: { kind: 'literal', value: 5 },
+        };
+      }
+      return {
+        kind: 'concentric',
+        faceName: s.holePlacementFace ?? { featureId: '', role: '' },
+        circularEdgeName: s.holeCircularEdge ?? { faceA: { featureId: '', role: '' }, faceB: { featureId: '', role: '' } },
+      };
+    })();
+
+    const profile: HoleProfile = (() => {
+      if (profileKind === 'simple') return { kind: 'simple', diameter: parseParamOrLiteral(diameter) };
+      if (profileKind === 'counterbore') return {
+        kind: 'counterbore',
+        diameter: parseParamOrLiteral(diameter),
+        cboreDiameter: parseParamOrLiteral(cboreDiameter),
+        cboreDepth: parseParamOrLiteral(cboreDepth),
+      };
+      return {
+        kind: 'countersink',
+        diameter: parseParamOrLiteral(diameter),
+        cskDiameter: parseParamOrLiteral(cskDiameter),
+        cskAngle: parseParamOrLiteral(cskAngle),
+      };
+    })();
+
+    const termination: HoleTermination = (() => {
+      if (termKind === 'distance') return { kind: 'distance', depth: parseParamOrLiteral(depth) };
+      if (termKind === 'toFace') return { kind: 'toFace', targetFaceName: s.holeTargetFace ?? { featureId: '', role: '' } };
+      if (termKind === 'toNext') return { kind: 'toNext' };
+      return { kind: 'throughAll' };
+    })();
+
+    const id = s.editingHoleId ?? `H${Date.now()}`;
+    const feature: HoleFeature = { id, kind: 'hole', placement, profile, termination, flipAxis: false };
+
+    const part = s.activePart;
+    if (part) {
+      if (s.editingHoleId) {
+        s.setActivePart({
+          ...part,
+          featureTree: part.featureTree.map((f) => f.id === id ? feature : f),
+        });
+      } else {
+        s.setActivePart({
+          ...part,
+          featureTree: [...part.featureTree, feature],
+        });
+      }
+    }
+    s.resetHoleDialog();
+  };
+
   if (!open) return null;
+
 
   return (
     <div role="dialog" aria-label="Hole" style={panelStyle}>
@@ -255,14 +335,47 @@ export function HoleDialog(): JSX.Element | null {
         </div>
       </section>
 
-      <div style={sectionStyle}>
-        <h2 style={sectionHeadingStyle}>Termination</h2>
-        {/* T23 */}
-      </div>
+      <section style={{ marginBottom: 12 }}>
+        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>Termination</h2>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 4 }}>
+          <span style={{ width: 80 }}>Termination</span>
+          <select
+            aria-label="Termination"
+            value={termKind}
+            onChange={(e) => setTermKind(e.target.value as 'distance' | 'throughAll' | 'toFace' | 'toNext')}
+            style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+          >
+            <option value="distance">Distance</option>
+            <option value="throughAll">Through All</option>
+            <option value="toFace">To Face</option>
+            <option value="toNext">To Next</option>
+          </select>
+        </label>
+        {termKind === 'distance' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <span style={{ width: 80 }}>Depth</span>
+            <input
+              aria-label="Depth"
+              type="text"
+              value={depth}
+              onChange={(e) => setDepth(e.target.value)}
+              style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+            />
+          </label>
+        )}
+        {termKind === 'toFace' && (
+          <button
+            type="button"
+            style={{ width: '100%', background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 8px', fontSize: 11 }}
+          >
+            Pick target face
+          </button>
+        )}
+      </section>
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
         <button type="button" onClick={resetHoleDialog} style={btnStyle}>Cancel</button>
-        <button type="button" style={okBtnStyle}>OK</button>
+        <button type="button" onClick={onOk} style={okBtnStyle}>OK</button>
       </div>
     </div>
   );

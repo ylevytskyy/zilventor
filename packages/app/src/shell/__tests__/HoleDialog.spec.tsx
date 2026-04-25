@@ -65,4 +65,39 @@ describe('HoleDialog', () => {
     fireEvent.click(screen.getByRole('radio', { name: /countersink/i }));
     expect(screen.getByLabelText(/^diameter$/i)).toBeInTheDocument();
   });
+
+  it('Distance termination shows a depth field; throughAll does not', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog />);
+    const term = screen.getByLabelText(/termination/i) as HTMLSelectElement;
+    fireEvent.change(term, { target: { value: 'distance' } });
+    expect(screen.getByLabelText(/^depth$/i)).toBeInTheDocument();
+    fireEvent.change(term, { target: { value: 'throughAll' } });
+    expect(screen.queryByLabelText(/^depth$/i)).toBeNull();
+  });
+
+  it('OK closes the dialog', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));
+    render(<HoleDialog />);
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+    expect(useAppStore.getState().holeDialogOpen).toBe(false);
+  });
+
+  it('OK in fromSketch+simple+throughAll mode adds a HoleFeature to the active part', () => {
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, featureTree: [] };
+    useAppStore.getState().setActivePart(part);
+    useAppStore.getState().toggleHoleDialog(true);
+    useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));
+    render(<HoleDialog />);
+
+    const sizeBefore = useAppStore.getState().activePart?.featureTree?.length ?? 0;
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+    const sizeAfter = useAppStore.getState().activePart?.featureTree?.length ?? 0;
+
+    expect(sizeAfter).toBe(sizeBefore + 1);
+    const tree = useAppStore.getState().activePart?.featureTree ?? [];
+    const last = tree[tree.length - 1];
+    expect(last?.kind).toBe('hole');
+  });
 });
