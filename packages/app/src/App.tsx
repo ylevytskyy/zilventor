@@ -41,6 +41,7 @@ import { LinearPatternDialog, type LinearPatternDialogValue } from './shell/Line
 import { AddLinearPatternFeatureCommand } from './commands/AddLinearPatternFeatureCommand';
 import { MirrorDialog, type MirrorDialogValue } from './shell/MirrorDialog';
 import { AddMirrorFeatureCommand } from './commands/AddMirrorFeatureCommand';
+import { HoleDialog } from './shell/HoleDialog';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -1563,6 +1564,7 @@ export default function App() {
           onCancel={onMirrorCancel}
         />
       )}
+      <HoleDialog />
       {revolveDialogOpen && (
         <RevolveDialog
           profile={computeProfileRef()}
