@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BooleanOperation, ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -13,10 +13,16 @@ export type ToolKind =
   | 'constrain-equal' | 'constrain-symmetric'
   | 'dimension';
 
+export type ActiveDocument =
+  | { kind: 'part'; document: PartDocument }
+  | { kind: 'assembly'; document: AssemblyDocument };
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
+  activeDocument: ActiveDocument | null;
   activePart: PartDocument | null;
+  activeAssembly: AssemblyDocument | null;
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -67,6 +73,7 @@ type AppState = {
   toggleSweepDialog: (open: boolean) => void;
 
   setKernel(k: KernelClient): void;
+  setActiveDocument(d: ActiveDocument | null): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
   setSelectedFeature(id: string | null): void;
@@ -113,7 +120,9 @@ type AppState = {
 export const useAppStore = create<AppState>((set) => ({
   kernel: null,
   bus: createCommandBus(),
+  activeDocument: null,
   activePart: null,
+  activeAssembly: null,
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,
@@ -126,7 +135,16 @@ export const useAppStore = create<AppState>((set) => ({
   revolveDialogOpen: false,
   filletDialogOpen: false,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
-  setActivePart: (p) => set({ activePart: p }),
+  setActiveDocument: (d) => set({
+    activeDocument: d,
+    activePart: d?.kind === 'part' ? d.document : null,
+    activeAssembly: d?.kind === 'assembly' ? d.document : null,
+  }),
+  setActivePart: (p) => set({
+    activeDocument: p ? { kind: 'part', document: p } : null,
+    activePart: p,
+    activeAssembly: null,
+  }),
   setStatus: (msg) => set({ statusMessage: msg }),
   setSelectedFeature: (id) => set({ selectedFeatureId: id }),
   setViewport: (v) => set({ viewport: v }),

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore } from '../useAppStore';
-import type { PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import type { AssemblyDocument, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
 
 const mkPart = (): PartDocument => ({
   id: 'P1',
@@ -242,5 +242,43 @@ describe('useAppStore sweep dialog slice', () => {
     expect(s.sweepProfileSketchId).toBeNull();
     expect(s.sweepOrientationKind).toBe('path');
     expect(s.editingSweepId).toBeNull();
+  });
+});
+
+describe('useAppStore activeDocument discriminator', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+  });
+
+  it('activeDocument defaults to null after reset', () => {
+    const s = useAppStore.getState();
+    expect(s.activeDocument).toBeNull();
+  });
+
+  it('setActiveDocument with kind: part keeps activePart shim working', () => {
+    const part: PartDocument = { id: 'P1', name: 'p', units: 'mm', parameters: {}, featureTree: [] } as any;
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+    const s = useAppStore.getState();
+    expect(s.activeDocument).toEqual({ kind: 'part', document: part });
+    expect(s.activePart).toEqual(part);
+    expect(s.activeAssembly).toBeNull();
+  });
+
+  it('setActiveDocument with kind: assembly clears activePart shim', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    const s = useAppStore.getState();
+    expect(s.activeDocument).toEqual({ kind: 'assembly', document: asm });
+    expect(s.activePart).toBeNull();
+    expect(s.activeAssembly).toEqual(asm);
+  });
+
+  it('setActivePart legacy setter wraps as part-kinded activeDocument', () => {
+    const part: PartDocument = { id: 'P1', name: 'p', units: 'mm', parameters: {}, featureTree: [] } as any;
+    useAppStore.getState().setActivePart(part);
+    const s = useAppStore.getState();
+    expect(s.activeDocument).toEqual({ kind: 'part', document: part });
+    expect(s.activePart).toEqual(part);
+    expect(s.activeAssembly).toBeNull();
   });
 });
