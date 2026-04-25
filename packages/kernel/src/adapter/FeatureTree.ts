@@ -623,6 +623,9 @@ export async function executeTree(
         });
         continue;
       }
+    } else if (feature.kind === 'sweep') {
+      // Wired in Task 13
+      continue;
     }
   }
 

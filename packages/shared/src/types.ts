@@ -33,7 +33,8 @@ export type Feature =
   | ShellFeature
   | LinearPatternFeature
   | MirrorFeature
-  | HoleFeature;
+  | HoleFeature
+  | SweepFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -225,4 +226,18 @@ export type HoleFeature = {
   profile: HoleProfile;
   termination: HoleTermination;
   flipAxis: boolean;
+};
+
+export type SweepOrientation =
+  | { kind: 'path' }
+  | { kind: 'parallel' }
+  | { kind: 'guideRail'; guideRailSketchId: string };
+
+export type SweepFeature = {
+  id: string;
+  kind: 'sweep';
+  profileSketchId: string;
+  pathSketchId: string;
+  orientation: SweepOrientation;
+  operation: BooleanOperation;
 };
