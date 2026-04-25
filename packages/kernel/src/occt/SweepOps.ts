@@ -57,3 +57,39 @@ export function buildWireFromSketch(oc: any, sketch: any): any {
   wire.Closed = () => wire.Closed_1();
   return wire;
 }
+
+export type ResolvedSweepOrientation =
+  | { kind: 'path' }
+  | { kind: 'parallel' }
+  | { kind: 'guideRail'; guideWire: any };
+
+/**
+ * Sweep a profile wire along a path wire using BRepOffsetAPI_MakePipeShell.
+ *
+ * Task 5 implements Path (Frenet) orientation. Parallel and Guide Rail are
+ * added in Tasks 6 and 7 — they currently throw.
+ */
+export function makeSweep(
+  oc: any,
+  profileWire: any,
+  pathWire: any,
+  orientation: ResolvedSweepOrientation,
+): any {
+  const builder = new oc.BRepOffsetAPI_MakePipeShell(pathWire);
+
+  if (orientation.kind === 'path') {
+    // SetMode_1(IsFrenet=true) — Frenet frame mode (profile perpendicular to path tangent)
+    builder.SetMode_1(true);
+  } else if (orientation.kind === 'parallel') {
+    throw new Error('SweepOps: parallel orientation not yet implemented in this task');
+  } else {
+    throw new Error('SweepOps: guideRail orientation not yet implemented in this task');
+  }
+
+  // Add_1(profile, WithContact=false, WithCorrection=false)
+  builder.Add_1(profileWire, false, false);
+  builder.Build(new oc.Message_ProgressRange_1());
+  if (!builder.IsDone()) throw new Error('SweepOps: MakePipeShell.Build failed');
+  if (!builder.MakeSolid()) throw new Error('SweepOps: MakePipeShell.MakeSolid failed (profile may not be closed)');
+  return builder.Shape();
+}

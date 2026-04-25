@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct } from '../occtLoader';
-import { buildWireFromSketch } from '../SweepOps';
+import { buildWireFromSketch, makeSweep } from '../SweepOps';
 
 describe('SweepOps — buildWireFromSketch', () => {
   let oc: any;
@@ -57,3 +57,27 @@ describe('SweepOps — buildWireFromSketch', () => {
     expect((wire as any).Closed?.()).toBe(false);
   });
 });
+describe('SweepOps — makeSweep', () => {
+  let oc: any;
+  beforeAll(async () => { oc = await loadOcct(); });
+
+  it('Path orientation: line + circle profile produces a cylinder', () => {
+    const profile: any = {
+      id: 'P', kind: 'sketch', plane: 'XY',
+      primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
+      constraints: [],
+    };
+    const path: any = {
+      id: 'PA', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+      constraints: [],
+    };
+    const profileWire = buildWireFromSketch(oc, profile);
+    const pathWire = buildWireFromSketch(oc, path);
+    const solid = makeSweep(oc, profileWire, pathWire, { kind: 'path' });
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.VolumeProperties_1(solid, props, 1e-7, false, false);
+    expect(props.Mass()).toBeCloseTo(Math.PI * 10, 0);
+  });
+});
+
