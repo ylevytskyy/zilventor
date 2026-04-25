@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChamferEdgeSpec, DimensionConstraint, FaceName, FilletEdgeSpec, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -42,6 +42,18 @@ type AppState = {
   shellInitialThickness: string | undefined;
   linearPatternDialogOpen: boolean;
   mirrorDialogOpen: boolean;
+  holeDialogOpen: boolean;
+  holePlacementMode: 'fromSketch' | 'linear' | 'concentric';
+  holeSketchId: string | null;
+  holePlacementFace: FaceName | null;
+  holeRefEdges: [EdgeName | null, EdgeName | null];
+  holeCircularEdge: EdgeName | null;
+  holeTargetFace: FaceName | null;
+  editingHoleId: string | null;
+  holeInitialValues: HoleFeature | null;
+  openHoleForEdit: (id: string) => void;
+  resetHoleDialog: () => void;
+  toggleHoleDialog: (open: boolean) => void;
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -230,6 +242,32 @@ export const useAppStore = create<AppState>((set) => ({
   setLinearPatternDialogOpen: (v) => set({ linearPatternDialogOpen: v }),
   mirrorDialogOpen: false,
   setMirrorDialogOpen: (v) => set({ mirrorDialogOpen: v }),
+  holeDialogOpen: false,
+  holePlacementMode: 'fromSketch',
+  holeSketchId: null,
+  holePlacementFace: null,
+  holeRefEdges: [null, null],
+  holeCircularEdge: null,
+  holeTargetFace: null,
+  editingHoleId: null,
+  holeInitialValues: null,
+  openHoleForEdit: (id) => set({
+    holeDialogOpen: true,
+    editingHoleId: id,
+    holeInitialValues: null,
+  }),
+  resetHoleDialog: () => set({
+    holeDialogOpen: false,
+    holePlacementMode: 'fromSketch',
+    holeSketchId: null,
+    holePlacementFace: null,
+    holeRefEdges: [null, null],
+    holeCircularEdge: null,
+    holeTargetFace: null,
+    editingHoleId: null,
+    holeInitialValues: null,
+  }),
+  toggleHoleDialog: (open) => set({ holeDialogOpen: open }),
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),

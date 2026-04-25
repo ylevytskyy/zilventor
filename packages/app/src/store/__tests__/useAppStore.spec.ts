@@ -113,3 +113,37 @@ describe('useAppStore dimension CRUD', () => {
     expect(sketch.constraints).toHaveLength(0);
   });
 });
+
+describe('useAppStore hole dialog slice', () => {
+  beforeEach(() => {
+    useAppStore.getState().resetHoleDialog();
+  });
+
+  it('hole dialog state defaults are sane and openHoleForEdit/resetHoleDialog work', () => {
+    const initial = useAppStore.getState();
+    expect(initial.holeDialogOpen).toBe(false);
+    expect(initial.holePlacementMode).toBe('fromSketch');
+    expect(initial.holeSketchId).toBeNull();
+    expect(initial.holePlacementFace).toBeNull();
+    expect(initial.holeRefEdges).toEqual([null, null]);
+    expect(initial.holeCircularEdge).toBeNull();
+    expect(initial.holeTargetFace).toBeNull();
+    expect(initial.editingHoleId).toBeNull();
+    expect(initial.holeInitialValues).toBeNull();
+
+    useAppStore.getState().toggleHoleDialog(true);
+    expect(useAppStore.getState().holeDialogOpen).toBe(true);
+
+    // Without a stored hole, openHoleForEdit should still set the editingHoleId + open the dialog,
+    // even if no holeInitialValues seed is found (T26 enriches the seed-from-feature path).
+    useAppStore.getState().openHoleForEdit('H1');
+    expect(useAppStore.getState().editingHoleId).toBe('H1');
+    expect(useAppStore.getState().holeDialogOpen).toBe(true);
+
+    useAppStore.getState().resetHoleDialog();
+    expect(useAppStore.getState().holeDialogOpen).toBe(false);
+    expect(useAppStore.getState().editingHoleId).toBeNull();
+    expect(useAppStore.getState().holePlacementMode).toBe('fromSketch');
+    expect(useAppStore.getState().holeRefEdges).toEqual([null, null]);
+  });
+});
