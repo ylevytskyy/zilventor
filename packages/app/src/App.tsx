@@ -56,6 +56,9 @@ import { AddWorkAxisFeatureCommand } from './commands/AddWorkAxisFeatureCommand'
 import { AddWorkPointFeatureCommand } from './commands/AddWorkPointFeatureCommand';
 import type { WorkPlaneFeature, WorkAxisFeature, WorkPointFeature } from '@zilventor/shared';
 import { WorkFeatureDialogsHost } from './shell/WorkFeatureDialogsHost';
+import { OpenWorkPlaneDialogCommand } from './commands/OpenWorkPlaneDialogCommand';
+import { OpenWorkAxisDialogCommand } from './commands/OpenWorkAxisDialogCommand';
+import { OpenWorkPointDialogCommand } from './commands/OpenWorkPointDialogCommand';
 import { SketchPickController } from './model/SketchPickController';
 import { PlaceComponentDialog } from './shell/PlaceComponentDialog';
 import { EditComponentDialog } from './shell/EditComponentDialog';
@@ -615,6 +618,24 @@ export default function App() {
       if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'w') {
         e.preventDefault();
         OpenSweepDialogCommand();
+        return;
+      }
+      // Ctrl+Shift+P/A/W → open WorkPlane/WorkAxis/WorkPoint dialogs.
+      // Ctrl+Shift+W is bound to Work Point because plain 'w' is taken by
+      // Sweep above; documented divergence from Inventor 2012's stock map.
+      if (!sketchMode && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        OpenWorkPlaneDialogCommand();
+        return;
+      }
+      if (!sketchMode && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        OpenWorkAxisDialogCommand();
+        return;
+      }
+      if (!sketchMode && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        OpenWorkPointDialogCommand();
         return;
       }
       if (
