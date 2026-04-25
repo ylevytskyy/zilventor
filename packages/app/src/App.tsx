@@ -240,7 +240,7 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve');
+      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep');
       if (!hasSolidFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
@@ -449,7 +449,7 @@ export default function App() {
           if (!freshPart || freshPart.id !== part.id) return;
           if (useAppStore.getState().sketchMode) return;
           const hasSolidFeature = freshPart.featureTree.some(
-            (f) => f.kind === 'extrude' || f.kind === 'revolve'
+            (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep'
           );
           if (!hasSolidFeature) return;
           const res = await kernelClient.execute(freshPart.id);
@@ -677,7 +677,7 @@ export default function App() {
       useAppStore.getState().setKernel(client);
       const { activePart: ap } = useAppStore.getState();
       if (ap && viewportRef.current) {
-        const hasSolidFeature = ap.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve');
+        const hasSolidFeature = ap.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep');
         if (hasSolidFeature) {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
@@ -845,7 +845,7 @@ export default function App() {
   const hasRunningBody = useCallback((): boolean => {
     if (!activePart) return false;
     return activePart.featureTree.some(
-      (f) => f.kind === 'extrude' || f.kind === 'revolve'
+      (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep'
     );
   }, [activePart]);
 

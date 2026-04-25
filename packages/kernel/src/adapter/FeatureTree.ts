@@ -637,7 +637,7 @@ export async function executeTree(
         continue;
       }
     } else if (feature.kind === 'sweep') {
-      if (!finalSolid) {
+      if (!finalSolid && feature.operation !== 'new') {
         featureErrors.set(feature.id, {
           kind: 'invalidParameter',
           message: 'Sweep needs a body to modify',
@@ -647,7 +647,7 @@ export async function executeTree(
         continue;
       }
       try {
-        const sweepResult = executeSweepFeature(oc, finalSolid, feature, sketchById);
+        const sweepResult = executeSweepFeature(oc, finalSolid ?? null, feature, sketchById);
         // executeSweepFeature returns a NamedShape where .shape is a raw OCCT
         // handle (not an OcctShape wrapper). Wrap it so disposeShape /
         // tessellate calls work correctly — same pattern as the hole branch.
