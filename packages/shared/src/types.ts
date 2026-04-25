@@ -34,7 +34,10 @@ export type Feature =
   | LinearPatternFeature
   | MirrorFeature
   | HoleFeature
-  | SweepFeature;
+  | SweepFeature
+  | WorkAxisFeature
+  | WorkPlaneFeature
+  | WorkPointFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -250,4 +253,51 @@ export type SweepFeature = {
   pathSketchId: string;
   orientation: SweepOrientation;
   operation: BooleanOperation;
+};
+
+export type WorkAxisRef =
+  | { source: 'cylindricalFace'; face: FaceName }
+  | { source: 'edge'; edge: EdgeName }
+  | { source: 'workAxis'; featureId: string };
+
+export type WorkPlaneRef =
+  | { source: 'face'; face: FaceName }
+  | { source: 'workPlane'; featureId: string };
+
+export type WorkPointRef =
+  | { source: 'vertex'; edge: EdgeName; end: 'start' | 'end' }
+  | { source: 'workPoint'; featureId: string };
+
+export type WorkAxisFeature = {
+  kind: 'workAxis'; id: string; name?: string; visible: boolean;
+  source:
+    | { mode: 'cylindricalFace'; face: FaceName }
+    | { mode: 'twoPoints'; pointA: WorkPointRef; pointB: WorkPointRef }
+    | { mode: 'edge'; edge: EdgeName }
+    | { mode: 'twoPlanes'; planeA: WorkPlaneRef; planeB: WorkPlaneRef }
+    | { mode: 'normalToPlaneThroughPoint'; plane: WorkPlaneRef; point: WorkPointRef }
+    | { mode: 'origin'; axis: 'X' | 'Y' | 'Z' };
+};
+
+export type WorkPlaneFeature = {
+  kind: 'workPlane'; id: string; name?: string; visible: boolean;
+  source:
+    | { mode: 'offsetFromPlane'; plane: WorkPlaneRef; offset: ParamOrLiteral }
+    | { mode: 'threePoints'; points: [WorkPointRef, WorkPointRef, WorkPointRef] }
+    | { mode: 'axisAtAngleToPlane'; axis: WorkAxisRef; plane: WorkPlaneRef; angle: ParamOrLiteral }
+    | { mode: 'tangentToSurfaceParallelToPlane'; face: FaceName; plane: WorkPlaneRef }
+    | { mode: 'axisPerpendicularToPlane'; axis: WorkAxisRef; plane: WorkPlaneRef }
+    | { mode: 'midplane'; planeA: WorkPlaneRef; planeB: WorkPlaneRef }
+    | { mode: 'origin'; plane: 'XY' | 'YZ' | 'XZ' };
+};
+
+export type WorkPointFeature = {
+  kind: 'workPoint'; id: string; name?: string; visible: boolean;
+  source:
+    | { mode: 'vertex'; edge: EdgeName; end: 'start' | 'end' }
+    | { mode: 'midpointOfEdge'; edge: EdgeName }
+    | { mode: 'centerOfArc'; face: FaceName }
+    | { mode: 'axisIntersectsPlane'; axis: WorkAxisRef; plane: WorkPlaneRef }
+    | { mode: 'threePlanes'; planes: [WorkPlaneRef, WorkPlaneRef, WorkPlaneRef] }
+    | { mode: 'origin' };
 };
