@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -102,6 +102,24 @@ type AppState = {
   openShellForEdit(featureId: string): void;
   setLinearPatternDialogOpen(v: boolean): void;
   setMirrorDialogOpen(v: boolean): void;
+
+  placeComponentDialogOpen: boolean;
+  editComponentDialogOpen: boolean;
+  editingComponentId: string | null;
+  editComponentInitialValues: ComponentInstance | null;
+  selectedComponentId: string | null;
+  componentDiagnostics: Array<{ componentId: string; message: string }>;
+
+  openPlaceComponentDialog(): void;
+  resetPlaceComponentDialog(): void;
+  openEditComponentDialog(id: string): void;
+  resetEditComponentDialog(): void;
+  addComponent(instance: ComponentInstance): void;
+  updateComponent(id: string, patch: Partial<ComponentInstance>): void;
+  removeComponent(id: string): void;
+  selectComponent(id: string | null): void;
+  setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
+
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -272,6 +290,74 @@ export const useAppStore = create<AppState>((set) => ({
   setLinearPatternDialogOpen: (v) => set({ linearPatternDialogOpen: v }),
   mirrorDialogOpen: false,
   setMirrorDialogOpen: (v) => set({ mirrorDialogOpen: v }),
+
+  placeComponentDialogOpen: false,
+  editComponentDialogOpen: false,
+  editingComponentId: null,
+  editComponentInitialValues: null,
+  selectedComponentId: null,
+  componentDiagnostics: [],
+
+  openPlaceComponentDialog: () => set({
+    placeComponentDialogOpen: true,
+    selectedComponentId: null,
+  }),
+  resetPlaceComponentDialog: () => set({ placeComponentDialogOpen: false }),
+
+  openEditComponentDialog: (id) => set((s) => {
+    const c = s.activeAssembly?.components.find((x) => x.id === id);
+    return {
+      editComponentDialogOpen: true,
+      editingComponentId: id,
+      editComponentInitialValues: c ?? null,
+    };
+  }),
+  resetEditComponentDialog: () => set({
+    editComponentDialogOpen: false,
+    editingComponentId: null,
+    editComponentInitialValues: null,
+  }),
+
+  addComponent: (instance) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = {
+      ...s.activeAssembly,
+      components: [...s.activeAssembly.components, instance],
+    };
+    return {
+      activeDocument: { kind: 'assembly', document: next },
+      activeAssembly: next,
+    };
+  }),
+
+  updateComponent: (id, patch) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = {
+      ...s.activeAssembly,
+      components: s.activeAssembly.components.map((c) =>
+        c.id === id ? { ...c, ...patch } : c,
+      ),
+    };
+    return {
+      activeDocument: { kind: 'assembly', document: next },
+      activeAssembly: next,
+    };
+  }),
+
+  removeComponent: (id) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = {
+      ...s.activeAssembly,
+      components: s.activeAssembly.components.filter((c) => c.id !== id),
+    };
+    return {
+      activeDocument: { kind: 'assembly', document: next },
+      activeAssembly: next,
+    };
+  }),
+
+  selectComponent: (id) => set({ selectedComponentId: id }),
+  setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),
   holeDialogOpen: false,
   holePlacementMode: 'fromSketch',
   holeSketchId: null,

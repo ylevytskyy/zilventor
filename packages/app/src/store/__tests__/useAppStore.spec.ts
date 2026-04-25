@@ -282,3 +282,75 @@ describe('useAppStore activeDocument discriminator', () => {
     expect(s.activeAssembly).toBeNull();
   });
 });
+
+describe('useAppStore assembly dialog + component CRUD slice', () => {
+  beforeEach(() => {
+    const s = useAppStore.getState();
+    s.setActiveDocument(null);
+    s.resetPlaceComponentDialog();
+    s.resetEditComponentDialog();
+    s.selectComponent(null);
+    s.setComponentDiagnostics([]);
+  });
+
+  it('assembly dialog state defaults are sane', () => {
+    const s = useAppStore.getState();
+    expect(s.placeComponentDialogOpen).toBe(false);
+    expect(s.editComponentDialogOpen).toBe(false);
+    expect(s.editingComponentId).toBeNull();
+    expect(s.editComponentInitialValues).toBeNull();
+    expect(s.selectedComponentId).toBeNull();
+    expect(s.componentDiagnostics).toEqual([]);
+  });
+
+  it('openPlaceComponentDialog opens it; resetPlaceComponentDialog closes', () => {
+    useAppStore.getState().openPlaceComponentDialog();
+    expect(useAppStore.getState().placeComponentDialogOpen).toBe(true);
+    useAppStore.getState().resetPlaceComponentDialog();
+    expect(useAppStore.getState().placeComponentDialogOpen).toBe(false);
+  });
+
+  it('addComponent appends to the active assembly', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().addComponent({
+      id: 'C1', partPath: 'leg.zipt',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      visible: true,
+    });
+    const s = useAppStore.getState();
+    expect(s.activeAssembly?.components).toHaveLength(1);
+    expect(s.activeAssembly?.components[0]!.id).toBe('C1');
+  });
+
+  it('updateComponent patches the named component', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {},
+      components: [
+        { id: 'C1', partPath: 'leg.zipt',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().updateComponent('C1', { position: { x: 50, y: 0, z: 0 } });
+    expect(useAppStore.getState().activeAssembly?.components[0]!.position.x).toBe(50);
+  });
+
+  it('removeComponent removes by id', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {},
+      components: [
+        { id: 'C1', partPath: 'leg.zipt',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().removeComponent('C1');
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
+  });
+});
