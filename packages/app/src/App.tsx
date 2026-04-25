@@ -545,6 +545,12 @@ export default function App() {
         useAppStore.getState().setMirrorDialogOpen(true);
         return;
       }
+      if (!sketchMode && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        useAppStore.getState().resetHoleDialog();
+        useAppStore.getState().toggleHoleDialog(true);
+        return;
+      }
       if (e.key === 'F7') {
         e.preventDefault();
         useAppStore.getState().setParametersPanelOpen(!useAppStore.getState().parametersPanelOpen);
