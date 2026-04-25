@@ -1,6 +1,6 @@
 import type { OcctInstance } from '../../occt/occtLoader';
 import type { Feature, SweepFeature, SweepOrientation } from '@zilventor/shared';
-import { type NamedShape } from '../../occt/FaceNaming';
+import { type NamedShape, tagSweepFaces } from '../../occt/FaceNaming';
 import {
   buildWireFromSketch,
   makeSweep,
@@ -66,7 +66,8 @@ export function executeSweepFeature(
     resultShape = r.value.handle;
   }
 
-  // Face naming wired in Task 12. Empty for now.
-  const named: NamedShape = { shape: resultShape, faceNames: [] };
+  const pathClosed = (pathWire as any).Closed_1?.() === true;
+  const namedFaces = tagSweepFaces(oc as any, resultShape, feature.id, pathClosed);
+  const named: NamedShape = { shape: resultShape, faceNames: namedFaces };
   return named;
 }

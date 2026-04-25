@@ -156,6 +156,65 @@ export function tagHoleFaces(
 }
 
 /**
+ * Tag faces produced by a sweep operation. Walks all faces, classifies as
+ * planar (caps) vs non-planar (lateral).
+ *
+ * - Lateral faces are sorted by surface area (ascending) for stable indexing.
+ * - For open paths: two planar faces become capStart / capEnd, ordered by
+ *   centroid coordinate sum (smallest = start).
+ * - For closed paths: skip cap classification entirely (pass `pathClosed: true`)
+ *   — all faces become lateral/<i>.
+ */
+export function tagSweepFaces(
+  oc: any,
+  sweptShape: any,
+  featureId: string,
+  pathClosed: boolean,
+): Array<{ name: FaceName; face: unknown }> {
+  const out: Array<{ name: FaceName; face: unknown }> = [];
+  const explorer = new oc.TopExp_Explorer_2(
+    sweptShape, oc.TopAbs_ShapeEnum.TopAbs_FACE as any, oc.TopAbs_ShapeEnum.TopAbs_SHAPE as any,
+  );
+  const planarFaces: { face: any; centroidSum: number; area: number }[] = [];
+  const lateralFaces: { face: any; area: number }[] = [];
+
+  for (; explorer.More(); explorer.Next()) {
+    const face = (oc as any).TopoDS.Face_1(explorer.Current());
+    const surf = (oc as any).BRep_Tool.Surface_2(face).get();
+    const type = surf.DynamicType().get().Name();
+    const props = new oc.GProp_GProps_1();
+    (oc as any).BRepGProp.SurfaceProperties_1(face, props, 1e-7, false);
+    if (type === 'Geom_Plane' && !pathClosed) {
+      const c = props.CentreOfMass();
+      planarFaces.push({ face, centroidSum: c.X() + c.Y() + c.Z(), area: props.Mass() });
+    } else {
+      lateralFaces.push({ face, area: props.Mass() });
+    }
+  }
+  explorer.delete();
+
+  // Lateral: sort ascending by area for stable indexing
+  lateralFaces.sort((a, b) => a.area - b.area);
+  lateralFaces.forEach((f, i) => {
+    out.push({ name: { featureId, role: `${featureId}/sweep/lateral/${i}` }, face: f.face });
+  });
+
+  // Caps: order by centroid value
+  if (planarFaces.length === 2) {
+    planarFaces.sort((a, b) => a.centroidSum - b.centroidSum);
+    out.push({ name: { featureId, role: `${featureId}/sweep/capStart` }, face: planarFaces[0]!.face });
+    out.push({ name: { featureId, role: `${featureId}/sweep/capEnd` }, face: planarFaces[1]!.face });
+  } else if (planarFaces.length > 0) {
+    // Edge case — more than 2 planar faces for unusual profiles. Number them.
+    planarFaces.forEach((f, i) => {
+      out.push({ name: { featureId, role: `${featureId}/sweep/cap/${i}` }, face: f.face });
+    });
+  }
+
+  return out;
+}
+
+/**
  * Resolve a stored vertex (identified by its >=3 converging edges) to
  * a TopoDS_Vertex in the shape. Returns null if any edge is missing or
  * the edges don't share a common vertex.

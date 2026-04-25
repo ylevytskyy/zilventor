@@ -102,4 +102,29 @@ describe('executeSweepFeature — integration', () => {
     // 1000 - π·1²·10
     expect(props.Mass()).toBeCloseTo(1000 - Math.PI * 10, 0);
   });
+
+  it('face naming: cylindrical sweep tags lateral/0 + capStart + capEnd', () => {
+    const profile: any = {
+      id: 'PROF', kind: 'sketch', plane: 'XY',
+      primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
+      constraints: [],
+    };
+    const path: any = {
+      id: 'PATH', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+      constraints: [],
+    };
+    const feature: any = {
+      id: 'SW1', kind: 'sweep',
+      profileSketchId: 'PROF', pathSketchId: 'PATH',
+      orientation: { kind: 'path' },
+      operation: 'new',
+    };
+    const sketchById = new Map<string, any>([['PROF', profile], ['PATH', path]]);
+    const result = executeSweepFeature(oc, null, feature, sketchById);
+    const roles = result.faceNames.map((f: any) => f.name.role);
+    expect(roles).toContain('SW1/sweep/lateral/0');
+    expect(roles).toContain('SW1/sweep/capStart');
+    expect(roles).toContain('SW1/sweep/capEnd');
+  });
 });
