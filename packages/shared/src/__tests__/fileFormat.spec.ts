@@ -312,3 +312,43 @@ describe('fileFormat v6 → v7 migration', () => {
     expect(out.formatVersion).toBe(7);
   });
 });
+
+describe('ProjectFile kind discriminator', () => {
+  it('legacy v7 manifest without kind field defaults to kind: part on load', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [],
+      },
+    };
+    const out = migrateManifest(input);
+    expect(out.formatVersion).toBe(7);
+    expect((out as any).kind).toBe('part');
+  });
+
+  it('v7 manifest with kind: assembly is preserved', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      kind: 'assembly',
+      document: {
+        id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [],
+      },
+    };
+    const out = migrateManifest(input);
+    expect((out as any).kind).toBe('assembly');
+  });
+
+  it('v7 manifest with kind: part is preserved', () => {
+    const input: AnyManifest = {
+      formatVersion: 7,
+      kind: 'part',
+      document: {
+        id: 'P1', name: 'p', units: 'mm', parameters: {},
+        featureTree: [],
+      },
+    };
+    const out = migrateManifest(input);
+    expect((out as any).kind).toBe('part');
+  });
+});

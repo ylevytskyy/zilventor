@@ -93,6 +93,13 @@ const migrations: Record<number, MigrateFn> = {
   },
 };
 
+function normalizeKind(m: AnyManifest): AnyManifest {
+  if (m.formatVersion === 7 && (m as any).kind === undefined) {
+    return { ...m, kind: 'part' } as AnyManifest;
+  }
+  return m;
+}
+
 export function migrateManifest(m: AnyManifest): AnyManifest {
   if (typeof m.formatVersion !== 'number') {
     throw new Error('formatVersion missing from manifest');
@@ -112,5 +119,5 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
       throw new Error(`migration from formatVersion ${priorVersion} did not advance the version`);
     }
   }
-  return current;
+  return normalizeKind(current);
 }
