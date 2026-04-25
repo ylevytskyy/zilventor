@@ -86,6 +86,14 @@ export function HoleDialog(): JSX.Element | null {
   const open = useAppStore((s) => s.holeDialogOpen);
   const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
 
+  // Profile section local state (T26 will seed from stored feature)
+  const [profileKind, setProfileKind] = React.useState<'simple' | 'counterbore' | 'countersink'>('simple');
+  const [diameter, setDiameter] = React.useState('5');
+  const [cboreDiameter, setCboreDiameter] = React.useState('10');
+  const [cboreDepth, setCboreDepth] = React.useState('3');
+  const [cskDiameter, setCskDiameter] = React.useState('10');
+  const [cskAngle, setCskAngle] = React.useState('82');
+
   const placementMode = useAppStore((s) => s.holePlacementMode);
   const setPlacementMode = (m: 'fromSketch' | 'linear' | 'concentric') =>
     useAppStore.setState((s) => ({ ...s, holePlacementMode: m }));
@@ -169,10 +177,83 @@ export function HoleDialog(): JSX.Element | null {
         )}
       </div>
 
-      <div style={sectionStyle}>
-        <h2 style={sectionHeadingStyle}>Profile</h2>
-        {/* T22 */}
-      </div>
+      <section style={{ marginBottom: 12 }}>
+        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>Profile</h2>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {(['simple', 'counterbore', 'countersink'] as const).map((k) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+              <input
+                type="radio"
+                name="holeProfile"
+                checked={profileKind === k}
+                onChange={() => setProfileKind(k)}
+              />
+              {k[0]!.toUpperCase() + k.slice(1)}
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gap: 4 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <span style={{ width: 80 }}>Diameter</span>
+            <input
+              aria-label="Diameter"
+              type="text"
+              value={diameter}
+              onChange={(e) => setDiameter(e.target.value)}
+              style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+            />
+          </label>
+          {profileKind === 'counterbore' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <span style={{ width: 80 }}>CBORE Ø</span>
+                <input
+                  aria-label="CBORE Ø"
+                  type="text"
+                  value={cboreDiameter}
+                  onChange={(e) => setCboreDiameter(e.target.value)}
+                  style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+                />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <span style={{ width: 80 }}>CBORE depth</span>
+                <input
+                  aria-label="CBORE depth"
+                  type="text"
+                  value={cboreDepth}
+                  onChange={(e) => setCboreDepth(e.target.value)}
+                  style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+                />
+              </label>
+            </>
+          )}
+          {profileKind === 'countersink' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <span style={{ width: 80 }}>CSK Ø</span>
+                <input
+                  aria-label="CSK Ø"
+                  type="text"
+                  value={cskDiameter}
+                  onChange={(e) => setCskDiameter(e.target.value)}
+                  style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+                />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <span style={{ width: 80 }}>CSK angle</span>
+                <input
+                  aria-label="CSK angle"
+                  type="text"
+                  value={cskAngle}
+                  onChange={(e) => setCskAngle(e.target.value)}
+                  style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
+                />
+              </label>
+            </>
+          )}
+        </div>
+      </section>
 
       <div style={sectionStyle}>
         <h2 style={sectionHeadingStyle}>Termination</h2>

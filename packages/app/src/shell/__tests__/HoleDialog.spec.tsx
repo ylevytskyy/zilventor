@@ -37,4 +37,32 @@ describe('HoleDialog', () => {
     expect(screen.getByText(/pick circular edge/i)).toBeInTheDocument();
     expect(screen.queryByText(/pick edge 1/i)).toBeNull();
   });
+
+  it('CBORE profile reveals cboreDiameter and cboreDepth fields', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog />);
+    expect(screen.queryByLabelText(/CBORE Ø/i)).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /counterbore/i }));
+    expect(screen.getByLabelText(/CBORE Ø/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/CBORE depth/i)).toBeInTheDocument();
+  });
+
+  it('CSK profile reveals cskDiameter and cskAngle (default 82°)', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog />);
+    fireEvent.click(screen.getByRole('radio', { name: /countersink/i }));
+    expect(screen.getByLabelText(/CSK Ø/i)).toBeInTheDocument();
+    const angle = screen.getByLabelText(/CSK angle/i) as HTMLInputElement;
+    expect(angle.value).toBe('82');
+  });
+
+  it('Diameter field is always visible across all profile kinds', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog />);
+    expect(screen.getByLabelText(/^diameter$/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /counterbore/i }));
+    expect(screen.getByLabelText(/^diameter$/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /countersink/i }));
+    expect(screen.getByLabelText(/^diameter$/i)).toBeInTheDocument();
+  });
 });
