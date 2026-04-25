@@ -41,7 +41,7 @@ import { LinearPatternDialog, type LinearPatternDialogValue } from './shell/Line
 import { AddLinearPatternFeatureCommand } from './commands/AddLinearPatternFeatureCommand';
 import { MirrorDialog, type MirrorDialogValue } from './shell/MirrorDialog';
 import { AddMirrorFeatureCommand } from './commands/AddMirrorFeatureCommand';
-import { HoleDialog } from './shell/HoleDialog';
+import { HoleDialog, type HoleDraftValue } from './shell/HoleDialog';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -124,6 +124,10 @@ export default function App() {
   // Tracks every scratch parameter name written during preview so Cancel can
   // delete them. Used as a Set so repeated previews under the same name are idempotent.
   const filletScratchParamsRef = useRef<Set<string>>(new Set());
+
+  // Hole dialog preview state — mirrors fillet/revolve pattern.
+  const [holePreviewError, setHolePreviewError] = useState<string | null>(null);
+  const holePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string, action?: { label: string; fn: () => void }) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -1066,6 +1070,119 @@ export default function App() {
     filletScratchParamsRef.current.clear();
   }, [activePart, kernel]);
 
+  // Hole preview — debounced 150 ms, mirrors scheduleFilletPreview pattern.
+  const scheduleHolePreview = useCallback((v: HoleDraftValue) => {
+    if (holePreviewTimerRef.current) clearTimeout(holePreviewTimerRef.current);
+    if (!activePart || !kernel) return;
+    const part = activePart;
+    const k = kernel;
+    holePreviewTimerRef.current = setTimeout(async () => {
+      holePreviewTimerRef.current = null;
+      // Build placement — skip preview if mandatory picks are missing.
+      let placement: import('@zilventor/shared').HolePlacement;
+      if (v.placementMode === 'fromSketch') {
+        if (!v.sketchId) return;
+        placement = { kind: 'fromSketch', sketchId: v.sketchId };
+      } else if (v.placementMode === 'linear') {
+        const s = useAppStore.getState();
+        if (!v.placementFace || !s.holeRefEdges[0] || !s.holeRefEdges[1]) return;
+        placement = {
+          kind: 'linear',
+          faceName: s.holePlacementFace!,
+          refEdge1: s.holeRefEdges[0]!,
+          offset1: { kind: 'literal', value: 5 },
+          refEdge2: s.holeRefEdges[1]!,
+          offset2: { kind: 'literal', value: 5 },
+        };
+      } else {
+        const s = useAppStore.getState();
+        if (!v.placementFace || !s.holeCircularEdge) return;
+        placement = {
+          kind: 'concentric',
+          faceName: s.holePlacementFace!,
+          circularEdgeName: s.holeCircularEdge!,
+        };
+      }
+      // Build profile.
+      const parsePol = (str: string): import('@zilventor/shared').ParamOrLiteral => {
+        const t = str.trim();
+        if (t.startsWith('=')) return { kind: 'param', paramName: t.slice(1).trim() };
+        const n = Number(t);
+        return { kind: 'literal', value: Number.isFinite(n) ? n : 0 };
+      };
+      let profile: import('@zilventor/shared').HoleProfile;
+      if (v.profileKind === 'simple') {
+        profile = { kind: 'simple', diameter: parsePol(v.diameter) };
+      } else if (v.profileKind === 'counterbore') {
+        profile = {
+          kind: 'counterbore',
+          diameter: parsePol(v.diameter),
+          cboreDiameter: parsePol(v.cboreDiameter),
+          cboreDepth: parsePol(v.cboreDepth),
+        };
+      } else {
+        profile = {
+          kind: 'countersink',
+          diameter: parsePol(v.diameter),
+          cskDiameter: parsePol(v.cskDiameter),
+          cskAngle: parsePol(v.cskAngle),
+        };
+      }
+      // Build termination.
+      let termination: import('@zilventor/shared').HoleTermination;
+      if (v.termKind === 'distance') {
+        termination = { kind: 'distance', depth: parsePol(v.depth) };
+      } else if (v.termKind === 'toFace') {
+        const s = useAppStore.getState();
+        if (!s.holeTargetFace) return;
+        termination = { kind: 'toFace', targetFaceName: s.holeTargetFace };
+      } else if (v.termKind === 'toNext') {
+        termination = { kind: 'toNext' };
+      } else {
+        termination = { kind: 'throughAll' };
+      }
+      const scratch: import('@zilventor/shared').HoleFeature = {
+        id: 'H_scratch',
+        kind: 'hole',
+        placement,
+        profile,
+        termination,
+        flipAxis: false,
+      };
+      try {
+        const r = await k.previewFeature(part.id, scratch);
+        if (r.ok) {
+          viewportRef.current?.setPreviewMesh(r.value.mesh.positions, r.value.mesh.indices);
+          setHolePreviewError(null);
+        } else {
+          viewportRef.current?.clearPreviewMesh();
+          setHolePreviewError(r.error.message);
+        }
+      } catch (e) {
+        viewportRef.current?.clearPreviewMesh();
+        setHolePreviewError((e as Error).message);
+      }
+    }, 150);
+  }, [activePart, kernel]);
+
+  const clearHolePreview = useCallback(() => {
+    if (holePreviewTimerRef.current) {
+      clearTimeout(holePreviewTimerRef.current);
+      holePreviewTimerRef.current = null;
+    }
+    viewportRef.current?.clearPreviewMesh();
+    setHolePreviewError(null);
+  }, []);
+
+  // Clear hole preview whenever the dialog closes (cancel, OK, or keyboard
+  // shortcut re-open). Mirrors how revolve/fillet call clearPreview on cancel.
+  const holeDialogOpen = useAppStore((s) => s.holeDialogOpen);
+  useEffect(() => {
+    if (!holeDialogOpen) {
+      clearHolePreview();
+    }
+  }, [holeDialogOpen, clearHolePreview]);
+
   const onFilletCommit = useCallback(async (v: FilletDialogValue) => {
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
@@ -1564,7 +1681,10 @@ export default function App() {
           onCancel={onMirrorCancel}
         />
       )}
-      <HoleDialog />
+      <HoleDialog
+        onDraftChange={scheduleHolePreview}
+        previewError={holePreviewError}
+      />
       {revolveDialogOpen && (
         <RevolveDialog
           profile={computeProfileRef()}

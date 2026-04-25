@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useAppStore } from '../../store/useAppStore';
 import { HoleDialog } from '../HoleDialog';
 
@@ -124,5 +124,33 @@ describe('HoleDialog', () => {
     expect((screen.getByLabelText(/CBORE Ø/i) as HTMLInputElement).value).toBe('8');
     expect((screen.getByLabelText(/CBORE depth/i) as HTMLInputElement).value).toBe('2');
     expect((screen.getByLabelText(/^Depth$/i) as HTMLInputElement).value).toBe('6');
+  });
+
+  it('renders a "Preview: ..." alert when previewError prop is set', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog previewError="hole axis invalid" />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(/Preview:\s*hole axis invalid/);
+  });
+
+  it('does not render preview alert when previewError is null', () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    render(<HoleDialog previewError={null} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('calls onDraftChange when a field changes', async () => {
+    useAppStore.getState().toggleHoleDialog(true);
+    useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));
+    const onDraftChange = vi.fn();
+    render(<HoleDialog onDraftChange={onDraftChange} />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^Diameter$/i), { target: { value: '8' } });
+    });
+
+    expect(onDraftChange).toHaveBeenCalled();
+    const lastCall = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1]![0];
+    expect(lastCall.diameter).toBe('8');
   });
 });

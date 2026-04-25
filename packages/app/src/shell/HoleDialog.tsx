@@ -1,6 +1,23 @@
 import React from 'react';
-import type { HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
+import type { FaceName, HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+
+export type HoleDraftValue = {
+  placementMode: 'fromSketch' | 'linear' | 'concentric';
+  sketchId: string | null;
+  placementFace: FaceName | null;
+  refEdges: readonly (unknown | null)[];
+  circularEdge: unknown | null;
+  targetFace: FaceName | null;
+  profileKind: 'simple' | 'counterbore' | 'countersink';
+  diameter: string;
+  cboreDiameter: string;
+  cboreDepth: string;
+  cskDiameter: string;
+  cskAngle: string;
+  termKind: 'distance' | 'throughAll' | 'toFace' | 'toNext';
+  depth: string;
+};
 
 function parseParamOrLiteral(s: string): ParamOrLiteral {
   const trimmed = s.trim();
@@ -96,7 +113,22 @@ const offsetInputStyle: React.CSSProperties = {
   fontSize: 11,
 };
 
-export function HoleDialog(): JSX.Element | null {
+type HoleDialogProps = {
+  /**
+   * Called whenever the dialog's form state changes and a preview could be
+   * fired. The host (App.tsx) owns the debounce timer and calls
+   * kernelClient.previewFeature, mirroring how RevolveDialog wires
+   * `onDraftChange`.
+   */
+  onDraftChange?: (v: HoleDraftValue) => void;
+  /**
+   * When set, an error badge is rendered above the footer buttons describing
+   * the most recent preview failure. Cleared by the host on commit/cancel.
+   */
+  previewError?: string | null;
+};
+
+export function HoleDialog({ onDraftChange, previewError }: HoleDialogProps = {}): JSX.Element | null {
   const open = useAppStore((s) => s.holeDialogOpen);
   const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
 
@@ -139,6 +171,35 @@ export function HoleDialog(): JSX.Element | null {
   const placementFace = useAppStore((s) => s.holePlacementFace);
   const refEdges = useAppStore((s) => s.holeRefEdges);
   const circularEdge = useAppStore((s) => s.holeCircularEdge);
+  const targetFace = useAppStore((s) => s.holeTargetFace);
+
+  // Fire onDraftChange whenever any form field that affects the feature
+  // changes, mirroring how RevolveDialog fires its onDraftChange effect.
+  // The host (App.tsx) owns the 150 ms debounce timer.
+  React.useEffect(() => {
+    if (!open || !onDraftChange) return;
+    onDraftChange({
+      placementMode,
+      sketchId,
+      placementFace,
+      refEdges,
+      circularEdge,
+      targetFace,
+      profileKind,
+      diameter,
+      cboreDiameter,
+      cboreDepth,
+      cskDiameter,
+      cskAngle,
+      termKind,
+      depth,
+    });
+  }, [
+    open, onDraftChange,
+    placementMode, sketchId, placementFace, refEdges, circularEdge, targetFace,
+    profileKind, diameter, cboreDiameter, cboreDepth, cskDiameter, cskAngle,
+    termKind, depth,
+  ]);
 
   const onOk = () => {
     const s = useAppStore.getState();
@@ -397,6 +458,23 @@ export function HoleDialog(): JSX.Element | null {
           </button>
         )}
       </section>
+
+      {previewError && (
+        <div
+          role="alert"
+          style={{
+            background: '#3a1a1a',
+            border: '1px solid #6a3333',
+            color: '#ffb3b3',
+            padding: '4px 8px',
+            borderRadius: 4,
+            fontSize: 11,
+            marginBottom: 8,
+          }}
+        >
+          Preview: {previewError}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
         <button type="button" onClick={resetHoleDialog} style={btnStyle}>Cancel</button>
