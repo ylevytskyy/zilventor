@@ -19,7 +19,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, MirrorPlane, PatternAxis, EdgeName } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, MirrorPlane, PatternAxis, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -45,6 +45,8 @@ import { HoleDialog, type HoleDraftValue } from './shell/HoleDialog';
 import { AddHoleFeatureCommand } from './commands/AddHoleFeatureCommand';
 import { OpenHoleDialogCommand } from './commands/OpenHoleDialogCommand';
 import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
+import { SweepDialog } from './shell/SweepDialog';
+import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -1222,6 +1224,45 @@ export default function App() {
     }
   }, [activePart, kernel, editingHoleId, clearHolePreview, resetHoleDialog, showToast]);
 
+  // Sweep dialog selectors.
+  const sweepOpen = useAppStore((s) => s.sweepDialogOpen);
+  const sweepProfileSketchId = useAppStore((s) => s.sweepProfileSketchId);
+  const sweepPathSketchId = useAppStore((s) => s.sweepPathSketchId);
+  const sweepOrientationKind = useAppStore((s) => s.sweepOrientationKind);
+  const sweepGuideRailSketchId = useAppStore((s) => s.sweepGuideRailSketchId);
+  const sweepOperation = useAppStore((s) => s.sweepOperation);
+
+  // Sweep dialog commit handler — mirrors onHoleCommit pattern.
+  const onSweepCommit = useCallback(async (v: { orientation: SweepOrientation; operation: BooleanOperation }) => {
+    if (!activePart || !kernel) return;
+    const editingId = useAppStore.getState().editingSweepId;
+    const id = editingId ?? `SW${Date.now()}`;
+    const feature: SweepFeature = {
+      id, kind: 'sweep',
+      profileSketchId: sweepProfileSketchId!,
+      pathSketchId: sweepPathSketchId!,
+      orientation: v.orientation,
+      operation: v.operation,
+    };
+    if (editingId) {
+      try { await kernel.removeFeature(activePart.id, editingId); } catch {}
+    }
+    const cmd = new AddSweepFeatureCommand({
+      partId: activePart.id,
+      feature,
+      parameterExpressions: {},
+      kernel,
+      registry: parameterRegistry,
+      store: { setActivePart: useAppStore.getState().setActivePart },
+    });
+    try {
+      await cmd.apply();
+    } catch (e) {
+      console.error('Sweep commit failed:', e);
+    }
+    useAppStore.getState().resetSweepDialog();
+  }, [activePart, kernel, sweepProfileSketchId, sweepPathSketchId]);
+
   const onFilletCommit = useCallback(async (v: FilletDialogValue) => {
     if (!activePart || !kernel || filletEdges.length === 0) return;
     const feature: FilletFeature = {
@@ -1725,6 +1766,24 @@ export default function App() {
         previewError={holePreviewError}
         onCommit={(feature) => { void onHoleCommit(feature); }}
       />
+      {sweepOpen && (
+        <SweepDialog
+          profileSketchId={sweepProfileSketchId}
+          pathSketchId={sweepPathSketchId}
+          orientationKind={sweepOrientationKind}
+          guideRailSketchId={sweepGuideRailSketchId}
+          operation={sweepOperation}
+          hasRunningBody={Boolean(activePart && activePart.featureTree.length > 0)}
+          previewError={null}
+          onCommit={(v) => { void onSweepCommit(v); }}
+          onCancel={() => useAppStore.getState().resetSweepDialog()}
+          onPickProfile={() => { /* T19 */ }}
+          onPickPath={() => { /* T19 */ }}
+          onPickGuideRail={() => { /* T19 */ }}
+          onSetOrientation={(k) => useAppStore.setState((s) => ({ ...s, sweepOrientationKind: k }))}
+          onSetOperation={(op) => useAppStore.setState((s) => ({ ...s, sweepOperation: op }))}
+        />
+      )}
       {revolveDialogOpen && (
         <RevolveDialog
           profile={computeProfileRef()}
