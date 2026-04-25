@@ -16,7 +16,7 @@ describe('KernelApi (end-to-end, in-process)', () => {
 
     const part = await api.getPart(partId);
     expect(part).toBeTruthy();
-    expect(part?.featureTree.length).toBe(2);
+    expect(part?.featureTree.length).toBe(9);
     expect(part?.parameters.d1?.value).toBe(50);
 
     const res = await api.execute(partId);
@@ -48,10 +48,10 @@ describe('KernelApi (end-to-end, in-process)', () => {
     await api.addFeature(id, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
     await api.addPrimitive(id, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
     let part = await api.getPart(id);
-    expect((part?.featureTree[0] as { primitives: unknown[] }).primitives.length).toBe(1);
+    expect((part?.featureTree.find((f) => f.id === 's1') as { primitives: unknown[] }).primitives.length).toBe(1);
     await api.removePrimitive(id, 's1', 'p1');
     part = await api.getPart(id);
-    expect((part?.featureTree[0] as { primitives: unknown[] }).primitives.length).toBe(0);
+    expect((part?.featureTree.find((f) => f.id === 's1') as { primitives: unknown[] }).primitives.length).toBe(0);
   }, 60_000);
 
   it('previewFeature executes without mutating the stored part', async () => {

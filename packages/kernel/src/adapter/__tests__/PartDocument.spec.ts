@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { newPart, addFeature, setParameter, removeParameter, removeFeature, addPrimitive, removePrimitive } from '../PartDocument';
 
 describe('PartDocument', () => {
-  it('creates an empty part with defaults', () => {
+  it('creates a part with defaults', () => {
     const p = newPart('Part1');
     expect(p.name).toBe('Part1');
     expect(p.units).toBe('mm');
-    expect(p.featureTree).toEqual([]);
+    expect(p.featureTree).toHaveLength(7);
     expect(p.id).toMatch(/[0-9a-f-]{36}/);
   });
 
@@ -14,7 +14,7 @@ describe('PartDocument', () => {
     let p = newPart('Part1');
     p = addFeature(p, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
     p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
-    expect(p.featureTree.map((f) => f.id)).toEqual(['s1', 'e1']);
+    expect(p.featureTree.slice(7).map((f) => f.id)).toEqual(['s1', 'e1']);
   });
 
   it('setParameter creates or updates by name', () => {
@@ -35,8 +35,8 @@ describe('PartDocument', () => {
   it('addFeature does not mutate the input', () => {
     const p1 = newPart('Part1');
     const p2 = addFeature(p1, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
-    expect(p1.featureTree.length).toBe(0);
-    expect(p2.featureTree.length).toBe(1);
+    expect(p1.featureTree.length).toBe(7);
+    expect(p2.featureTree.length).toBe(8);
     expect(p1).not.toBe(p2);
   });
 
@@ -46,7 +46,7 @@ describe('PartDocument', () => {
     p = addFeature(p, { kind: 'sketch', id: 's2', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
     p = addFeature(p, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
     p = removeFeature(p, 's1');
-    expect(p.featureTree.map((f) => f.id)).toEqual(['s2', 'e1']);
+    expect(p.featureTree.slice(7).map((f) => f.id)).toEqual(['s2', 'e1']);
   });
 
   it('removeFeature on non-existent id is a no-op', () => {
@@ -60,7 +60,7 @@ describe('PartDocument', () => {
     let p = newPart('P');
     p = addFeature(p, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
     p = addPrimitive(p, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
-    const sketch = p.featureTree[0] as { primitives: Array<{ id: string }> };
+    const sketch = p.featureTree.find((f) => f.id === 's1') as { primitives: Array<{ id: string }> };
     expect(sketch.primitives.map((pr) => pr.id)).toEqual(['p1']);
   });
 
@@ -75,7 +75,28 @@ describe('PartDocument', () => {
     p = addPrimitive(p, 's1', { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 });
     p = addPrimitive(p, 's1', { id: 'p2', kind: 'line', x1: 10, y1: 10, x2: 20, y2: 20 });
     p = removePrimitive(p, 's1', 'p1');
-    const sketch = p.featureTree[0] as { primitives: Array<{ id: string }> };
+    const sketch = p.featureTree.find((f) => f.id === 's1') as { primitives: Array<{ id: string }> };
     expect(sketch.primitives.map((pr) => pr.id)).toEqual(['p2']);
+  });
+});
+
+describe('newPart() origin features', () => {
+  it('seeds 7 origin work features at the start of featureTree', () => {
+    const p = newPart('Part1');
+    const ids = p.featureTree.slice(0, 7).map((f) => f.id);
+    expect(ids).toEqual([
+      'origin.X', 'origin.Y', 'origin.Z',
+      'origin.XY', 'origin.YZ', 'origin.XZ',
+      'origin.O',
+    ]);
+  });
+
+  it('origin work features default visible=false', () => {
+    const p = newPart('Part1');
+    for (const f of p.featureTree.slice(0, 7)) {
+      if (f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint') {
+        expect(f.visible).toBe(false);
+      }
+    }
   });
 });

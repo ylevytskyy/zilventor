@@ -43,7 +43,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
     await api2.init();
     const id2 = await api2.load(h as unknown as FileSystemFileHandle);
     const part = await api2.getPart(id2);
-    expect(part?.featureTree.length).toBe(2);
+    expect(part?.featureTree.length).toBe(9);
     expect(part?.parameters.d1?.value).toBe(50);
 
     const r = await api2.execute(id2);
@@ -84,7 +84,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
     const id3 = await api3.loadFromBytes(bytes);
     expect(id3).toMatch(/[0-9a-f-]{36}/);
     const part3 = await api3.getPart(id3);
-    expect(part3?.featureTree.length).toBe(2);
+    expect(part3?.featureTree.length).toBe(9);
     expect(part3?.parameters.d1?.value).toBe(20);
   }, 120_000);
 
@@ -101,7 +101,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
     await api2.init();
     const id2 = await api2.loadFromBytes(bytes);
     const part2 = await api2.getPart(id2);
-    expect(part2?.featureTree.length).toBe(2);
+    expect(part2?.featureTree.length).toBe(9);
     expect(part2?.parameters.d1?.value).toBe(15);
   }, 120_000);
 });
