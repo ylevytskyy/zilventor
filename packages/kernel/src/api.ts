@@ -45,6 +45,7 @@ export type KernelApi = {
   getPart(partId: string): Promise<PartDocument | null>;
   save(partId: string, handle: FileSystemFileHandle, thumbnail?: Uint8Array): Promise<void>;
   load(handle: FileSystemFileHandle): Promise<string>;
+  loadFromBytes(bytes: Uint8Array): Promise<string>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -185,6 +186,15 @@ export function createKernelApi(): KernelApi {
     async load(handle) {
       if (!occt) throw new Error('kernel not initialized');
       const bytes = await readFromHandle(handle);
+      const { manifest } = await unpackProject(bytes);
+      const migrated = migrateManifest(manifest as AnyManifest);
+      const part = (migrated as unknown as { document: PartDocument }).document;
+      parts.set(part.id, part);
+      return part.id;
+    },
+
+    async loadFromBytes(bytes) {
+      if (!occt) throw new Error('kernel not initialized');
       const { manifest } = await unpackProject(bytes);
       const migrated = migrateManifest(manifest as AnyManifest);
       const part = (migrated as unknown as { document: PartDocument }).document;

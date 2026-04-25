@@ -57,6 +57,7 @@ import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles'
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { ComponentInstance } from '@zilventor/shared';
+import * as THREE from 'three';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -1281,6 +1282,8 @@ export default function App() {
   const placeOpen = useAppStore((s) => s.placeComponentDialogOpen);
   const editOpen = useAppStore((s) => s.editComponentDialogOpen);
   const editInitial = useAppStore((s) => s.editComponentInitialValues);
+  const assembly = useAppStore((s) => s.activeAssembly);
+  const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
 
   // Lazy OPFS singleton + tile list for the Place dialog.
   const opfsRef = useRef<Opfs | null>(null);
@@ -1323,6 +1326,67 @@ export default function App() {
     }
     useAppStore.getState().resetEditComponentDialog();
   };
+
+  // Assembly-mesh sync: load, tessellate, and cache component geometries.
+  // Runs whenever the activeAssembly (or its components) changes.
+  // Cache is keyed by partPath — same part rendered N times tessellates once.
+  useEffect(() => {
+    const sm = viewportRef.current?.getSceneManager();
+    if (!sm) return;
+    if (!assembly) {
+      sm.clearComponentMeshes();
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const cache = geometryCacheRef.current;
+      const specs: Array<{
+        componentId: string;
+        geometry: THREE.BufferGeometry;
+        transform: THREE.Matrix4;
+        visible: boolean;
+      }> = [];
+      const diagnostics: Array<{ componentId: string; message: string }> = [];
+
+      for (const c of assembly.components) {
+        let geom = cache.get(c.partPath);
+        if (!geom) {
+          try {
+            if (!kernel) throw new Error('kernel not ready');
+            const bytes = await opfs.read(c.partPath);
+            const partId = await kernel.loadFromBytes(bytes);
+            const res = await kernel.execute(partId);
+            if (!res.ok) throw new Error(res.error.message);
+            const m = res.value.mesh;
+            geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+            geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+            geom.computeVertexNormals();
+            cache.set(c.partPath, geom);
+          } catch (e) {
+            diagnostics.push({ componentId: c.id, message: `Failed to load ${c.partPath}: ${(e as Error).message}` });
+            geom = new THREE.BoxGeometry(50, 50, 50);
+          }
+        }
+        const transform = new THREE.Matrix4();
+        transform.makeRotationFromEuler(new THREE.Euler(
+          (c.rotation.rx * Math.PI) / 180,
+          (c.rotation.ry * Math.PI) / 180,
+          (c.rotation.rz * Math.PI) / 180,
+          'XYZ',
+        ));
+        transform.setPosition(c.position.x, c.position.y, c.position.z);
+        specs.push({ componentId: c.id, geometry: geom, transform, visible: c.visible });
+      }
+      if (!cancelled) {
+        sm.setComponentMeshes(specs);
+        useAppStore.getState().setComponentDiagnostics(diagnostics);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assembly, kernel]);
 
   // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
   const scheduleSweepPreview = useCallback(() => {

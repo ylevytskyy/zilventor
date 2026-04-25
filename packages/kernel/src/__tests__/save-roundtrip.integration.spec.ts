@@ -66,4 +66,25 @@ describe('Save/Load round-trip via FakeHandle', () => {
 
     await expect(api.load(h as unknown as FileSystemFileHandle)).rejects.toThrow(/newer/i);
   });
+
+  it('loadFromBytes: round-trip preserves feature tree without a FileHandle', async () => {
+    const id = await api.createPart('P2');
+    await api.setParameter(id, { name: 'd1', expression: '20', value: 20, unit: 'mm' });
+    await api.addFeature(id, { kind: 'sketch', id: 's1', plane: 'XY', primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }], constraints: [] });
+    await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
+
+    const h = new FakeHandle();
+    await api.save(id, h as unknown as FileSystemFileHandle);
+    // Read raw bytes from the fake handle
+    const file = await h.getFile();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    const api3 = createKernelApi();
+    await api3.init();
+    const id3 = await api3.loadFromBytes(bytes);
+    expect(id3).toMatch(/[0-9a-f-]{36}/);
+    const part3 = await api3.getPart(id3);
+    expect(part3?.featureTree.length).toBe(2);
+    expect(part3?.parameters.d1?.value).toBe(20);
+  }, 120_000);
 });
