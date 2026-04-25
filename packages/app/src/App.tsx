@@ -219,6 +219,7 @@ export default function App() {
         if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
         return opfsRef.current;
       };
+      w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
     }
   }, []);
 
