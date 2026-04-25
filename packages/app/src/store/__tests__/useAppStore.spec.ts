@@ -181,3 +181,66 @@ describe('useAppStore hole dialog slice', () => {
     expect(s.holeRefEdges[1]).toBeTruthy();
   });
 });
+
+describe('useAppStore sweep dialog slice', () => {
+  beforeEach(() => {
+    useAppStore.getState().resetSweepDialog();
+  });
+
+  it('sweep dialog state defaults are sane', () => {
+    const initial = useAppStore.getState();
+    expect(initial.sweepDialogOpen).toBe(false);
+    expect(initial.sweepProfileSketchId).toBeNull();
+    expect(initial.sweepPathSketchId).toBeNull();
+    expect(initial.sweepOrientationKind).toBe('path');
+    expect(initial.sweepGuideRailSketchId).toBeNull();
+    expect(initial.sweepOperation).toBe('new');
+    expect(initial.editingSweepId).toBeNull();
+    expect(initial.sweepInitialValues).toBeNull();
+  });
+
+  it('toggleSweepDialog opens/closes', () => {
+    useAppStore.getState().toggleSweepDialog(true);
+    expect(useAppStore.getState().sweepDialogOpen).toBe(true);
+    useAppStore.getState().toggleSweepDialog(false);
+    expect(useAppStore.getState().sweepDialogOpen).toBe(false);
+  });
+
+  it('openSweepForEdit seeds editingSweepId from a stored feature', () => {
+    const stored: any = {
+      id: 'SW1', kind: 'sweep',
+      profileSketchId: 'PROF', pathSketchId: 'PATH',
+      orientation: { kind: 'guideRail', guideRailSketchId: 'GUIDE' },
+      operation: 'join',
+    };
+    useAppStore.setState((s) => ({
+      ...s,
+      activePart: { id: 'P1', name: 'P', units: 'mm', parameters: {}, featureTree: [stored] } as any,
+    }));
+    useAppStore.getState().openSweepForEdit('SW1');
+    const s = useAppStore.getState();
+    expect(s.sweepDialogOpen).toBe(true);
+    expect(s.editingSweepId).toBe('SW1');
+    expect(s.sweepProfileSketchId).toBe('PROF');
+    expect(s.sweepPathSketchId).toBe('PATH');
+    expect(s.sweepOrientationKind).toBe('guideRail');
+    expect(s.sweepGuideRailSketchId).toBe('GUIDE');
+    expect(s.sweepOperation).toBe('join');
+  });
+
+  it('resetSweepDialog clears all sweep state', () => {
+    useAppStore.setState((s) => ({
+      ...s,
+      sweepDialogOpen: true,
+      sweepProfileSketchId: 'X',
+      sweepOrientationKind: 'parallel',
+      editingSweepId: 'SW',
+    }));
+    useAppStore.getState().resetSweepDialog();
+    const s = useAppStore.getState();
+    expect(s.sweepDialogOpen).toBe(false);
+    expect(s.sweepProfileSketchId).toBeNull();
+    expect(s.sweepOrientationKind).toBe('path');
+    expect(s.editingSweepId).toBeNull();
+  });
+});

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive } from '@zilventor/shared';
+import type { BooleanOperation, ChamferEdgeSpec, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -54,6 +54,18 @@ type AppState = {
   openHoleForEdit: (id: string) => void;
   resetHoleDialog: () => void;
   toggleHoleDialog: (open: boolean) => void;
+  sweepDialogOpen: boolean;
+  sweepProfileSketchId: string | null;
+  sweepPathSketchId: string | null;
+  sweepOrientationKind: 'path' | 'parallel' | 'guideRail';
+  sweepGuideRailSketchId: string | null;
+  sweepOperation: BooleanOperation;
+  editingSweepId: string | null;
+  sweepInitialValues: SweepFeature | null;
+  openSweepForEdit: (id: string) => void;
+  resetSweepDialog: () => void;
+  toggleSweepDialog: (open: boolean) => void;
+
   setKernel(k: KernelClient): void;
   setActivePart(p: PartDocument | null): void;
   setStatus(msg: string): void;
@@ -287,6 +299,44 @@ export const useAppStore = create<AppState>((set) => ({
     holeInitialValues: null,
   }),
   toggleHoleDialog: (open) => set({ holeDialogOpen: open }),
+  sweepDialogOpen: false,
+  sweepProfileSketchId: null,
+  sweepPathSketchId: null,
+  sweepOrientationKind: 'path',
+  sweepGuideRailSketchId: null,
+  sweepOperation: 'new',
+  editingSweepId: null,
+  sweepInitialValues: null,
+  openSweepForEdit: (id) => set((s) => {
+    const feature = s.activePart?.featureTree?.find((f: any) => f.id === id) as SweepFeature | undefined;
+    if (!feature || feature.kind !== 'sweep') {
+      return { ...s, sweepDialogOpen: true, editingSweepId: id };
+    }
+    return {
+      ...s,
+      sweepDialogOpen: true,
+      editingSweepId: id,
+      sweepInitialValues: feature,
+      sweepProfileSketchId: feature.profileSketchId,
+      sweepPathSketchId: feature.pathSketchId,
+      sweepOrientationKind: feature.orientation.kind,
+      sweepGuideRailSketchId: feature.orientation.kind === 'guideRail' ? feature.orientation.guideRailSketchId : null,
+      sweepOperation: feature.operation,
+    };
+  }),
+  resetSweepDialog: () => set((s) => ({
+    ...s,
+    sweepDialogOpen: false,
+    sweepProfileSketchId: null,
+    sweepPathSketchId: null,
+    sweepOrientationKind: 'path',
+    sweepGuideRailSketchId: null,
+    sweepOperation: 'new',
+    editingSweepId: null,
+    sweepInitialValues: null,
+  })),
+  toggleSweepDialog: (open) => set((s) => ({ ...s, sweepDialogOpen: open })),
+
   highlightedConstraintIds: [],
   setHighlightedConstraintIds: (ids) => set({ highlightedConstraintIds: ids }),
   featureErrors: new Map(),
