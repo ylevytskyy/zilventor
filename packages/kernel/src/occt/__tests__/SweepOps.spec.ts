@@ -61,6 +61,31 @@ describe('SweepOps — makeSweep', () => {
   let oc: any;
   beforeAll(async () => { oc = await loadOcct(); });
 
+  it('Parallel orientation: line spine + offset square profile produces axis-aligned prism', () => {
+    const profile: any = {
+      id: 'P', kind: 'sketch', plane: 'XY',
+      primitives: [
+        { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 2, y2: 0 },
+        { id: 'L2', kind: 'line', x1: 2, y1: 0, x2: 2, y2: 2 },
+        { id: 'L3', kind: 'line', x1: 2, y1: 2, x2: 0, y2: 2 },
+        { id: 'L4', kind: 'line', x1: 0, y1: 2, x2: 0, y2: 0 },
+      ],
+      constraints: [],
+    };
+    const path: any = {
+      id: 'PA', kind: 'sketch', plane: 'XZ',
+      primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
+      constraints: [],
+    };
+    const profileWire = buildWireFromSketch(oc, profile);
+    const pathWire = buildWireFromSketch(oc, path);
+    const solid = makeSweep(oc, profileWire, pathWire, { kind: 'parallel' });
+    const props = new oc.GProp_GProps_1();
+    oc.BRepGProp.VolumeProperties_1(solid, props, 1e-7, false, false);
+    // 2×2×10 = 40
+    expect(props.Mass()).toBeCloseTo(40, 0);
+  });
+
   it('Path orientation: line + circle profile produces a cylinder', () => {
     const profile: any = {
       id: 'P', kind: 'sketch', plane: 'XY',

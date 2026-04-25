@@ -81,7 +81,28 @@ export function makeSweep(
     // SetMode_1(IsFrenet=true) — Frenet frame mode (profile perpendicular to path tangent)
     builder.SetMode_1(true);
   } else if (orientation.kind === 'parallel') {
-    throw new Error('SweepOps: parallel orientation not yet implemented in this task');
+    // Compute a frame from the profile wire's bounding-box centroid + a normal axis.
+    // The smallest bbox dimension axis = profile plane normal (degenerate axis is the wire's plane).
+    const bbox = new oc.Bnd_Box_1();
+    oc.BRepBndLib.Add(profileWire, bbox, false);
+    const lo = bbox.CornerMin();
+    const hi = bbox.CornerMax();
+    const cx = (lo.X() + hi.X()) / 2;
+    const cy = (lo.Y() + hi.Y()) / 2;
+    const cz = (lo.Z() + hi.Z()) / 2;
+    const dx = hi.X() - lo.X();
+    const dy = hi.Y() - lo.Y();
+    const dz = hi.Z() - lo.Z();
+    // Smallest dimension wins as the normal direction
+    let nx = 0, ny = 0, nz = 1;
+    if (dx <= dy && dx <= dz) { nx = 1; ny = 0; nz = 0; }
+    else if (dy <= dx && dy <= dz) { nx = 0; ny = 1; nz = 0; }
+    // else default +Z
+    const centroid = new oc.gp_Pnt_3(cx, cy, cz);
+    const normal = new oc.gp_Dir_4(nx, ny, nz);
+    const ax2 = new oc.gp_Ax2_3(centroid, normal);
+    // SetMode_2(Axe: gp_Ax2) — Parallel frame by axis
+    builder.SetMode_2(ax2);
   } else {
     throw new Error('SweepOps: guideRail orientation not yet implemented in this task');
   }
