@@ -36,3 +36,32 @@ describe('AssemblyTab', () => {
     expect(screen.getByRole('button', { name: /^edit$/i })).not.toBeDisabled();
   });
 });
+
+describe('AssemblyTab Constraint panel', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().selectComponent(null);
+    useAppStore.getState().selectConstraint(null);
+    useAppStore.getState().resetPlaceConstraintDialog();
+    useAppStore.getState().resetEditConstraintDialog();
+  });
+
+  it('renders all 4 mode buttons (Mate / Flush / Angle / Insert)', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<AssemblyTab />);
+    expect(screen.getByRole('button', { name: /^mate$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^flush$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^angle$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^insert$/i })).toBeInTheDocument();
+  });
+
+  it('Mate button opens placeConstraintDialog with mode=mate', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<AssemblyTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^mate$/i }));
+    expect(useAppStore.getState().placeConstraintDialogOpen).toBe(true);
+    expect(useAppStore.getState().placeConstraintMode).toBe('mate');
+  });
+});
