@@ -394,6 +394,26 @@ describe('useAppStore bomTabActive + showComponentColors slices (4c)', () => {
   });
 });
 
+describe('useAppStore setComponentColor (4c)', () => {
+  it('setComponentColor patches the named component', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [{ id: 'C1', partPath: 'p', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true }],
+        constraints: [], groundedComponentIds: ['C1'],
+        colors: {}, bomItemNumbers: {},
+      },
+      activeDocument: null,
+    } as any);
+    useAppStore.getState().setComponentColor('C1', { kind: 'palette', name: 'Maple' });
+    expect(useAppStore.getState().activeAssembly!.components[0]!.color).toEqual({ kind: 'palette', name: 'Maple' });
+
+    useAppStore.getState().setComponentColor('C1', undefined);
+    expect(useAppStore.getState().activeAssembly!.components[0]!.color).toBeUndefined();
+  });
+});
+
+
 
 
 describe('useAppStore work-feature dialog slices', () => {

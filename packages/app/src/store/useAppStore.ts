@@ -5,6 +5,11 @@ import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
 import { createCommandBus, type CommandBus } from '../commands/CommandBus';
 
+function omitColor(c: ComponentInstance): ComponentInstance {
+  const { color: _color, ...rest } = c;
+  return rest;
+}
+
 export type ToolKind =
   | 'select'
   | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
@@ -172,6 +177,7 @@ type AppState = {
   removeComponent(id: string): void;
   selectComponent(id: string | null): void;
   selectComponents(ids: string[]): void;
+  setComponentColor(componentId: string, color: import('@zilventor/shared').ComponentColor | undefined): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
 
   // 4b additions
@@ -457,6 +463,16 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectComponents: (ids) => set({ selectedComponentIds: [...ids] }),
   selectComponent: (id) => set({ selectedComponentIds: id == null ? [] : [id] }),
+  setComponentColor: (componentId, color) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = {
+      ...s.activeAssembly,
+      components: s.activeAssembly.components.map((c) =>
+        c.id === componentId ? (color === undefined ? omitColor(c) : { ...c, color }) : c
+      ),
+    };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),
 
   // 4b additions
