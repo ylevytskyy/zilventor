@@ -1,5 +1,11 @@
-import type { AssemblyConstraintRef, EdgeName, FaceName, Vec3 } from '@zilventor/shared';
-import { canonicalEdgeName } from '@zilventor/shared';
+import type { AssemblyConstraintRef, EdgeName, FaceName, Vec3, Result, KernelError, WorkFeatureValue } from '@zilventor/shared';
+import { canonicalEdgeName, newCorrelationId } from '@zilventor/shared';
+import type { NamedShape } from '../occt/FaceNaming';
+import {
+  extractFacePlane, extractCylinderAxis, extractEdgeLine,
+  extractEdgeEndpoint, extractEdgeMidpoint,
+} from '../occt/WorkFeatureOps';
+import type { OcctInstance } from '../occt/occtLoader';
 
 export type PartLocalGeometry =
   | { kind: 'plane'; P: Vec3; N: Vec3 }
@@ -39,10 +45,6 @@ export function refKey(r: AssemblyConstraintRef): string {
 export function circularEdgeRefKey(_componentId: string, edge: EdgeName): string {
   return `circularEdge|${edgeKey(edge)}`;
 }
-
-import type { Result, KernelError, WorkFeatureValue } from '@zilventor/shared';
-import { newCorrelationId } from '@zilventor/shared';
-import type { NamedShape } from '../occt/FaceNaming';
 
 export type ExtractorBundle = {
   extractFacePlane(shape: NamedShape | null, face: FaceName):
@@ -116,4 +118,34 @@ export function resolveCircularEdgeRef(
     axisP: axisR.value.P, axisD: axisR.value.D,
     planeP: planeR.value.P, planeN: planeR.value.N,
   }};
+}
+
+export function realExtractorBundle(occt: OcctInstance): ExtractorBundle {
+  return {
+    extractFacePlane(shape, face) {
+      const r = extractFacePlane(occt, shape, face);
+      if (!r) return { ok: false, error: missing(`extractFacePlane: no result for face ${faceKey(face)}`) };
+      return { ok: true, value: { P: r.origin, N: r.normal } };
+    },
+    extractCylinderAxis(shape, face) {
+      const r = extractCylinderAxis(occt, shape, face);
+      if (!r) return { ok: false, error: missing(`extractCylinderAxis: no result for face ${faceKey(face)}`) };
+      return { ok: true, value: { P: r.origin, D: r.direction } };
+    },
+    extractEdgeLine(shape, edge) {
+      const r = extractEdgeLine(occt, shape, edge);
+      if (!r) return { ok: false, error: missing(`extractEdgeLine: no result for edge ${edgeKey(edge)}`) };
+      return { ok: true, value: { P: r.origin, D: r.direction } };
+    },
+    extractEdgeEndpoint(shape, edge, end) {
+      const r = extractEdgeEndpoint(occt, shape, edge, end);
+      if (!r) return { ok: false, error: missing(`extractEdgeEndpoint: no result for edge ${edgeKey(edge)} end=${end}`) };
+      return { ok: true, value: { P: r } };
+    },
+    extractEdgeMidpoint(shape, edge) {
+      const r = extractEdgeMidpoint(occt, shape, edge);
+      if (!r) return { ok: false, error: missing(`extractEdgeMidpoint: no result for edge ${edgeKey(edge)}`) };
+      return { ok: true, value: { P: r } };
+    },
+  };
 }
