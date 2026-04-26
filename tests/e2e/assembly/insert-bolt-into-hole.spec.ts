@@ -1,38 +1,28 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
-import { seedAssemblyCubePart } from '../helpers/seedAssemblyPart';
+import { seedAssemblyCylinderPart } from '../helpers/seedAssemblyCylinderPart';
 
 /**
- * T39: E2E — Insert constraint between two circular edges.
+ * T39: E2E — Insert constraint between two cylindrical parts.
  *
- * Scope: Instead of a bolt + plate with a real hole feature (which would require
- * the Hole feature dialog in E2E), we use two cube parts whose top/bottom edges
- * form a rectangular boundary — and we drive the Insert constraint by directly
- * calling `addAssemblyConstraint` on the store with a pre-built circularEdge ref.
+ * Each cylinder has one planar top face (`{featureId:'E1', role:'top'}`)
+ * and one cylindrical lateral face (`{featureId:'E1', role:'side',
+ * instance:0}`). The shared edge between them is a circle, so the
+ * insert constraint's circularEdge ref `{faceA: top, faceB: side}`
+ * resolves to a real (axis, plane) pair via `extractAssemblyCircularEdge`.
  *
- * The Insert constraint kind uses { componentId, circularEdge: EdgeName } refs,
- * where EdgeName = { faceA: FaceName, faceB: FaceName }.
- *
- * For the cube extrude E1, the top face is { featureId:'E1', role:'top' } and
- * the side face [0] is { featureId:'E1', role:'side0' }. Their shared edge is a
- * rectangular edge — not circular, so the OCCT kernel won't resolve it as a
- * circle, but we can still exercise the insert constraint code path in the solver.
- *
- * Expected solver behaviour with an unresolvable circularEdge ref: the constraint
- * gets brokenRef=true (no circular-edge geometry in a cube). We assert:
- * - solver runs (perConstraint has 1 entry)
- * - brokenRef is true (expected — no actual circular edge on a cube)
- *
- * This documents the infrastructure limitation: a proper T39 needs a
- * revolved/cylindrical part. A skip is NOT used — the solver does run.
+ * Assertions:
+ *   - solver runs (perConstraint has 1 entry)
+ *   - brokenRef is false (cylinder edge resolves)
+ *   - residual is small (constraint converges)
  */
-test('T39 — insert constraint with circular-edge refs (cube scope-down)', async ({ page }) => {
+test('T39 — insert constraint mates two coaxial cylinders', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
 
   await page.goto('/');
   await waitForKernelReady(page);
-  await seedAssemblyCubePart(page);
+  await seedAssemblyCylinderPart(page);
 
   // Open a new assembly.
   await page.getByRole('tab', { name: 'File' }).click();
@@ -42,11 +32,11 @@ test('T39 — insert constraint with circular-edge refs (cube scope-down)', asyn
     return w.__zilventorStore?.getState().activeDocument?.kind === 'assembly';
   });
 
-  // Place cube twice.
+  // Place cylinder twice.
   for (let i = 0; i < 2; i++) {
     await page.keyboard.press('p');
     await expect(page.getByRole('dialog', { name: /place component/i })).toBeVisible();
-    await page.getByText(/^cube$/).click();
+    await page.getByText(/^cylinder$/).click();
     await page.getByRole('button', { name: /^place$/i }).click();
     await expect(page.getByRole('dialog', { name: /place component/i })).toBeHidden();
     await page.waitForFunction(
@@ -69,31 +59,37 @@ test('T39 — insert constraint with circular-edge refs (cube scope-down)', asyn
   await page.keyboard.press('i');
   await expect(page.getByRole('dialog', { name: /place constraint/i })).toBeVisible();
 
-  // Pick circularEdge A — edge between top face and side0 of component 1.
+  // Insert refs use { faceA: planar, faceB: cylindrical } (NOT canonical),
+  // so resolveCircularEdgeRef can pick the plane from faceA and the axis
+  // from faceB.
+  const topCircle = {
+    faceA: { featureId: 'E1', role: 'top', instance: 0 },
+    faceB: { featureId: 'E1', role: 'side', instance: 0 },
+  };
+
   await page.getByRole('button', { name: /^pick…$/i }).first().click();
-  await page.evaluate(([c1Id]) => {
+  await page.evaluate(([c1Id, edge]) => {
     (window as any).__zilventorAssemblyPickerSimulate('A', 'edge', {
       componentId: c1Id,
-      edge: { faceA: { featureId: 'E1', role: 'top', instance: 0 }, faceB: { featureId: 'E1', role: 'side0', instance: 0 } },
+      edge,
       isCircular: true,
     });
-  }, [c1]);
+  }, [c1, topCircle] as const);
 
-  // Pick circularEdge B — edge between top face and side0 of component 2.
   await page.getByRole('button', { name: /^pick…$/i }).nth(1).click();
-  await page.evaluate(([c2Id]) => {
+  await page.evaluate(([c2Id, edge]) => {
     (window as any).__zilventorAssemblyPickerSimulate('B', 'edge', {
       componentId: c2Id,
-      edge: { faceA: { featureId: 'E1', role: 'top', instance: 0 }, faceB: { featureId: 'E1', role: 'side0', instance: 0 } },
+      edge,
       isCircular: true,
     });
-  }, [c2]);
+  }, [c2, topCircle] as const);
 
   // Commit.
   await page.getByRole('button', { name: 'OK' }).click();
   await expect(page.getByRole('dialog', { name: /place constraint/i })).toBeHidden();
 
-  // Wait for solver.
+  // Wait for solver to register the constraint.
   await page.waitForFunction(() => {
     const w = window as any;
     const diag = w.__zilventorAssemblySolverResult?.();
@@ -108,14 +104,14 @@ test('T39 — insert constraint with circular-edge refs (cube scope-down)', asyn
     return {
       constraintCount: entries.length,
       firstConstraint: entries.length > 0 ? entries[0]![1] : null,
+      status: d.status,
     };
   });
 
-  // Insert constraint referencing a non-circular (rectangular) cube edge
-  // will produce brokenRef=true (kernel can't extract circular geometry from it).
-  // This is expected for the cube scope-down variant; a real bolt+plate would give brokenRef=false.
   expect(diag.constraintCount).toBe(1);
   expect(diag.firstConstraint).not.toBeNull();
-  // brokenRef expected true for cube (non-circular edge); just confirm solver ran.
-  expect(typeof diag.firstConstraint!.brokenRef).toBe('boolean');
+  // Real cylindrical edge → the kernel can resolve circle geometry → not broken.
+  expect(diag.firstConstraint!.brokenRef).toBe(false);
+  // The insert constraint should converge to a small residual.
+  expect(diag.firstConstraint!.residual).toBeLessThan(1e-2);
 });
