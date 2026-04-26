@@ -17,6 +17,7 @@ export class SceneManager {
   private preview: THREE.Mesh | null = null;
   private componentMeshes = new Map<string, THREE.Mesh>();
   private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
+  private colorMaterials: Map<string, THREE.MeshStandardMaterial> = new Map();
   private partGeometryHash: number = 2166136261;
   private workFeatureNodes = new Map<string, THREE.Object3D>();
   private workFeatureMaterials = {
@@ -185,6 +186,7 @@ export class SceneManager {
     geometry: THREE.BufferGeometry;
     transform: THREE.Matrix4;
     pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+    colorHex?: string;
     visible: boolean;
   }>): void {
     const incomingIds = new Set(specs.map((s) => s.componentId));
@@ -222,6 +224,16 @@ export class SceneManager {
         mesh.matrix.copy(m);
       } else {
         mesh.matrix.copy(spec.transform);
+      }
+      if (spec.colorHex) {
+        let mat = this.colorMaterials.get(spec.colorHex);
+        if (!mat) {
+          mat = new THREE.MeshStandardMaterial({ color: spec.colorHex });
+          this.colorMaterials.set(spec.colorHex, mat);
+        }
+        mesh.material = mat;
+      } else {
+        mesh.material = this.componentMaterial;
       }
       mesh.visible = spec.visible;
     }
@@ -378,6 +390,8 @@ export class SceneManager {
   dispose(): void {
     this.controls.dispose();
     this.renderer.dispose();
+    for (const mat of this.colorMaterials.values()) mat.dispose();
+    this.colorMaterials.clear();
     this.scene.traverse((o) => {
       if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose();
     });

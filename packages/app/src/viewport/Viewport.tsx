@@ -8,6 +8,7 @@ export type ComponentMeshSpec = {
   geometry: THREE.BufferGeometry;
   transform: THREE.Matrix4;
   pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+  colorHex?: string;
   visible: boolean;
 };
 

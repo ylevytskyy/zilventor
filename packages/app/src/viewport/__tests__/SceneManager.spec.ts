@@ -153,6 +153,56 @@ describe('SceneManager — component meshes', () => {
     const mesh = mgr.getComponentMesh('C1')!;
     expect(mesh.matrix.elements[12]).toBeCloseTo(99, 5);
   });
+
+  it('colorHex spec produces a MeshStandardMaterial with that color', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#cc8866' },
+    ]);
+    const mesh = mgr.getComponentMesh('C1')!;
+    expect(mesh.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    expect(mat.color.getHexString()).toBe('cc8866');
+  });
+
+  it('two components with same colorHex share the cached material instance', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#cc8866' },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true, colorHex: '#cc8866' },
+    ]);
+    const a = mgr.getComponentMesh('C1')!;
+    const b = mgr.getComponentMesh('C2')!;
+    expect(a.material).toBe(b.material);
+  });
+
+  it('spec without colorHex uses the shared grey component material', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true },
+    ]);
+    const a = mgr.getComponentMesh('C1')!;
+    const b = mgr.getComponentMesh('C2')!;
+    expect(a.material).toBe(b.material);
+    expect(a.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+  });
+
+  it('reverts to shared grey material when colorHex is removed on update', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#aabbcc' },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4(), visible: true },
+    ]);
+    const c2Grey = mgr.getComponentMesh('C2')!.material;
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4(), visible: true },
+    ]);
+    const c1AfterRevert = mgr.getComponentMesh('C1')!.material;
+    expect(c1AfterRevert).toBe(c2Grey);
+  });
+
 });
 
 describe('SceneManager — work features', () => {
