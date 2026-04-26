@@ -33,7 +33,7 @@ export function worldFromLocal(g: PartLocalGeometry, T: Vec3, q: Quat): WorldRef
 }
 
 /** Pick orthonormal basis (u, v) perpendicular to n. */
-function perpBasis(n: Vec3): { u: Vec3; v: Vec3 } {
+export function perpBasis(n: Vec3): { u: Vec3; v: Vec3 } {
   const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
   const helper: Vec3 = ax < ay && ax < az ? { x: 1, y: 0, z: 0 }
                      : ay < az            ? { x: 0, y: 1, z: 0 }
@@ -74,7 +74,7 @@ export function buildMateFaceFaceResiduals(
  * d(u_hat)/dN = (I - u_hat u_hat^T) / |u_raw| * d(u_raw)/dN
  * d(u_raw = cross(n, h))/dN: column j is cross(e_j, h) = skew(-h) e_j.
  */
-function duDNa(Na: Vec3, u: Vec3, ul: number, helper: Vec3): number[][] {
+export function duDNa(Na: Vec3, u: Vec3, ul: number, helper: Vec3): number[][] {
   const hx = helper.x, hy = helper.y, hz = helper.z;
   // d(u_raw = cross(n, h))/dN: columns are [cross(e_0,h), cross(e_1,h), cross(e_2,h)]
   // cross(e_0, h) = (0, -hz, hy); cross(e_1, h) = (hz, 0, -hx); cross(e_2, h) = (-hy, hx, 0)
@@ -97,7 +97,7 @@ function duDNa(Na: Vec3, u: Vec3, ul: number, helper: Vec3): number[][] {
  * Returns d(v)/d(Na) as a 3×3 matrix, where v = cross(Na, u_hat).
  * d(v)/dN_j = cross(e_j, u) + cross(Na, d(u_hat)/dN_j)
  */
-function dvDNa(Na: Vec3, u: Vec3, duDN: number[][]): number[][] {
+export function dvDNa(Na: Vec3, u: Vec3, duDN: number[][]): number[][] {
   const uArr = [u.x, u.y, u.z];
   const result = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
   for (let j = 0; j < 3; j++) {
