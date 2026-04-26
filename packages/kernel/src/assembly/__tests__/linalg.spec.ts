@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { choleskySolve } from '../linalg';
 import { jacobiSVD } from '../linalg';
+import { projectOntoBasis } from '../linalg';
 
 function makeRng(seed: number): () => number {
   let state = seed;
@@ -84,5 +85,27 @@ describe('jacobiSVD', () => {
     // V columns should be standard basis (up to sign) since A is diagonal
     expect(Math.abs(V[0]![0]!)).toBeCloseTo(1, 9);
     expect(Math.abs(V[1]![1]!)).toBeCloseTo(1, 9);
+  });
+});
+
+describe('projectOntoBasis', () => {
+  it('projects vector onto orthonormal column basis', () => {
+    // Basis: e1 only (col 0 of identity). Vector = [3, 4]. Projection = [3, 0].
+    const basis = [[1], [0]];  // 2x1
+    const v = [3, 4];
+    const out = projectOntoBasis(v, basis);
+    expect(out).toEqual([3, 0]);
+  });
+  it('returns zero vector when basis is empty', () => {
+    const out = projectOntoBasis([1, 2, 3], []);
+    expect(out).toEqual([0, 0, 0]);
+  });
+  it('handles 2-column basis', () => {
+    // Basis spans the e1+e2 plane in R^3; vector = [1,1,5] → proj = [1,1,0]
+    const basis = [[1, 0], [0, 1], [0, 0]];
+    const out = projectOntoBasis([1, 1, 5], basis);
+    expect(out[0]).toBeCloseTo(1, 12);
+    expect(out[1]).toBeCloseTo(1, 12);
+    expect(out[2]).toBeCloseTo(0, 12);
   });
 });

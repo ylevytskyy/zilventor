@@ -96,3 +96,27 @@ export function jacobiSVD(mat: number[][]): { U: number[][]; s: number[]; V: num
   const sortedV = V.map((row) => order.map((i) => row[i]!));
   return { U: sortedU, s: sortedS, V: sortedV };
 }
+
+/**
+ * Project vector v onto the column-span of an orthonormal basis B (m × k).
+ * Returns B B^T v. Length of v must equal m (B's row count).
+ *
+ * IMPORTANT: This assumes the columns of `basis` are orthonormal. The Jacobi-SVD
+ * V matrix has orthonormal columns by construction, so passing V_null (the
+ * trailing columns of V corresponding to small singular values) works directly.
+ */
+export function projectOntoBasis(v: number[], basis: number[][]): number[] {
+  const m = v.length;
+  if (basis.length === 0) return new Array(m).fill(0);
+  const k = basis[0]!.length;
+  if (basis.length !== m) throw new Error(`projectOntoBasis: basis row count ${basis.length} != v length ${m}`);
+  const coeffs = new Array(k).fill(0);
+  for (let j = 0; j < k; j++)
+    for (let i = 0; i < m; i++)
+      coeffs[j] += basis[i]![j]! * v[i]!;
+  const out = new Array(m).fill(0);
+  for (let i = 0; i < m; i++)
+    for (let j = 0; j < k; j++)
+      out[i] += basis[i]![j]! * coeffs[j]!;
+  return out;
+}
