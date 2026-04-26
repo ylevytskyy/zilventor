@@ -826,11 +826,11 @@ export function quatFromEulerXYZ(rxDeg: number, ryDeg: number, rzDeg: number): Q
 
 export function quatToEulerXYZ(q: Quat): { rx: number; ry: number; rz: number } {
   const [x, y, z, w] = q;
-  // XYZ extrinsic (== ZYX intrinsic). Standard formulas; clamp asin arg.
-  const sinY = 2 * (w * y - z * x);
+  // Intrinsic XYZ (q = qx·qy·qz, R = Rx·Ry·Rz). Inverse of quatFromEulerXYZ.
+  const sinY = 2 * (x * z + w * y);  // R[0][2]
   const ry = Math.asin(Math.max(-1, Math.min(1, sinY)));
-  const rx = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
-  const rz = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+  const rx = Math.atan2(-2 * (y * z - w * x), 1 - 2 * (x * x + y * y));   // -R[1][2] / R[2][2]
+  const rz = Math.atan2(-2 * (x * y - w * z), 1 - 2 * (y * y + z * z));   // -R[0][1] / R[0][0]
   return { rx: (rx * 180) / Math.PI, ry: (ry * 180) / Math.PI, rz: (rz * 180) / Math.PI };
 }
 ```

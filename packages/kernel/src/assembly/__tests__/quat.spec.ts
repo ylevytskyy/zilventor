@@ -56,6 +56,22 @@ describe('quatRotateVecJacobian', () => {
       expect(J[2]![k]!).toBeCloseTo(fd[2], 6);
     }
   });
+  it('matches finite difference for a non-identity quaternion', () => {
+    const q = quatNormalize(quatFromEulerXYZ(20, 35, -50));
+    const v = { x: 1.5, y: -2.3, z: 0.7 };
+    const J = quatRotateVecJacobian(q, v);
+    const eps = 1e-6;
+    for (let k = 0; k < 4; k++) {
+      const qp = q.slice() as [number, number, number, number]; qp[k] += eps;
+      const qm = q.slice() as [number, number, number, number]; qm[k] -= eps;
+      const vp = quatRotateVec(qp, v);
+      const vm = quatRotateVec(qm, v);
+      const fd = [(vp.x - vm.x) / (2 * eps), (vp.y - vm.y) / (2 * eps), (vp.z - vm.z) / (2 * eps)];
+      expect(J[0]![k]!).toBeCloseTo(fd[0]!, 5);
+      expect(J[1]![k]!).toBeCloseTo(fd[1]!, 5);
+      expect(J[2]![k]!).toBeCloseTo(fd[2]!, 5);
+    }
+  });
 });
 
 describe('quatFromEulerXYZ / quatToEulerXYZ round trip', () => {
