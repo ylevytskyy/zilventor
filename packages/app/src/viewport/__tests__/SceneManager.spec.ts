@@ -203,6 +203,53 @@ describe('SceneManager — component meshes', () => {
     expect(c1AfterRevert).toBe(c2Grey);
   });
 
+  it('setSelectedComponentIds adds an outline overlay to selected meshes only', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(100, 0, 0), visible: true },
+    ]);
+    mgr.setSelectedComponentIds(['C1']);
+    const m1 = mgr.getComponentMesh('C1')!;
+    const m2 = mgr.getComponentMesh('C2')!;
+    const overlays1 = m1.children.filter((c) => c instanceof THREE.LineSegments);
+    const overlays2 = m2.children.filter((c) => c instanceof THREE.LineSegments);
+    expect(overlays1.length).toBe(1);
+    expect(overlays2.length).toBe(0);
+    const mat = (overlays1[0] as THREE.LineSegments).material as THREE.LineBasicMaterial;
+    expect(mat).toBeInstanceOf(THREE.LineBasicMaterial);
+    expect(mat.color.getHexString()).toBe('ff8800');
+    expect(mgr.hasSelectionOverlay('C1')).toBe(true);
+    expect(mgr.hasSelectionOverlay('C2')).toBe(false);
+  });
+
+  it('setSelectedComponentIds removes overlay and disposes its geometry when deselected', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+    ]);
+    mgr.setSelectedComponentIds(['C1']);
+    const m1 = mgr.getComponentMesh('C1')!;
+    const overlay = m1.children.find((c) => c instanceof THREE.LineSegments) as THREE.LineSegments;
+    expect(overlay).toBeDefined();
+    const disposeSpy = vi.spyOn(overlay.geometry, 'dispose');
+    mgr.setSelectedComponentIds([]);
+    expect(mgr.hasSelectionOverlay('C1')).toBe(false);
+    expect(m1.children.filter((c) => c instanceof THREE.LineSegments).length).toBe(0);
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it('setSelectedComponentIds is idempotent for already-selected meshes', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    mgr.setComponentMeshes([
+      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
+    ]);
+    mgr.setSelectedComponentIds(['C1']);
+    mgr.setSelectedComponentIds(['C1']);
+    const m1 = mgr.getComponentMesh('C1')!;
+    expect(m1.children.filter((c) => c instanceof THREE.LineSegments).length).toBe(1);
+  });
+
 });
 
 describe('SceneManager — work features', () => {

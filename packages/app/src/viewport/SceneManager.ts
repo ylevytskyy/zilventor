@@ -18,6 +18,8 @@ export class SceneManager {
   private componentMeshes = new Map<string, THREE.Mesh>();
   private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
   private colorMaterials: Map<string, THREE.MeshStandardMaterial> = new Map();
+  private selectionOverlayMaterial: THREE.LineBasicMaterial | null = null;
+  private selectionOverlays: Map<string, THREE.LineSegments> = new Map();
   private partGeometryHash: number = 2166136261;
   private workFeatureNodes = new Map<string, THREE.Object3D>();
   private workFeatureMaterials = {
@@ -239,6 +241,33 @@ export class SceneManager {
     }
   }
 
+  setSelectedComponentIds(ids: string[]): void {
+    if (!this.selectionOverlayMaterial) {
+      this.selectionOverlayMaterial = new THREE.LineBasicMaterial({ color: 0xff8800 });
+    }
+    const wanted = new Set(ids);
+    for (const id of wanted) {
+      if (this.selectionOverlays.has(id)) continue;
+      const mesh = this.componentMeshes.get(id);
+      if (!mesh) continue;
+      const edges = new THREE.EdgesGeometry(mesh.geometry);
+      const overlay = new THREE.LineSegments(edges, this.selectionOverlayMaterial);
+      overlay.userData.selectionOverlay = true;
+      mesh.add(overlay);
+      this.selectionOverlays.set(id, overlay);
+    }
+    for (const [id, overlay] of this.selectionOverlays) {
+      if (wanted.has(id)) continue;
+      overlay.parent?.remove(overlay);
+      overlay.geometry.dispose();
+      this.selectionOverlays.delete(id);
+    }
+  }
+
+  hasSelectionOverlay(id: string): boolean {
+    return this.selectionOverlays.has(id);
+  }
+
   clearComponentMeshes(): void {
     for (const mesh of this.componentMeshes.values()) {
       this.scene.remove(mesh);
@@ -392,6 +421,14 @@ export class SceneManager {
     this.renderer.dispose();
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
+    if (this.selectionOverlayMaterial) {
+      this.selectionOverlayMaterial.dispose();
+      this.selectionOverlayMaterial = null;
+    }
+    for (const overlay of this.selectionOverlays.values()) {
+      overlay.geometry.dispose();
+    }
+    this.selectionOverlays.clear();
     this.scene.traverse((o) => {
       if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose();
     });

@@ -34,6 +34,7 @@ export type ViewportRef = {
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
   clearPreviewMesh(): void;
   setComponentMeshes(specs: ComponentMeshSpec[]): void;
+  setSelectedComponentIds(ids: string[]): void;
   clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
@@ -147,6 +148,10 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setComponentMeshes(specs);
       setGeometryHash(sceneRef.current.geometryHash());
+    },
+    setSelectedComponentIds: (ids) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setSelectedComponentIds(ids);
     },
     clearComponentMeshes: () => {
       if (!sceneRef.current) return;
