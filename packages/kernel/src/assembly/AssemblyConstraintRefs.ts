@@ -120,6 +120,53 @@ export function resolveCircularEdgeRef(
   }};
 }
 
+export class AssemblyRefCache {
+  private map = new Map<string, Result<PartLocalGeometry, KernelError>>();
+  private byPart = new Map<string, Set<string>>();
+
+  getOrCompute(
+    partPath: string,
+    ref: AssemblyConstraintRef,
+    compute: () => Result<PartLocalGeometry, KernelError>,
+  ): Result<PartLocalGeometry, KernelError> {
+    const key = `${partPath}#${refKey(ref)}`;
+    const hit = this.map.get(key);
+    if (hit) return hit;
+    const v = compute();
+    this.map.set(key, v);
+    if (!this.byPart.has(partPath)) this.byPart.set(partPath, new Set());
+    this.byPart.get(partPath)!.add(key);
+    return v;
+  }
+
+  getOrComputeCircularEdge(
+    partPath: string,
+    edge: EdgeName,
+    compute: () => Result<PartLocalGeometry, KernelError>,
+  ): Result<PartLocalGeometry, KernelError> {
+    const key = `${partPath}#${circularEdgeRefKey('', edge)}`;
+    const hit = this.map.get(key);
+    if (hit) return hit;
+    const v = compute();
+    this.map.set(key, v);
+    if (!this.byPart.has(partPath)) this.byPart.set(partPath, new Set());
+    this.byPart.get(partPath)!.add(key);
+    return v;
+  }
+
+  invalidate(partPath: string): void {
+    const set = this.byPart.get(partPath);
+    if (!set) return;
+    for (const key of set) this.map.delete(key);
+    this.byPart.delete(partPath);
+  }
+
+  clear(): void {
+    this.map.clear();
+    this.byPart.clear();
+  }
+}
+
 export function realExtractorBundle(occt: OcctInstance): ExtractorBundle {
   return {
     extractFacePlane(shape, face) {

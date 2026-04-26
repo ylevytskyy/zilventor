@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { refKey, type PartLocalGeometry, resolveRef, type ExtractorBundle } from '../AssemblyConstraintRefs';
+import { refKey, type PartLocalGeometry, resolveRef, type ExtractorBundle, AssemblyRefCache } from '../AssemblyConstraintRefs';
 import type { AssemblyConstraintRef } from '@zilventor/shared';
 
 const stubExtractors: ExtractorBundle = {
@@ -59,5 +59,29 @@ describe('resolveRef', () => {
     const out = resolveRef(r, null as any, wfs, stubExtractors);
     expect(out.ok).toBe(true);
     if (out.ok && out.value.kind === 'axis') expect(out.value.P.x).toBe(9);
+  });
+});
+
+describe('AssemblyRefCache', () => {
+  it('memoizes by (partPath, refKey)', () => {
+    const cache = new AssemblyRefCache();
+    let calls = 0;
+    const r = { kind: 'face', componentId: 'C', face: { featureId: 'a', role: 'r' } } as const;
+    const compute = () => { calls++; return { ok: true as const, value: { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } } }; };
+    cache.getOrCompute('p.zipt', r, compute);
+    cache.getOrCompute('p.zipt', r, compute);
+    expect(calls).toBe(1);
+    cache.getOrCompute('q.zipt', r, compute);
+    expect(calls).toBe(2);
+  });
+  it("invalidate(partPath) clears that part's entries", () => {
+    const cache = new AssemblyRefCache();
+    let calls = 0;
+    const r = { kind: 'face', componentId: 'C', face: { featureId: 'a', role: 'r' } } as const;
+    const compute = () => { calls++; return { ok: true as const, value: { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } } }; };
+    cache.getOrCompute('p.zipt', r, compute);
+    cache.invalidate('p.zipt');
+    cache.getOrCompute('p.zipt', r, compute);
+    expect(calls).toBe(2);
   });
 });
