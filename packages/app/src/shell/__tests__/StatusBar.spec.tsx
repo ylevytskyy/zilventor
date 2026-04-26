@@ -55,3 +55,60 @@ describe('StatusBar DOF segment', () => {
     expect(screen.queryByText(/DOF|Fully constrained|Over constrained/)).not.toBeInTheDocument();
   });
 });
+
+describe('StatusBar assembly DOF segment', () => {
+  const makeAsm = (constraints: any[]) => ({
+    id: 'A1', name: 'asm', units: 'mm' as const, parameters: {},
+    components: [], constraints, groundedComponentIds: [],
+  });
+
+  beforeEach(() => {
+    useAppStore.getState().setSketchDof(null);
+    useAppStore.getState().setActiveDocument(null);
+  });
+
+  it('shows "Assembly: fully constrained" (green) when fully-constrained', () => {
+    useAppStore.setState({
+      activeAssembly: makeAsm([{ id: 'k1' }]),
+      solverDiagnostics: { dofCount: 0, status: 'fully-constrained', perConstraint: new Map() },
+    });
+    render(<StatusBar />);
+    expect(screen.getByText(/Assembly: fully constrained/i)).toBeInTheDocument();
+  });
+
+  it('shows "Assembly: N DOF" (yellow) when underconstrained', () => {
+    useAppStore.setState({
+      activeAssembly: makeAsm([{ id: 'k1' }]),
+      solverDiagnostics: { dofCount: 4, status: 'underconstrained', perConstraint: new Map() },
+    });
+    render(<StatusBar />);
+    expect(screen.getByText(/Assembly: 4 DOF/)).toBeInTheDocument();
+  });
+
+  it('shows "Assembly: over-constrained" (red) when over-constrained', () => {
+    useAppStore.setState({
+      activeAssembly: makeAsm([{ id: 'k1' }]),
+      solverDiagnostics: { dofCount: 0, status: 'over-constrained', perConstraint: new Map() },
+    });
+    render(<StatusBar />);
+    expect(screen.getByText(/Assembly: over-constrained/i)).toBeInTheDocument();
+  });
+
+  it('shows "Assembly: solver did not converge" (red) when did-not-converge', () => {
+    useAppStore.setState({
+      activeAssembly: makeAsm([{ id: 'k1' }]),
+      solverDiagnostics: { dofCount: 0, status: 'did-not-converge', perConstraint: new Map() },
+    });
+    render(<StatusBar />);
+    expect(screen.getByText(/Assembly: solver did not converge/i)).toBeInTheDocument();
+  });
+
+  it('hides assembly segment when no constraints exist', () => {
+    useAppStore.setState({
+      activeAssembly: makeAsm([]),
+      solverDiagnostics: { dofCount: 0, status: 'fully-constrained', perConstraint: new Map() },
+    });
+    render(<StatusBar />);
+    expect(screen.queryByText(/Assembly:/)).not.toBeInTheDocument();
+  });
+});
