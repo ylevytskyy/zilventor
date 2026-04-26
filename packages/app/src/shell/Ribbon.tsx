@@ -13,7 +13,9 @@ import { useAppStore } from '../store/useAppStore';
 const PART_TABS = ['File', 'Model', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 const ASSEMBLY_TABS = ['File', 'Assembly', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 
-export default function Ribbon() {
+type Props = { partNames?: Map<string, string> };
+
+export default function Ribbon({ partNames }: Props = {}) {
   const isAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
   const TABS: string[] = isAssembly ? [...ASSEMBLY_TABS] : [...PART_TABS];
 
@@ -29,7 +31,7 @@ export default function Ribbon() {
 
   const assemblyPanels: Record<string, ReactElement> = {
     File: <FileTab />,
-    Assembly: <AssemblyTab />,
+    Assembly: <AssemblyTab partNames={partNames ?? new Map()} />,
     Sketch: <SketchTab />,
     Furniture: <FurnitureTab />,
     Inspect: <InspectTab />,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
@@ -85,6 +85,8 @@ import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraint
 import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/src/assembly/AssemblyConstraintRefs';
 import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
+import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
+import { resolvePartName } from './shell/resolvePartName';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -1702,6 +1704,12 @@ export default function App() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentIds = useAppStore((s) => s.selectedComponentIds);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  const partNameCacheRef = useRef<Map<string, string>>(new Map());
+  // Bumped after each resolvePartName population pass so consumers re-render.
+  const [partNamesVersion, setPartNamesVersion] = useState(0);
+  // Snapshot whose identity changes whenever the partNames cache mutates,
+  // so memoised consumers (BomTable) recompute.
+  const partNamesSnapshot = useMemo(() => new Map(partNameCacheRef.current), [partNamesVersion]);
 
   // Assembly constraint pick controller (T34).
   const assemblyPickerRef = useRef(new AssemblyRefPickController());
@@ -1934,6 +1942,31 @@ export default function App() {
     return () => { cancelled = true; };
   }, [assembly, kernel, componentPoses, showComponentColors]);
 
+  // PartNames cache sync: resolve the document.name for each unique partPath
+  // referenced by the active assembly so BomTable / autosave merge can show
+  // human names. Cached per-path; bumps partNamesVersion to re-render.
+  useEffect(() => {
+    if (!assembly) return;
+    let cancelled = false;
+    void (async () => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const cache = partNameCacheRef.current;
+      const before = cache.size;
+      const seen = new Set<string>();
+      for (const c of assembly.components) {
+        if (seen.has(c.partPath)) continue;
+        seen.add(c.partPath);
+        if (cache.has(c.partPath)) continue;
+        await resolvePartName(opfs, c.partPath, cache);
+      }
+      if (!cancelled && cache.size !== before) {
+        setPartNamesVersion((v) => v + 1);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assembly]);
+
   // Selection-sync: forward the store's selectedComponentIds to the viewport so
   // it can render outline overlays on the selected component meshes.
   useEffect(() => {
@@ -1972,7 +2005,8 @@ export default function App() {
           const doc = useAppStore.getState().activeDocument;
           if (!doc) return;
           if (doc.kind === 'assembly') {
-            const archive = await packAssembly(doc.document, new Uint8Array());
+            const merged = mergeAndPruneBom(doc.document, partNameCacheRef.current);
+            const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
           } else {
             if (!kernel) return;
@@ -2468,10 +2502,10 @@ export default function App() {
           <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
         </header>
         <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-          <Ribbon />
+          <Ribbon partNames={partNamesSnapshot} />
         </div>
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partNames={new Map()} />
+          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partNames={partNamesSnapshot} />
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
           <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
