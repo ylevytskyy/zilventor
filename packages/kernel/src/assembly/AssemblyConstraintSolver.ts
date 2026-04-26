@@ -11,6 +11,8 @@ import {
   buildAngleResiduals, buildAngleJacobian,
   buildInsertResiduals, buildInsertJacobian,
 } from './Residuals';
+import { choleskySolve } from './linalg';
+import { quatNormalize } from './quat';
 
 export type ComponentPose = { id: string; T: Vec3; q: Quat };
 export type SolverInput = {
@@ -197,4 +199,104 @@ export function buildAllJacobian(input: SolverInput, x: number[]): number[][] {
     J.push(row);
   }
   return J;
+}
+
+// ─── LM solver ───────────────────────────────────────────────────────────────
+
+export type SolverDefaults = {
+  lambda0: number; lambdaMax: number;
+  epsAbs: number; epsStep: number; epsResid: number;
+  maxIters: number;
+};
+const DEFAULTS: SolverDefaults = {
+  lambda0: 1e-3, lambdaMax: 1e8,
+  epsAbs: 1e-6, epsStep: 1e-9, epsResid: 1e-3,
+  maxIters: 50,
+};
+
+export type LMResult = {
+  x: number[];
+  finalResiduals: number[];
+  J: number[][];
+  converged: boolean;
+  iterations: number;
+};
+
+function norm(v: number[]): number {
+  let s = 0; for (const xi of v) s += xi * xi; return Math.sqrt(s);
+}
+
+function matMulATA(J: number[][]): number[][] {
+  const m = J.length;
+  const n = J.length === 0 ? 0 : J[0]!.length;
+  const out = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j <= i; j++) {
+      let s = 0;
+      for (let k = 0; k < m; k++) s += J[k]![i]! * J[k]![j]!;
+      out[i]![j] = s;
+      out[j]![i] = s;
+    }
+  return out;
+}
+
+function matVecAT(J: number[][], r: number[]): number[] {
+  const m = J.length;
+  const n = J.length === 0 ? 0 : J[0]!.length;
+  const out = new Array(n).fill(0);
+  for (let i = 0; i < n; i++)
+    for (let k = 0; k < m; k++) out[i] += J[k]![i]! * r[k]!;
+  return out;
+}
+
+export function lmSolve(
+  input: SolverInput, x0: number[], defaults: Partial<SolverDefaults> = {},
+): LMResult {
+  const D = { ...DEFAULTS, ...defaults };
+  let x = x0.slice();
+  let lambda = D.lambda0;
+  let r = buildAllResiduals(input, x);
+  let J = buildAllJacobian(input, x);
+
+  // Trivial case: no unknowns (all components grounded or no components)
+  if (x.length === 0) {
+    return { x, finalResiduals: r, J, converged: true, iterations: 0 };
+  }
+
+  let it = 0;
+  for (; it < D.maxIters; it++) {
+    const H = matMulATA(J);
+    for (let i = 0; i < H.length; i++) H[i]![i] = H[i]![i]! + lambda * Math.max(H[i]![i]!, 1e-12);
+    const g = matVecAT(J, r);
+    const negG = g.map((v) => -v);
+    let dx: number[];
+    try {
+      dx = choleskySolve(H, negG);
+    } catch {
+      lambda *= 2;
+      if (lambda > D.lambdaMax) break;
+      continue;
+    }
+    const xNew = x.map((v, i) => v + dx[i]!);
+    // Renormalize quaternions in xNew
+    const { idToOffset } = unknownsLayout(input);
+    for (const off of idToOffset.values()) {
+      const q = quatNormalize([xNew[off + 3]!, xNew[off + 4]!, xNew[off + 5]!, xNew[off + 6]!]);
+      xNew[off + 3] = q[0]; xNew[off + 4] = q[1]; xNew[off + 5] = q[2]; xNew[off + 6] = q[3];
+    }
+    const rNew = buildAllResiduals(input, xNew);
+    if (norm(rNew) < norm(r)) {
+      x = xNew; r = rNew; J = buildAllJacobian(input, x);
+      lambda /= 2;
+      if (norm(r) < D.epsAbs || norm(dx) < D.epsStep) { it++; break; }
+    } else {
+      lambda *= 2;
+      if (lambda > D.lambdaMax) break;
+    }
+  }
+  // Determine convergence: max constraint residual (excluding soft-norm rows) under epsResid
+  const constraintRowCount = r.length - input.components.filter((c) => !input.grounded.has(c.id)).length;
+  let maxAbs = 0;
+  for (let i = 0; i < constraintRowCount; i++) maxAbs = Math.max(maxAbs, Math.abs(r[i]!));
+  return { x, finalResiduals: r, J, converged: maxAbs < D.epsResid, iterations: it };
 }
