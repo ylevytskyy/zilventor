@@ -65,6 +65,7 @@ export type ComponentInstance = {
   rotation: { rx: number; ry: number; rz: number };
   visible: boolean;
   pose?: { translation: Vec3; quaternion: [number, number, number, number] };
+  color?: ComponentColor;
 };
 
 export type AssemblyDocument = {
