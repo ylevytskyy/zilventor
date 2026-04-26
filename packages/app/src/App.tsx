@@ -1732,6 +1732,22 @@ export default function App() {
       };
       // T46: expose pure solveAssembly for perf tests (bypasses OCCT ref resolution).
       w.__zilventorSolveAssembly = solveAssembly;
+      // B2: simulate a part-edit roundtrip. Invalidates per-part caches
+      // (kernel partId, ref-extraction cache, three.js geometry cache),
+      // releases the stale partId from the kernel worker, and bumps
+      // solverDirty so the next solver run loads the updated part bytes
+      // from OPFS and re-resolves all refs against the new shape.
+      w.__zilventorAssemblyInvalidatePart = async (partPath: string) => {
+        const stalePartId = assemblyPartIdCacheRef.current.get(partPath);
+        assemblyRefCacheRef.current.invalidate(partPath);
+        assemblyPartIdCacheRef.current.delete(partPath);
+        geometryCacheRef.current.delete(partPath);
+        const kernelClient = useAppStore.getState().kernel;
+        if (stalePartId && kernelClient) {
+          try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
+        }
+        useAppStore.getState().setSolverDirty(true);
+      };
     }
   }, []);
 

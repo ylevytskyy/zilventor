@@ -5,20 +5,20 @@ import { seedAssemblyCubePart } from '../helpers/seedAssemblyPart';
 /**
  * T44: E2E — broken-ref badge after part edit.
  *
- * Strategy:
- *  1. Seed cube part, place twice, mate them, assert solver converges.
- *  2. Simulate a broken ref: inject a bad constraint directly into the store
- *     that references a non-existent feature ID (featureId: 'DELETED').
- *     This mimics what happens after a referenced face's owning feature is
- *     deleted — the kernel can't resolve it and the solver flags brokenRef=true.
- *  3. Assert the broken-ref constraint shows brokenRef=true in diagnostics.
- *
- * Note: A full single-document part-edit flow via E2E (close assembly, edit part,
- * delete feature, re-open) is too complex at this stage. The broken-ref state
- * is simulated by direct store mutation, which is the exact code path the solver
- * exercises when it can't resolve a ref (resolvedRefs map has no entry for the key).
+ * Strategy (real roundtrip):
+ *  1. Seed cube part, place twice, mate top↔bottom — assert solver converges
+ *     with brokenRef=false.
+ *  2. Re-pack the cube part with a different feature id (E1 → E1_renamed)
+ *     and overwrite parts/cube.zipt in OPFS.
+ *  3. Call __zilventorAssemblyInvalidatePart('parts/cube.zipt') to drop the
+ *     stale per-part caches (kernel partId, ref cache, geometry cache) and
+ *     bump solverDirty. The next solver run re-loads the part bytes and
+ *     re-resolves the constraint refs against the new shape.
+ *  4. The mate constraint still references {featureId:'E1', role:'top'}
+ *     and {featureId:'E1', role:'bottom'} — neither exists in the renamed
+ *     part — so the solver flags brokenRef=true on the constraint.
  */
-test('T44 — broken-ref badge after simulated part edit', async ({ page }) => {
+test('T44 — broken-ref badge after part-file edit roundtrip', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
 
@@ -56,7 +56,7 @@ test('T44 — broken-ref badge after simulated part edit', async ({ page }) => {
   });
   const [c1, c2] = componentIds as [string, string];
 
-  // Add a valid mate constraint.
+  // Add a valid mate constraint (top of c1 to bottom of c2).
   await page.getByRole('tab', { name: 'Assembly' }).click();
   await page.getByRole('button', { name: 'Mate' }).click();
   await expect(page.getByRole('dialog', { name: /place constraint/i })).toBeVisible();
@@ -80,7 +80,7 @@ test('T44 — broken-ref badge after simulated part edit', async ({ page }) => {
   await page.getByRole('button', { name: 'OK' }).click();
   await expect(page.getByRole('dialog', { name: /place constraint/i })).toBeHidden();
 
-  // Wait for initial solve (should converge with brokenRef=false).
+  // Wait for initial solve — should converge with brokenRef=false.
   await page.waitForFunction(() => {
     const w = window as any;
     const diag = w.__zilventorAssemblySolverResult?.();
@@ -95,22 +95,59 @@ test('T44 — broken-ref badge after simulated part edit', async ({ page }) => {
   expect(initialEntry).not.toBeNull();
   expect(initialEntry!.brokenRef).toBe(false);
 
-  // Simulate part edit: mutate the constraint in the store to reference a deleted
-  // feature ('DELETED'). The ref resolver will fail to find it → brokenRef=true.
-  await page.evaluate(([c1Id, c2Id]) => {
-    const store = (window as any).__zilventorStore.getState();
-    const assembly = store.activeAssembly;
-    const constraint = assembly.constraints[0];
-    if (!constraint) return;
-    // Replace refA to point at a deleted feature.
-    const badConstraint = {
-      ...constraint,
-      refA: { kind: 'face', componentId: c1Id, face: { featureId: 'DELETED', role: 'top', instance: 0 } },
+  // Real part-edit roundtrip:
+  // 1. Re-pack the cube part with the extrude renamed to a different id.
+  // 2. Overwrite parts/cube.zipt in OPFS.
+  // 3. Invalidate the assembly's per-part caches (kernel partId, ref cache,
+  //    geometry cache) and bump solverDirty so the next solve re-loads.
+  await page.evaluate(async () => {
+    const w = window as unknown as {
+      __zilventorPackProject: (input: {
+        manifest: unknown; blobs: Record<string, Uint8Array>; thumbnail?: Uint8Array;
+      }) => Promise<Uint8Array>;
+      __zilventorGetOpfs: () => Promise<{ write(path: string, data: Uint8Array): Promise<void> }>;
+      __zilventorAssemblyInvalidatePart: (partPath: string) => Promise<void>;
     };
-    store.updateAssemblyConstraint(constraint.id, badConstraint);
-  }, [c1, c2]);
+    const renamedDoc = {
+      id: 'P_cube',
+      name: 'cube',
+      units: 'mm',
+      parameters: {
+        d0: { name: 'd0', expression: '50', value: 50, unit: 'mm' },
+      },
+      featureTree: [
+        { kind: 'sketch', id: 'S0', plane: 'XY',
+          primitives: [{ id: 'R1', kind: 'rectangle', x: 0, y: 0, w: 50, h: 50 }],
+          constraints: [] },
+        // The constraint refers to E1; this part now exposes E1_renamed.
+        { kind: 'extrude', id: 'E1_renamed', sketchRef: 'S0', distanceParam: 'd0', direction: 'forward', operation: 'new' },
+      ],
+    };
+    const manifest = {
+      formatVersion: 7,
+      kind: 'part',
+      createdAt: new Date().toISOString(),
+      appVersion: '0.0.0',
+      document: renamedDoc,
+    };
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+      0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+      0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+      0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+      0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+      0x42, 0x60, 0x82,
+    ]);
+    const archive = await w.__zilventorPackProject({ manifest, blobs: {}, thumbnail: png });
+    const opfs = await w.__zilventorGetOpfs();
+    await opfs.write('parts/cube.zipt', archive);
+    await w.__zilventorAssemblyInvalidatePart('parts/cube.zipt');
+  });
 
-  // Wait for re-solve with broken ref.
+  // Wait for re-solve — refs to E1/top, E1/bottom no longer resolve.
   await page.waitForFunction(() => {
     const w = window as any;
     const diag = w.__zilventorAssemblySolverResult?.();
