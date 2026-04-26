@@ -178,6 +178,8 @@ type AppState = {
   selectComponent(id: string | null): void;
   selectComponents(ids: string[]): void;
   setComponentColor(componentId: string, color: import('@zilventor/shared').ComponentColor | undefined): void;
+  setAssemblyPaletteColor(name: string, hex: string): void;
+  removeAssemblyPaletteColor(name: string): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
 
   // 4b additions
@@ -471,6 +473,20 @@ export const useAppStore = create<AppState>((set) => ({
         c.id === componentId ? (color === undefined ? omitColor(c) : { ...c, color }) : c
       ),
     };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  setAssemblyPaletteColor: (name, hex) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = {
+      ...s.activeAssembly,
+      colors: { ...s.activeAssembly.colors, [name]: hex },
+    };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  removeAssemblyPaletteColor: (name) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const { [name]: _removed, ...rest } = s.activeAssembly.colors;
+    const next: AssemblyDocument = { ...s.activeAssembly, colors: rest };
     return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
   }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),

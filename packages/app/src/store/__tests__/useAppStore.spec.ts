@@ -413,6 +413,35 @@ describe('useAppStore setComponentColor (4c)', () => {
   });
 });
 
+describe('useAppStore assembly palette CRUD (4c)', () => {
+  it('setAssemblyPaletteColor creates and overwrites entries', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentIds: [],
+        colors: {}, bomItemNumbers: {},
+      },
+    } as any);
+    useAppStore.getState().setAssemblyPaletteColor('Maple', '#d4a574');
+    expect(useAppStore.getState().activeAssembly!.colors).toEqual({ Maple: '#d4a574' });
+    useAppStore.getState().setAssemblyPaletteColor('Maple', '#000000');
+    expect(useAppStore.getState().activeAssembly!.colors).toEqual({ Maple: '#000000' });
+  });
+
+  it('removeAssemblyPaletteColor drops the named entry', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentIds: [],
+        colors: { Maple: '#d4a574', Walnut: '#5a3a22' }, bomItemNumbers: {},
+      },
+    } as any);
+    useAppStore.getState().removeAssemblyPaletteColor('Maple');
+    expect(useAppStore.getState().activeAssembly!.colors).toEqual({ Walnut: '#5a3a22' });
+  });
+});
+
+
 
 
 
