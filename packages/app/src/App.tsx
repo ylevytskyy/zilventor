@@ -68,6 +68,11 @@ import { EditComponentDialog } from './shell/EditComponentDialog';
 import { PlaceComponentCommand } from './commands/PlaceComponentCommand';
 import { EditComponentCommand } from './commands/EditComponentCommand';
 import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
+import { PlaceConstraintDialog } from './shell/PlaceConstraintDialog';
+import { AssemblyRefPickController } from './model/AssemblyRefPickController';
+import { AddAssemblyConstraintCommand } from './commands/AddAssemblyConstraintCommand';
+import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraintCommand';
+import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -961,6 +966,27 @@ export default function App() {
       // for v1 we drop the click silently rather than guessing a hit.
       return;
     }
+    // Assembly-mode constraint pick: route pointer events to the assemblyPickerRef.
+    // Only face mode is fully wired here; edge/axis/point/circularEdge require
+    // T36/T38 to exercise the full hit-dispatch path.
+    // TODO(T36): wire FaceName resolution for assembly-mode face picks.
+    if (assemblyPickerRef.current.isActive()) {
+      const pickerMode = assemblyPickerRef.current.getMode();
+      if (pickerMode && (ev.type === 'click' || ev.type === 'pointerdown')) {
+        const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
+        if (hit) {
+          // raycastComponent returns { componentId: string } — for now dispatch
+          // as a face hit with unresolved FaceName. T36/T38 will complete the path
+          // once the tessellated-face registry is queryable in assembly mode.
+          assemblyPickerRef.current.handleFaceHit(
+            hit,
+            { featureId: 'unresolved', role: 'unresolved' }
+          );
+        }
+        return; // consume the event even if no hit, so it doesn't fall through
+      }
+      return;
+    }
     if (!sketchMode || !activeToolCtrlRef.current) return;
     const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
     const sketch = activePart?.featureTree.find(
@@ -1433,6 +1459,77 @@ export default function App() {
   const editInitial = useAppStore((s) => s.editComponentInitialValues);
   const assembly = useAppStore((s) => s.activeAssembly);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+
+  // Assembly constraint pick controller (T34).
+  const assemblyPickerRef = useRef(new AssemblyRefPickController());
+  const placeConstraintDialogOpen = useAppStore((s) => s.placeConstraintDialogOpen);
+  const placeConstraintMode = useAppStore((s) => s.placeConstraintMode);
+  const editConstraintDialogOpen = useAppStore((s) => s.editConstraintDialogOpen);
+  const editingConstraintId = useAppStore((s) => s.editingConstraintId);
+
+  const [pickedRefA, setPickedRefA] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
+  const [pickedRefB, setPickedRefB] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
+  const [valueExpression, setValueExpression] = useState('0');
+
+  const onPickSlot = useCallback((slot: 'A' | 'B') => {
+    const mode = placeConstraintMode;
+    const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
+    assemblyPickerRef.current.activate(pickerMode, slot, (hit) => {
+      let ref: AssemblyConstraint['refA'] | { componentId: string; circularEdge: import('@zilventor/shared').EdgeName };
+      let label: string;
+      if (hit.kind === 'face') {
+        ref = { kind: 'face', componentId: hit.hit.componentId, face: hit.hit.face };
+        label = `${hit.hit.componentId}/${hit.hit.face.featureId}`;
+      } else if (hit.kind === 'axis') {
+        const h = hit.hit;
+        if (h.source === 'edge') {
+          ref = { kind: 'axis', componentId: h.componentId, axis: { source: 'edge', edge: h.edge } };
+        } else {
+          ref = { kind: 'axis', componentId: h.componentId, axis: { source: 'cylindricalFace', face: h.face } };
+        }
+        label = `${hit.hit.componentId}/axis`;
+      } else if (hit.kind === 'point') {
+        ref = { kind: 'point', componentId: hit.hit.componentId, point: { source: 'vertex', edge: hit.hit.vertex.edge, end: hit.hit.vertex.end } };
+        label = `${hit.hit.componentId}/vertex`;
+      } else if (hit.kind === 'circularEdge') {
+        ref = { componentId: hit.hit.componentId, circularEdge: hit.hit.edge } as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName };
+        label = `${hit.hit.componentId}/circularEdge`;
+      } else {
+        return;
+      }
+      if (slot === 'A') setPickedRefA({ ref: ref as AssemblyConstraint['refA'], label });
+      else setPickedRefB({ ref: ref as AssemblyConstraint['refA'], label });
+    });
+  }, [placeConstraintMode]);
+
+  const onCommitConstraint = useCallback(async (close: boolean) => {
+    if (!pickedRefA || !pickedRefB) return;
+    const id = `K${Date.now()}`;
+    const offsetOrAngle: import('@zilventor/shared').ParamOrLiteral = { kind: 'literal', value: parseFloat(valueExpression) || 0 };
+    let constraint: AssemblyConstraint;
+    if (placeConstraintMode === 'insert') {
+      constraint = {
+        id, kind: 'insert',
+        refA: pickedRefA.ref as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName },
+        refB: pickedRefB.ref as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName },
+        offset: offsetOrAngle, suppressed: false
+      };
+    } else if (placeConstraintMode === 'angle') {
+      constraint = { id, kind: 'angle', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, angle: offsetOrAngle, suppressed: false };
+    } else {
+      constraint = { id, kind: placeConstraintMode, refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: offsetOrAngle, suppressed: false };
+    }
+    if (editingConstraintId) {
+      await new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }).apply();
+    } else {
+      await new AddAssemblyConstraintCommand({ constraint }).apply();
+    }
+    if (close) {
+      useAppStore.getState().resetPlaceConstraintDialog();
+      useAppStore.getState().resetEditConstraintDialog();
+      setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+    }
+  }, [pickedRefA, pickedRefB, valueExpression, placeConstraintMode, editingConstraintId]);
 
   // Lazy OPFS singleton + tile list for the Place dialog.
   const opfsRef = useRef<Opfs | null>(null);
@@ -2297,6 +2394,23 @@ export default function App() {
           initial={editInitial}
           onCommit={(patch) => { void handleEditCommit(patch); }}
           onCancel={() => useAppStore.getState().resetEditComponentDialog()}
+        />
+      )}
+      {(placeConstraintDialogOpen || editConstraintDialogOpen) && (
+        <PlaceConstraintDialog
+          mode={placeConstraintMode}
+          pickedRefA={pickedRefA && { label: pickedRefA.label }}
+          pickedRefB={pickedRefB && { label: pickedRefB.label }}
+          valueExpression={valueExpression}
+          onPick={onPickSlot}
+          onValueChange={setValueExpression}
+          onCommit={() => { void onCommitConstraint(true); }}
+          onApply={() => { void onCommitConstraint(false); }}
+          onCancel={() => {
+            useAppStore.getState().resetPlaceConstraintDialog();
+            useAppStore.getState().resetEditConstraintDialog();
+            setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+          }}
         />
       )}
       {toast && (
