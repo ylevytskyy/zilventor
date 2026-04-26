@@ -537,4 +537,23 @@ describe('migrateManifest 4b backfill', () => {
   });
 });
 
+describe('migrateManifest 4c backfill', () => {
+  it('defaults colors and bomItemNumbers for legacy v7 assembly manifests', () => {
+    const legacy = {
+      formatVersion: 7,
+      kind: 'assembly',
+      createdAt: '2026-01-01',
+      appVersion: '0.0.0',
+      document: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentIds: [],
+      },
+    };
+    const m = migrateManifest(legacy as any) as any;
+    expect(m.kind).toBe('assembly');
+    expect(m.document.colors).toEqual({});
+    expect(m.document.bomItemNumbers).toEqual({});
+  });
+});
+
 

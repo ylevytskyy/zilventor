@@ -143,6 +143,8 @@ function backfillAssembly4b(m: AnyManifest): AnyManifest {
   const doc = { ...anyM.document };
   if (!Array.isArray(doc.constraints)) doc.constraints = [];
   if (!Array.isArray(doc.groundedComponentIds)) doc.groundedComponentIds = [];
+  if (doc.colors == null) doc.colors = {};
+  if (doc.bomItemNumbers == null) doc.bomItemNumbers = {};
   if (Array.isArray(doc.components)) {
     doc.components = doc.components.map((c: any) => {
       if (c.pose) return c;
