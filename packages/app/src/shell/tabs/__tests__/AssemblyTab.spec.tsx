@@ -13,7 +13,7 @@ describe('AssemblyTab', () => {
   });
 
   it('Place button opens the place dialog', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<AssemblyTab />);
     fireEvent.click(screen.getByRole('button', { name: /^place$/i }));
@@ -25,6 +25,8 @@ describe('AssemblyTab', () => {
       components: [
         { id: 'C1', partPath: 'p', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     const { rerender } = render(<AssemblyTab />);

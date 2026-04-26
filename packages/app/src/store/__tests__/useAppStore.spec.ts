@@ -265,7 +265,7 @@ describe('useAppStore activeDocument discriminator', () => {
   });
 
   it('setActiveDocument with kind: assembly clears activePart shim', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     const s = useAppStore.getState();
     expect(s.activeDocument).toEqual({ kind: 'assembly', document: asm });
@@ -311,7 +311,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
   });
 
   it('addComponent appends to the active assembly', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().addComponent({
       id: 'C1', partPath: 'leg.zipt',
@@ -333,6 +333,8 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
           rotation: { rx: 0, ry: 0, rz: 0 },
           visible: true },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().updateComponent('C1', { position: { x: 50, y: 0, z: 0 } });
@@ -348,6 +350,8 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
           rotation: { rx: 0, ry: 0, rz: 0 },
           visible: true },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().removeComponent('C1');

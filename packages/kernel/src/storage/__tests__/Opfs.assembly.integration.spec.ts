@@ -85,6 +85,8 @@ describe('Opfs — assembly integration', () => {
       units: 'mm',
       parameters: {},
       components: [],
+      constraints: [],
+      groundedComponentIds: [],
     };
 
     const bytes = await packAssembly(doc, THUMB);
@@ -122,6 +124,8 @@ describe('Opfs — assembly integration', () => {
           visible: true,
         },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     const asmBytes = await packAssembly(asmDoc, THUMB);
     await opfs.write('cabinet.ziasm', asmBytes);

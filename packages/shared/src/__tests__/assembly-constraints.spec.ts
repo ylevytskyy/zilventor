@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AssemblyConstraint, AssemblyConstraintRef } from '../types';
+import type { AssemblyConstraint, AssemblyConstraintRef, AssemblyDocument, ComponentInstance } from '../types';
 
 describe('AssemblyConstraintRef discriminator', () => {
   it('narrows on kind=face', () => {
@@ -42,5 +42,40 @@ describe('AssemblyConstraint discriminator', () => {
       suppressed: false,
     };
     if (c.kind === 'insert') expect(c.refA.componentId).toBe('C1');
+  });
+});
+
+describe('AssemblyDocument 4b extensions', () => {
+  it('carries constraints[] and groundedComponentIds[]', () => {
+    const doc: AssemblyDocument = {
+      id: 'A', name: 'asm', units: 'mm', parameters: {},
+      components: [],
+      constraints: [],
+      groundedComponentIds: [],
+    };
+    expect(doc.constraints).toEqual([]);
+    expect(doc.groundedComponentIds).toEqual([]);
+  });
+});
+
+describe('ComponentInstance 4b extension', () => {
+  it('accepts optional pose', () => {
+    const c: ComponentInstance = {
+      id: 'C1', partPath: 'p.zipt',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      visible: true,
+      pose: { translation: { x: 1, y: 2, z: 3 }, quaternion: [0, 0, 0, 1] },
+    };
+    expect(c.pose?.translation.x).toBe(1);
+  });
+  it('still works without pose (legacy 4a shape)', () => {
+    const c: ComponentInstance = {
+      id: 'C1', partPath: 'p.zipt',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      visible: true,
+    };
+    expect(c.pose).toBeUndefined();
   });
 });

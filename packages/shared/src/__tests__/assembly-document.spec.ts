@@ -19,6 +19,8 @@ describe('AssemblyDocument', () => {
     const a: AssemblyDocument = {
       id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
       components: [],
+      constraints: [],
+      groundedComponentIds: [],
     };
     expect(a.components).toHaveLength(0);
   });
@@ -34,7 +36,7 @@ describe('AssemblyDocument', () => {
       formatVersion: 7, kind: 'assembly',
       createdAt: '2026-04-25T00:00:00Z',
       appVersion: '0.0.1',
-      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [] },
+      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] },
     };
     if (part.kind === 'part') {
       expect((part.document as PartDocument).featureTree).toEqual([]);

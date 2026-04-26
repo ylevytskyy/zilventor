@@ -10,6 +10,8 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     units: 'mm',
     parameters: {},
     components: [],
+    constraints: [],
+    groundedComponentIds: [],
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
 }

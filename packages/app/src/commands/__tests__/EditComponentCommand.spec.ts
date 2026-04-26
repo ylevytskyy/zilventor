@@ -15,6 +15,8 @@ describe('EditComponentCommand', () => {
     const asm: AssemblyDocument = {
       id: 'A1', name: 'a', units: 'mm', parameters: {},
       components: [{ ...original }],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });

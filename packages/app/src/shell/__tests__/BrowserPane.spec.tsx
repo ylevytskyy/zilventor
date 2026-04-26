@@ -113,6 +113,8 @@ describe('BrowserPane', () => {
         { id: 'C2', partPath: 'parts/shelf.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -129,6 +131,8 @@ describe('BrowserPane', () => {
         { id: 'C1', partPath: 'parts/leg.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
+      constraints: [],
+      groundedComponentIds: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);

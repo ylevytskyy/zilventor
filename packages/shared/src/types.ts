@@ -60,6 +60,7 @@ export type ComponentInstance = {
   position: { x: number; y: number; z: number };
   rotation: { rx: number; ry: number; rz: number };
   visible: boolean;
+  pose?: { translation: Vec3; quaternion: [number, number, number, number] };
 };
 
 export type AssemblyDocument = {
@@ -68,6 +69,8 @@ export type AssemblyDocument = {
   units: 'mm';
   parameters: Record<string, SketchParameter>;
   components: ComponentInstance[];
+  constraints: AssemblyConstraint[];
+  groundedComponentIds: string[];
 };
 
 export type AssemblyConstraintRef =
