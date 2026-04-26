@@ -10,6 +10,23 @@ export type ComponentMeshSpec = {
   visible: boolean;
 };
 
+/**
+ * Raw raycast hit returned by raycastAssemblyRef. The Viewport has no access
+ * to per-component tessellated face/edge tables, so name resolution
+ * (triangleIndex → FaceName, ray → EdgeName) is the caller's responsibility
+ * (done in App.tsx by T34 using FacePickController / EdgePickController).
+ *
+ * - face:  triangleIndex into the component mesh's index buffer (same units as
+ *          raycastBody). Caller feeds it to FacePickController.pickByTriangleIndex.
+ * - edge:  ray origin + direction in world space. Caller feeds it to
+ *          EdgePickController.pickFromRay on the per-component edge table.
+ * - axis / point / circularEdge: not yet resolvable at the Viewport layer;
+ *   these modes always return null until T34/T38 wires them.
+ */
+export type AssemblyRefHit =
+  | { kind: 'face'; componentId: string; triangleIndex: number }
+  | { kind: 'edge'; componentId: string; origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
+
 export type ViewportRef = {
   setMesh(positions: Float32Array, indices: Uint32Array): void;
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
@@ -29,6 +46,22 @@ export type ViewportRef = {
   raycastComponent(clientX: number, clientY: number): string | null;
   raycastWorkFeature(clientX: number, clientY: number): string | null;
   setWorkFeatures(specs: WorkFeatureSpec[]): void;
+  /**
+   * Assembly-mode pick. Raycasts against component meshes (those with
+   * userData.componentId) and returns a raw hit annotated with componentId.
+   *
+   * Supported modes:
+   *   'face' → { kind:'face', componentId, triangleIndex } — caller resolves FaceName
+   *   'edge' → { kind:'edge', componentId, origin, direction } — caller resolves EdgeName
+   *
+   * Unsupported modes ('axis', 'point', 'circularEdge') always return null.
+   * TODO: axis/point/circularEdge pick in T34/T38.
+   */
+  raycastAssemblyRef(
+    mode: 'face' | 'edge' | 'axis' | 'point' | 'circularEdge',
+    clientX: number,
+    clientY: number,
+  ): AssemblyRefHit | null;
 };
 
 type Props = {
@@ -185,6 +218,56 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setWorkFeatures(specs);
       setGeometryHash(sceneRef.current.geometryHash());
+    },
+    raycastAssemblyRef: (mode, clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) return null;
+
+      // axis / point / circularEdge are not resolvable at the Viewport layer.
+      // TODO: axis/point/circularEdge pick in T34/T38.
+      if (mode === 'axis' || mode === 'point' || mode === 'circularEdge') return null;
+
+      const sm = sceneRef.current;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, sm.getCamera());
+
+      // Collect only component meshes (those tagged with userData.componentId).
+      const scene = sm.getScene();
+      const componentMeshes: THREE.Mesh[] = [];
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh && typeof obj.userData.componentId === 'string') {
+          // Ensure world matrix is current (matrixAutoUpdate is false for component meshes).
+          obj.updateMatrixWorld(true);
+          componentMeshes.push(obj as THREE.Mesh);
+        }
+      });
+      if (componentMeshes.length === 0) return null;
+
+      const hits = raycaster.intersectObjects(componentMeshes, false);
+      if (hits.length === 0) return null;
+
+      const firstHit = hits[0]!;
+      const componentId = firstHit.object.userData.componentId as string;
+
+      if (mode === 'face') {
+        if (firstHit.faceIndex === undefined) return null;
+        return { kind: 'face', componentId, triangleIndex: firstHit.faceIndex };
+      }
+
+      // mode === 'edge': return the world-space ray; caller runs EdgePickController.
+      const o = raycaster.ray.origin;
+      const d = raycaster.ray.direction;
+      return {
+        kind: 'edge',
+        componentId,
+        origin: { x: o.x, y: o.y, z: o.z },
+        direction: { x: d.x, y: d.y, z: d.z },
+      };
     },
     worldToScreen3d: (wx, wy, wz) => {
       if (!sceneRef.current || !canvasRef.current) return { x: 0, y: 0 };
