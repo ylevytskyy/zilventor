@@ -54,6 +54,10 @@ export type PartDocument = {
   cachedGeometry?: CachedGeometry;
 };
 
+export type ComponentColor =
+  | { kind: 'palette'; name: string }
+  | { kind: 'hex'; hex: string };
+
 export type ComponentInstance = {
   id: string;
   partPath: string;
