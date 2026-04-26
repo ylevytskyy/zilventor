@@ -337,7 +337,7 @@ export function extractFacePlane(
   const entry = shape.faceNames.find((e) => faceNamesEqual(e.name, faceName));
   if (!entry) return null;
   const ocAny = oc as unknown as {
-    TopoDS: { Face_1: (s: unknown) => unknown };
+    TopoDS: { Face_1: (s: unknown) => { Orientation_1: () => number } };
     BRepAdaptor_Surface_2: new (face: unknown, restriction: boolean) => {
       GetType: () => unknown;
       Plane: () => { Location: () => { X: () => number; Y: () => number; Z: () => number }; Axis: () => { Direction: () => { X: () => number; Y: () => number; Z: () => number } } };
@@ -352,9 +352,15 @@ export function extractFacePlane(
     const pln = adaptor.Plane();
     const loc = pln.Location();
     const dir = pln.Axis().Direction();
+    // TopAbs_REVERSED = 1: the face's parameterisation runs opposite to the
+    // plane's mathematical axis, so the outward normal points the other way.
+    const reversed = typedFace.Orientation_1() === 1;
+    const nx = reversed ? -dir.X() : dir.X();
+    const ny = reversed ? -dir.Y() : dir.Y();
+    const nz = reversed ? -dir.Z() : dir.Z();
     return {
       origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
-      normal: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+      normal: { x: nx, y: ny, z: nz },
     };
   } finally {
     adaptor.delete?.();

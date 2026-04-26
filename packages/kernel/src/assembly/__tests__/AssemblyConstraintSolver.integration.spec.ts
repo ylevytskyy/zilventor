@@ -119,18 +119,11 @@ describe('AssemblyConstraintSolver integration (real OCCT)', () => {
       expect(localA.ok).toBe(true);
       expect(localB.ok).toBe(true);
 
-      // OCCT returns normal=(0,0,1) for all Z faces via gp_Pln.Axis().Direction().
-      // For the mate residual: r2 = dot(Na+Nb, u), r3 = dot(Na+Nb, v) must be 0,
-      // i.e. Na + Nb = 0. Since both faces give N=(0,0,+1), we supply B's geometry
-      // with the normal negated so the solver can achieve Na + Nb = 0 via translation
-      // alone (no rotation needed). This reflects the physical intent: B's -Z face
-      // (outward normal -Z) opposes A's +Z face (outward normal +Z).
+      // extractFacePlane now returns the outward face normal (orientation-aware):
+      // A's top face (+Z outward) => N=(0,0,+1); B's bottom face (-Z outward) => N=(0,0,-1).
+      // The mate residual Na + Nb = 0 is satisfied by pure translation — no rotation needed.
       const geomA = (localA as { ok: true; value: any }).value;
-      const geomBRaw = (localB as { ok: true; value: any }).value;
-      // Flip B's normal: OCCT bottom face gives N=(0,0,+1), physical outward is -Z.
-      const geomB = geomBRaw.kind === 'plane'
-        ? { ...geomBRaw, N: { x: -geomBRaw.N.x, y: -geomBRaw.N.y, z: -geomBRaw.N.z } }
-        : geomBRaw;
+      const geomB = (localB as { ok: true; value: any }).value;
 
       // B starts away from the mate target — solver must drive it to z=50.
       // After mate: B's -Z face (at B.T.z + 0 in B-local coords) touches A's +Z
