@@ -1632,6 +1632,8 @@ export default function App() {
         const freeDofBasis = useAppStore.getState().freeDofBasis;
         viewportRef.current?.dragAlongFreeDofs(componentId, delta, freeDofBasis);
       };
+      // T46: expose pure solveAssembly for perf tests (bypasses OCCT ref resolution).
+      w.__zilventorSolveAssembly = solveAssembly;
     }
   }, []);
 
