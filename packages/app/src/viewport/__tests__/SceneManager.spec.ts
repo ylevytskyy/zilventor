@@ -130,6 +130,29 @@ describe('SceneManager — component meshes', () => {
     const id = mgr.raycastComponent(camera, ndc);
     expect(id).toBeNull();
   });
+
+  it('pose overrides Euler transform when present', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    const transform = new THREE.Matrix4(); // identity — position at origin
+    const pose = {
+      translation: { x: 42, y: 7, z: 3 },
+      quaternion: [0, 0, 0, 1] as [number, number, number, number],
+    };
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform, pose, visible: true }]);
+    const mesh = mgr.getComponentMesh('C1')!;
+    // pose.translation should win over the identity transform
+    expect(mesh.matrix.elements[12]).toBeCloseTo(42, 5);
+    expect(mesh.matrix.elements[13]).toBeCloseTo(7, 5);
+    expect(mesh.matrix.elements[14]).toBeCloseTo(3, 5);
+  });
+
+  it('pose-less spec still uses the Euler transform', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    const transform = new THREE.Matrix4().setPosition(99, 0, 0);
+    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform, visible: true }]);
+    const mesh = mgr.getComponentMesh('C1')!;
+    expect(mesh.matrix.elements[12]).toBeCloseTo(99, 5);
+  });
 });
 
 describe('SceneManager — work features', () => {

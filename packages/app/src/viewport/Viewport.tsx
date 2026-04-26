@@ -7,6 +7,7 @@ export type ComponentMeshSpec = {
   componentId: string;
   geometry: THREE.BufferGeometry;
   transform: THREE.Matrix4;
+  pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
   visible: boolean;
 };
 
@@ -62,6 +63,28 @@ export type ViewportRef = {
     clientX: number,
     clientY: number,
   ): AssemblyRefHit | null;
+  /**
+   * T37 drag-along-free-DOFs stub.
+   *
+   * Projects `deltaWorldXY` onto the null-space basis from
+   * `solverDiagnostics.freeDofBasis` (via projectOntoBasis), applies the
+   * resulting translation to the component's mesh matrix, and writes the
+   * new position back to the store via updateComponent on pointer-up.
+   *
+   * Pointer-down/move/up wiring is a TODO; this method is exposed so T45
+   * E2E can call it directly via a dev hook.
+   *
+   * @param componentId - id of the component to drag
+   * @param deltaWorldXY - desired translation delta in world XY (mm)
+   * @param freeDofBasis - null-space basis rows (from store.freeDofBasis); null → apply delta directly
+   * @param onComplete - called after matrix update so caller can write back to store
+   */
+  dragAlongFreeDofs(
+    componentId: string,
+    deltaWorldXY: { x: number; y: number },
+    freeDofBasis: Float64Array | null,
+    onComplete?: (componentId: string, translation: { x: number; y: number; z: number }) => void,
+  ): void;
 };
 
 type Props = {
@@ -278,7 +301,54 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const x = ((vec.x + 1) / 2) * rect.width;
       const y = ((-vec.y + 1) / 2) * rect.height;
       return { x, y };
-    }
+    },
+    dragAlongFreeDofs: (componentId, deltaWorldXY, freeDofBasis, onComplete) => {
+      if (!sceneRef.current) return;
+      const mesh = sceneRef.current.getComponentMesh(componentId);
+      if (!mesh) return;
+
+      // Project the 2-D screen-plane delta onto the null-space basis.
+      // Input vector: [dx, dy, 0] in world space (Z component ignored for v1).
+      let projX = deltaWorldXY.x;
+      let projY = deltaWorldXY.y;
+      let projZ = 0;
+
+      if (freeDofBasis && freeDofBasis.length >= 3) {
+        // Each row of freeDofBasis is a 6-DOF basis vector; for translation-only
+        // v1 we read the first 3 components (tx, ty, tz) of each row.
+        // Project delta onto the span of those translational parts.
+        const dof = freeDofBasis.length / 6; // number of free DOF rows
+        let ax = 0, ay = 0, az = 0;
+        for (let i = 0; i < dof; i++) {
+          const bx = freeDofBasis[i * 6 + 0] ?? 0;
+          const by = freeDofBasis[i * 6 + 1] ?? 0;
+          const bz = freeDofBasis[i * 6 + 2] ?? 0;
+          const dot = deltaWorldXY.x * bx + deltaWorldXY.y * by;
+          ax += dot * bx;
+          ay += dot * by;
+          az += dot * bz;
+        }
+        projX = ax;
+        projY = ay;
+        projZ = az;
+      }
+
+      // Apply translation delta to the mesh matrix (translation-only v1).
+      const elems = mesh.matrix.elements;
+      elems[12] = (elems[12] ?? 0) + projX;
+      elems[13] = (elems[13] ?? 0) + projY;
+      elems[14] = (elems[14] ?? 0) + projZ;
+
+      const translation = {
+        x: elems[12] ?? 0,
+        y: elems[13] ?? 0,
+        z: elems[14] ?? 0,
+      };
+
+      // TODO T45: pointer-down/move/up event wiring to call this per move event.
+      // For now the method is exposed for direct E2E invocation via dev hook.
+      onComplete?.(componentId, translation);
+    },
   }), []);
 
   return (

@@ -1600,6 +1600,7 @@ export default function App() {
   const editOpen = useAppStore((s) => s.editComponentDialogOpen);
   const editInitial = useAppStore((s) => s.editComponentInitialValues);
   const assembly = useAppStore((s) => s.activeAssembly);
+  const componentPoses = useAppStore((s) => s.componentPoses);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
 
   // Assembly constraint pick controller (T34).
@@ -1734,6 +1735,7 @@ export default function App() {
         componentId: string;
         geometry: THREE.BufferGeometry;
         transform: THREE.Matrix4;
+        pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
         visible: boolean;
       }> = [];
       const diagnostics: Array<{ componentId: string; message: string }> = [];
@@ -1766,7 +1768,14 @@ export default function App() {
           'XYZ',
         ));
         transform.setPosition(c.position.x, c.position.y, c.position.z);
-        specs.push({ componentId: c.id, geometry: geom, transform, visible: c.visible });
+        const pose = componentPoses.get(c.id);
+        specs.push({
+          componentId: c.id,
+          geometry: geom,
+          transform,
+          ...(pose !== undefined ? { pose } : {}),
+          visible: c.visible,
+        });
       }
       if (!cancelled) {
         vp.setComponentMeshes(specs);
@@ -1774,7 +1783,7 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [assembly, kernel]);
+  }, [assembly, kernel, componentPoses]);
 
   // OPFS autosave — debounce 500 ms after the last activeDocument mutation.
   // Parts are packed via kernel.saveToBytes (re-runs the feature tree to bake

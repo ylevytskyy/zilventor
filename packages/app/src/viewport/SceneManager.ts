@@ -184,6 +184,7 @@ export class SceneManager {
     componentId: string;
     geometry: THREE.BufferGeometry;
     transform: THREE.Matrix4;
+    pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
     visible: boolean;
   }>): void {
     const incomingIds = new Set(specs.map((s) => s.componentId));
@@ -208,7 +209,20 @@ export class SceneManager {
         this.componentMeshes.set(spec.componentId, mesh);
       }
       mesh.geometry = spec.geometry;
-      mesh.matrix.copy(spec.transform);
+      if (spec.pose) {
+        const m = new THREE.Matrix4();
+        const q = new THREE.Quaternion(
+          spec.pose.quaternion[0],
+          spec.pose.quaternion[1],
+          spec.pose.quaternion[2],
+          spec.pose.quaternion[3],
+        );
+        m.makeRotationFromQuaternion(q);
+        m.setPosition(spec.pose.translation.x, spec.pose.translation.y, spec.pose.translation.z);
+        mesh.matrix.copy(m);
+      } else {
+        mesh.matrix.copy(spec.transform);
+      }
       mesh.visible = spec.visible;
     }
   }
