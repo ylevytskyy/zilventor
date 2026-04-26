@@ -1,4 +1,4 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
@@ -7,6 +7,7 @@ import { disposeShape } from './occt/SolidOps';
 import { writeBRep } from './occt/BRepIO';
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
+import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocalGeometry } from './assembly/AssemblyConstraintRefs';
 
 /**
  * Result of a successful `execute` / `previewFeature` call. The mesh is the
@@ -48,6 +49,8 @@ export type KernelApi = {
   saveToBytes(partId: string, thumbnail?: Uint8Array): Promise<Uint8Array>;
   load(handle: FileSystemFileHandle): Promise<string>;
   loadFromBytes(bytes: Uint8Array): Promise<string>;
+  extractAssemblyRef(partId: string, ref: AssemblyConstraintRef): Promise<Result<PartLocalGeometry, KernelError>>;
+  extractAssemblyCircularEdge(partId: string, edge: EdgeName): Promise<Result<PartLocalGeometry, KernelError>>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -206,6 +209,33 @@ export function createKernelApi(): KernelApi {
       const part = (migrated as unknown as { document: PartDocument }).document;
       parts.set(part.id, part);
       return part.id;
+    },
+
+    async extractAssemblyRef(partId, ref) {
+      if (!occt) return { ok: false, error: { kind: 'invalidParameter' as const, message: 'kernel not initialized', correlationId: 'no-occt' } };
+      const p = parts.get(partId);
+      if (!p) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
+      const r = await executeTree(occt, p);
+      if (!r.ok) return r;
+      const ex = realExtractorBundle(occt);
+      const ns = { shape: r.value.finalSolid, faceNames: (r.value.faceNames ?? []).map((name, i) => ({ name, index: i })) };
+      const wfs = new Map<string, import('@zilventor/shared').WorkFeatureValue>((r.value.workFeatures ?? []).map((w) => [w.featureId, w]));
+      const result = resolveRef(ref, ns as any, wfs, ex);
+      disposeShape(r.value.finalSolid);
+      return result;
+    },
+
+    async extractAssemblyCircularEdge(partId, edge) {
+      if (!occt) return { ok: false, error: { kind: 'invalidParameter' as const, message: 'kernel not initialized', correlationId: 'no-occt' } };
+      const p = parts.get(partId);
+      if (!p) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
+      const r = await executeTree(occt, p);
+      if (!r.ok) return r;
+      const ex = realExtractorBundle(occt);
+      const ns = { shape: r.value.finalSolid, faceNames: (r.value.faceNames ?? []).map((name, i) => ({ name, index: i })) };
+      const result = resolveCircularEdgeRef(edge, ns as any, ex);
+      disposeShape(r.value.finalSolid);
+      return result;
     }
   };
 }

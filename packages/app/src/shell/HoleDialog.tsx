@@ -1,6 +1,7 @@
 import React from 'react';
 import type { FaceName, HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { parseParamOrLiteral } from './parseParamOrLiteral';
 
 export type { HoleFeature };
 
@@ -20,13 +21,6 @@ export type HoleDraftValue = {
   termKind: 'distance' | 'throughAll' | 'toFace' | 'toNext';
   depth: string;
 };
-
-function parseParamOrLiteral(s: string): ParamOrLiteral {
-  const trimmed = s.trim();
-  if (trimmed.startsWith('=')) return { kind: 'param', paramName: trimmed.slice(1).trim() };
-  const v = Number(trimmed);
-  return { kind: 'literal', value: Number.isFinite(v) ? v : 0 };
-}
 
 function paramOrLiteralToText(p: ParamOrLiteral | undefined): string {
   if (!p) return '';

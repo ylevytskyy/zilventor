@@ -81,6 +81,10 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { ComponentInstance } from '@zilventor/shared';
 import * as THREE from 'three';
+import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraintSolver';
+import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/src/assembly/AssemblyConstraintRefs';
+import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
+import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -601,6 +605,126 @@ export default function App() {
       }
     });
   }, []);
+
+  // Assembly ref cache — memoises per (partPath, refKey) geometry extractions.
+  const assemblyRefCacheRef = useRef(new AssemblyRefCache());
+  // Maps partPath → kernel partId so the solver effect can resolve refs via RPC.
+  const assemblyPartIdCacheRef = useRef(new Map<string, string>());
+
+  // Debounced solver effect: fires 50ms after solverDirty is set to true.
+  // Resolves all constraint refs via KernelClient RPCs (option c: async loop
+  // builds resolvedRefs before the synchronous solveAssembly call).
+  const solverDirty = useAppStore((s) => s.solverDirty);
+  const solverAssembly = useAppStore((s) => s.activeAssembly);
+  useEffect(() => {
+    if (!solverDirty) return;
+    if (!solverAssembly) return;
+    const kernelClient = useAppStore.getState().kernel;
+    if (!kernelClient) return;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      void (async () => {
+        if (cancelled) return;
+        const cache = assemblyRefCacheRef.current;
+        const partIdCache = assemblyPartIdCacheRef.current;
+        const resolvedRefs = new Map<string, import('@zilventor/kernel/src/assembly/AssemblyConstraintRefs').PartLocalGeometry>();
+
+        // Resolve each constraint's refs asynchronously via the KernelClient RPC.
+        for (const k of solverAssembly.constraints) {
+          if (k.suppressed) continue;
+          const componentA = solverAssembly.components.find((c) => c.id === k.refA.componentId);
+          const componentB = solverAssembly.components.find((c) => c.id === k.refB.componentId);
+
+          for (const [component, side] of [[componentA, 'A'], [componentB, 'B']] as const) {
+            if (!component) continue;
+            const partPath = component.partPath;
+
+            // Ensure the part is loaded into the kernel worker and we have its partId.
+            let partId = partIdCache.get(partPath);
+            if (!partId) {
+              // Load from OPFS — requires an opfs handle.
+              // If opfsRef has the instance, use it; otherwise skip.
+              if (!opfsRef.current) continue;
+              try {
+                const bytes = await opfsRef.current.read(partPath);
+                partId = await kernelClient.loadFromBytes(bytes);
+                partIdCache.set(partPath, partId);
+              } catch {
+                continue;
+              }
+            }
+
+            // Resolve the ref for this side.
+            const cacheKey = `${k.id}#${component.id}`;
+            if (resolvedRefs.has(cacheKey)) continue;
+
+            try {
+              let result: import('@zilventor/shared').Result<import('@zilventor/kernel/src/assembly/AssemblyConstraintRefs').PartLocalGeometry, import('@zilventor/shared').KernelError>;
+              if (k.kind === 'insert') {
+                // Insert uses circularEdge refs on both sides.
+                const edgeSide = side === 'A' ? (k.refA as any).circularEdge : (k.refB as any).circularEdge;
+                const cacheHit = cache.getOrComputeCircularEdge(partPath, edgeSide, () => ({ ok: false, error: { kind: 'invalidGeometry' as const, message: 'async-pending', correlationId: '' } }));
+                if (cacheHit.ok) { resolvedRefs.set(cacheKey, cacheHit.value); continue; }
+                result = await kernelClient.extractAssemblyCircularEdge(partId, edgeSide);
+                if (result.ok) cache.getOrComputeCircularEdge(partPath, edgeSide, () => result);
+              } else {
+                const ref = side === 'A' ? k.refA : k.refB;
+                const rk = `${partPath}#${refKey(ref as import('@zilventor/shared').AssemblyConstraintRef)}`;
+                if ((cache as any)['map']?.has(rk)) {
+                  const hit = (cache as any)['map'].get(rk);
+                  if (hit.ok) { resolvedRefs.set(cacheKey, hit.value); continue; }
+                }
+                result = await kernelClient.extractAssemblyRef(partId, ref as import('@zilventor/shared').AssemblyConstraintRef);
+                if (result.ok) cache.getOrCompute(partPath, ref as import('@zilventor/shared').AssemblyConstraintRef, () => result);
+              }
+              if (result.ok) resolvedRefs.set(cacheKey, result.value);
+            } catch {
+              // Broken ref — solver will skip this constraint.
+            }
+          }
+        }
+
+        if (cancelled) return;
+
+        // Build solver input and run solve synchronously.
+        const paramValues = parameterRegistry.getAll().reduce(
+          (acc, p) => { if (p.name && p.value !== undefined) acc[p.name] = p.value; return acc; },
+          {} as Record<string, number>
+        );
+        const input = {
+          components: solverAssembly.components.map((c) => ({
+            id: c.id,
+            T: c.position,
+            q: c.pose?.quaternion ?? quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
+          })),
+          groundedComponentIds: solverAssembly.groundedComponentIds,
+          constraints: solverAssembly.constraints,
+          resolvedRefs,
+          paramValues,
+        };
+        const out = solveAssembly(input);
+        useAppStore.getState().setSolverResult(out.poses, out.diagnostics, out.freeDofBasis);
+        // T37 will wire out.poses → viewport component transforms.
+      })();
+    }, 50);
+    return () => { cancelled = true; clearTimeout(handle); };
+  }, [solverDirty, solverAssembly]);
+
+  // Parameter cascade: when any parameter changes and at least one constraint
+  // references a parameter, mark the solver dirty so it re-solves.
+  useEffect(() => {
+    const unsub = parameterRegistry.subscribe(() => {
+      const aa = useAppStore.getState().activeAssembly;
+      if (!aa) return;
+      const hasParamRef = aa.constraints.some((k) => {
+        const v = k.kind === 'angle' ? (k as any).angle : (k as any).offset;
+        return v?.kind === 'param';
+      });
+      if (hasParamRef) useAppStore.getState().setSolverDirty(true);
+    });
+    return unsub;
+  }, []);
+
 
   // Enter/exit sketch mode (camera swap + grid + orbit lock).
   useEffect(() => {
@@ -1523,7 +1647,7 @@ export default function App() {
   const onCommitConstraint = useCallback(async (close: boolean) => {
     if (!pickedRefA || !pickedRefB) return;
     const id = `K${Date.now()}`;
-    const offsetOrAngle: import('@zilventor/shared').ParamOrLiteral = { kind: 'literal', value: parseFloat(valueExpression) || 0 };
+    const offsetOrAngle = parseParamOrLiteral(valueExpression);
     let constraint: AssemblyConstraint;
     if (placeConstraintMode === 'insert') {
       constraint = {
