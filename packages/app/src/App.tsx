@@ -880,7 +880,7 @@ export default function App() {
         if (e.key === 'n' || e.key === 'N') { OpenPlaceConstraintDialogCommand('angle'); e.preventDefault(); return; }
         if (e.key === 'i' || e.key === 'I') { OpenPlaceConstraintDialogCommand('insert'); e.preventDefault(); return; }
         if (e.key === 'g' || e.key === 'G') {
-          const id = useAppStore.getState().selectedComponentId;
+          const id = useAppStore.getState().selectedComponentIds[0] ?? null;
           if (id) { void new ToggleGroundedCommand({ componentId: id }).apply(); e.preventDefault(); return; }
         }
       }

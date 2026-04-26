@@ -299,7 +299,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
     expect(s.editComponentDialogOpen).toBe(false);
     expect(s.editingComponentId).toBeNull();
     expect(s.editComponentInitialValues).toBeNull();
-    expect(s.selectedComponentId).toBeNull();
+    expect(s.selectedComponentIds).toEqual([]);
     expect(s.componentDiagnostics).toEqual([]);
   });
 
@@ -362,6 +362,22 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
   });
 });
+
+describe('useAppStore selectedComponentIds slice (4c)', () => {
+  it('selectComponents replaces the selection array', () => {
+    useAppStore.setState({ selectedComponentIds: [] } as any);
+    useAppStore.getState().selectComponents(['C1', 'C2']);
+    expect(useAppStore.getState().selectedComponentIds).toEqual(['C1', 'C2']);
+  });
+
+  it('selectComponent shim accepts string | null and writes a one-element array', () => {
+    useAppStore.getState().selectComponent('C7');
+    expect(useAppStore.getState().selectedComponentIds).toEqual(['C7']);
+    useAppStore.getState().selectComponent(null);
+    expect(useAppStore.getState().selectedComponentIds).toEqual([]);
+  });
+});
+
 
 describe('useAppStore work-feature dialog slices', () => {
   beforeEach(() => {

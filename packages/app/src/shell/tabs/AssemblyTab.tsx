@@ -13,7 +13,7 @@ const btn: React.CSSProperties = {
 };
 
 export function AssemblyTab(): JSX.Element {
-  const selectedId = useAppStore((s) => s.selectedComponentId);
+  const selectedId = useAppStore((s) => s.selectedComponentIds[0] ?? null);
   const hasAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
   const selectedConstraintId = useAppStore((s) => s.selectedConstraintId);
   const activeAssembly = useAppStore((s) => s.activeAssembly);

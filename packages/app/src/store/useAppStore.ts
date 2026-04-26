@@ -156,7 +156,7 @@ type AppState = {
   editComponentDialogOpen: boolean;
   editingComponentId: string | null;
   editComponentInitialValues: ComponentInstance | null;
-  selectedComponentId: string | null;
+  selectedComponentIds: string[];
   componentDiagnostics: Array<{ componentId: string; message: string }>;
 
   openPlaceComponentDialog(): void;
@@ -167,6 +167,7 @@ type AppState = {
   updateComponent(id: string, patch: Partial<ComponentInstance>): void;
   removeComponent(id: string): void;
   selectComponent(id: string | null): void;
+  selectComponents(ids: string[]): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
 
   // 4b additions
@@ -382,12 +383,12 @@ export const useAppStore = create<AppState>((set) => ({
   editComponentDialogOpen: false,
   editingComponentId: null,
   editComponentInitialValues: null,
-  selectedComponentId: null,
+  selectedComponentIds: [],
   componentDiagnostics: [],
 
   openPlaceComponentDialog: () => set({
     placeComponentDialogOpen: true,
-    selectedComponentId: null,
+    selectedComponentIds: [],
   }),
   resetPlaceComponentDialog: () => set({ placeComponentDialogOpen: false }),
 
@@ -446,7 +447,8 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
 
-  selectComponent: (id) => set({ selectedComponentId: id }),
+  selectComponents: (ids) => set({ selectedComponentIds: [...ids] }),
+  selectComponent: (id) => set({ selectedComponentIds: id == null ? [] : [id] }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),
 
   // 4b additions
