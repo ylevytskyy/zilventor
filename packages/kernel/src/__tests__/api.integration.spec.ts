@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Feature } from '@zilventor/shared';
+import type { Feature, AssemblyConstraintRef } from '@zilventor/shared';
 import { createKernelApi } from '../api';
 
 describe('KernelApi (end-to-end, in-process)', () => {
@@ -75,6 +75,57 @@ describe('KernelApi (end-to-end, in-process)', () => {
     // Stored part's featureTree unchanged.
     const p = await api.getPart(partId);
     expect(p!.featureTree.filter((f) => f.kind === 'revolve')).toHaveLength(0);
+  }, 120_000);
+
+  it('extractAssemblyRef resolves +Z face plane from cached NamedShape (fix: T36 face-handle gap)', async () => {
+    // Regression test: before the fix, extractAssemblyRef re-executed the tree
+    // and reconstructed NamedShape with index placeholders instead of real OCCT
+    // face handles, so extractFacePlane always returned null → broken-ref errors.
+    const api = createKernelApi();
+    await api.init();
+
+    const partId = await api.createPart('Box');
+    await api.setParameter(partId, { name: 'd1', expression: '50', value: 50, unit: 'mm' });
+    await api.addFeature(partId, {
+      kind: 'sketch', id: 's1',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 100, h: 100 }],
+      constraints: []
+    });
+    await api.addFeature(partId, {
+      kind: 'extrude', id: 'e1', sketchRef: 's1',
+      distanceParam: 'd1', direction: 'forward', operation: 'new'
+    });
+
+    // Warm the NamedShape cache via execute().
+    const execR = await api.execute(partId);
+    expect(execR.ok).toBe(true);
+
+    // The +Z top face of the box is named { featureId: 'e1', role: 'top' }.
+    // (ExtrudeFeature labels the face with the highest centroid-Z as 'top'.)
+    const ref: AssemblyConstraintRef = {
+      kind: 'face',
+      componentId: 'C1',
+      face: { featureId: 'e1', role: 'top', instance: 0 }
+    };
+
+    const r = await api.extractAssemblyRef(partId, ref);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    expect(r.value.kind).toBe('plane');
+    if (r.value.kind !== 'plane') return;
+
+    // The top face of a forward (+Z) extrude has its outward normal pointing
+    // in +Z (0, 0, 1). Allow for sign flip — OCCT may orient the normal either
+    // way; we just verify it is aligned with Z and not zero.
+    const { N } = r.value;
+    expect(Math.abs(N.z)).toBeCloseTo(1, 5);
+    expect(Math.abs(N.x)).toBeCloseTo(0, 5);
+    expect(Math.abs(N.y)).toBeCloseTo(0, 5);
+
+    // The plane origin should be at Z ≈ 50 (the extrude distance).
+    expect(r.value.P.z).toBeCloseTo(50, 3);
   }, 120_000);
 
   it('execute surfaces featureErrors for a fillet that fails to resolve', async () => {

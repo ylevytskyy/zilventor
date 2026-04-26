@@ -42,6 +42,14 @@ import { resolve } from './ParameterResolver';
 export type ExecutionResult = {
   mesh: Mesh;
   finalSolid: OcctShape;
+  /** The full NamedShape (solid + face-handle → name mapping) produced by the
+   *  feature tree. Callers that need to resolve face/edge refs by name (e.g.
+   *  assembly constraint extractors) use this instead of `finalSolid` alone.
+   *  Ownership: the caller is responsible for disposing `namedShape.shape` via
+   *  `disposeShape` when done; `finalSolid` is an alias to `namedShape.shape`
+   *  and must not be disposed separately.
+   */
+  namedShape: NamedShape;
   tessellatedEdges?: TessellatedEdge[];
   /** Face names of the final solid. Exposed so UI can populate pickers
    *  (e.g. the Shell dialog's "face to remove" dropdown) without having
@@ -743,6 +751,7 @@ export async function executeTree(
   return ok({
     mesh,
     finalSolid: finalSolid.shape,
+    namedShape: finalSolid,
     tessellatedEdges,
     faceNames: finalSolid.faceNames.map((f) => f.name),
     tessellatedFaces,

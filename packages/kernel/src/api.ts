@@ -56,6 +56,25 @@ export type KernelApi = {
 export function createKernelApi(): KernelApi {
   let occt: OcctInstance | null = null;
   const parts = new Map<string, PartDocument>();
+  /**
+   * Per-part NamedShape cache. Populated after each successful `executeTree`
+   * call (from `execute` or `saveToBytes`). The cached shape is kept alive so
+   * that `extractAssemblyRef` / `extractAssemblyCircularEdge` can resolve face
+   * handles by name without re-executing the tree.
+   *
+   * Ownership: when we replace a cached entry we dispose the old shape first.
+   * When a part is deleted the entry is disposed and removed.
+   */
+  const namedShapeCache = new Map<string, import('./occt/FaceNaming').NamedShape>();
+  /** Also cache the last work-feature values alongside the shape. */
+  const workFeatureCache = new Map<string, import('@zilventor/shared').WorkFeatureValue[]>();
+
+  function updateNamedShapeCache(partId: string, ns: import('./occt/FaceNaming').NamedShape, wfs: import('@zilventor/shared').WorkFeatureValue[]): void {
+    const prev = namedShapeCache.get(partId);
+    if (prev) disposeShape(prev.shape);
+    namedShapeCache.set(partId, ns);
+    workFeatureCache.set(partId, wfs);
+  }
 
   return {
     async init() {
@@ -109,6 +128,10 @@ export function createKernelApi(): KernelApi {
     },
 
     async deletePart(partId) {
+      const ns = namedShapeCache.get(partId);
+      if (ns) disposeShape(ns.shape);
+      namedShapeCache.delete(partId);
+      workFeatureCache.delete(partId);
       parts.delete(partId);
     },
 
@@ -118,8 +141,10 @@ export function createKernelApi(): KernelApi {
       if (!p) throw new Error(`no part ${partId}`);
       const r = await executeTree(occt, p);
       if (!r.ok) return r;
-      // Dispose the solid — we only ship the mesh across the worker boundary.
-      disposeShape(r.value.finalSolid);
+      // Cache the NamedShape (with live OCCT face handles) for assembly ref
+      // resolution. The cache takes ownership of namedShape; do NOT dispose
+      // finalSolid separately — updateNamedShapeCache disposes the prior entry.
+      updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
       return {
         ok: true,
         value: {
@@ -127,7 +152,8 @@ export function createKernelApi(): KernelApi {
           ...(r.value.tessellatedEdges ? { tessellatedEdges: r.value.tessellatedEdges } : {}),
           ...(r.value.faceNames ? { faceNames: r.value.faceNames } : {}),
           ...(r.value.tessellatedFaces ? { tessellatedFaces: r.value.tessellatedFaces } : {}),
-          ...(r.value.featureErrors ? { featureErrors: r.value.featureErrors } : {})
+          ...(r.value.featureErrors ? { featureErrors: r.value.featureErrors } : {}),
+          ...(r.value.workFeatures ? { workFeatures: r.value.workFeatures } : {})
         }
       };
     },
@@ -162,34 +188,38 @@ export function createKernelApi(): KernelApi {
       const part = parts.get(partId);
       if (!part) throw new Error(`no part ${partId}`);
 
-      // Re-run the feature tree to build the cached solid
+      // Re-run the feature tree to build the solid for BRep serialisation.
       const r = await executeTree(occt, part);
       if (!r.ok) throw new Error(`execute failed before save: ${r.error.message}`);
 
-      try {
-        const brep = writeBRep(occt, r.value.finalSolid);
-        const manifest = {
-          formatVersion: 1 as const,
-          kind: 'part' as const,
-          createdAt: new Date().toISOString(),
-          appVersion: '0.0.0',
-          document: {
-            ...part,
-            cachedGeometry: {
-              brepBlobId: 'main',
-              triangleCount: r.value.mesh.indices.length / 3,
-              boundingBox: r.value.mesh.boundingBox
-            }
+      // Update the NamedShape cache before we do anything that might throw,
+      // so the ref-extractor always has a fresh shape after a save. The cache
+      // takes ownership; writeBRep reads the solid handle synchronously below,
+      // so this order is safe.
+      updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
+
+      // writeBRep reads r.value.finalSolid (alias to namedShape.shape) which
+      // is still alive in the cache — do NOT call disposeShape here.
+      const brep = writeBRep(occt, r.value.finalSolid);
+      const manifest = {
+        formatVersion: 1 as const,
+        kind: 'part' as const,
+        createdAt: new Date().toISOString(),
+        appVersion: '0.0.0',
+        document: {
+          ...part,
+          cachedGeometry: {
+            brepBlobId: 'main',
+            triangleCount: r.value.mesh.indices.length / 3,
+            boundingBox: r.value.mesh.boundingBox
           }
-        };
-        return await packProject({
-          manifest,
-          blobs: { main: brep },
-          ...(thumbnail ? { thumbnail } : {})
-        });
-      } finally {
-        disposeShape(r.value.finalSolid);
-      }
+        }
+      };
+      return await packProject({
+        manifest,
+        blobs: { main: brep },
+        ...(thumbnail ? { thumbnail } : {})
+      });
     },
 
     async load(handle) {
@@ -213,29 +243,39 @@ export function createKernelApi(): KernelApi {
 
     async extractAssemblyRef(partId, ref) {
       if (!occt) return { ok: false, error: { kind: 'invalidParameter' as const, message: 'kernel not initialized', correlationId: 'no-occt' } };
-      const p = parts.get(partId);
-      if (!p) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
-      const r = await executeTree(occt, p);
-      if (!r.ok) return r;
+      if (!parts.has(partId)) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
+      // Use the cached NamedShape (populated by the most recent `execute` call).
+      // If the cache is cold (part was never executed since load), fall back to
+      // executing now and warming the cache.
+      let ns = namedShapeCache.get(partId);
+      let wfs = workFeatureCache.get(partId);
+      if (!ns) {
+        const p = parts.get(partId)!;
+        const r = await executeTree(occt, p);
+        if (!r.ok) return r;
+        updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
+        ns = r.value.namedShape;
+        wfs = r.value.workFeatures ?? [];
+      }
       const ex = realExtractorBundle(occt);
-      const ns = { shape: r.value.finalSolid, faceNames: (r.value.faceNames ?? []).map((name, i) => ({ name, index: i })) };
-      const wfs = new Map<string, import('@zilventor/shared').WorkFeatureValue>((r.value.workFeatures ?? []).map((w) => [w.featureId, w]));
-      const result = resolveRef(ref, ns as any, wfs, ex);
-      disposeShape(r.value.finalSolid);
-      return result;
+      const wfMap = new Map<string, import('@zilventor/shared').WorkFeatureValue>((wfs ?? []).map((w) => [w.featureId, w]));
+      return resolveRef(ref, ns, wfMap, ex);
     },
 
     async extractAssemblyCircularEdge(partId, edge) {
       if (!occt) return { ok: false, error: { kind: 'invalidParameter' as const, message: 'kernel not initialized', correlationId: 'no-occt' } };
-      const p = parts.get(partId);
-      if (!p) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
-      const r = await executeTree(occt, p);
-      if (!r.ok) return r;
+      if (!parts.has(partId)) return { ok: false, error: { kind: 'invalidParameter' as const, message: `no part ${partId}`, correlationId: partId } };
+      // Same cache strategy as extractAssemblyRef.
+      let ns = namedShapeCache.get(partId);
+      if (!ns) {
+        const p = parts.get(partId)!;
+        const r = await executeTree(occt, p);
+        if (!r.ok) return r;
+        updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
+        ns = r.value.namedShape;
+      }
       const ex = realExtractorBundle(occt);
-      const ns = { shape: r.value.finalSolid, faceNames: (r.value.faceNames ?? []).map((name, i) => ({ name, index: i })) };
-      const result = resolveCircularEdgeRef(edge, ns as any, ex);
-      disposeShape(r.value.finalSolid);
-      return result;
+      return resolveCircularEdgeRef(edge, ns, ex);
     }
   };
 }
