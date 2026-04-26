@@ -1758,6 +1758,19 @@ export default function App() {
         }
         useAppStore.getState().setSolverDirty(true);
       };
+      // 4c E2E hooks (T31): probe per-component material colour + selection-overlay state.
+      w.__zilventorComponentMaterialHex = (componentId: string): string | null => {
+        const sm = viewportRef.current?.getSceneManager();
+        const mesh = sm?.getComponentMesh(componentId);
+        const mat = mesh?.material as THREE.MeshStandardMaterial | undefined;
+        if (!mat || !('color' in mat) || !(mat.color instanceof THREE.Color)) return null;
+        return '#' + mat.color.getHexString();
+      };
+      w.__zilventorComponentSelectedOverlay = (componentId: string): boolean => {
+        const sm = viewportRef.current?.getSceneManager();
+        return sm?.hasSelectionOverlay?.(componentId) ?? false;
+      };
+      // __zilventorBomCsvBytes is set by ExportBomCsvCommand on each apply().
     }
   }, []);
 
