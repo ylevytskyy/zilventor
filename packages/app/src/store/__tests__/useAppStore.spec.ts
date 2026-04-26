@@ -378,6 +378,23 @@ describe('useAppStore selectedComponentIds slice (4c)', () => {
   });
 });
 
+describe('useAppStore bomTabActive + showComponentColors slices (4c)', () => {
+  it('bomTabActive defaults false and setBomTabActive flips it', () => {
+    useAppStore.setState({ bomTabActive: false } as any);
+    expect(useAppStore.getState().bomTabActive).toBe(false);
+    useAppStore.getState().setBomTabActive(true);
+    expect(useAppStore.getState().bomTabActive).toBe(true);
+  });
+
+  it('showComponentColors defaults false and setShowComponentColors flips it', () => {
+    useAppStore.setState({ showComponentColors: false } as any);
+    expect(useAppStore.getState().showComponentColors).toBe(false);
+    useAppStore.getState().setShowComponentColors(true);
+    expect(useAppStore.getState().showComponentColors).toBe(true);
+  });
+});
+
+
 
 describe('useAppStore work-feature dialog slices', () => {
   beforeEach(() => {

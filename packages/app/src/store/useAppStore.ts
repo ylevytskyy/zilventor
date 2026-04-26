@@ -158,6 +158,10 @@ type AppState = {
   editComponentInitialValues: ComponentInstance | null;
   selectedComponentIds: string[];
   componentDiagnostics: Array<{ componentId: string; message: string }>;
+  bomTabActive: boolean;
+  showComponentColors: boolean;
+  setBomTabActive: (v: boolean) => void;
+  setShowComponentColors: (v: boolean) => void;
 
   openPlaceComponentDialog(): void;
   resetPlaceComponentDialog(): void;
@@ -385,6 +389,10 @@ export const useAppStore = create<AppState>((set) => ({
   editComponentInitialValues: null,
   selectedComponentIds: [],
   componentDiagnostics: [],
+  bomTabActive: false,
+  showComponentColors: false,
+  setBomTabActive: (v) => set({ bomTabActive: v }),
+  setShowComponentColors: (v) => set({ showComponentColors: v }),
 
   openPlaceComponentDialog: () => set({
     placeComponentDialogOpen: true,
