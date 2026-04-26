@@ -69,6 +69,9 @@ import { PlaceComponentCommand } from './commands/PlaceComponentCommand';
 import { EditComponentCommand } from './commands/EditComponentCommand';
 import { loadAssemblyTiles, type AssemblyTile } from './shell/loadAssemblyTiles';
 import { PlaceConstraintDialog } from './shell/PlaceConstraintDialog';
+import { OpenPlaceConstraintDialogCommand } from './commands/OpenPlaceConstraintDialogCommand';
+import { ToggleGroundedCommand } from './commands/ToggleGroundedCommand';
+import { ToggleConstraintSuppressionCommand } from './commands/ToggleConstraintSuppressionCommand';
 import { AssemblyRefPickController } from './model/AssemblyRefPickController';
 import { AddAssemblyConstraintCommand } from './commands/AddAssemblyConstraintCommand';
 import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraintCommand';
@@ -731,6 +734,21 @@ export default function App() {
         e.preventDefault();
         OpenPlaceComponentDialogCommand();
         return;
+      }
+      const isAssembly = useAppStore.getState().activeDocument?.kind === 'assembly';
+      if (isAssembly && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (e.key === 'm' || e.key === 'M') { OpenPlaceConstraintDialogCommand('mate'); e.preventDefault(); return; }
+        if (e.key === 'f' || e.key === 'F') { OpenPlaceConstraintDialogCommand('flush'); e.preventDefault(); return; }
+        if (e.key === 'n' || e.key === 'N') { OpenPlaceConstraintDialogCommand('angle'); e.preventDefault(); return; }
+        if (e.key === 'i' || e.key === 'I') { OpenPlaceConstraintDialogCommand('insert'); e.preventDefault(); return; }
+        if (e.key === 'g' || e.key === 'G') {
+          const id = useAppStore.getState().selectedComponentId;
+          if (id) { void new ToggleGroundedCommand({ componentId: id }).apply(); e.preventDefault(); return; }
+        }
+      }
+      if (isAssembly && e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        const id = useAppStore.getState().selectedConstraintId;
+        if (id) { void new ToggleConstraintSuppressionCommand({ id }).apply(); e.preventDefault(); return; }
       }
       if (e.key === 'F7') {
         e.preventDefault();
