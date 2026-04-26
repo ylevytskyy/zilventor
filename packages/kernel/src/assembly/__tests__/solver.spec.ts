@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAllResiduals, buildAllJacobian, lmSolve, type SolverInput } from '../AssemblyConstraintSolver';
+import { buildAllResiduals, buildAllJacobian, lmSolve, type SolverInput, solveAssembly, type AssemblySolveInput } from '../AssemblyConstraintSolver';
 import { quatFromEulerXYZ } from '../quat';
 
 const trivialPlane = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
@@ -77,5 +77,80 @@ describe('lmSolve', () => {
     const result = lmSolve(input, []);
     expect(result.converged).toBe(true);
     expect(result.x).toEqual([]);
+  });
+});
+
+describe('solveAssembly', () => {
+  it('returns poses + diagnostics + freeDofBasis', () => {
+    const trivialPlane = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const input: AssemblySolveInput = {
+      components: [
+        { id: 'A', T: { x: 0, y: 0, z: 0 }, q: [0, 0, 0, 1] },
+        { id: 'B', T: { x: 1, y: 1, z: 5 }, q: [0, 0, 0, 1] },
+      ],
+      groundedComponentIds: ['A'],
+      constraints: [{
+        id: 'k1', kind: 'mate', suppressed: false,
+        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        offset: { kind: 'literal', value: 0 } as any,
+      }],
+      resolvedRefs: new Map<string, any>([
+        ['k1#A', trivialPlane],
+        ['k1#B', trivialPlane],
+      ]),
+      paramValues: {},
+    };
+    const out = solveAssembly(input);
+    expect(out.poses.get('A')).toBeDefined();
+    expect(out.poses.get('B')).toBeDefined();
+    expect(out.diagnostics.status).toMatch(/fully|underconstrained|over|did-not/);
+    expect(out.freeDofBasis).toBeInstanceOf(Float64Array);
+    // The mate constraint should be satisfied (residual ~0)
+    expect(out.diagnostics.perConstraint.get('k1')!.residual).toBeLessThan(1e-3);
+  });
+
+  it('auto-anchors first component when groundedComponentIds is empty', () => {
+    const trivialPlane = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const input: AssemblySolveInput = {
+      components: [
+        { id: 'A', T: { x: 0, y: 0, z: 0 }, q: [0, 0, 0, 1] },
+        { id: 'B', T: { x: 0, y: 0, z: 5 }, q: [0, 0, 0, 1] },
+      ],
+      groundedComponentIds: [],  // none grounded
+      constraints: [{
+        id: 'k1', kind: 'mate', suppressed: false,
+        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        offset: { kind: 'literal', value: 0 } as any,
+      }],
+      resolvedRefs: new Map<string, any>([
+        ['k1#A', trivialPlane],
+        ['k1#B', trivialPlane],
+      ]),
+      paramValues: {},
+    };
+    const out = solveAssembly(input);
+    expect(out.diagnostics.message).toMatch(/auto-anchored A/);
+  });
+
+  it('flags broken-ref constraint', () => {
+    const input: AssemblySolveInput = {
+      components: [
+        { id: 'A', T: { x: 0, y: 0, z: 0 }, q: [0, 0, 0, 1] },
+        { id: 'B', T: { x: 0, y: 0, z: 5 }, q: [0, 0, 0, 1] },
+      ],
+      groundedComponentIds: ['A'],
+      constraints: [{
+        id: 'k1', kind: 'mate', suppressed: false,
+        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        offset: { kind: 'literal', value: 0 } as any,
+      }],
+      resolvedRefs: new Map<string, any>(),  // empty — both refs missing
+      paramValues: {},
+    };
+    const out = solveAssembly(input);
+    expect(out.diagnostics.perConstraint.get('k1')!.brokenRef).toBe(true);
   });
 });

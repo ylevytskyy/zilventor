@@ -11,7 +11,7 @@ import {
   buildAngleResiduals, buildAngleJacobian,
   buildInsertResiduals, buildInsertJacobian,
 } from './Residuals';
-import { choleskySolve } from './linalg';
+import { choleskySolve, jacobiSVD } from './linalg';
 import { quatNormalize } from './quat';
 
 export type ComponentPose = { id: string; T: Vec3; q: Quat };
@@ -299,4 +299,135 @@ export function lmSolve(
   let maxAbs = 0;
   for (let i = 0; i < constraintRowCount; i++) maxAbs = Math.max(maxAbs, Math.abs(r[i]!));
   return { x, finalResiduals: r, J, converged: maxAbs < D.epsResid, iterations: it };
+}
+
+// ─── solveAssembly higher-level API ──────────────────────────────────────────
+
+export type AssemblySolveInput = Omit<SolverInput, 'grounded'> & { groundedComponentIds: string[] };
+
+export type AssemblyDiagnostics = {
+  dofCount: number;
+  status: 'fully-constrained' | 'underconstrained' | 'over-constrained' | 'did-not-converge';
+  perConstraint: Map<string, { residual: number; conflict: boolean; brokenRef: boolean }>;
+  message?: string;
+};
+
+export type AssemblySolveResult = {
+  poses: Map<string, { translation: Vec3; quaternion: Quat }>;
+  finalResiduals: number[];
+  J: number[][];
+  freeDofBasis: Float64Array;  // (n_unknowns × n_free) flat, column-major
+  diagnostics: AssemblyDiagnostics;
+};
+
+function constraintResidualCount(k: AssemblyConstraint, refA: PartLocalGeometry, refB: PartLocalGeometry): number {
+  if (k.kind === 'flush')  return 3;
+  if (k.kind === 'angle')  return 1;
+  if (k.kind === 'insert') return 7;
+  // mate: depends on pairing
+  const a = refA.kind, b = refB.kind;
+  if (a === 'plane' && b === 'plane') return 3;
+  if (a === 'axis'  && b === 'axis')  return 4;
+  if (a === 'point' && b === 'point') return 3;
+  if ((a === 'point' && b === 'plane') || (a === 'plane' && b === 'point')) return 1;
+  if ((a === 'point' && b === 'axis')  || (a === 'axis'  && b === 'point')) return 2;
+  return 0;
+}
+
+export function solveAssembly(input: AssemblySolveInput): AssemblySolveResult {
+  // Auto-anchor fallback if no grounded component
+  let grounded = new Set(input.groundedComponentIds);
+  let autoAnchorMessage: string | undefined;
+  if (grounded.size === 0 && input.components.length > 0) {
+    grounded = new Set([input.components[0]!.id]);
+    autoAnchorMessage = `no grounded component — auto-anchored ${input.components[0]!.id} for this solve`;
+  }
+
+  const solverInput: SolverInput = {
+    components: input.components,
+    grounded,
+    constraints: input.constraints,
+    resolvedRefs: input.resolvedRefs,
+    paramValues: input.paramValues,
+  };
+
+  // Build initial x from component poses
+  const { idToOffset, total } = unknownsLayout(solverInput);
+  const x0 = new Array(total).fill(0);
+  for (const c of input.components) {
+    const off = idToOffset.get(c.id);
+    if (off === undefined) continue;
+    x0[off]     = c.T.x; x0[off + 1] = c.T.y; x0[off + 2] = c.T.z;
+    x0[off + 3] = c.q[0]; x0[off + 4] = c.q[1]; x0[off + 5] = c.q[2]; x0[off + 6] = c.q[3];
+  }
+
+  const lm = lmSolve(solverInput, x0);
+
+  // Decompose poses
+  const poses = new Map<string, { translation: Vec3; quaternion: Quat }>();
+  for (const c of input.components) {
+    const off = idToOffset.get(c.id);
+    if (off === undefined) {
+      poses.set(c.id, { translation: c.T, quaternion: c.q });
+    } else {
+      poses.set(c.id, {
+        translation: { x: lm.x[off]!, y: lm.x[off + 1]!, z: lm.x[off + 2]! },
+        quaternion: [lm.x[off + 3]!, lm.x[off + 4]!, lm.x[off + 5]!, lm.x[off + 6]!] as Quat,
+      });
+    }
+  }
+
+  // SVD for free-DOF detection
+  const J = lm.J;
+  let freeDofBasis = new Float64Array(0);
+  let dofCount = 0;
+  if (J.length > 0 && J[0]!.length > 0 && J.length >= J[0]!.length) {
+    const Jcopy = J.map((row) => row.slice());
+    const { s, V } = jacobiSVD(Jcopy);
+    const sMax = Math.max(...s);
+    const epsRank = 1e-6 * (sMax || 1);
+    const freeCols: number[] = [];
+    for (let j = 0; j < s.length; j++) if (s[j]! < epsRank) freeCols.push(j);
+    dofCount = freeCols.length;
+    freeDofBasis = new Float64Array(V.length * freeCols.length);
+    for (let c = 0; c < freeCols.length; c++)
+      for (let r = 0; r < V.length; r++)
+        freeDofBasis[c * V.length + r] = V[r]![freeCols[c]!]!;
+  }
+
+  // Per-constraint residual breakdown
+  const perConstraint = new Map<string, { residual: number; conflict: boolean; brokenRef: boolean }>();
+  let row = 0;
+  for (const k of input.constraints) {
+    if (k.suppressed) {
+      perConstraint.set(k.id, { residual: 0, conflict: false, brokenRef: false });
+      continue;
+    }
+    const refA = input.resolvedRefs.get(`${k.id}#${refComponentId(k, 'A')}`);
+    const refB = input.resolvedRefs.get(`${k.id}#${refComponentId(k, 'B')}`);
+    if (!refA || !refB) {
+      perConstraint.set(k.id, { residual: 0, conflict: false, brokenRef: true });
+      continue;
+    }
+    const count = constraintResidualCount(k, refA, refB);
+    let maxAbs = 0;
+    for (let i = 0; i < count; i++) maxAbs = Math.max(maxAbs, Math.abs(lm.finalResiduals[row + i] ?? 0));
+    perConstraint.set(k.id, { residual: maxAbs, conflict: maxAbs > 1e-3, brokenRef: false });
+    row += count;
+  }
+
+  // Top-level status
+  let status: AssemblyDiagnostics['status'];
+  if (!lm.converged) status = 'did-not-converge';
+  else if (Array.from(perConstraint.values()).some((v) => v.conflict)) status = 'over-constrained';
+  else if (dofCount > 0) status = 'underconstrained';
+  else status = 'fully-constrained';
+
+  return {
+    poses,
+    finalResiduals: lm.finalResiduals,
+    J: lm.J,
+    freeDofBasis,
+    diagnostics: { dofCount, status, perConstraint, ...(autoAnchorMessage !== undefined ? { message: autoAnchorMessage } : {}) },
+  };
 }
