@@ -1699,6 +1699,8 @@ export default function App() {
   const editInitial = useAppStore((s) => s.editComponentInitialValues);
   const assembly = useAppStore((s) => s.activeAssembly);
   const componentPoses = useAppStore((s) => s.componentPoses);
+  const showComponentColors = useAppStore((s) => s.showComponentColors);
+  const selectedComponentIds = useAppStore((s) => s.selectedComponentIds);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
 
   // Assembly constraint pick controller (T34).
@@ -1874,6 +1876,7 @@ export default function App() {
         geometry: THREE.BufferGeometry;
         transform: THREE.Matrix4;
         pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+        colorHex?: string;
         visible: boolean;
       }> = [];
       const diagnostics: Array<{ componentId: string; message: string }> = [];
@@ -1907,11 +1910,19 @@ export default function App() {
         ));
         transform.setPosition(c.position.x, c.position.y, c.position.z);
         const pose = componentPoses.get(c.id);
+        let colorHex: string | undefined;
+        if (showComponentColors && c.color) {
+          if (c.color.kind === 'hex') colorHex = c.color.hex;
+          else if (c.color.kind === 'palette' && assembly.colors[c.color.name]) {
+            colorHex = assembly.colors[c.color.name];
+          }
+        }
         specs.push({
           componentId: c.id,
           geometry: geom,
           transform,
           ...(pose !== undefined ? { pose } : {}),
+          ...(colorHex !== undefined ? { colorHex } : {}),
           visible: c.visible,
         });
       }
@@ -1921,7 +1932,13 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [assembly, kernel, componentPoses]);
+  }, [assembly, kernel, componentPoses, showComponentColors]);
+
+  // Selection-sync: forward the store's selectedComponentIds to the viewport so
+  // it can render outline overlays on the selected component meshes.
+  useEffect(() => {
+    viewportRef.current?.setSelectedComponentIds(selectedComponentIds);
+  }, [selectedComponentIds]);
 
   // OPFS autosave — debounce 500 ms after the last activeDocument mutation.
   // Parts are packed via kernel.saveToBytes (re-runs the feature tree to bake
