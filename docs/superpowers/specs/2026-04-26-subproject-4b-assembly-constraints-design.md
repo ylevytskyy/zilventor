@@ -226,6 +226,9 @@ loop k = 0 .. max_iters:
 return { x, finalResiduals: r, J_at_solution: J }
 ```
 
+The higher-level `solveAssembly(doc, parameterValues, currentPoses)` wraps the LM core: it builds initial `x` from `currentPoses`, runs LM, computes the SVD of `J_at_solution`, decomposes `x` back into per-component `{ translation, quaternion }`, and returns `{ poses, J, svd, perConstraintResiduals, diagnostics }`. Free-DOF drag and the StatusBar segment consume this higher-level shape; the LM core is private to `AssemblyConstraintSolver.ts`.
+
+
 Defaults:
 - `λ₀ = 1e-3`, `λ_max = 1e8`
 - `ε_abs = 1e-6` (mm-scale, well below any CAD tolerance)
