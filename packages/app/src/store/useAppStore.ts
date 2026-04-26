@@ -180,6 +180,8 @@ type AppState = {
   setComponentColor(componentId: string, color: import('@zilventor/shared').ComponentColor | undefined): void;
   setAssemblyPaletteColor(name: string, hex: string): void;
   removeAssemblyPaletteColor(name: string): void;
+  setBomItemNumber(rowKey: string, n: number): void;
+  setBomItemNumbers(map: Record<string, number>): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
 
   // 4b additions
@@ -487,6 +489,23 @@ export const useAppStore = create<AppState>((set) => ({
     if (!s.activeAssembly) return s;
     const { [name]: _removed, ...rest } = s.activeAssembly.colors;
     const next: AssemblyDocument = { ...s.activeAssembly, colors: rest };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  setBomItemNumber: (rowKey, n) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const map = { ...s.activeAssembly.bomItemNumbers };
+    const collidingKey = Object.entries(map).find(([k, v]) => v === n && k !== rowKey)?.[0];
+    if (collidingKey) {
+      const max = Math.max(0, ...Object.values(map));
+      map[collidingKey] = max + 1;
+    }
+    map[rowKey] = n;
+    const next: AssemblyDocument = { ...s.activeAssembly, bomItemNumbers: map };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  setBomItemNumbers: (map) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = { ...s.activeAssembly, bomItemNumbers: { ...map } };
     return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
   }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),

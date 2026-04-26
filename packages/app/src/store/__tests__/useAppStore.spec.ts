@@ -441,6 +441,35 @@ describe('useAppStore assembly palette CRUD (4c)', () => {
   });
 });
 
+describe('useAppStore BOM item-number actions (4c)', () => {
+  it('setBomItemNumber bumps the colliding row to max+1', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentIds: [],
+        colors: {}, bomItemNumbers: { rowA: 1, rowB: 2 },
+      },
+    } as any);
+    useAppStore.getState().setBomItemNumber('rowA', 2);
+    const map = useAppStore.getState().activeAssembly!.bomItemNumbers;
+    expect(map.rowA).toBe(2);
+    expect(map.rowB).toBe(3);
+  });
+
+  it('setBomItemNumbers bulk-replaces the map', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentIds: [],
+        colors: {}, bomItemNumbers: { old1: 1, old2: 2 },
+      },
+    } as any);
+    useAppStore.getState().setBomItemNumbers({ rowX: 5 });
+    expect(useAppStore.getState().activeAssembly!.bomItemNumbers).toEqual({ rowX: 5 });
+  });
+});
+
+
 
 
 
