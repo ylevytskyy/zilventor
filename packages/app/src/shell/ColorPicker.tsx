@@ -29,6 +29,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
           onChange={(e) => setPendingHex(e.target.value)}
         />
         <button
+          type="button"
           onClick={() => {
             if (!pendingName) return;
             onAddPaletteColor?.(pendingName, pendingHex);
@@ -40,6 +41,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
           OK
         </button>
         <button
+          type="button"
           onClick={() => {
             setMode('select');
             setPendingName('');
@@ -61,6 +63,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
           onChange={(e) => setPendingHex(e.target.value)}
         />
         <button
+          type="button"
           onClick={() => {
             onChange({ kind: 'hex', hex: pendingHex });
             setMode('select');
@@ -68,7 +71,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
         >
           OK
         </button>
-        <button onClick={() => setMode('select')}>Cancel</button>
+        <button type="button" onClick={() => setMode('select')}>Cancel</button>
       </div>
     );
   }

@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import type { ComponentInstance } from '@zilventor/shared';
+import type { ComponentColor, ComponentInstance } from '@zilventor/shared';
+import { useAppStore } from '../store/useAppStore';
+import { ColorPicker } from './ColorPicker';
+import { SetComponentColorCommand } from '../commands/SetComponentColorCommand';
 
 type Props = {
   initial: ComponentInstance;
@@ -24,9 +27,12 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
   const [ry, setRy] = useState(String(initial.rotation.ry));
   const [rz, setRz] = useState(String(initial.rotation.rz));
   const [visible, setVisible] = useState(initial.visible);
+  const [color, setColor] = useState<ComponentColor | undefined>(initial.color);
+  const palette = useAppStore((s) => s.activeAssembly?.colors ?? {});
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
+    void new SetComponentColorCommand({ id: initial.id, color }).apply();
     onCommit({
       position: { x: Number(x), y: Number(y), z: Number(z) },
       rotation: { rx: Number(rx), ry: Number(ry), rz: Number(rz) },
@@ -80,6 +86,16 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
         />
         <span>visible</span>
       </label>
+
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Color</div>
+        <ColorPicker
+          value={color}
+          palette={palette}
+          onChange={setColor}
+          onAddPaletteColor={(name, hex) => useAppStore.getState().setAssemblyPaletteColor(name, hex)}
+        />
+      </div>
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
         <button type="button" onClick={onCancel} style={btn}>Cancel</button>
