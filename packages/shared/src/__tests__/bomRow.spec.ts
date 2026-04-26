@@ -111,3 +111,34 @@ describe('aggregateBom', () => {
     expect(rows[0]!.partName).toBe('(missing part)');
   });
 });
+
+import { compareBomRowsForRenumber, pruneBomItemNumbers } from '../bomRow';
+
+describe('compareBomRowsForRenumber', () => {
+  const a: BomRow = { rowKey: 'X::none', itemNumber: 7, qty: 1, partPath: 'X', partName: 'a', color: undefined, componentIds: ['C1'] };
+  const b: BomRow = { rowKey: 'Y::none', itemNumber: 3, qty: 1, partPath: 'Y', partName: 'b', color: undefined, componentIds: ['C2'] };
+  it('sorts primarily by partName ASC', () => {
+    expect(compareBomRowsForRenumber(a, b)).toBeLessThan(0);
+  });
+  it('breaks ties by rowKey ASC', () => {
+    const t1: BomRow = { ...a, partName: 'same', rowKey: 'A::palette:Z' };
+    const t2: BomRow = { ...a, partName: 'same', rowKey: 'A::palette:A' };
+    expect(compareBomRowsForRenumber(t1, t2)).toBeGreaterThan(0);
+  });
+});
+
+describe('pruneBomItemNumbers', () => {
+  it('drops rowKeys not present in current components', () => {
+    const a = makeAssembly({
+      components: [
+        { id: 'C1', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      bomItemNumbers: {
+        'parts/cube.zipt::none': 1,
+        'parts/orphan.zipt::none': 99,
+      },
+    });
+    const pruned = pruneBomItemNumbers(a);
+    expect(pruned).toEqual({ 'parts/cube.zipt::none': 1 });
+  });
+});

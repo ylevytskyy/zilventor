@@ -53,3 +53,22 @@ export function aggregateBom(assembly: AssemblyDocument, partNames: Map<string, 
   rows.sort((a, b) => a.itemNumber - b.itemNumber);
   return rows;
 }
+
+export function compareBomRowsForRenumber(a: BomRow, b: BomRow): number {
+  if (a.partName !== b.partName) return a.partName < b.partName ? -1 : 1;
+  if (a.rowKey !== b.rowKey) return a.rowKey < b.rowKey ? -1 : 1;
+  return 0;
+}
+
+export function pruneBomItemNumbers(assembly: AssemblyDocument): Record<string, number> {
+  const live = new Set<string>();
+  for (const c of assembly.components) {
+    const color = effectiveColor(c, assembly.colors);
+    live.add(bomRowKey(c.partPath, color));
+  }
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(assembly.bomItemNumbers)) {
+    if (live.has(k)) out[k] = v;
+  }
+  return out;
+}
