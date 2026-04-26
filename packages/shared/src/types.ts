@@ -76,6 +76,8 @@ export type AssemblyDocument = {
   components: ComponentInstance[];
   constraints: AssemblyConstraint[];
   groundedComponentIds: string[];
+  colors: Record<string, string>;
+  bomItemNumbers: Record<string, number>;
 };
 
 export type AssemblyConstraintRef =

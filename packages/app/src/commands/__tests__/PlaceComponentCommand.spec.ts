@@ -5,7 +5,7 @@ import type { AssemblyDocument } from '@zilventor/shared';
 
 describe('PlaceComponentCommand', () => {
   beforeEach(() => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });
 

@@ -17,6 +17,8 @@ describe('EditComponentCommand', () => {
       components: [{ ...original }],
       constraints: [],
       groundedComponentIds: [],
+      colors: {},
+      bomItemNumbers: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });

@@ -20,6 +20,8 @@ describe('AssemblyPacker', () => {
     ],
     constraints: [],
     groundedComponentIds: [],
+    colors: {},
+    bomItemNumbers: {},
   };
   const thumb = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 

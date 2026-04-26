@@ -52,6 +52,8 @@ describe('AssemblyDocument 4b extensions', () => {
       components: [],
       constraints: [],
       groundedComponentIds: [],
+      colors: {},
+      bomItemNumbers: {},
     };
     expect(doc.constraints).toEqual([]);
     expect(doc.groundedComponentIds).toEqual([]);

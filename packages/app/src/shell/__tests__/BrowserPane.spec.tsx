@@ -115,6 +115,8 @@ describe('BrowserPane', () => {
       ],
       constraints: [],
       groundedComponentIds: [],
+      colors: {},
+      bomItemNumbers: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -133,6 +135,8 @@ describe('BrowserPane', () => {
       ],
       constraints: [],
       groundedComponentIds: [],
+      colors: {},
+      bomItemNumbers: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
