@@ -516,6 +516,25 @@ describe('migrateManifest 4b backfill', () => {
     expect(out.document.groundedComponentIds).toEqual(['C1']);
     expect(out.document.components[0].pose.translation.x).toBe(5);
   });
+
+  it('produces correct quaternion for 90° rotation around X', () => {
+    const input = {
+      formatVersion: 7,
+      kind: 'assembly',
+      document: {
+        id: 'A', name: 'a', units: 'mm', parameters: {},
+        components: [
+          { id: 'C1', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 90, ry: 0, rz: 0 }, visible: true },
+        ],
+      },
+    };
+    const out = migrateManifest(input as any) as any;
+    const q = out.document.components[0].pose.quaternion;
+    expect(q[0]).toBeCloseTo(Math.SQRT1_2, 9);
+    expect(q[1]).toBeCloseTo(0, 9);
+    expect(q[2]).toBeCloseTo(0, 9);
+    expect(q[3]).toBeCloseTo(Math.SQRT1_2, 9);
+  });
 });
 
 
