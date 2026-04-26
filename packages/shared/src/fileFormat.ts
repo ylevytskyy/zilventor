@@ -125,6 +125,41 @@ function injectOriginFeatures(m: AnyManifest): AnyManifest {
   return next as unknown as AnyManifest;
 }
 
+function eulerXYZToQuat(rx: number, ry: number, rz: number): [number, number, number, number] {
+  const cx = Math.cos(rx * Math.PI / 360); const sx = Math.sin(rx * Math.PI / 360);
+  const cy = Math.cos(ry * Math.PI / 360); const sy = Math.sin(ry * Math.PI / 360);
+  const cz = Math.cos(rz * Math.PI / 360); const sz = Math.sin(rz * Math.PI / 360);
+  // XYZ order, returning [x, y, z, w]
+  const x = sx * cy * cz + cx * sy * sz;
+  const y = cx * sy * cz - sx * cy * sz;
+  const z = cx * cy * sz + sx * sy * cz;
+  const w = cx * cy * cz - sx * sy * sz;
+  return [x, y, z, w];
+}
+
+function backfillAssembly4b(m: AnyManifest): AnyManifest {
+  const anyM = m as { kind?: string; document?: any };
+  if (anyM.kind !== 'assembly' || !anyM.document) return m;
+  const doc = { ...anyM.document };
+  if (!Array.isArray(doc.constraints)) doc.constraints = [];
+  if (!Array.isArray(doc.groundedComponentIds)) doc.groundedComponentIds = [];
+  if (Array.isArray(doc.components)) {
+    doc.components = doc.components.map((c: any) => {
+      if (c.pose) return c;
+      const pos = c.position ?? { x: 0, y: 0, z: 0 };
+      const rot = c.rotation ?? { rx: 0, ry: 0, rz: 0 };
+      return {
+        ...c,
+        pose: {
+          translation: { x: pos.x, y: pos.y, z: pos.z },
+          quaternion: eulerXYZToQuat(rot.rx, rot.ry, rot.rz),
+        },
+      };
+    });
+  }
+  return { ...m, document: doc } as AnyManifest;
+}
+
 function migrateSketchPlanes(m: AnyManifest): AnyManifest {
   const anyM = m as { kind?: string; document?: { featureTree?: Array<Record<string, unknown>> } };
   if (anyM.kind !== 'part') return m;
@@ -167,5 +202,5 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
       throw new Error(`migration from formatVersion ${priorVersion} did not advance the version`);
     }
   }
-  return migrateSketchPlanes(injectOriginFeatures(normalizeKind(current)));
+  return migrateSketchPlanes(injectOriginFeatures(backfillAssembly4b(normalizeKind(current))));
 }

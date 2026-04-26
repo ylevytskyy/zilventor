@@ -479,4 +479,43 @@ describe('migrateManifest sketch.plane migration', () => {
   });
 });
 
+describe('migrateManifest 4b backfill', () => {
+  it('defaults constraints/groundedComponentIds and pose for legacy v7 assemblies', () => {
+    const input = {
+      formatVersion: 7,
+      kind: 'assembly',
+      document: {
+        id: 'A', name: 'a', units: 'mm', parameters: {},
+        components: [
+          { id: 'C1', partPath: 'p.zipt', position: { x: 1, y: 2, z: 3 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        ],
+      },
+    };
+    const out = migrateManifest(input as any) as any;
+    expect(out.document.constraints).toEqual([]);
+    expect(out.document.groundedComponentIds).toEqual([]);
+    expect(out.document.components[0].pose.translation).toEqual({ x: 1, y: 2, z: 3 });
+    expect(out.document.components[0].pose.quaternion).toEqual([0, 0, 0, 1]);
+  });
+  it('preserves existing constraints / groundedComponentIds / pose', () => {
+    const input = {
+      formatVersion: 7,
+      kind: 'assembly',
+      document: {
+        id: 'A', name: 'a', units: 'mm', parameters: {},
+        components: [
+          { id: 'C1', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+            pose: { translation: { x: 5, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+        ],
+        constraints: [{ id: 'k1', kind: 'mate', refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 }, suppressed: false }],
+        groundedComponentIds: ['C1'],
+      },
+    };
+    const out = migrateManifest(input as any) as any;
+    expect(out.document.constraints).toHaveLength(1);
+    expect(out.document.groundedComponentIds).toEqual(['C1']);
+    expect(out.document.components[0].pose.translation.x).toBe(5);
+  });
+});
+
 
