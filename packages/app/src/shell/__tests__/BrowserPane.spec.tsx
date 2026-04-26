@@ -307,3 +307,35 @@ describe('BrowserPane', () => {
   });
 
 });
+
+describe('BrowserPane assembly + constraints', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: {
+        id: 'A', name: 'a', units: 'mm', parameters: {},
+        components: [
+          { id: 'C1', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+          { id: 'C2', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        ],
+        constraints: [{
+          id: 'k1', kind: 'mate', suppressed: false,
+          refA: { kind: 'face', componentId: 'C1', face: { featureId: 'f', role: 'r' } } as any,
+          refB: { kind: 'face', componentId: 'C2', face: { featureId: 'g', role: 'r' } } as any,
+          offset: { kind: 'literal', value: 0 } as any,
+        }],
+        groundedComponentIds: ['C1'],
+      } as any },
+    });
+  });
+
+  it('renders constraint leaves under both endpoints', () => {
+    render(<BrowserPane part={null} />);
+    const mateLeaves = screen.getAllByText(/Mate/);
+    expect(mateLeaves.length).toBe(2);  // duplicated under C1 and C2
+  });
+
+  it('renders grounded badge on grounded component', () => {
+    render(<BrowserPane part={null} />);
+    expect(screen.getByText(/⛓/)).toBeInTheDocument();
+  });
+});

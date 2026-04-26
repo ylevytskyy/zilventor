@@ -17,6 +17,16 @@ export default function BrowserPane({ part, sketchPicker }: Props) {
 
   if (activeDoc?.kind === 'assembly') {
     const asm = activeDoc.document;
+    const selectedConstraintId = useAppStore.getState().selectedConstraintId;
+
+    const constraintLabel = (kind: string) => {
+      if (kind === 'mate') return 'Mate';
+      if (kind === 'flush') return 'Flush';
+      if (kind === 'angle') return 'Angle';
+      if (kind === 'insert') return 'Insert';
+      return kind;
+    };
+
     return (
       <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
         <div className="font-semibold mb-1">Assembly: {asm.name}</div>
@@ -25,15 +35,55 @@ export default function BrowserPane({ part, sketchPicker }: Props) {
           <li className="pl-3">Components ({asm.components.length})</li>
           {asm.components.map((c) => {
             const partFileName = c.partPath.split('/').pop()!.replace(/\.zipt$/, '');
+            const isGrounded = asm.groundedComponentIds.includes(c.id);
+            // Constraints where this component is an endpoint
+            const myConstraints = asm.constraints.filter(
+              (k) =>
+                (k.refA as any).componentId === c.id ||
+                (k.refB as any).componentId === c.id,
+            );
             return (
-              <li
-                key={c.id}
-                className="pl-6 cursor-pointer hover:text-white"
-                onDoubleClick={() => {
-                  useAppStore.getState().openEditComponentDialog(c.id);
-                }}
-              >
-                ▸ {c.id} — {partFileName}
+              <li key={c.id} className="pl-3">
+                <details open>
+                  <summary
+                    className="cursor-pointer hover:text-white"
+                    onDoubleClick={() => useAppStore.getState().openEditComponentDialog(c.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (window.confirm(`Toggle grounded for ${c.id}?`)) {
+                        useAppStore.getState().toggleGrounded(c.id);
+                      }
+                    }}
+                  >
+                    {isGrounded ? '⛓ ' : '▸ '}{c.id} — {partFileName}
+                  </summary>
+                  {myConstraints.length > 0 && (
+                    <ul className="pl-4 space-y-0.5">
+                      {myConstraints.map((k) => {
+                        const isSuppressed = k.suppressed;
+                        const isSelected = selectedConstraintId === k.id;
+                        return (
+                          <li
+                            key={k.id}
+                            style={{
+                              opacity: isSuppressed ? 0.4 : 1,
+                              textDecoration: isSuppressed ? 'line-through' : 'none',
+                              background: isSelected ? '#334' : undefined,
+                              cursor: 'pointer',
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              useAppStore.getState().selectConstraint(k.id);
+                            }}
+                            onDoubleClick={() => useAppStore.getState().openEditConstraintDialog(k.id)}
+                          >
+                            {constraintLabel(k.kind)}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </details>
               </li>
             );
           })}
