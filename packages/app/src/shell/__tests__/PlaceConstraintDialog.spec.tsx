@@ -13,7 +13,7 @@ describe('PlaceConstraintDialog', () => {
   });
   it('shows Angle label for angle mode', () => {
     render(<PlaceConstraintDialog mode="angle" onPick={noop} pickedRefA={null} pickedRefB={null} valueExpression="0" onValueChange={noop} onCommit={noop} onApply={noop} onCancel={noop} />);
-    expect(screen.getByText(/Angle/)).toBeInTheDocument();
+    expect(screen.getByText(/Angle:/)).toBeInTheDocument();
   });
   it('Pick button fires onPick with the slot role', () => {
     const onPick = vi.fn();

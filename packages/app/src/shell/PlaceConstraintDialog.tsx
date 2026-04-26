@@ -42,7 +42,7 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
         <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} style={btn}>
           <option value="mate">Mate</option>
           <option value="flush">Flush</option>
-          <option value="angle">Ang °</option>
+          <option value="angle">Angle</option>
           <option value="insert">Insert</option>
         </select>
       </div>
