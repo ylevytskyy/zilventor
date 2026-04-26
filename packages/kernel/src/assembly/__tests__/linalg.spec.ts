@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { choleskySolve } from '../linalg';
+import { jacobiSVD } from '../linalg';
 
 function makeRng(seed: number): () => number {
   let state = seed;
@@ -46,5 +47,40 @@ describe('choleskySolve', () => {
     const A = [[0, 0], [0, 1]];
     const b = [1, 1];
     expect(() => choleskySolve(A, b)).toThrow(/not SPD/);
+  });
+});
+
+describe('jacobiSVD', () => {
+  function reconstruct(U: number[][], s: number[], V: number[][]): number[][] {
+    const m = U.length, n = V.length;
+    const out = Array.from({ length: m }, () => new Array(n).fill(0));
+    for (let i = 0; i < m; i++)
+      for (let j = 0; j < n; j++)
+        for (let k = 0; k < s.length; k++)
+          out[i]![j] += U[i]![k]! * s[k]! * V[j]![k]!;
+    return out;
+  }
+  it('round-trips a 3x3 matrix to 1e-10', () => {
+    const A = [[1, 2, 3], [2, 1, 0], [0, 1, 4]];
+    const { U, s, V } = jacobiSVD(A.map((r) => r.slice()));
+    const R = reconstruct(U, s, V);
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++)
+        expect(R[i]![j]).toBeCloseTo(A[i]![j]!, 10);
+  });
+  it('detects rank-deficiency with a near-zero singular value', () => {
+    // Rank-1 matrix: column 1 is 2x column 0
+    const A = [[1, 2], [3, 6], [5, 10]];
+    const { s } = jacobiSVD(A.map((r) => r.slice()));
+    const sMax = Math.max(...s);
+    const small = s.filter((v) => v < sMax * 1e-9).length;
+    expect(small).toBeGreaterThanOrEqual(1);
+  });
+  it('returns V as the right-singular vectors', () => {
+    const A = [[3, 0], [0, 1]];
+    const { V } = jacobiSVD(A);
+    // V columns should be standard basis (up to sign) since A is diagonal
+    expect(Math.abs(V[0]![0]!)).toBeCloseTo(1, 9);
+    expect(Math.abs(V[1]![1]!)).toBeCloseTo(1, 9);
   });
 });
