@@ -609,6 +609,51 @@ export function buildFlushFaceFaceResiduals(
   return [r1, sx * u.x + sy * u.y + sz * u.z, sx * v.x + sy * v.y + sz * v.z];
 }
 
+// ─── T15 angle (face↔face / axis↔axis / face↔axis) ───────────────────────────
+
+/** Returns the direction (rotated normal for plane refs, rotated D for axis refs). */
+function worldDir(g: PartLocalGeometry, q: Quat): { x: number; y: number; z: number } {
+  if (g.kind === 'plane') return quatRotateVec(q, g.N);
+  if (g.kind === 'axis')  return quatRotateVec(q, g.D);
+  throw new Error('worldDir requires plane or axis ref');
+}
+
+function localDir(g: PartLocalGeometry): { x: number; y: number; z: number } {
+  if (g.kind === 'plane') return g.N;
+  if (g.kind === 'axis')  return g.D;
+  throw new Error('localDir requires plane or axis ref');
+}
+
+/** Angle: 1 residual. Da · Db − cos(angle°). Undirected (sign ambiguity resolved by initial guess). */
+export function buildAngleResiduals(
+  lA: PartLocalGeometry, lB: PartLocalGeometry,
+  qa: Quat, qb: Quat, angleDeg: number,
+): number[] {
+  const Da = worldDir(lA, qa); const Db = worldDir(lB, qb);
+  const target = Math.cos((angleDeg * Math.PI) / 180);
+  return [Da.x * Db.x + Da.y * Db.y + Da.z * Db.z - target];
+}
+
+export function buildAngleJacobian(
+  lA: PartLocalGeometry, lB: PartLocalGeometry,
+  qa: Quat, qb: Quat, _angleDeg: number,
+): number[][] {
+  const Da = worldDir(lA, qa); const Db = worldDir(lB, qb);
+  const dDaQ = quatRotateVecJacobian(qa, localDir(lA));  // 3×4
+  const dDbQ = quatRotateVecJacobian(qb, localDir(lB));  // 3×4
+  const J: number[][] = [new Array(14).fill(0)];
+  // d(Da · Db)/dTa = 0; d(Da · Db)/dTb = 0 (translation cols 0-2 and 7-9 stay zero)
+  // d(Da · Db)/dqa = dDa/dqa · Db (1×4 row, dotted in)
+  for (let k = 0; k < 4; k++) {
+    J[0]![3 + k] = dDaQ[0]![k]! * Db.x + dDaQ[1]![k]! * Db.y + dDaQ[2]![k]! * Db.z;
+  }
+  // d(Da · Db)/dqb = Da · dDb/dqb
+  for (let k = 0; k < 4; k++) {
+    J[0]![10 + k] = Da.x * dDbQ[0]![k]! + Da.y * dDbQ[1]![k]! + Da.z * dDbQ[2]![k]!;
+  }
+  return J;
+}
+
 export function buildFlushFaceFaceJacobian(
   localA: PartLocalGeometry, localB: PartLocalGeometry,
   Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, _offset: number,

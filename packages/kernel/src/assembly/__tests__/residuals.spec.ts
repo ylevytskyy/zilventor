@@ -8,6 +8,7 @@ import {
   buildMatePointFaceResiduals, buildMatePointFaceJacobian,
   buildMatePointAxisResiduals, buildMatePointAxisJacobian,
   buildFlushFaceFaceResiduals, buildFlushFaceFaceJacobian,
+  buildAngleResiduals, buildAngleJacobian,
 } from '../Residuals';
 
 function randomPose(): { T: { x: number; y: number; z: number }; q: Quat } {
@@ -226,5 +227,51 @@ describe('flush face↔face', () => {
     for (let r = 0; r < 3; r++)
       for (let c = 0; c < 14; c++)
         expect(Jan[r]![c]!).toBeCloseTo(Jfd[r]![c]!, 5);
+  });
+});
+
+describe('angle', () => {
+  it('residual is 1 scalar (face-face)', () => {
+    const lA: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const lB: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const r = buildAngleResiduals(lA, lB, [0, 0, 0, 1], [0, 0, 0, 1], 0);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toBeCloseTo(0, 9);  // parallel normals at 0° → dot=1, cos(0)=1, r=1-1=0
+  });
+
+  it('analytic Jacobian matches finite difference (face-face)', () => {
+    const lA: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const lB: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+    const pa = randomPose(); const pb = randomPose();
+    const xa = [pa.T.x, pa.T.y, pa.T.z, ...pa.q];
+    const xb = [pb.T.x, pb.T.y, pb.T.z, ...pb.q];
+    const buildResid = (xa: number[], xb: number[]) =>
+      buildAngleResiduals(lA, lB,
+        [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+        [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 45);
+    const Jfd = fdJacobian(buildResid, xa, xb);
+    const Jan = buildAngleJacobian(lA, lB,
+      [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+      [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 45);
+    for (let c = 0; c < 14; c++)
+      expect(Jan[0]![c]!).toBeCloseTo(Jfd[0]![c]!, 5);
+  });
+
+  it('analytic Jacobian matches finite difference (axis-axis)', () => {
+    const lA: WorldRefGeom = { kind: 'axis', P: { x: 0, y: 0, z: 0 }, D: { x: 0, y: 0, z: 1 } };
+    const lB: WorldRefGeom = { kind: 'axis', P: { x: 0, y: 0, z: 0 }, D: { x: 0, y: 0, z: 1 } };
+    const pa = randomPose(); const pb = randomPose();
+    const xa = [pa.T.x, pa.T.y, pa.T.z, ...pa.q];
+    const xb = [pb.T.x, pb.T.y, pb.T.z, ...pb.q];
+    const buildResid = (xa: number[], xb: number[]) =>
+      buildAngleResiduals(lA, lB,
+        [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+        [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 30);
+    const Jfd = fdJacobian(buildResid, xa, xb);
+    const Jan = buildAngleJacobian(lA, lB,
+      [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+      [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 30);
+    for (let c = 0; c < 14; c++)
+      expect(Jan[0]![c]!).toBeCloseTo(Jfd[0]![c]!, 5);
   });
 });
