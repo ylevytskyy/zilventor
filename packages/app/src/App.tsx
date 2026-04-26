@@ -1627,6 +1627,11 @@ export default function App() {
         else if (kind === 'cylindricalFace') picker.handleCylindricalFaceHit(payload.componentId as string, payload.face as import('@zilventor/shared').FaceName);
         else if (kind === 'vertex') picker.handleVertexHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, payload.end as 'start' | 'end');
       };
+      // T45: expose dragAlongFreeDofs via dev hook so E2E can call it directly.
+      w.__zilventorViewportDrag = (componentId: string, delta: { x: number; y: number }) => {
+        const freeDofBasis = useAppStore.getState().freeDofBasis;
+        viewportRef.current?.dragAlongFreeDofs(componentId, delta, freeDofBasis);
+      };
     }
   }, []);
 
