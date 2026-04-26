@@ -1,8 +1,9 @@
 import type { Feature, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
+import { BomTable } from './BomTable';
 
-type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null };
+type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partNames?: Map<string, string> };
 
 type WorkFeature = Extract<Feature, { kind: 'workAxis' | 'workPlane' | 'workPoint' }>;
 
@@ -10,10 +11,11 @@ function isOriginFeatureId(id: string): boolean {
   return id.startsWith('origin.');
 }
 
-export default function BrowserPane({ part, sketchPicker }: Props) {
+export default function BrowserPane({ part, sketchPicker, partNames = new Map() }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
+  const bomTabActive = useAppStore((s) => s.bomTabActive);
 
   if (activeDoc?.kind === 'assembly') {
     const asm = activeDoc.document;
@@ -27,8 +29,38 @@ export default function BrowserPane({ part, sketchPicker }: Props) {
       return kind;
     };
 
+    const setBomTabActive = useAppStore.getState().setBomTabActive;
+    const tabStrip = (
+      <div className="flex gap-1 mb-1 border-b border-shell-border" role="tablist">
+        <button
+          type="button"
+          onClick={() => setBomTabActive(false)}
+          className={`px-2 py-0.5 text-xs ${!bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+        >
+          Assembly
+        </button>
+        <button
+          type="button"
+          onClick={() => setBomTabActive(true)}
+          className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+        >
+          BOM
+        </button>
+      </div>
+    );
+
+    if (bomTabActive) {
+      return (
+        <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+          {tabStrip}
+          <BomTable partNames={partNames} />
+        </div>
+      );
+    }
+
     return (
       <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        {tabStrip}
         <div className="font-semibold mb-1">Assembly: {asm.name}</div>
         <ul className="space-y-0.5">
           <li className="pl-3">Origin</li>

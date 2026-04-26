@@ -343,3 +343,64 @@ describe('BrowserPane assembly + constraints', () => {
     expect(screen.getByText(/⛓/)).toBeInTheDocument();
   });
 });
+
+describe('BrowserPane BOM tab strip', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null,
+      activeAssembly: null,
+      bomTabActive: false,
+    } as any);
+  });
+
+  const asm: AssemblyDocument = {
+    id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+    components: [
+      { id: 'C1', partPath: 'parts/leg.zipt',
+        position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ],
+    constraints: [],
+    groundedComponentIds: [],
+    colors: {},
+    bomItemNumbers: {},
+  };
+
+  it('assembly mode renders both Assembly/BOM tab strip and the existing tree', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<BrowserPane part={null} />);
+    expect(screen.getByRole('button', { name: /^assembly$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^bom$/i })).toBeInTheDocument();
+    expect(screen.getByText(/Assembly: cabinet/)).toBeInTheDocument();
+    expect(screen.getByText(/Components/)).toBeInTheDocument();
+  });
+
+  it('clicking the BOM tab sets bomTabActive=true and renders BomTable', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<BrowserPane part={null} partNames={new Map([['parts/leg.zipt', 'leg']])} />);
+    fireEvent.click(screen.getByRole('button', { name: /^bom$/i }));
+    expect(useAppStore.getState().bomTabActive).toBe(true);
+    expect(screen.getByTestId('bom-table')).toBeInTheDocument();
+  });
+
+  it('clicking the Assembly tab while BOM is active flips back', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: asm },
+      activeAssembly: asm,
+      bomTabActive: true,
+    } as any);
+    render(<BrowserPane part={null} partNames={new Map([['parts/leg.zipt', 'leg']])} />);
+    fireEvent.click(screen.getByRole('button', { name: /^assembly$/i }));
+    expect(useAppStore.getState().bomTabActive).toBe(false);
+    expect(screen.queryByTestId('bom-table')).toBeNull();
+  });
+
+  it('part mode hides the tab strip', () => {
+    const part: PartDocument = {
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [],
+    };
+    render(<BrowserPane part={part} />);
+    expect(screen.queryByRole('button', { name: /^bom$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^assembly$/i })).toBeNull();
+  });
+});

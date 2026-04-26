@@ -2454,7 +2454,7 @@ export default function App() {
           <Ribbon />
         </div>
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} />
+          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partNames={new Map()} />
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
           <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
