@@ -128,6 +128,20 @@ export default function App() {
   // actually populate the edge list.
   const tessellatedEdgesRef = useRef<TessellatedEdge[]>([]);
   const facePickerRef = useRef<FacePickController>(new FacePickController());
+  // Component drag state (4b follow-up B3). Tracks an in-flight pointer-drag of
+  // a component mesh in the viewport: pointerdown raycasts a component, move
+  // delegates to dragAlongFreeDofs once threshold is exceeded, pointerup
+  // commits the new translation back to the store via updateComponent.
+  const componentDragRef = useRef<{
+    componentId: string;
+    startScreenX: number;
+    startScreenY: number;
+    lastWorld: { x: number; y: number };
+    didDrag: boolean;
+  } | null>(null);
+  // Set by pointerup when a drag actually happened so the synthetic click that
+  // browsers fire afterwards does not deselect the just-dragged component.
+  const suppressNextClickRef = useRef(false);
   const [availableFaceNames, setAvailableFaceNames] = useState<FaceName[]>([]);
 
   const [numericVisible, setNumericVisible] = useState(false);
@@ -987,10 +1001,94 @@ export default function App() {
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
     const docKind = useAppStore.getState().activeDocument?.kind;
-    if (docKind === 'assembly' && ev.type === 'click') {
-      const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
-      useAppStore.getState().selectComponent(hit);
-      return;
+    if (docKind === 'assembly') {
+      // B3 component drag: pointerdown over a component starts a drag candidate;
+      // movement past a small threshold treats subsequent moves as drag deltas
+      // routed through dragAlongFreeDofs; pointerup commits to the store and
+      // suppresses the synthetic click that follows.
+      const assemblyState = useAppStore.getState();
+      const dragBusy =
+        sketchMode ||
+        assemblyPickerRef.current.isActive() ||
+        assemblyState.placeConstraintDialogOpen ||
+        assemblyState.editConstraintDialogOpen ||
+        assemblyState.placeComponentDialogOpen ||
+        assemblyState.editComponentDialogOpen;
+
+      if (!dragBusy && ev.type === 'pointerdown') {
+        const componentId = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
+        if (componentId) {
+          const startWorld = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+          componentDragRef.current = {
+            componentId,
+            startScreenX: ev.clientX,
+            startScreenY: ev.clientY,
+            lastWorld: startWorld,
+            didDrag: false,
+          };
+        }
+        return;
+      }
+
+      if (ev.type === 'move' && componentDragRef.current) {
+        const ds = componentDragRef.current;
+        const dx = ev.clientX - ds.startScreenX;
+        const dy = ev.clientY - ds.startScreenY;
+        if (!ds.didDrag && dx * dx + dy * dy < 9) return;
+        ds.didDrag = true;
+        const cur = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
+        const delta = { x: cur.x - ds.lastWorld.x, y: cur.y - ds.lastWorld.y };
+        ds.lastWorld = cur;
+        const freeDofBasis = useAppStore.getState().freeDofBasis;
+        viewportRef.current.dragAlongFreeDofs(ds.componentId, delta, freeDofBasis);
+        return;
+      }
+
+      if (ev.type === 'pointerup' && componentDragRef.current) {
+        const ds = componentDragRef.current;
+        componentDragRef.current = null;
+        if (ds.didDrag) {
+          suppressNextClickRef.current = true;
+          const sm = viewportRef.current.getSceneManager();
+          const mesh = sm?.getComponentMesh(ds.componentId);
+          if (mesh) {
+            const e = mesh.matrix.elements;
+            const newTranslation = {
+              x: e[12] ?? 0,
+              y: e[13] ?? 0,
+              z: e[14] ?? 0,
+            };
+            // Update pose first so the React re-render triggered by
+            // updateComponent (which mutates `assembly`) does not snap the
+            // mesh back to the pre-drag solver pose. The pose's quaternion
+            // is preserved — drag-along-free-DOFs is translation-only in v1.
+            const poses = useAppStore.getState().componentPoses;
+            const prevPose = poses.get(ds.componentId);
+            if (prevPose) {
+              const nextPoses = new Map(poses);
+              nextPoses.set(ds.componentId, {
+                translation: newTranslation,
+                quaternion: prevPose.quaternion,
+              });
+              useAppStore.setState({ componentPoses: nextPoses });
+            }
+            useAppStore.getState().updateComponent(ds.componentId, {
+              position: newTranslation,
+            });
+          }
+        }
+        return;
+      }
+
+      if (ev.type === 'click') {
+        if (suppressNextClickRef.current) {
+          suppressNextClickRef.current = false;
+          return;
+        }
+        const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
+        useAppStore.getState().selectComponent(hit);
+        return;
+      }
     }
     // Model-mode fillet edge pick. Hover highlights the candidate, click
     // commits the pick into the dialog's edge list. Uses a camera-space ray
