@@ -1614,6 +1614,23 @@ export default function App() {
   const [pickedRefB, setPickedRefB] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
   const [valueExpression, setValueExpression] = useState('0');
 
+  // Assembly E2E dev hooks (T38): expose solver result, poses, and picker simulate.
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>;
+      w.__zilventorAssemblySolverResult = () => useAppStore.getState().solverDiagnostics;
+      w.__zilventorAssemblyPoses = () => useAppStore.getState().componentPoses;
+      w.__zilventorAssemblyPickerSimulate = (slot: 'A' | 'B', kind: string, payload: Record<string, unknown>) => {
+        const picker = assemblyPickerRef.current;
+        if (kind === 'face') picker.handleFaceHit(payload.componentId as string, payload.face as import('@zilventor/shared').FaceName);
+        else if (kind === 'edge') picker.handleEdgeHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, (payload.isCircular as boolean) ?? false);
+        else if (kind === 'cylindricalFace') picker.handleCylindricalFaceHit(payload.componentId as string, payload.face as import('@zilventor/shared').FaceName);
+        else if (kind === 'vertex') picker.handleVertexHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, payload.end as 'start' | 'end');
+      };
+    }
+  }, []);
+
+
   const onPickSlot = useCallback((slot: 'A' | 'B') => {
     const mode = placeConstraintMode;
     const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
