@@ -6,13 +6,17 @@ import { OpenPlaceConstraintDialogCommand } from '../../commands/OpenPlaceConstr
 import { OpenEditAssemblyConstraintDialogCommand } from '../../commands/OpenEditAssemblyConstraintDialogCommand';
 import { DeleteAssemblyConstraintCommand } from '../../commands/DeleteAssemblyConstraintCommand';
 import { ToggleConstraintSuppressionCommand } from '../../commands/ToggleConstraintSuppressionCommand';
+import { OpenBomTabCommand } from '../../commands/OpenBomTabCommand';
+import { RenumberBomCommand } from '../../commands/RenumberBomCommand';
 
 const btn: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
   padding: '4px 10px', cursor: 'pointer', fontSize: 11, marginRight: 4,
 };
 
-export function AssemblyTab(): JSX.Element {
+type Props = { partNames?: Map<string, string> };
+
+export function AssemblyTab({ partNames }: Props = {}): JSX.Element {
   const selectedId = useAppStore((s) => s.selectedComponentIds[0] ?? null);
   const hasAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
   const selectedConstraintId = useAppStore((s) => s.selectedConstraintId);
@@ -118,6 +122,31 @@ export function AssemblyTab(): JSX.Element {
           style={btn}
         >
           {isSuppressed ? 'Unsuppress' : 'Suppress'}
+        </button>
+      </div>
+      <div aria-label="BOM panel" style={{ marginRight: 12 }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>BOM</div>
+        <button
+          aria-label="BOM"
+          disabled={!hasAssembly}
+          onClick={async () => {
+            const cmd = new OpenBomTabCommand();
+            await cmd.apply();
+          }}
+          style={btn}
+        >
+          BOM
+        </button>
+        <button
+          aria-label="Renumber"
+          disabled={!hasAssembly}
+          onClick={async () => {
+            const cmd = new RenumberBomCommand({ partNames: partNames ?? new Map() });
+            await cmd.apply();
+          }}
+          style={btn}
+        >
+          Renumber
         </button>
       </div>
     </div>

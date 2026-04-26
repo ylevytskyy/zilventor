@@ -67,3 +67,51 @@ describe('AssemblyTab Constraint panel', () => {
     expect(useAppStore.getState().placeConstraintMode).toBe('mate');
   });
 });
+
+describe('AssemblyTab BOM panel', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().selectComponent(null);
+  });
+
+  it('renders a BOM panel with BOM and Renumber buttons', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {} };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<AssemblyTab />);
+    expect(screen.getByLabelText(/^BOM panel$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^BOM$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Renumber$/i })).toBeInTheDocument();
+  });
+
+  it('BOM button sets bomTabActive=true', () => {
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {} };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.setState({ bomTabActive: false } as any);
+    render(<AssemblyTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^BOM$/i }));
+    expect(useAppStore.getState().bomTabActive).toBe(true);
+  });
+
+  it('Renumber button assigns 1..N item numbers using provided partNames', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {},
+      components: [
+        { id: 'C1', partPath: 'parts/zelda.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'C2', partPath: 'parts/alpha.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {},
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    const partNames = new Map([
+      ['parts/alpha.zipt', 'alpha'],
+      ['parts/zelda.zipt', 'zelda'],
+    ]);
+    render(<AssemblyTab partNames={partNames} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Renumber$/i }));
+    await Promise.resolve();
+    await Promise.resolve();
+    const map = useAppStore.getState().activeAssembly!.bomItemNumbers;
+    expect(map['parts/alpha.zipt::none']).toBe(1);
+    expect(map['parts/zelda.zipt::none']).toBe(2);
+  });
+});
