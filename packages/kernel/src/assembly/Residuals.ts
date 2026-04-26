@@ -589,3 +589,103 @@ export function buildMateFaceFaceJacobian(
   }
   return J;
 }
+
+// ─── T14 flush face↔face ───────────────────────────────────────────────────
+
+/** Flush face↔face: 3 residuals — distance + 2 normal-aligned components.
+ *  Differs from mate face-face only in the sign of (Na ± Nb) on r2/r3:
+ *  mate uses sum (Na + Nb); flush uses difference (Na - Nb). */
+export function buildFlushFaceFaceResiduals(
+  lA: PartLocalGeometry, lB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, offset: number,
+): number[] {
+  if (lA.kind !== 'plane' || lB.kind !== 'plane') throw new Error('flush requires plane refs');
+  const a = worldFromLocal(lA, Ta, qa); const b = worldFromLocal(lB, Tb, qb);
+  if (a.kind !== 'plane' || b.kind !== 'plane') throw new Error('unreachable');
+  const dx = b.P.x - a.P.x, dy = b.P.y - a.P.y, dz = b.P.z - a.P.z;
+  const r1 = a.N.x * dx + a.N.y * dy + a.N.z * dz - offset;
+  const sx = a.N.x - b.N.x, sy = a.N.y - b.N.y, sz = a.N.z - b.N.z;  // SAME direction → difference
+  const { u, v } = perpBasis(a.N);
+  return [r1, sx * u.x + sy * u.y + sz * u.z, sx * v.x + sy * v.y + sz * v.z];
+}
+
+export function buildFlushFaceFaceJacobian(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, _offset: number,
+): number[][] {
+  if (localA.kind !== 'plane' || localB.kind !== 'plane')
+    throw new Error('flush face↔face requires plane refs');
+  const Na = quatRotateVec(qa, localA.N);
+  const Nb = quatRotateVec(qb, localB.N);
+  const Pa = (() => { const r = quatRotateVec(qa, localA.P); return { x: r.x + Ta.x, y: r.y + Ta.y, z: r.z + Ta.z }; })();
+  const Pb = (() => { const r = quatRotateVec(qb, localB.P); return { x: r.x + Tb.x, y: r.y + Tb.y, z: r.z + Tb.z }; })();
+  const dNaQ = quatRotateVecJacobian(qa, localA.N);
+  const dNbQ = quatRotateVecJacobian(qb, localB.N);
+  const dPaQ = quatRotateVecJacobian(qa, localA.P);
+  const dPbQ = quatRotateVecJacobian(qb, localB.P);
+
+  // Compute perpBasis internals needed for Jacobians
+  const ax = Math.abs(Na.x), ay = Math.abs(Na.y), az = Math.abs(Na.z);
+  const helper: Vec3 = ax < ay && ax < az ? { x: 1, y: 0, z: 0 }
+                      : ay < az           ? { x: 0, y: 1, z: 0 }
+                                          : { x: 0, y: 0, z: 1 };
+  const uRaw = { x: Na.y * helper.z - Na.z * helper.y,
+                 y: Na.z * helper.x - Na.x * helper.z,
+                 z: Na.x * helper.y - Na.y * helper.x };
+  const ul = Math.sqrt(uRaw.x ** 2 + uRaw.y ** 2 + uRaw.z ** 2);
+  const u: Vec3 = { x: uRaw.x / ul, y: uRaw.y / ul, z: uRaw.z / ul };
+  const v: Vec3 = { x: Na.y * u.z - Na.z * u.y,
+                    y: Na.z * u.x - Na.x * u.z,
+                    z: Na.x * u.y - Na.y * u.x };
+  const duDN = duDNa(Na, u, ul, helper);
+  const dvDN = dvDNa(Na, u, duDN);
+
+  const uArr = [u.x, u.y, u.z];
+  const vArr = [v.x, v.y, v.z];
+  // flush: (Na - Nb) instead of (Na + Nb)
+  const NmN  = [Na.x - Nb.x, Na.y - Nb.y, Na.z - Nb.z];
+
+  const J: number[][] = [new Array(14).fill(0), new Array(14).fill(0), new Array(14).fill(0)];
+
+  // r1 = Na . (Pb - Pa) - offset  (identical to mate face-face)
+  // d/dTa = -Na;  d/dTb = +Na
+  J[0]![0] = -Na.x; J[0]![1] = -Na.y; J[0]![2] = -Na.z;
+  J[0]![7] =  Na.x; J[0]![8] =  Na.y; J[0]![9] =  Na.z;
+  // d/dqa: dNa/dqa . (Pb - Pa) - Na . dPa/dqa
+  for (let k = 0; k < 4; k++) {
+    const dNax = dNaQ[0]![k]!, dNay = dNaQ[1]![k]!, dNaz = dNaQ[2]![k]!;
+    const dPax = dPaQ[0]![k]!, dPay = dPaQ[1]![k]!, dPaz = dPaQ[2]![k]!;
+    J[0]![3 + k] = dNax * (Pb.x - Pa.x) + dNay * (Pb.y - Pa.y) + dNaz * (Pb.z - Pa.z)
+                 - (Na.x * dPax + Na.y * dPay + Na.z * dPaz);
+  }
+  // d/dqb: Na . dPb/dqb
+  for (let k = 0; k < 4; k++) {
+    J[0]![10 + k] = Na.x * dPbQ[0]![k]! + Na.y * dPbQ[1]![k]! + Na.z * dPbQ[2]![k]!;
+  }
+
+  // r2 = (Na - Nb) . u(Na);  r3 = (Na - Nb) . v(Na)
+  // d/dqa_k: dNa/dqa_k . u + (Na-Nb) . du/dNa @ dNa/dqa_k   (chain rule for u(Na))
+  //          dNa/dqa_k . v + (Na-Nb) . dv/dNa @ dNa/dqa_k
+  for (let k = 0; k < 4; k++) {
+    const dNak = [dNaQ[0]![k]!, dNaQ[1]![k]!, dNaQ[2]![k]!];
+    let t1r2 = 0, t2r2 = 0, t1r3 = 0, t2r3 = 0;
+    for (let i = 0; i < 3; i++) {
+      t1r2 += dNak[i]! * uArr[i]!;
+      t1r3 += dNak[i]! * vArr[i]!;
+      // (du/dNa @ dNak)_i = sum_j duDN[i][j] * dNak[j]
+      let dui = 0, dvi = 0;
+      for (let j = 0; j < 3; j++) {
+        dui += duDN[i]![j]! * dNak[j]!;
+        dvi += dvDN[i]![j]! * dNak[j]!;
+      }
+      t2r2 += NmN[i]! * dui;
+      t2r3 += NmN[i]! * dvi;
+    }
+    J[1]![3 + k] = t1r2 + t2r2;
+    J[2]![3 + k] = t1r3 + t2r3;
+    // d/dqb: only Nb moves, u/v don't depend on qb; flush flips sign vs mate
+    J[1]![10 + k] = -(dNbQ[0]![k]! * u.x + dNbQ[1]![k]! * u.y + dNbQ[2]![k]! * u.z);
+    J[2]![10 + k] = -(dNbQ[0]![k]! * v.x + dNbQ[1]![k]! * v.y + dNbQ[2]![k]! * v.z);
+  }
+  return J;
+}

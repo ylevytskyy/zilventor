@@ -7,6 +7,7 @@ import {
   buildMatePointPointResiduals, buildMatePointPointJacobian,
   buildMatePointFaceResiduals, buildMatePointFaceJacobian,
   buildMatePointAxisResiduals, buildMatePointAxisJacobian,
+  buildFlushFaceFaceResiduals, buildFlushFaceFaceJacobian,
 } from '../Residuals';
 
 function randomPose(): { T: { x: number; y: number; z: number }; q: Quat } {
@@ -194,6 +195,35 @@ describe('mate point↔axis', () => {
       { x: xa[0]!, y: xa[1]!, z: xa[2]! }, [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
       { x: xb[0]!, y: xb[1]!, z: xb[2]! }, [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat);
     for (let r = 0; r < 2; r++)
+      for (let c = 0; c < 14; c++)
+        expect(Jan[r]![c]!).toBeCloseTo(Jfd[r]![c]!, 5);
+  });
+});
+
+describe('flush face↔face', () => {
+  const localA: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+  const localB: WorldRefGeom = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+
+  it('residual is 3 scalars', () => {
+    const r = buildFlushFaceFaceResiduals(localA, localB,
+      { x: 0, y: 0, z: 0 }, [0, 0, 0, 1],
+      { x: 0, y: 0, z: 0 }, [0, 0, 0, 1], 0);
+    expect(r).toHaveLength(3);
+  });
+
+  it('analytic Jacobian matches finite difference', () => {
+    const pa = randomPose(); const pb = randomPose();
+    const xa = [pa.T.x, pa.T.y, pa.T.z, ...pa.q];
+    const xb = [pb.T.x, pb.T.y, pb.T.z, ...pb.q];
+    const buildResid = (xa: number[], xb: number[]) =>
+      buildFlushFaceFaceResiduals(localA, localB,
+        { x: xa[0]!, y: xa[1]!, z: xa[2]! }, [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+        { x: xb[0]!, y: xb[1]!, z: xb[2]! }, [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 5);
+    const Jfd = fdJacobian(buildResid, xa, xb);
+    const Jan = buildFlushFaceFaceJacobian(localA, localB,
+      { x: xa[0]!, y: xa[1]!, z: xa[2]! }, [xa[3]!, xa[4]!, xa[5]!, xa[6]!] as Quat,
+      { x: xb[0]!, y: xb[1]!, z: xb[2]! }, [xb[3]!, xb[4]!, xb[5]!, xb[6]!] as Quat, 5);
+    for (let r = 0; r < 3; r++)
       for (let c = 0; c < 14; c++)
         expect(Jan[r]![c]!).toBeCloseTo(Jfd[r]![c]!, 5);
   });
