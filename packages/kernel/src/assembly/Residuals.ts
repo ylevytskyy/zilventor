@@ -654,6 +654,39 @@ export function buildAngleJacobian(
   return J;
 }
 
+// ─── T16 insert (composite: axis-axis collinear + face-face mate) ─────────────
+
+/** Insert: 7 residuals = 4 (axis-axis collinear, offset=0) + 3 (face-face mate, axial offset). */
+export function buildInsertResiduals(
+  lA: PartLocalGeometry, lB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, offset: number,
+): number[] {
+  if (lA.kind !== 'circularEdge' || lB.kind !== 'circularEdge')
+    throw new Error('insert requires circularEdge refs');
+  const axisA: PartLocalGeometry = { kind: 'axis', P: lA.axisP, D: lA.axisD };
+  const axisB: PartLocalGeometry = { kind: 'axis', P: lB.axisP, D: lB.axisD };
+  const planeA: PartLocalGeometry = { kind: 'plane', P: lA.planeP, N: lA.planeN };
+  const planeB: PartLocalGeometry = { kind: 'plane', P: lB.planeP, N: lB.planeN };
+  const ra = buildMateAxisAxisResiduals(axisA, axisB, Ta, qa, Tb, qb, 0);
+  const rb = buildMateFaceFaceResiduals(planeA, planeB, Ta, qa, Tb, qb, offset);
+  return [...ra, ...rb];
+}
+
+export function buildInsertJacobian(
+  lA: PartLocalGeometry, lB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, offset: number,
+): number[][] {
+  if (lA.kind !== 'circularEdge' || lB.kind !== 'circularEdge')
+    throw new Error('insert requires circularEdge refs');
+  const axisA: PartLocalGeometry = { kind: 'axis', P: lA.axisP, D: lA.axisD };
+  const axisB: PartLocalGeometry = { kind: 'axis', P: lB.axisP, D: lB.axisD };
+  const planeA: PartLocalGeometry = { kind: 'plane', P: lA.planeP, N: lA.planeN };
+  const planeB: PartLocalGeometry = { kind: 'plane', P: lB.planeP, N: lB.planeN };
+  const Ja = buildMateAxisAxisJacobian(axisA, axisB, Ta, qa, Tb, qb, 0);
+  const Jb = buildMateFaceFaceJacobian(planeA, planeB, Ta, qa, Tb, qb, offset);
+  return [...Ja, ...Jb];
+}
+
 export function buildFlushFaceFaceJacobian(
   localA: PartLocalGeometry, localB: PartLocalGeometry,
   Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, _offset: number,
