@@ -72,13 +72,15 @@ describe('jacobiSVD', () => {
     // Rank-1 matrix: column 1 is 2x column 0
     const A = [[1, 2], [3, 6], [5, 10]];
     const { s } = jacobiSVD(A.map((r) => r.slice()));
-    const sMax = Math.max(...s);
-    const small = s.filter((v) => v < sMax * 1e-9).length;
-    expect(small).toBeGreaterThanOrEqual(1);
+    // With sorted output, s[0] is the dominant singular, s[1] is the small one.
+    expect(s[0]).toBeGreaterThan(0);
+    expect(s[1]).toBeLessThan(s[0]! * 1e-12);
   });
   it('returns V as the right-singular vectors', () => {
     const A = [[3, 0], [0, 1]];
-    const { V } = jacobiSVD(A);
+    const { s, V } = jacobiSVD(A);
+    expect(s[0]).toBeCloseTo(3, 9);
+    expect(s[1]).toBeCloseTo(1, 9);
     // V columns should be standard basis (up to sign) since A is diagonal
     expect(Math.abs(V[0]![0]!)).toBeCloseTo(1, 9);
     expect(Math.abs(V[1]![1]!)).toBeCloseTo(1, 9);

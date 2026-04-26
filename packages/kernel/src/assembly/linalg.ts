@@ -37,7 +37,7 @@ export function choleskySolve(A: number[][], b: number[]): number[] {
 /**
  * Jacobi-SVD for an m×n matrix (m ≥ n). Returns U (m×n), s (n), V (n×n).
  * One-sided Jacobi rotations on V; standard implementation.
- * `mat` is modified in place during factorization.
+ * The input matrix is not modified (an internal copy is made).
  */
 export function jacobiSVD(mat: number[][]): { U: number[][]; s: number[]; V: number[][] } {
   const m = mat.length;
@@ -89,5 +89,10 @@ export function jacobiSVD(mat: number[][]): { U: number[][]; s: number[]; V: num
       for (let i = 0; i < m; i++) U[i]![j] = a[i]![j]! / norm;
     }
   }
-  return { U, s, V };
+  // Sort singular values descending, permuting U and V columns to match
+  const order = s.map((_, i) => i).sort((a, b) => s[b]! - s[a]!);
+  const sortedS = order.map((i) => s[i]!);
+  const sortedU = U.map((row) => order.map((i) => row[i]!));
+  const sortedV = V.map((row) => order.map((i) => row[i]!));
+  return { U: sortedU, s: sortedS, V: sortedV };
 }
