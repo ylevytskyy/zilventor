@@ -469,3 +469,36 @@ describe('useAppStore work-feature pick slice', () => {
   });
 });
 
+describe('useAppStore 4b extensions', () => {
+  beforeEach(() => {
+    useAppStore.setState({ solverDirty: false, componentPoses: new Map(), solverDiagnostics: { dofCount: 0, status: 'fully-constrained', perConstraint: new Map() }, freeDofBasis: null });
+  });
+
+  it('starts with empty solver state', () => {
+    const s = useAppStore.getState();
+    expect(s.solverDirty).toBe(false);
+    expect(s.componentPoses.size).toBe(0);
+    expect(s.solverDiagnostics.dofCount).toBe(0);
+    expect(s.freeDofBasis).toBeNull();
+  });
+  it('addAssemblyConstraint sets solverDirty', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } },
+      activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } as any,
+    });
+    useAppStore.getState().addAssemblyConstraint({ id: 'k1', kind: 'mate', suppressed: false, refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 } } as any);
+    expect(useAppStore.getState().solverDirty).toBe(true);
+    expect(useAppStore.getState().activeAssembly!.constraints).toHaveLength(1);
+  });
+  it('toggleGrounded adds/removes ids', () => {
+    useAppStore.setState({
+      activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } as any,
+      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } },
+    });
+    useAppStore.getState().toggleGrounded('C1');
+    expect(useAppStore.getState().activeAssembly!.groundedComponentIds).toContain('C1');
+    useAppStore.getState().toggleGrounded('C1');
+    expect(useAppStore.getState().activeAssembly!.groundedComponentIds).not.toContain('C1');
+  });
+});
+

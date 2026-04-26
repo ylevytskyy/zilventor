@@ -169,6 +169,39 @@ type AppState = {
   selectComponent(id: string | null): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
 
+  // 4b additions
+  placeConstraintDialogOpen: boolean;
+  placeConstraintMode: 'mate' | 'flush' | 'angle' | 'insert';
+  editConstraintDialogOpen: boolean;
+  editingConstraintId: string | null;
+  editConstraintInitialValues: import('@zilventor/shared').AssemblyConstraint | null;
+  selectedConstraintId: string | null;
+  solverDirty: boolean;
+  componentPoses: Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>;
+  solverDiagnostics: {
+    dofCount: number;
+    status: 'fully-constrained' | 'underconstrained' | 'over-constrained' | 'did-not-converge';
+    perConstraint: Map<string, { residual: number; conflict: boolean; brokenRef: boolean }>;
+    message?: string;
+  };
+  freeDofBasis: Float64Array | null;
+  openPlaceConstraintDialog: (mode: 'mate' | 'flush' | 'angle' | 'insert') => void;
+  resetPlaceConstraintDialog: () => void;
+  openEditConstraintDialog: (id: string) => void;
+  resetEditConstraintDialog: () => void;
+  addAssemblyConstraint: (c: import('@zilventor/shared').AssemblyConstraint) => void;
+  updateAssemblyConstraint: (id: string, patch: Partial<import('@zilventor/shared').AssemblyConstraint>) => void;
+  removeAssemblyConstraint: (id: string) => void;
+  toggleConstraintSuppression: (id: string) => void;
+  toggleGrounded: (componentId: string) => void;
+  selectConstraint: (id: string | null) => void;
+  setSolverDirty: (v: boolean) => void;
+  setSolverResult: (
+    poses: Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>,
+    diagnostics: AppState['solverDiagnostics'],
+    freeDofBasis: Float64Array | null,
+  ) => void;
+
   addPrimitiveToActiveSketch(sketchId: string, p: SketchPrimitive): void;
   removePrimitiveFromActiveSketch(sketchId: string, primitiveId: string): void;
   applyCoordDiff(sketchId: string, diff: PrimitiveCoordsDiff[]): void;
@@ -377,10 +410,13 @@ export const useAppStore = create<AppState>((set) => ({
     const next: AssemblyDocument = {
       ...s.activeAssembly,
       components: [...s.activeAssembly.components, instance],
+      groundedComponentIds: s.activeAssembly.groundedComponentIds.length === 0
+        ? [instance.id] : s.activeAssembly.groundedComponentIds,
     };
     return {
       activeDocument: { kind: 'assembly', document: next },
       activeAssembly: next,
+      solverDirty: true,
     };
   }),
 
@@ -412,6 +448,58 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectComponent: (id) => set({ selectedComponentId: id }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),
+
+  // 4b additions
+  placeConstraintDialogOpen: false,
+  placeConstraintMode: 'mate',
+  editConstraintDialogOpen: false,
+  editingConstraintId: null,
+  editConstraintInitialValues: null,
+  selectedConstraintId: null,
+  solverDirty: false,
+  componentPoses: new Map(),
+  solverDiagnostics: { dofCount: 0, status: 'fully-constrained', perConstraint: new Map() },
+  freeDofBasis: null,
+
+  openPlaceConstraintDialog: (mode) => set({ placeConstraintDialogOpen: true, placeConstraintMode: mode }),
+  resetPlaceConstraintDialog: () => set({ placeConstraintDialogOpen: false }),
+  openEditConstraintDialog: (id) => set((s) => {
+    const c = s.activeAssembly?.constraints.find((x) => x.id === id) ?? null;
+    return { editConstraintDialogOpen: true, editingConstraintId: id, editConstraintInitialValues: c };
+  }),
+  resetEditConstraintDialog: () => set({ editConstraintDialogOpen: false, editingConstraintId: null, editConstraintInitialValues: null }),
+
+  addAssemblyConstraint: (c) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next = { ...s.activeAssembly, constraints: [...s.activeAssembly.constraints, c] };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
+  }),
+  updateAssemblyConstraint: (id, patch) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next = { ...s.activeAssembly, constraints: s.activeAssembly.constraints.map((c) => c.id === id ? ({ ...c, ...patch } as any) : c) };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
+  }),
+  removeAssemblyConstraint: (id) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next = { ...s.activeAssembly, constraints: s.activeAssembly.constraints.filter((c) => c.id !== id) };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
+  }),
+  toggleConstraintSuppression: (id) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next = { ...s.activeAssembly, constraints: s.activeAssembly.constraints.map((c) => c.id === id ? { ...c, suppressed: !c.suppressed } : c) };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
+  }),
+  toggleGrounded: (componentId) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const has = s.activeAssembly.groundedComponentIds.includes(componentId);
+    const ids = has ? s.activeAssembly.groundedComponentIds.filter((x) => x !== componentId) : [...s.activeAssembly.groundedComponentIds, componentId];
+    const next = { ...s.activeAssembly, groundedComponentIds: ids };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
+  }),
+  selectConstraint: (id) => set({ selectedConstraintId: id }),
+  setSolverDirty: (v) => set({ solverDirty: v }),
+  setSolverResult: (poses, diagnostics, freeDofBasis) => set({ componentPoses: poses, solverDiagnostics: diagnostics, freeDofBasis, solverDirty: false }),
+
   holeDialogOpen: false,
   holePlacementMode: 'fromSketch',
   holeSketchId: null,
