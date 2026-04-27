@@ -86,6 +86,7 @@ import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/
 import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
+import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { resolvePartName } from './shell/resolvePartName';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
@@ -1769,6 +1770,22 @@ export default function App() {
       w.__zilventorComponentSelectedOverlay = (componentId: string): boolean => {
         const sm = viewportRef.current?.getSceneManager();
         return sm?.hasSelectionOverlay?.(componentId) ?? false;
+      };
+      // T39 perf hook: run aggregateBom against the live assembly + part-name
+      // cache `trials` times and return p95 ms. Used by the BOM perf spec.
+      w.__zilventorBomAggregateMs = (trials: number): number => {
+        const a = useAppStore.getState().activeAssembly;
+        if (!a) return -1;
+        const partNames = partNameCacheRef.current;
+        const samples: number[] = [];
+        for (let i = 0; i < trials; i++) {
+          const t0 = performance.now();
+          aggregateBom(a, partNames);
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((x, y) => x - y);
+        const idx = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
+        return samples[idx]!;
       };
       // __zilventorBomCsvBytes is set by ExportBomCsvCommand on each apply().
     }
