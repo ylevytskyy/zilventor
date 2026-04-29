@@ -54,3 +54,20 @@ describe('flattenForSolver — top-level baseline', () => {
     expect(r.constraints[0]!.refA.componentPath).toEqual(['a']);
   });
 });
+
+describe('flattenForSolver — rigid sub-asm composite', () => {
+  it('emits exactly one unknown for a rigid sub-asm placement; no inner leaves', () => {
+    const sub = doc({ components: [
+      { id: 'leaf', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 's1', partPath: 'sub.ziasm', position: { x: 5, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const r = flattenForSolver(top, cache);
+    expect(r.unknowns).toHaveLength(1);
+    expect(r.pathToUnknown.get(pathKey(['s1']))).toBe(0);
+    expect(r.pathToUnknown.has(pathKey(['s1', 'leaf']))).toBe(false);
+    expect(r.rigidSubtreeRoots.get(pathKey(['s1']))).toEqual(['s1']);
+  });
+});

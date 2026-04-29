@@ -42,7 +42,16 @@ export function flattenForSolver(
       }
       const e = cache.get(c.partPath);
       if (!e || e.kind !== 'ok') continue;
-      // T14 + T15 fill in the rigid + flexible cases. For now: skip.
+      const subDoc = e.doc;
+      if (!c.flexible) {
+        unknowns.push(initialPose(c));
+        pathToUnknown.set(pathKey(path), unknowns.length - 1);
+        rigidSubtreeRoots.set(pathKey(path), path);
+        // Do NOT recurse into rigid subtrees — leaves are computed in composedPoses.
+        continue;
+      }
+      // flexible: T15
+      void subDoc;
     }
   }
   // Top-level constraints, refs unchanged
