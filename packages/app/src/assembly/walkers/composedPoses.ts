@@ -1,5 +1,6 @@
 import type { AssemblyDocument } from '@zilventor/shared';
 import { pathKey, parsePathKey } from '@zilventor/shared';
+import { quatMultiply, quatRotateVec } from '@zilventor/kernel/src/assembly/quat';
 import type { Pose } from './flattenForSolver';
 
 export type ComposedPosesInput = {
@@ -10,24 +11,15 @@ export type ComposedPosesInput = {
 
 export function composePoses(parent: Pose, child: Pose): Pose {
   // q_parent * q_child for orientation, t_parent + R(q_parent)*t_child for position
-  const [qx, qy, qz, qw] = parent.quaternion;
-  const [px, py, pz, pw] = child.quaternion;
-  // Hamilton product
-  const ox = qw * px + qx * pw + qy * pz - qz * py;
-  const oy = qw * py - qx * pz + qy * pw + qz * px;
-  const oz = qw * pz + qx * py - qy * px + qz * pw;
-  const ow = qw * pw - qx * px - qy * py - qz * pz;
-  // Rotate child translation by parent quaternion (v' = q * v * q^-1, expanded for unit quat)
-  const t = child.translation;
-  const xx = qx * qx, yy = qy * qy, zz = qz * qz;
-  const xy = qx * qy, xz = qx * qz, yz = qy * qz;
-  const wx = qw * qx, wy = qw * qy, wz = qw * qz;
-  const rx = (1 - 2 * (yy + zz)) * t.x + 2 * (xy - wz) * t.y + 2 * (xz + wy) * t.z;
-  const ry = 2 * (xy + wz) * t.x + (1 - 2 * (xx + zz)) * t.y + 2 * (yz - wx) * t.z;
-  const rz = 2 * (xz - wy) * t.x + 2 * (yz + wx) * t.y + (1 - 2 * (xx + yy)) * t.z;
+  const q = quatMultiply(parent.quaternion, child.quaternion);
+  const r = quatRotateVec(parent.quaternion, child.translation);
   return {
-    translation: { x: parent.translation.x + rx, y: parent.translation.y + ry, z: parent.translation.z + rz },
-    quaternion: [ox, oy, oz, ow],
+    translation: {
+      x: parent.translation.x + r.x,
+      y: parent.translation.y + r.y,
+      z: parent.translation.z + r.z,
+    },
+    quaternion: q,
   };
 }
 
