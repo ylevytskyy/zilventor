@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AssemblyDocument } from '@zilventor/shared';
+import type { AssemblyConstraint, AssemblyDocument } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { flattenForSolver } from '../flattenForSolver';
 import type { SubAssemblyCache } from '../../SubAssemblyCache';
@@ -69,5 +69,53 @@ describe('flattenForSolver — rigid sub-asm composite', () => {
     expect(r.pathToUnknown.get(pathKey(['s1']))).toBe(0);
     expect(r.pathToUnknown.has(pathKey(['s1', 'leaf']))).toBe(false);
     expect(r.rigidSubtreeRoots.get(pathKey(['s1']))).toEqual(['s1']);
+  });
+});
+
+describe('flattenForSolver — flexible inlining', () => {
+  it('emits placement unknown PLUS one unknown per inner leaf', () => {
+    const sub = doc({ components: [
+      { id: 'a', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      { id: 'b', partPath: 'p.zipt', position: { x: 1, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 's', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, flexible: true },
+    ] });
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const r = flattenForSolver(top, cache);
+    expect(r.unknowns).toHaveLength(3);
+    expect(r.pathToUnknown.get(pathKey(['s']))).toBe(0);
+    expect(r.pathToUnknown.get(pathKey(['s', 'a']))).toBe(1);
+    expect(r.pathToUnknown.get(pathKey(['s', 'b']))).toBe(2);
+    expect(r.rigidSubtreeRoots.size).toBe(0);
+  });
+
+  it('inlines sub-asm constraints with path-prefixed componentPath', () => {
+    const subInner: AssemblyConstraint = {
+      id: 'm1', kind: 'mate',
+      refA: { kind: 'face', componentPath: ['a'], face: { featureId: 'E1', role: 'top' } },
+      refB: { kind: 'face', componentPath: ['b'], face: { featureId: 'E1', role: 'bottom' } },
+      offset: { kind: 'literal', value: 0 },
+      suppressed: false,
+    };
+    const sub = doc({
+      components: [
+        { id: 'a', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'b', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [subInner],
+    });
+    const top = doc({ components: [
+      { id: 's', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, flexible: true },
+    ] });
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const r = flattenForSolver(top, cache);
+    expect(r.constraints).toHaveLength(1);
+    const c = r.constraints[0]!;
+    expect(c.kind).toBe('mate');
+    if (c.kind === 'mate') {
+      expect(c.refA.componentPath).toEqual(['s', 'a']);
+      expect(c.refB.componentPath).toEqual(['s', 'b']);
+    }
   });
 });

@@ -20,6 +20,26 @@ function initialPose(c: ComponentInstance): Pose {
   };
 }
 
+function prefixRef<T extends { componentPath: ComponentPath }>(ref: T, prefix: ComponentPath): T {
+  return { ...ref, componentPath: [...prefix, ...ref.componentPath] };
+}
+
+function prefixConstraint(c: AssemblyConstraint, prefix: ComponentPath): AssemblyConstraint {
+  switch (c.kind) {
+    case 'mate':
+    case 'flush':
+      return { ...c, refA: prefixRef(c.refA, prefix), refB: prefixRef(c.refB, prefix) };
+    case 'angle':
+      return { ...c, refA: prefixRef(c.refA, prefix), refB: prefixRef(c.refB, prefix) };
+    case 'insert':
+      return {
+        ...c,
+        refA: { ...c.refA, componentPath: [...prefix, ...c.refA.componentPath] },
+        refB: { ...c.refB, componentPath: [...prefix, ...c.refB.componentPath] },
+      };
+  }
+}
+
 export function flattenForSolver(
   activeDoc: AssemblyDocument,
   cache: Pick<SubAssemblyCache, 'get'>,
@@ -50,8 +70,14 @@ export function flattenForSolver(
         // Do NOT recurse into rigid subtrees — leaves are computed in composedPoses.
         continue;
       }
-      // flexible: T15
-      void subDoc;
+      // flexible: placement is an unknown anchor, recurse with inFlexible=true,
+      // inline sub-asm constraints with path-prefixed refs.
+      unknowns.push(initialPose(c));
+      pathToUnknown.set(pathKey(path), unknowns.length - 1);
+      walk(subDoc, path, true);
+      for (const innerC of subDoc.constraints) {
+        constraints.push(prefixConstraint(innerC, path));
+      }
     }
   }
   // Top-level constraints, refs unchanged
