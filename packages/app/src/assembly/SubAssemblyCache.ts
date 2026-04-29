@@ -1,8 +1,9 @@
 import type { AssemblyDocument } from '@zilventor/shared';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import type { Pose } from './walkers/flattenForSolver';
 
 export type SubAssemblyEntry =
-  | { kind: 'ok'; doc: AssemblyDocument; partPath: string }
+  | { kind: 'ok'; doc: AssemblyDocument; partPath: string; innerStaticPoses?: Map<string, Pose> }
   | { kind: 'missing'; partPath: string; message: string }
   | { kind: 'parse'; partPath: string; message: string }
   | { kind: 'cycle'; partPath: string; message: string };
