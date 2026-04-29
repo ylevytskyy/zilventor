@@ -1,7 +1,7 @@
 import type { AssemblyDocument } from '@zilventor/shared';
 import { writeTarGz, readTarGz } from './tarGzipUtil';
 
-const FORMAT_VERSION = 7;
+const FORMAT_VERSION = 8;
 
 export async function packAssembly(
   doc: AssemblyDocument,

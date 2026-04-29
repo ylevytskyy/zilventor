@@ -34,7 +34,7 @@ describe('FileTab', () => {
   });
 
   it('Open accepts .ziasm and routes through setActiveDocument(assembly)', async () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
 
     // Stub readTarGz to return pre-parsed entries (avoids tar-stream/streamx in jsdom)
     const manifestBytes = new TextEncoder().encode(
@@ -74,9 +74,9 @@ describe('FileTab', () => {
         position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
       }],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {},
+      bomItemNumbers: {}, colorOverrides: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
 

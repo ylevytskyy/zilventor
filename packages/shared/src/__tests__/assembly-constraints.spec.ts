@@ -5,7 +5,7 @@ describe('AssemblyConstraintRef discriminator', () => {
   it('narrows on kind=face', () => {
     const r: AssemblyConstraintRef = {
       kind: 'face',
-      componentId: 'C1',
+      componentPath: ['C1'],
       face: { featureId: 'extrude.1', role: 'top' },
     };
     if (r.kind === 'face') expect(r.face.featureId).toBe('extrude.1');
@@ -13,7 +13,7 @@ describe('AssemblyConstraintRef discriminator', () => {
   it('narrows on kind=axis with edge source', () => {
     const r: AssemblyConstraintRef = {
       kind: 'axis',
-      componentId: 'C2',
+      componentPath: ['C2'],
       axis: { source: 'edge', edge: { faceA: { featureId: 'a', role: 'r' }, faceB: { featureId: 'b', role: 'r' } } },
     };
     if (r.kind === 'axis' && r.axis.source === 'edge') {
@@ -26,8 +26,8 @@ describe('AssemblyConstraint discriminator', () => {
   it('narrows on kind=mate', () => {
     const c: AssemblyConstraint = {
       id: 'k1', kind: 'mate',
-      refA: { kind: 'face', componentId: 'C1', face: { featureId: 'a', role: 'r' } },
-      refB: { kind: 'face', componentId: 'C2', face: { featureId: 'b', role: 'r' } },
+      refA: { kind: 'face', componentPath: ['C1'], face: { featureId: 'a', role: 'r' } },
+      refB: { kind: 'face', componentPath: ['C2'], face: { featureId: 'b', role: 'r' } },
       offset: { kind: 'literal', value: 0 },
       suppressed: false,
     };
@@ -36,27 +36,28 @@ describe('AssemblyConstraint discriminator', () => {
   it('narrows on kind=insert with circularEdge ref shape', () => {
     const c: AssemblyConstraint = {
       id: 'k2', kind: 'insert',
-      refA: { componentId: 'C1', circularEdge: { faceA: { featureId: 'a', role: 'r' }, faceB: { featureId: 'b', role: 'r' } } },
-      refB: { componentId: 'C2', circularEdge: { faceA: { featureId: 'c', role: 'r' }, faceB: { featureId: 'd', role: 'r' } } },
+      refA: { componentPath: ['C1'], circularEdge: { faceA: { featureId: 'a', role: 'r' }, faceB: { featureId: 'b', role: 'r' } } },
+      refB: { componentPath: ['C2'], circularEdge: { faceA: { featureId: 'c', role: 'r' }, faceB: { featureId: 'd', role: 'r' } } },
       offset: { kind: 'literal', value: 5 },
       suppressed: false,
     };
-    if (c.kind === 'insert') expect(c.refA.componentId).toBe('C1');
+    if (c.kind === 'insert') expect(c.refA.componentPath).toEqual(['C1']);
   });
 });
 
 describe('AssemblyDocument 4b extensions', () => {
-  it('carries constraints[] and groundedComponentIds[]', () => {
+  it('carries constraints[] and groundedComponentPaths[]', () => {
     const doc: AssemblyDocument = {
       id: 'A', name: 'asm', units: 'mm', parameters: {},
       components: [],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      colorOverrides: {},
     };
     expect(doc.constraints).toEqual([]);
-    expect(doc.groundedComponentIds).toEqual([]);
+    expect(doc.groundedComponentPaths).toEqual([]);
   });
 });
 

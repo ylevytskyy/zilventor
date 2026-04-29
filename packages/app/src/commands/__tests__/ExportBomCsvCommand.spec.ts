@@ -10,8 +10,8 @@ describe('ExportBomCsvCommand', () => {
         components: [
           { id: 'C1', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
         ],
-        constraints: [], groundedComponentIds: [],
-        colors: {}, bomItemNumbers: {},
+        constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, colorOverrides: {},
       },
     } as any);
   });

@@ -11,9 +11,10 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     parameters: {},
     components: [],
     constraints: [],
-    groundedComponentIds: [],
+    groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {},
+    colorOverrides: {},
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
 }

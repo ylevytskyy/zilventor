@@ -99,12 +99,12 @@ describe('AssemblyConstraintSolver integration (real OCCT)', () => {
 
       const refA = {
         kind: 'face' as const,
-        componentId: 'A',
+        componentPath: ['A'],
         face: faceNameA!,
       };
       const refB = {
         kind: 'face' as const,
-        componentId: 'B',
+        componentPath: ['B'],
         face: faceNameB!,
       };
 

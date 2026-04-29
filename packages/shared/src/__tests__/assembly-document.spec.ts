@@ -22,25 +22,26 @@ describe('AssemblyDocument', () => {
       id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
       components: [],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      colorOverrides: {},
     };
     expect(a.components).toHaveLength(0);
   });
 
   it('ProjectFile narrows on kind', () => {
     const part: ProjectFile = {
-      formatVersion: 7, kind: 'part',
+      formatVersion: 8, kind: 'part',
       createdAt: '2026-04-25T00:00:00Z',
       appVersion: '0.0.1',
       document: { id: 'P1', name: 'p', units: 'mm', parameters: {}, featureTree: [] } as unknown as PartDocument,
     };
     const asm: ProjectFile = {
-      formatVersion: 7, kind: 'assembly',
+      formatVersion: 8, kind: 'assembly',
       createdAt: '2026-04-25T00:00:00Z',
       appVersion: '0.0.1',
-      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [], colors: {}, bomItemNumbers: {} },
+      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} },
     };
     if (part.kind === 'part') {
       expect((part.document as PartDocument).featureTree).toEqual([]);

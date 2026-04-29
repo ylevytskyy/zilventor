@@ -5,7 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 beforeEach(() => {
   useAppStore.setState({
     activeAssembly: {
-      id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], groundedComponentIds: [],
+      id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], groundedComponentPaths: [],
       constraints: [{ id: 'k1', kind: 'mate', suppressed: false, refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 } as any } as any],
     } as any,
     activeDocument: { kind: 'assembly', document: {} as any },

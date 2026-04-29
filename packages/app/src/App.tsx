@@ -649,8 +649,8 @@ export default function App() {
         // Resolve each constraint's refs asynchronously via the KernelClient RPC.
         for (const k of solverAssembly.constraints) {
           if (k.suppressed) continue;
-          const componentA = solverAssembly.components.find((c) => c.id === k.refA.componentId);
-          const componentB = solverAssembly.components.find((c) => c.id === k.refB.componentId);
+          const componentA = solverAssembly.components.find((c) => c.id === k.refA.componentPath[0]);
+          const componentB = solverAssembly.components.find((c) => c.id === k.refB.componentPath[0]);
 
           for (const [component, side] of [[componentA, 'A'], [componentB, 'B']] as const) {
             if (!component) continue;
@@ -714,7 +714,7 @@ export default function App() {
             T: c.position,
             q: c.pose?.quaternion ?? quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
           })),
-          groundedComponentIds: solverAssembly.groundedComponentIds,
+          groundedComponentIds: solverAssembly.groundedComponentPaths.map((p) => p[0]!),
           constraints: solverAssembly.constraints,
           resolvedRefs,
           paramValues,
@@ -1796,24 +1796,24 @@ export default function App() {
     const mode = placeConstraintMode;
     const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
     assemblyPickerRef.current.activate(pickerMode, slot, (hit) => {
-      let ref: AssemblyConstraint['refA'] | { componentId: string; circularEdge: import('@zilventor/shared').EdgeName };
+      let ref: AssemblyConstraint['refA'] | { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName };
       let label: string;
       if (hit.kind === 'face') {
-        ref = { kind: 'face', componentId: hit.hit.componentId, face: hit.hit.face };
+        ref = { kind: 'face', componentPath: [hit.hit.componentId], face: hit.hit.face };
         label = `${hit.hit.componentId}/${hit.hit.face.featureId}`;
       } else if (hit.kind === 'axis') {
         const h = hit.hit;
         if (h.source === 'edge') {
-          ref = { kind: 'axis', componentId: h.componentId, axis: { source: 'edge', edge: h.edge } };
+          ref = { kind: 'axis', componentPath: [h.componentId], axis: { source: 'edge', edge: h.edge } };
         } else {
-          ref = { kind: 'axis', componentId: h.componentId, axis: { source: 'cylindricalFace', face: h.face } };
+          ref = { kind: 'axis', componentPath: [h.componentId], axis: { source: 'cylindricalFace', face: h.face } };
         }
         label = `${hit.hit.componentId}/axis`;
       } else if (hit.kind === 'point') {
-        ref = { kind: 'point', componentId: hit.hit.componentId, point: { source: 'vertex', edge: hit.hit.vertex.edge, end: hit.hit.vertex.end } };
+        ref = { kind: 'point', componentPath: [hit.hit.componentId], point: { source: 'vertex', edge: hit.hit.vertex.edge, end: hit.hit.vertex.end } };
         label = `${hit.hit.componentId}/vertex`;
       } else if (hit.kind === 'circularEdge') {
-        ref = { componentId: hit.hit.componentId, circularEdge: hit.hit.edge } as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName };
+        ref = { componentPath: [hit.hit.componentId], circularEdge: hit.hit.edge };
         label = `${hit.hit.componentId}/circularEdge`;
       } else {
         return;
@@ -1831,8 +1831,8 @@ export default function App() {
     if (placeConstraintMode === 'insert') {
       constraint = {
         id, kind: 'insert',
-        refA: pickedRefA.ref as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName },
-        refB: pickedRefB.ref as { componentId: string; circularEdge: import('@zilventor/shared').EdgeName },
+        refA: pickedRefA.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
+        refB: pickedRefB.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
         offset: offsetOrAngle, suppressed: false
       };
     } else if (placeConstraintMode === 'angle') {

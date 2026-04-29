@@ -67,12 +67,12 @@ export default function BrowserPane({ part, sketchPicker, partNames = new Map() 
           <li className="pl-3">Components ({asm.components.length})</li>
           {asm.components.map((c) => {
             const partFileName = c.partPath.split('/').pop()!.replace(/\.zipt$/, '');
-            const isGrounded = asm.groundedComponentIds.includes(c.id);
+            const isGrounded = asm.groundedComponentPaths.some((p) => p.length === 1 && p[0] === c.id);
             // Constraints where this component is an endpoint
             const myConstraints = asm.constraints.filter(
               (k) =>
-                (k.refA as any).componentId === c.id ||
-                (k.refB as any).componentId === c.id,
+                (k.refA as any).componentPath?.[0] === c.id ||
+                (k.refB as any).componentPath?.[0] === c.id,
             );
             return (
               <li key={c.id} className="pl-3">

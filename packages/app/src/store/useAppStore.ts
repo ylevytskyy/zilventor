@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
@@ -429,8 +430,8 @@ export const useAppStore = create<AppState>((set) => ({
     const next: AssemblyDocument = {
       ...s.activeAssembly,
       components: [...s.activeAssembly.components, instance],
-      groundedComponentIds: s.activeAssembly.groundedComponentIds.length === 0
-        ? [instance.id] : s.activeAssembly.groundedComponentIds,
+      groundedComponentPaths: s.activeAssembly.groundedComponentPaths.length === 0
+        ? [[instance.id]] : s.activeAssembly.groundedComponentPaths,
     };
     return {
       activeDocument: { kind: 'assembly', document: next },
@@ -552,9 +553,12 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   toggleGrounded: (componentId) => set((s) => {
     if (!s.activeAssembly) return s;
-    const has = s.activeAssembly.groundedComponentIds.includes(componentId);
-    const ids = has ? s.activeAssembly.groundedComponentIds.filter((x) => x !== componentId) : [...s.activeAssembly.groundedComponentIds, componentId];
-    const next = { ...s.activeAssembly, groundedComponentIds: ids };
+    const target = [componentId];
+    const targetKey = pathKey(target);
+    const paths = s.activeAssembly.groundedComponentPaths;
+    const has = paths.some((p) => pathKey(p) === targetKey);
+    const nextPaths = has ? paths.filter((p) => pathKey(p) !== targetKey) : [...paths, target];
+    const next = { ...s.activeAssembly, groundedComponentPaths: nextPaths };
     return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next, solverDirty: true };
   }),
   selectConstraint: (id) => set({ selectedConstraintId: id }),

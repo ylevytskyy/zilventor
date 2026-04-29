@@ -7,7 +7,7 @@ const constraint = { id: 'k1', kind: 'mate', suppressed: false, refA: {} as any,
 beforeEach(() => {
   useAppStore.setState({
     activeAssembly: {
-      id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], groundedComponentIds: [],
+      id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], groundedComponentPaths: [],
       constraints: [{ ...constraint }],
     } as any,
     activeDocument: { kind: 'assembly', document: {} as any },

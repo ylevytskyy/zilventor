@@ -19,9 +19,10 @@ describe('AssemblyPacker', () => {
       },
     ],
     constraints: [],
-    groundedComponentIds: [],
+    groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {},
+    colorOverrides: {},
   };
   const thumb = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
@@ -50,12 +51,13 @@ describe('AssemblyPacker', () => {
         },
       ],
       constraints: [],
-      groundedComponentIds: ['C1'],
+      groundedComponentPaths: [['C1']],
       colors: { Maple: '#d4a574' },
       bomItemNumbers: {
         'parts/cube.zipt::palette:Maple': 1,
         'parts/cube.zipt::hex:#cc8866': 2,
       },
+      colorOverrides: {},
     };
     const bytes = await packAssembly(richDoc, thumb);
     const out = await unpackAssembly(bytes);
@@ -70,7 +72,7 @@ describe('AssemblyPacker', () => {
   it('rejects an archive whose manifest has kind: part', async () => {
     // Build a part archive using packProject with kind: 'part' in manifest
     const partBytes = await packProject({
-      manifest: { formatVersion: 7, kind: 'part', document: {} },
+      manifest: { formatVersion: 8, kind: 'part', document: {} },
       blobs: {},
       thumbnail: thumb,
     });

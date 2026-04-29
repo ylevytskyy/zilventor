@@ -12,7 +12,7 @@ describe('RenumberBomCommand', () => {
           { id: 'C2', partPath: 'parts/alpha.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
           { id: 'C3', partPath: 'parts/midway.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
         ],
-        constraints: [], groundedComponentIds: [],
+        constraints: [], groundedComponentPaths: [],
         colors: {}, bomItemNumbers: { 'parts/zelda.zipt::none': 9 },
       },
     } as any);

@@ -5,8 +5,8 @@ import type { AssemblyDocument } from '../types';
 function makeAssembly(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return {
     id: 'A', name: 'A', units: 'mm', parameters: {},
-    components: [], constraints: [], groundedComponentIds: [],
-    colors: {}, bomItemNumbers: {},
+    components: [], constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, colorOverrides: {},
     ...overrides,
   };
 }

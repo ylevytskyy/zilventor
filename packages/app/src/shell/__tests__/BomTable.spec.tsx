@@ -24,9 +24,9 @@ function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
         position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ],
     constraints: [],
-    groundedComponentIds: [],
+    groundedComponentPaths: [],
     colors: {},
-    bomItemNumbers: {},
+    bomItemNumbers: {}, colorOverrides: {},
     ...overrides,
   };
 }

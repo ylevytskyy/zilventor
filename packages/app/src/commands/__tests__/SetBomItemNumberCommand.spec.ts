@@ -7,7 +7,7 @@ describe('SetBomItemNumberCommand', () => {
     useAppStore.setState({
       activeAssembly: {
         id: 'A', name: 'A', units: 'mm', parameters: {},
-        components: [], constraints: [], groundedComponentIds: [],
+        components: [], constraints: [], groundedComponentPaths: [],
         colors: {}, bomItemNumbers: { rowA: 1, rowB: 2 },
       },
     } as any);

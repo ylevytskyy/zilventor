@@ -14,8 +14,8 @@ describe('buildAllResiduals / buildAllJacobian', () => {
       grounded: new Set(['A']),
       constraints: [{
         id: 'k1', kind: 'mate', suppressed: false,
-        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
-        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'b', role: 'r' } } as any,
         offset: { kind: 'literal', value: 0 } as any,
       }],
       resolvedRefs: new Map<string, any>([
@@ -44,8 +44,8 @@ describe('lmSolve', () => {
       grounded: new Set(['A']),
       constraints: [{
         id: 'k1', kind: 'mate', suppressed: false,
-        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
-        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'b', role: 'r' } } as any,
         offset: { kind: 'literal', value: 0 } as any,
       }],
       resolvedRefs: new Map<string, any>([
@@ -91,8 +91,8 @@ describe('solveAssembly', () => {
       groundedComponentIds: ['A'],
       constraints: [{
         id: 'k1', kind: 'mate', suppressed: false,
-        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
-        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'b', role: 'r' } } as any,
         offset: { kind: 'literal', value: 0 } as any,
       }],
       resolvedRefs: new Map<string, any>([
@@ -120,8 +120,8 @@ describe('solveAssembly', () => {
       groundedComponentIds: [],  // none grounded
       constraints: [{
         id: 'k1', kind: 'mate', suppressed: false,
-        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
-        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'b', role: 'r' } } as any,
         offset: { kind: 'literal', value: 0 } as any,
       }],
       resolvedRefs: new Map<string, any>([
@@ -143,8 +143,8 @@ describe('solveAssembly', () => {
       groundedComponentIds: ['A'],
       constraints: [{
         id: 'k1', kind: 'mate', suppressed: false,
-        refA: { kind: 'face', componentId: 'A', face: { featureId: 'a', role: 'r' } } as any,
-        refB: { kind: 'face', componentId: 'B', face: { featureId: 'b', role: 'r' } } as any,
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'a', role: 'r' } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'b', role: 'r' } } as any,
         offset: { kind: 'literal', value: 0 } as any,
       }],
       resolvedRefs: new Map<string, any>(),  // empty — both refs missing

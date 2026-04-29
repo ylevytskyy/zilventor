@@ -4,8 +4,8 @@ import { useAppStore } from '../../store/useAppStore';
 
 beforeEach(() => {
   useAppStore.setState({
-    activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } as any,
-    activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentIds: [] } as any },
+    activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [] } as any,
+    activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [] } as any },
     solverDirty: false,
   });
 });

@@ -105,7 +105,7 @@ describe('KernelApi (end-to-end, in-process)', () => {
     // (ExtrudeFeature labels the face with the highest centroid-Z as 'top'.)
     const ref: AssemblyConstraintRef = {
       kind: 'face',
-      componentId: 'C1',
+      componentPath: ['C1'],
       face: { featureId: 'e1', role: 'top', instance: 0 }
     };
 

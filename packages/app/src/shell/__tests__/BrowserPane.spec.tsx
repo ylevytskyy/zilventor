@@ -114,9 +114,9 @@ describe('BrowserPane', () => {
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {},
+      bomItemNumbers: {}, colorOverrides: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -134,9 +134,9 @@ describe('BrowserPane', () => {
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {},
+      bomItemNumbers: {}, colorOverrides: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -323,11 +323,11 @@ describe('BrowserPane assembly + constraints', () => {
         ],
         constraints: [{
           id: 'k1', kind: 'mate', suppressed: false,
-          refA: { kind: 'face', componentId: 'C1', face: { featureId: 'f', role: 'r' } } as any,
-          refB: { kind: 'face', componentId: 'C2', face: { featureId: 'g', role: 'r' } } as any,
+          refA: { kind: 'face', componentPath: ['C1'], face: { featureId: 'f', role: 'r' } } as any,
+          refB: { kind: 'face', componentPath: ['C2'], face: { featureId: 'g', role: 'r' } } as any,
           offset: { kind: 'literal', value: 0 } as any,
         }],
-        groundedComponentIds: ['C1'],
+        groundedComponentPaths: [['C1']],
       } as any },
     });
   });
@@ -360,9 +360,9 @@ describe('BrowserPane BOM tab strip', () => {
         position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ],
     constraints: [],
-    groundedComponentIds: [],
+    groundedComponentPaths: [],
     colors: {},
-    bomItemNumbers: {},
+    bomItemNumbers: {}, colorOverrides: {},
   };
 
   it('assembly mode renders both Assembly/BOM tab strip and the existing tree', () => {

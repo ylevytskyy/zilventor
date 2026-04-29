@@ -86,9 +86,10 @@ describe('Opfs — assembly integration', () => {
       parameters: {},
       components: [],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      colorOverrides: {},
     };
 
     const bytes = await packAssembly(doc, THUMB);
@@ -105,7 +106,7 @@ describe('Opfs — assembly integration', () => {
 
     // Save a minimal part archive at a nested path
     const partBytes = await packProject({
-      manifest: { formatVersion: 7, kind: 'part', document: { id: 'P1', name: 'leg' } },
+      manifest: { formatVersion: 8, kind: 'part', document: { id: 'P1', name: 'leg' } },
       blobs: {},
       thumbnail: THUMB,
     });
@@ -127,9 +128,10 @@ describe('Opfs — assembly integration', () => {
         },
       ],
       constraints: [],
-      groundedComponentIds: [],
+      groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      colorOverrides: {},
     };
     const asmBytes = await packAssembly(asmDoc, THUMB);
     await opfs.write('cabinet.ziasm', asmBytes);

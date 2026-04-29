@@ -49,8 +49,8 @@ describe('EditComponentDialog — color row (4c)', () => {
     const assembly: AssemblyDocument = {
       id: 'A', name: 'A', units: 'mm', parameters: {},
       components: [c],
-      constraints: [], groundedComponentIds: ['C1'],
-      colors: {}, bomItemNumbers: {},
+      constraints: [], groundedComponentPaths: [['C1']],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
       ...overrides,
     };
     useAppStore.setState({

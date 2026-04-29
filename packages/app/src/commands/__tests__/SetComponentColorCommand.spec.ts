@@ -8,8 +8,8 @@ describe('SetComponentColorCommand', () => {
       activeAssembly: {
         id: 'A', name: 'A', units: 'mm', parameters: {},
         components: [{ id: 'C1', partPath: 'p', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true }],
-        constraints: [], groundedComponentIds: ['C1'],
-        colors: {}, bomItemNumbers: {},
+        constraints: [], groundedComponentPaths: [['C1']],
+        colors: {}, bomItemNumbers: {}, colorOverrides: {},
       },
     } as any);
     await new SetComponentColorCommand({ id: 'C1', color: { kind: 'hex', hex: '#abc123' } }).apply();
