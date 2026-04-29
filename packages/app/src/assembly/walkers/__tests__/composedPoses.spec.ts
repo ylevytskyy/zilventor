@@ -45,6 +45,36 @@ describe('composedPoses', () => {
     expect(out.get(pathKey(['s', 'leaf']))!.translation.x).toBeCloseTo(7);
   });
 
+  it('rigid sub-asm with multi-segment inner static pose keys composes correctly', () => {
+    // innerStaticPoses key is pathKey(['inner', 'leaf']) — a multi-segment path.
+    // Bug repro: split(' ') would treat the whole pathKey as one segment.
+    const outerSubDoc = doc({ components: [
+      { id: 'inner', partPath: 'inner.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 's', partPath: 'outer.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const cache = {
+      get: (p: string) => p === 'outer.ziasm'
+        ? {
+            kind: 'ok' as const,
+            doc: outerSubDoc,
+            partPath: p,
+            innerStaticPoses: new Map([[pathKey(['inner', 'leaf']), tx(2)]]),
+          }
+        : undefined,
+    } as any;
+    const out = composedPoses(top, cache, {
+      pathToUnknown: new Map([[pathKey(['s']), 0]]),
+      poses: [tx(5)],
+      rigidSubtreeRoots: new Map([[pathKey(['s']), ['s']]]),
+    });
+    // Expected leaf path is ['s', 'inner', 'leaf']; world translation = 5 + 2 = 7
+    const leaf = out.get(pathKey(['s', 'inner', 'leaf']));
+    expect(leaf).toBeDefined();
+    expect(leaf!.translation.x).toBeCloseTo(7);
+  });
+
   it('flexible sub-asm leaf pose comes directly from its own solver unknown', () => {
     const sub = doc({ components: [
       { id: 'leaf', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
