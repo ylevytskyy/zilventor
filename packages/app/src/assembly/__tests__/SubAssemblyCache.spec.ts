@@ -2,6 +2,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { AssemblyDocument } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 import { SubAssemblyCache } from '../SubAssemblyCache';
 
 function makeDoc(id: string, name: string, components: AssemblyDocument['components'] = []): AssemblyDocument {
@@ -153,5 +154,43 @@ describe('SubAssemblyCache.loadSubAssemblyTree', () => {
     // (no double-count of the same cycle from the previous walk)
     const cycleHits = cache.diagnostics().filter((d) => d.kind === 'cycle' && d.partPath === 'a.ziasm');
     expect(cycleHits).toHaveLength(1);
+  });
+});
+
+describe('SubAssemblyCache inner pre-solve', () => {
+  it('stores innerStaticPoses on a freshly-loaded sub-asm when a SolverBridge is provided', async () => {
+    const drawerDoc = makeDoc('drawer-id', 'drawer', [
+      { id: 'panel', partPath: 'panel.zipt', position: { x: 3, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const opfs = new MemOpfs();
+    await opfs.write('drawer.ziasm', await packAssembly(drawerDoc, new Uint8Array()));
+
+    // Stub solver: returns the unknowns unchanged (identity solve)
+    const fakeSolve = async (input: any) => ({
+      poses: input.unknowns,
+      diagnostics: { dof: 0, residual: 0 },
+    });
+    const cache = new SubAssemblyCache(opfs as any, { solveAssembly: fakeSolve as any });
+    const e = await cache.loadSubAssembly('drawer.ziasm');
+    expect(e.kind).toBe('ok');
+    if (e.kind === 'ok') {
+      expect(e.innerStaticPoses).toBeDefined();
+      const p = e.innerStaticPoses!.get(pathKey(['panel']));
+      expect(p).toBeDefined();
+      expect(p!.translation.x).toBeCloseTo(3);
+    }
+  });
+
+  it('skips inner pre-solve when no SolverBridge is provided (innerStaticPoses undefined)', async () => {
+    const drawerDoc = makeDoc('drawer-id', 'drawer', [
+      { id: 'panel', partPath: 'panel.zipt', position: { x: 3, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const opfs = new MemOpfs();
+    await opfs.write('drawer.ziasm', await packAssembly(drawerDoc, new Uint8Array()));
+
+    const cache = new SubAssemblyCache(opfs as any); // no solver
+    const e = await cache.loadSubAssembly('drawer.ziasm');
+    expect(e.kind).toBe('ok');
+    if (e.kind === 'ok') expect(e.innerStaticPoses).toBeUndefined();
   });
 });

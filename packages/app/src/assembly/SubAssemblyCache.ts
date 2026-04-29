@@ -1,6 +1,7 @@
-import type { AssemblyDocument } from '@zilventor/shared';
+import type { AssemblyConstraint, AssemblyDocument } from '@zilventor/shared';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { Pose } from './walkers/flattenForSolver';
+import { flattenForSolver } from './walkers/flattenForSolver';
 
 export type SubAssemblyEntry =
   | { kind: 'ok'; doc: AssemblyDocument; partPath: string; innerStaticPoses?: Map<string, Pose> }
@@ -13,10 +14,23 @@ export interface OpfsLike {
   exists(path: string): Promise<boolean>;
 }
 
+export interface SolverBridge {
+  solveAssembly(input: {
+    unknowns: Pose[];
+    constraints: AssemblyConstraint[];
+    pathToUnknown: Map<string, number>;
+    grounded?: Set<string>;
+    paramValues?: Record<string, number>;
+  }): Promise<{ poses: Pose[]; diagnostics: { dof: number; residual: number } }>;
+}
+
 export class SubAssemblyCache {
   private entries = new Map<string, SubAssemblyEntry>();
   private diags: Array<{ kind: 'cycle' | 'missing' | 'parse'; partPath: string; message: string }> = [];
-  constructor(private readonly opfs: OpfsLike) {}
+  constructor(
+    private readonly opfs: OpfsLike,
+    private readonly solver: SolverBridge | null = null,
+  ) {}
 
   async loadSubAssembly(partPath: string): Promise<SubAssemblyEntry> {
     const cached = this.entries.get(partPath);
@@ -81,9 +95,30 @@ export class SubAssemblyCache {
     try {
       const bytes = await this.opfs.read(partPath);
       const doc = await unpackAssembly(bytes);
-      return { kind: 'ok', doc, partPath };
+      const ok: SubAssemblyEntry = { kind: 'ok', doc, partPath };
+      const inner = await this.maybePreSolve(doc);
+      if (inner) return { kind: 'ok', doc, partPath, innerStaticPoses: inner };
+      return ok;
     } catch (err) {
       return { kind: 'parse', partPath, message: err instanceof Error ? err.message : String(err) };
     }
+  }
+
+  private async maybePreSolve(doc: AssemblyDocument): Promise<Map<string, Pose> | undefined> {
+    if (!this.solver) return undefined;
+    // Pre-solve treats deeper sub-asm references as opaque — we only need
+    // the static poses for THIS sub-asm's top-level layout.
+    const subInput = flattenForSolver(doc, { get: () => undefined });
+    const r = await this.solver.solveAssembly({
+      unknowns: subInput.unknowns,
+      constraints: subInput.constraints,
+      pathToUnknown: subInput.pathToUnknown,
+    });
+    const poses = new Map<string, Pose>();
+    for (const [k, idx] of subInput.pathToUnknown) {
+      const p = r.poses[idx];
+      if (p) poses.set(k, p);
+    }
+    return poses;
   }
 }
