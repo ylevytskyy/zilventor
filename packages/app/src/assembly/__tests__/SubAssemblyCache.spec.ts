@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
-import { SubAssemblyCache } from '../SubAssemblyCache';
+import { SubAssemblyCache, type SubAssemblyEntry } from '../SubAssemblyCache';
 
 function makeDoc(id: string, name: string, components: AssemblyDocument['components'] = []): AssemblyDocument {
   return {
@@ -191,6 +191,37 @@ describe('SubAssemblyCache inner pre-solve', () => {
     const cache = new SubAssemblyCache(opfs as any); // no solver
     const e = await cache.loadSubAssembly('drawer.ziasm');
     expect(e.kind).toBe('ok');
-    if (e.kind === 'ok') expect(e.innerStaticPoses).toBeUndefined();
+    expect((e as Extract<SubAssemblyEntry, { kind: 'ok' }>).innerStaticPoses).toBeUndefined();
+  });
+
+  it('loadSubAssemblyTree runs inner pre-solve for every reachable sub-asm', async () => {
+    const inner = makeDoc('inner-id', 'inner', [
+      { id: 'panel', partPath: 'panel.zipt', position: { x: 7, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const middle = makeDoc('mid-id', 'middle', [
+      { id: 'i1', partPath: 'inner.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const top = makeDoc('top-id', 'top', [
+      { id: 'm1', partPath: 'middle.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const opfs = new MemOpfs();
+    await opfs.write('inner.ziasm', await packAssembly(inner, new Uint8Array()));
+    await opfs.write('middle.ziasm', await packAssembly(middle, new Uint8Array()));
+
+    const fakeSolve = async (input: any) => ({ poses: input.unknowns, diagnostics: { dof: 0, residual: 0 } });
+    const cache = new SubAssemblyCache(opfs as any, { solveAssembly: fakeSolve as any });
+    await cache.loadSubAssemblyTree(top);
+
+    const innerEntry = cache.get('inner.ziasm');
+    expect(innerEntry?.kind).toBe('ok');
+    if (innerEntry?.kind === 'ok') {
+      expect(innerEntry.innerStaticPoses).toBeDefined();
+      expect(innerEntry.innerStaticPoses!.get(pathKey(['panel']))!.translation.x).toBeCloseTo(7);
+    }
+    const middleEntry = cache.get('middle.ziasm');
+    expect(middleEntry?.kind).toBe('ok');
+    if (middleEntry?.kind === 'ok') {
+      expect(middleEntry.innerStaticPoses).toBeDefined();
+    }
   });
 });

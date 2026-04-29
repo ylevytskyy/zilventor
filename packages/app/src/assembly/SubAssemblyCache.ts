@@ -26,6 +26,7 @@ export interface SolverBridge {
 
 export class SubAssemblyCache {
   private entries = new Map<string, SubAssemblyEntry>();
+  private inflight = new Map<string, Promise<SubAssemblyEntry>>();
   private diags: Array<{ kind: 'cycle' | 'missing' | 'parse'; partPath: string; message: string }> = [];
   constructor(
     private readonly opfs: OpfsLike,
@@ -35,9 +36,16 @@ export class SubAssemblyCache {
   async loadSubAssembly(partPath: string): Promise<SubAssemblyEntry> {
     const cached = this.entries.get(partPath);
     if (cached) return cached;
-    const fresh = await this.unpack(partPath);
-    this.entries.set(partPath, fresh);
-    return fresh;
+    let p = this.inflight.get(partPath);
+    if (!p) {
+      p = this.unpack(partPath).then((e) => {
+        this.entries.set(partPath, e);
+        this.inflight.delete(partPath);
+        return e;
+      });
+      this.inflight.set(partPath, p);
+    }
+    return p;
   }
 
   invalidate(partPath: string): void {
@@ -74,8 +82,7 @@ export class SubAssemblyCache {
       }
       let entry = this.entries.get(c.partPath);
       if (!entry || entry.kind !== 'ok') {
-        entry = await this.unpack(c.partPath);
-        this.entries.set(c.partPath, entry);
+        entry = await this.loadSubAssembly(c.partPath);
         if (entry.kind === 'missing' || entry.kind === 'parse') {
           this.diags.push({ kind: entry.kind, partPath: entry.partPath, message: entry.message });
         }
@@ -92,16 +99,24 @@ export class SubAssemblyCache {
     if (!(await this.opfs.exists(partPath))) {
       return { kind: 'missing', partPath, message: `not in OPFS: ${partPath}` };
     }
+    let doc: AssemblyDocument;
     try {
-      const bytes = await this.opfs.read(partPath);
-      const doc = await unpackAssembly(bytes);
-      const ok: SubAssemblyEntry = { kind: 'ok', doc, partPath };
-      const inner = await this.maybePreSolve(doc);
-      if (inner) return { kind: 'ok', doc, partPath, innerStaticPoses: inner };
-      return ok;
+      doc = await unpackAssembly(await this.opfs.read(partPath));
     } catch (err) {
       return { kind: 'parse', partPath, message: err instanceof Error ? err.message : String(err) };
     }
+    const okBase: SubAssemblyEntry = { kind: 'ok', doc, partPath };
+    try {
+      const inner = await this.maybePreSolve(doc);
+      if (inner) return { ...okBase, innerStaticPoses: inner };
+    } catch (err) {
+      this.diags.push({
+        kind: 'parse',
+        partPath,
+        message: `pre-solve failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+    return okBase;
   }
 
   private async maybePreSolve(doc: AssemblyDocument): Promise<Map<string, Pose> | undefined> {
@@ -114,10 +129,12 @@ export class SubAssemblyCache {
       constraints: subInput.constraints,
       pathToUnknown: subInput.pathToUnknown,
     });
+    if (r.poses.length !== subInput.unknowns.length) {
+      throw new Error(`pre-solve returned ${r.poses.length} poses for ${subInput.unknowns.length} unknowns`);
+    }
     const poses = new Map<string, Pose>();
     for (const [k, idx] of subInput.pathToUnknown) {
-      const p = r.poses[idx];
-      if (p) poses.set(k, p);
+      poses.set(k, r.poses[idx]!);
     }
     return poses;
   }
