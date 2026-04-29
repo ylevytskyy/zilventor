@@ -90,6 +90,8 @@ import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { resolvePartName } from './shell/resolvePartName';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
+import { composePoses } from './assembly/walkers/composedPoses';
+import type { Pose } from './assembly/walkers/flattenForSolver';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
@@ -1946,60 +1948,63 @@ export default function App() {
       const leaves = visibleLeaves(assembly, subAsmCacheAdapter);
       const diagnostics: Array<{ componentId: string; message: string }> = [];
 
-      // Compute composedPosesMap: for top-level components, use componentPoses
-      // (from solver) keyed by id; for sub-asm leaves, compose ancestor placements
-      // from each ComponentInstance.position. The composedPoses walker output
-      // would be the correct path-keyed map but the solver bridge isn't yet
-      // adapted to flatten/composedPoses (TODO followup), so v1 uses a simple
-      // inline composition: walk the path and accumulate translations.
-      const composedPosesMap = new Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>();
-      function composeAlongPath(path: ReadonlyArray<string>, doc: typeof assembly): { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] } | undefined {
+      // T31: composedPosesMap maps each leaf's pathKey → world pose.
+      //
+      // Wiring: solver produces componentPoses (Map<id, Pose>) keyed by string
+      // id, treating only top-level components as unknowns. For T31's MVP we
+      // compose poses recursively along each path: top-level segment uses the
+      // solver pose (or initial Euler from ComponentInstance), and each deeper
+      // segment composes parent ⊕ child via parent.quaternion-rotated child
+      // translation + child quaternion. Rigid sub-asms with innerStaticPoses
+      // would compose those next, but the store-level subAssemblyDocs do not
+      // currently carry pre-solved poses (a TODO follow-up — wiring
+      // SubAssemblyCache + SolverBridge into the store).
+      const composedPosesMap = new Map<string, Pose>();
+      function topLevelPose(id: string, doc: typeof assembly): Pose | undefined {
+        if (!doc) return undefined;
+        const solverPose = componentPoses.get(id);
+        if (solverPose) return solverPose;
+        const c = doc.components.find((x) => x.id === id);
+        if (!c) return undefined;
+        // Build a quaternion from the ComponentInstance Euler XYZ in degrees.
+        const q = quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz);
+        return {
+          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+          quaternion: q,
+        };
+      }
+      function composeAlongPath(path: ReadonlyArray<string>, doc: typeof assembly): Pose | undefined {
         if (!doc || path.length === 0) return undefined;
-        if (path.length === 1) {
-          // Top-level — prefer solver pose if available
-          const solverPose = componentPoses.get(path[0]!);
-          if (solverPose) return solverPose;
-          const c = doc.components.find((x) => x.id === path[0]!);
-          if (!c) return undefined;
-          return {
-            translation: { x: c.position.x, y: c.position.y, z: c.position.z },
-            quaternion: [0, 0, 0, 1],
-          };
-        }
-        // Recursive: get parent pose at prefix, then apply local position of leaf
+        if (path.length === 1) return topLevelPose(path[0]!, doc);
         const parent = composeAlongPath(path.slice(0, -1), doc);
         if (!parent) return undefined;
-        // Walk down to the parent's sub-asm doc
-        const headId = path[0]!;
-        const headC = doc.components.find((x) => x.id === headId);
-        if (!headC) return undefined;
-        const subDoc = subAssemblyDocs[headC.partPath];
-        if (!subDoc) return undefined;
-        // Continue resolving inside the sub-asm doc using the tail
-        const tail = path.slice(1);
-        if (tail.length === 1) {
-          const c = subDoc.components.find((x) => x.id === tail[0]!);
+        // Find the sub-asm doc under the parent path's last segment
+        const ancestorPath = path.slice(0, -1);
+        // Walk into the doc to find the sub-asm whose path is `ancestorPath`,
+        // then look up the leaf id at path[-1] in that sub-asm doc.
+        let cursorDoc: typeof assembly | undefined = doc;
+        for (const seg of ancestorPath) {
+          const c: ComponentInstance | undefined = cursorDoc?.components.find((x) => x.id === seg);
           if (!c) return undefined;
-          return {
-            translation: {
-              x: parent.translation.x + c.position.x,
-              y: parent.translation.y + c.position.y,
-              z: parent.translation.z + c.position.z,
-            },
-            quaternion: parent.quaternion,
-          };
+          if (c.partPath.endsWith('.ziasm')) {
+            cursorDoc = subAssemblyDocs[c.partPath];
+            if (!cursorDoc) return undefined;
+          } else {
+            // Mid-path lookup hit a leaf — invalid path
+            return undefined;
+          }
         }
-        // Deeper nesting: best-effort additive composition (rotations from parent only)
-        const subLeaf = composeAlongPath(tail, subDoc);
-        if (!subLeaf) return undefined;
-        return {
-          translation: {
-            x: parent.translation.x + subLeaf.translation.x,
-            y: parent.translation.y + subLeaf.translation.y,
-            z: parent.translation.z + subLeaf.translation.z,
-          },
-          quaternion: parent.quaternion,
+        const leafId = path[path.length - 1]!;
+        const c = cursorDoc.components.find((x) => x.id === leafId);
+        if (!c) return undefined;
+        const localQ = quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz);
+        const localPose: Pose = {
+          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+          quaternion: localQ,
         };
+        // T31: parent ⊕ local using composePoses (q_parent * q_local for rotation,
+        // t_parent + R(q_parent) * t_local for translation).
+        return composePoses(parent, localPose);
       }
       for (const l of leaves) {
         const p = composeAlongPath(l.componentPath, assembly);
