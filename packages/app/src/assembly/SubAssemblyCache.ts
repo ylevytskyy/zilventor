@@ -14,6 +14,7 @@ export interface OpfsLike {
 
 export class SubAssemblyCache {
   private entries = new Map<string, SubAssemblyEntry>();
+  private diags: Array<{ kind: 'cycle' | 'missing' | 'parse'; partPath: string; message: string }> = [];
   constructor(private readonly opfs: OpfsLike) {}
 
   async loadSubAssembly(partPath: string): Promise<SubAssemblyEntry> {
@@ -34,6 +35,41 @@ export class SubAssemblyCache {
 
   get(partPath: string): SubAssemblyEntry | undefined {
     return this.entries.get(partPath);
+  }
+
+  diagnostics(): Array<{ kind: 'cycle' | 'missing' | 'parse'; partPath: string; message: string }> {
+    return this.diags.slice();
+  }
+
+  clearDiagnostics(): void {
+    this.diags = [];
+  }
+
+  async loadSubAssemblyTree(rootDoc: AssemblyDocument): Promise<void> {
+    await this.walkTree(rootDoc, new Set<string>());
+  }
+
+  private async walkTree(doc: AssemblyDocument, loadStack: Set<string>): Promise<void> {
+    for (const c of doc.components) {
+      if (!c.partPath.endsWith('.ziasm')) continue;
+      if (loadStack.has(c.partPath)) {
+        this.diags.push({ kind: 'cycle', partPath: c.partPath, message: `cycle detected: ${c.partPath}` });
+        continue;
+      }
+      let entry = this.entries.get(c.partPath);
+      if (!entry || entry.kind !== 'ok') {
+        entry = await this.unpack(c.partPath);
+        this.entries.set(c.partPath, entry);
+        if (entry.kind === 'missing' || entry.kind === 'parse') {
+          this.diags.push({ kind: entry.kind, partPath: entry.partPath, message: entry.message });
+        }
+      }
+      if (entry.kind === 'ok') {
+        const next = new Set(loadStack);
+        next.add(c.partPath);
+        await this.walkTree(entry.doc, next);
+      }
+    }
   }
 
   private async unpack(partPath: string): Promise<SubAssemblyEntry> {

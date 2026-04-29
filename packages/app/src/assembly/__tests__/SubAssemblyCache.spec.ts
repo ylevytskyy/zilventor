@@ -79,3 +79,60 @@ describe('SubAssemblyCache', () => {
     expect(b.kind).toBe('ok');
   });
 });
+
+describe('SubAssemblyCache.loadSubAssemblyTree', () => {
+  let opfs: MemOpfs;
+  beforeEach(() => {
+    opfs = new MemOpfs();
+  });
+
+  it('walks transitively and caches every reachable .ziasm', async () => {
+    const inner = makeDoc('inner-id', 'inner', [
+      { id: 'panel', partPath: 'panel.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const middle = makeDoc('mid-id', 'middle', [
+      { id: 'i1', partPath: 'inner.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const top = makeDoc('top-id', 'top', [
+      { id: 'm1', partPath: 'middle.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await opfs.write('inner.ziasm', await packAssembly(inner, new Uint8Array()));
+    await opfs.write('middle.ziasm', await packAssembly(middle, new Uint8Array()));
+
+    const cache = new SubAssemblyCache(opfs as any);
+    await cache.loadSubAssemblyTree(top);
+    expect(cache.get('middle.ziasm')?.kind).toBe('ok');
+    expect(cache.get('inner.ziasm')?.kind).toBe('ok');
+  });
+
+  it('marks a self-referential .ziasm as cycle on second encounter', async () => {
+    const a = makeDoc('a-id', 'a', [
+      { id: 'self', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await opfs.write('a.ziasm', await packAssembly(a, new Uint8Array()));
+    const cache = new SubAssemblyCache(opfs as any);
+    const top = makeDoc('top-id', 'top', [
+      { id: 'p1', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await cache.loadSubAssemblyTree(top);
+    expect(cache.get('a.ziasm')?.kind).toBe('ok');
+    expect(cache.diagnostics().some((d) => d.kind === 'cycle' && d.partPath === 'a.ziasm')).toBe(true);
+  });
+
+  it('marks a transitive cycle (A -> B -> A) as cycle', async () => {
+    const a = makeDoc('a-id', 'a', [
+      { id: 'p', partPath: 'b.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    const b = makeDoc('b-id', 'b', [
+      { id: 'p', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await opfs.write('a.ziasm', await packAssembly(a, new Uint8Array()));
+    await opfs.write('b.ziasm', await packAssembly(b, new Uint8Array()));
+    const cache = new SubAssemblyCache(opfs as any);
+    const top = makeDoc('top', 'top', [
+      { id: 't1', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await cache.loadSubAssemblyTree(top);
+    expect(cache.diagnostics().some((d) => d.kind === 'cycle' && d.partPath === 'a.ziasm')).toBe(true);
+  });
+});
