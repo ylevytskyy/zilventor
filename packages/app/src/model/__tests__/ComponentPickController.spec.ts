@@ -11,18 +11,26 @@ describe('ComponentPickController', () => {
     expect(ctrl.isActive()).toBe(false);
   });
 
-  it('selectFromViewport fires onPick when active', () => {
+  it('selectFromViewport fires onPick with componentPath when active', () => {
     const onPick = vi.fn();
     const ctrl = new ComponentPickController({ onPick });
     ctrl.activate();
-    ctrl.selectFromViewport('C1');
-    expect(onPick).toHaveBeenCalledWith('C1');
+    ctrl.selectFromViewport(['C1']);
+    expect(onPick).toHaveBeenCalledWith(['C1']);
+  });
+
+  it('selectFromViewport preserves multi-segment componentPath', () => {
+    const onPick = vi.fn();
+    const ctrl = new ComponentPickController({ onPick });
+    ctrl.activate();
+    ctrl.selectFromViewport(['drawer', 'screw']);
+    expect(onPick).toHaveBeenCalledWith(['drawer', 'screw']);
   });
 
   it('selectFromViewport is a no-op when inactive', () => {
     const onPick = vi.fn();
     const ctrl = new ComponentPickController({ onPick });
-    ctrl.selectFromViewport('C1');
+    ctrl.selectFromViewport(['C1']);
     expect(onPick).not.toHaveBeenCalled();
   });
 });

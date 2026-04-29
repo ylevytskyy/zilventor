@@ -1232,12 +1232,11 @@ export default function App() {
       if (pickerMode && (ev.type === 'click' || ev.type === 'pointerdown')) {
         const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
         if (hit) {
-          // T28/T30: raycastComponent now returns ComponentPath. Picker is
-          // migrated in T30 to consume componentPath directly. For now (T28
-          // bridge) we pass the tail id as a string so the picker compiles.
-          const tailId = hit[hit.length - 1] ?? '';
+          // T30: picker now consumes ComponentPath directly. FaceName is still
+          // unresolved here pending T36/T38 (tessellated-face registry in
+          // assembly mode).
           assemblyPickerRef.current.handleFaceHit(
-            tailId,
+            hit,
             { featureId: 'unresolved', role: 'unresolved' }
           );
         }
@@ -1746,10 +1745,17 @@ export default function App() {
       w.__zilventorAssemblyPoses = () => useAppStore.getState().componentPoses;
       w.__zilventorAssemblyPickerSimulate = (slot: 'A' | 'B', kind: string, payload: Record<string, unknown>) => {
         const picker = assemblyPickerRef.current;
-        if (kind === 'face') picker.handleFaceHit(payload.componentId as string, payload.face as import('@zilventor/shared').FaceName);
-        else if (kind === 'edge') picker.handleEdgeHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, (payload.isCircular as boolean) ?? false);
-        else if (kind === 'cylindricalFace') picker.handleCylindricalFaceHit(payload.componentId as string, payload.face as import('@zilventor/shared').FaceName);
-        else if (kind === 'vertex') picker.handleVertexHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, payload.end as 'start' | 'end');
+        // T30: picker simulate accepts componentPath (ComponentPath) or
+        // componentId (string) for back-compat; string IDs are wrapped as
+        // single-segment paths.
+        const cpRaw = payload.componentPath ?? payload.componentId;
+        const componentPath: ComponentPath = Array.isArray(cpRaw)
+          ? (cpRaw as string[])
+          : [cpRaw as string];
+        if (kind === 'face') picker.handleFaceHit(componentPath, payload.face as import('@zilventor/shared').FaceName);
+        else if (kind === 'edge') picker.handleEdgeHit(componentPath, payload.edge as import('@zilventor/shared').EdgeName, (payload.isCircular as boolean) ?? false);
+        else if (kind === 'cylindricalFace') picker.handleCylindricalFaceHit(componentPath, payload.face as import('@zilventor/shared').FaceName);
+        else if (kind === 'vertex') picker.handleVertexHit(componentPath, payload.edge as import('@zilventor/shared').EdgeName, payload.end as 'start' | 'end');
       };
       // T45: expose dragAlongFreeDofs via dev hook so E2E can call it directly.
       // T30: dev hook still accepts componentId for back-compat with existing
@@ -1816,25 +1822,26 @@ export default function App() {
     const mode = placeConstraintMode;
     const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
     assemblyPickerRef.current.activate(pickerMode, slot, (hit) => {
-      let ref: AssemblyConstraint['refA'] | { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName };
+      let ref: AssemblyConstraint['refA'] | { componentPath: ComponentPath; circularEdge: import('@zilventor/shared').EdgeName };
       let label: string;
+      // T30: hits now carry hit.hit.componentPath; refs already require ComponentPath.
       if (hit.kind === 'face') {
-        ref = { kind: 'face', componentPath: [hit.hit.componentId], face: hit.hit.face };
-        label = `${hit.hit.componentId}/${hit.hit.face.featureId}`;
+        ref = { kind: 'face', componentPath: hit.hit.componentPath, face: hit.hit.face };
+        label = `${pathKey(hit.hit.componentPath)}/${hit.hit.face.featureId}`;
       } else if (hit.kind === 'axis') {
         const h = hit.hit;
         if (h.source === 'edge') {
-          ref = { kind: 'axis', componentPath: [h.componentId], axis: { source: 'edge', edge: h.edge } };
+          ref = { kind: 'axis', componentPath: h.componentPath, axis: { source: 'edge', edge: h.edge } };
         } else {
-          ref = { kind: 'axis', componentPath: [h.componentId], axis: { source: 'cylindricalFace', face: h.face } };
+          ref = { kind: 'axis', componentPath: h.componentPath, axis: { source: 'cylindricalFace', face: h.face } };
         }
-        label = `${hit.hit.componentId}/axis`;
+        label = `${pathKey(h.componentPath)}/axis`;
       } else if (hit.kind === 'point') {
-        ref = { kind: 'point', componentPath: [hit.hit.componentId], point: { source: 'vertex', edge: hit.hit.vertex.edge, end: hit.hit.vertex.end } };
-        label = `${hit.hit.componentId}/vertex`;
+        ref = { kind: 'point', componentPath: hit.hit.componentPath, point: { source: 'vertex', edge: hit.hit.vertex.edge, end: hit.hit.vertex.end } };
+        label = `${pathKey(hit.hit.componentPath)}/vertex`;
       } else if (hit.kind === 'circularEdge') {
-        ref = { componentPath: [hit.hit.componentId], circularEdge: hit.hit.edge };
-        label = `${hit.hit.componentId}/circularEdge`;
+        ref = { componentPath: hit.hit.componentPath, circularEdge: hit.hit.edge };
+        label = `${pathKey(hit.hit.componentPath)}/circularEdge`;
       } else {
         return;
       }
