@@ -24,14 +24,14 @@ export async function loadAssemblyTiles(
   unpackProject: UnpackProjectFn,
 ): Promise<AssemblyTile[]> {
   const all = await opfs.listAll();
-  const ziptPaths = all.filter((p) => p.endsWith('.zipt'));
+  const projectPaths = all.filter((p) => p.endsWith('.zipt') || p.endsWith('.ziasm'));
   const tiles: AssemblyTile[] = [];
-  for (const path of ziptPaths) {
+  for (const path of projectPaths) {
     try {
       const bytes = await opfs.read(path);
       const part = await unpackProject(bytes);
       if (!part.thumbnail) continue;
-      const filename = path.split('/').pop()!.replace(/\.zipt$/, '');
+      const filename = path.split('/').pop()!.replace(/\.ziasm$|\.zipt$/, '');
       tiles.push({
         partPath: path,
         name: filename,
