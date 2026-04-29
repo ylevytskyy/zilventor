@@ -1,5 +1,5 @@
-import type { AssemblyDocument, BomRow, ComponentColor } from '@zilventor/shared';
-import { bomRowKey } from '@zilventor/shared/src/bomRow';
+import type { AssemblyDocument, ComponentColor } from '@zilventor/shared';
+import { bomRowKey, type BomRow } from '@zilventor/shared/src/bomRow';
 import { pathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
 import { resolveColor } from './resolveColor';
