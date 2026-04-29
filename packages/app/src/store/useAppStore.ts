@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -177,6 +177,8 @@ type AppState = {
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
+  setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
+  setComponentFlexible: (componentId: string, flag: boolean) => void;
 
   openPlaceComponentDialog(): void;
   resetPlaceComponentDialog(): void;
@@ -425,6 +427,30 @@ export const useAppStore = create<AppState>((set) => ({
   selectComponentPaths: (paths) => set({ selectedComponentPaths: [...paths] }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
+  setColorOverride: (path, color) => set((s) => {
+    if (s.activeDocument?.kind !== 'assembly') return s;
+    const next = { ...s.activeDocument.document.colorOverrides };
+    const k = pathKey(path);
+    if (color == null) delete next[k];
+    else next[k] = color;
+    const nextDoc: AssemblyDocument = { ...s.activeDocument.document, colorOverrides: next };
+    return {
+      activeDocument: { kind: 'assembly', document: nextDoc },
+      activeAssembly: nextDoc,
+    };
+  }),
+  setComponentFlexible: (componentId, flag) => set((s) => {
+    if (s.activeDocument?.kind !== 'assembly') return s;
+    const components = s.activeDocument.document.components.map((c) =>
+      c.id === componentId ? { ...c, flexible: flag } : c,
+    );
+    const nextDoc: AssemblyDocument = { ...s.activeDocument.document, components };
+    return {
+      activeDocument: { kind: 'assembly', document: nextDoc },
+      activeAssembly: nextDoc,
+      solverDirty: true,
+    };
+  }),
 
   openPlaceComponentDialog: () => set({
     placeComponentDialogOpen: true,

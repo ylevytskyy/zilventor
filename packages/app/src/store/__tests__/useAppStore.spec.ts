@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore } from '../useAppStore';
-import type { AssemblyDocument, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentColor, ComponentInstance, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
+
+const emptyAssembly = (): AssemblyDocument => ({
+  id: 'A', name: 'A', units: 'mm', parameters: {},
+  components: [], constraints: [], groundedComponentPaths: [],
+  colors: {}, bomItemNumbers: {}, colorOverrides: {},
+});
 
 const mkPart = (): PartDocument => ({
   id: 'P1',
@@ -657,6 +663,44 @@ describe('useAppStore 4b extensions', () => {
     expect(useAppStore.getState().activeAssembly!.groundedComponentPaths.some((p) => p.length === 1 && p[0] === 'C1')).toBe(true);
     useAppStore.getState().toggleGrounded('C1');
     expect(useAppStore.getState().activeAssembly!.groundedComponentPaths.some((p) => p.length === 1 && p[0] === 'C1')).toBe(false);
+  });
+});
+
+describe('store T19 setColorOverride / setComponentFlexible', () => {
+  it('setColorOverride writes through to activeAssembly.colorOverrides', () => {
+    useAppStore.getState().setActiveDocument({
+      kind: 'assembly',
+      document: emptyAssembly(),
+    });
+    useAppStore.getState().setColorOverride(['c1', 'leaf'], { kind: 'palette', name: 'oak' } as ComponentColor);
+    const got = useAppStore.getState().activeDocument;
+    if (got?.kind !== 'assembly') throw new Error('expected assembly');
+    expect(got.document.colorOverrides[pathKey(['c1', 'leaf'])]).toEqual({ kind: 'palette', name: 'oak' });
+  });
+
+  it('setColorOverride(null) deletes the entry', () => {
+    useAppStore.getState().setActiveDocument({
+      kind: 'assembly',
+      document: { ...emptyAssembly(), colorOverrides: { [pathKey(['c1', 'leaf'])]: { kind: 'hex', hex: '#ff0000' } } },
+    });
+    useAppStore.getState().setColorOverride(['c1', 'leaf'], null);
+    const got = useAppStore.getState().activeDocument;
+    if (got?.kind !== 'assembly') throw new Error('expected assembly');
+    expect(got.document.colorOverrides[pathKey(['c1', 'leaf'])]).toBeUndefined();
+  });
+
+  it('setComponentFlexible toggles the flag and bumps solverDirty', () => {
+    const sub: ComponentInstance = { id: 's', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true };
+    useAppStore.getState().setActiveDocument({
+      kind: 'assembly',
+      document: { ...emptyAssembly(), components: [sub] },
+    });
+    useAppStore.getState().setSolverDirty(false);
+    useAppStore.getState().setComponentFlexible('s', true);
+    const got = useAppStore.getState();
+    if (got.activeDocument?.kind !== 'assembly') throw new Error('expected assembly');
+    expect(got.activeDocument.document.components.find((c) => c.id === 's')?.flexible).toBe(true);
+    expect(got.solverDirty).toBe(true);
   });
 });
 
