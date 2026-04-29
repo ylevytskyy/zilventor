@@ -404,3 +404,106 @@ describe('BrowserPane BOM tab strip', () => {
     expect(screen.queryByRole('button', { name: /^assembly$/i })).toBeNull();
   });
 });
+
+describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null,
+      activeAssembly: null,
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+      bomTabActive: false,
+      selectedComponentPaths: [],
+    } as any);
+  });
+
+  const childDoc: AssemblyDocument = {
+    id: 'CH', name: 'drawer', units: 'mm', parameters: {},
+    components: [
+      { id: 'P1', partPath: 'parts/panel-front.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      { id: 'P2', partPath: 'parts/panel-back.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      { id: 'P3', partPath: 'parts/panel-side.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ],
+    constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, colorOverrides: {},
+  };
+
+  const topDoc = (subOverrides: Partial<any> = {}): AssemblyDocument => ({
+    id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+    components: [
+      { id: 'SUB1', partPath: 'sub/drawer.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, ...subOverrides },
+    ],
+    constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, colorOverrides: {},
+  });
+
+  it('renders sub-asm placement as expandable node with (N components) annotation', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    expect(screen.getByText(/SUB1/)).toBeInTheDocument();
+    expect(screen.getByText(/\(3 components\)/)).toBeInTheDocument();
+  });
+
+  it('clicking the expand triangle expands and shows child components', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    fireEvent.click(screen.getByLabelText('expand SUB1'));
+    expect(screen.getByText(/panel-front/)).toBeInTheDocument();
+    expect(screen.getByText(/panel-back/)).toBeInTheDocument();
+    expect(screen.getByText(/panel-side/)).toBeInTheDocument();
+  });
+
+  it('shows a Flexible badge on flexible sub-asm placements', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc({ flexible: true }) },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    expect(screen.getByText(/Flexible/)).toBeInTheDocument();
+  });
+
+  it('clicking a leaf row sets selectedComponentPaths to its componentPath', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+      expandedSubAsmPaths: new Set<string>(['SUB1']),
+    } as any);
+    render(<BrowserPane part={null} />);
+    fireEvent.click(screen.getByText(/panel-front/));
+    const sel = useAppStore.getState().selectedComponentPaths;
+    expect(sel.length).toBe(1);
+    expect(Array.from(sel[0]!)).toEqual(['SUB1', 'P1']);
+  });
+
+  it('renders a sub-asm placement even when its document is unresolved (placeholder)', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: {},
+    } as any);
+    render(<BrowserPane part={null} />);
+    expect(screen.getByText(/SUB1/)).toBeInTheDocument();
+  });
+
+  it('handles a self-referential cycle without infinite recursion', () => {
+    const cyclicDoc: AssemblyDocument = {
+      id: 'CY', name: 'cy', units: 'mm', parameters: {},
+      components: [
+        { id: 'INNER', partPath: 'sub/cyclic.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    };
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: { ...topDoc(), components: [{ id: 'TOP', partPath: 'sub/cyclic.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true }] } },
+      subAssemblyDocs: { 'sub/cyclic.ziasm': cyclicDoc },
+      expandedSubAsmPaths: new Set<string>(['TOP', 'TOP/INNER']),
+    } as any);
+    expect(() => render(<BrowserPane part={null} />)).not.toThrow();
+  });
+});

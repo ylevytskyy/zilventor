@@ -1,7 +1,9 @@
-import type { Feature, PartDocument } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentInstance, Feature, PartDocument } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
+import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partNames?: Map<string, string> };
 
@@ -10,6 +12,127 @@ type WorkFeature = Extract<Feature, { kind: 'workAxis' | 'workPlane' | 'workPoin
 function isOriginFeatureId(id: string): boolean {
   return id.startsWith('origin.');
 }
+
+type RenderTreeArgs = {
+  components: ComponentInstance[];
+  doc: AssemblyDocument;
+  constraintLabel: (kind: string) => string;
+  selectedConstraintId: string | null | undefined;
+};
+
+function renderAssemblyTree(args: RenderTreeArgs): JSX.Element {
+  return <AssemblyTree {...args} />;
+}
+
+function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }: RenderTreeArgs): JSX.Element {
+  const subAsmDocs = useAppStore((s) => s.subAssemblyDocs);
+  const expanded = useAppStore((s) => s.expandedSubAsmPaths);
+
+  function renderNodes(
+    list: ComponentInstance[],
+    parentPath: string[],
+    stack: Set<string>,
+    isRoot: boolean,
+  ): JSX.Element[] {
+    return list.map((c) => {
+      const path = [...parentPath, c.id];
+      const key = pathKey(path);
+      const isSubAsm = c.partPath.endsWith('.ziasm');
+      const partFileName = c.partPath.split('/').pop()!.replace(/\.ziasm$|\.zipt$/, '');
+      const child = isSubAsm ? subAsmDocs[c.partPath] : undefined;
+      const childCount = child?.components.length ?? 0;
+      const isExpanded = expanded.has(key);
+      const isCycle = isSubAsm && stack.has(c.partPath);
+      const isGrounded = isRoot && doc.groundedComponentPaths.some((p) => p.length === 1 && p[0] === c.id);
+      const myConstraints = isRoot
+        ? doc.constraints.filter(
+            (k) =>
+              (k.refA as any).componentPath?.[0] === c.id ||
+              (k.refB as any).componentPath?.[0] === c.id,
+          )
+        : [];
+      return (
+        <li key={key} className="pl-3">
+          <div className="flex items-center gap-1">
+            {isSubAsm ? (
+              <button
+                type="button"
+                aria-label={`expand ${c.id}`}
+                onClick={() => useAppStore.getState().toggleSubAsmExpanded(key)}
+                style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', padding: 0, width: 14 }}
+              >
+                {isExpanded ? '▼' : '▶'}
+              </button>
+            ) : (
+              <span style={{ width: 14, display: 'inline-block' }} />
+            )}
+            <span
+              className="cursor-pointer hover:text-white"
+              onClick={() => useAppStore.getState().selectComponentPaths([path])}
+              onDoubleClick={() => {
+                if (isRoot && !isSubAsm) {
+                  useAppStore.getState().openEditComponentDialog(c.id);
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (!isSubAsm) {
+                  // Right-click on a leaf opens an Override color dialog (minimal: prompt for hex).
+                  const hex = window.prompt('Override color (hex, e.g. #d4a574); blank to clear:');
+                  if (hex === null) return;
+                  const trimmed = hex.trim();
+                  void new SetComponentColorOverrideCommand({
+                    path,
+                    color: trimmed === '' ? null : { kind: 'hex', hex: trimmed },
+                  }).apply();
+                }
+              }}
+            >
+              {isGrounded ? '⛓ ' : ''}{c.id} — {partFileName}
+              {isSubAsm && <span style={{ color: '#888' }}> ({childCount} components)</span>}
+              {c.flexible && <span style={{ marginLeft: 6, color: '#fbbf24' }}>Flexible</span>}
+              {isCycle && <span style={{ marginLeft: 6, color: '#f87171' }}>cycle</span>}
+            </span>
+          </div>
+          {myConstraints.length > 0 && (
+            <ul className="pl-4 space-y-0.5">
+              {myConstraints.map((k) => {
+                const isSuppressed = k.suppressed;
+                const isSelected = selectedConstraintId === k.id;
+                return (
+                  <li
+                    key={k.id}
+                    style={{
+                      opacity: isSuppressed ? 0.4 : 1,
+                      textDecoration: isSuppressed ? 'line-through' : 'none',
+                      background: isSelected ? '#334' : undefined,
+                      cursor: 'pointer',
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      useAppStore.getState().selectConstraint(k.id);
+                    }}
+                    onDoubleClick={() => useAppStore.getState().openEditConstraintDialog(k.id)}
+                  >
+                    {constraintLabel(k.kind)}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {isSubAsm && isExpanded && child && !isCycle && (
+            <ul className="pl-4 space-y-0.5">
+              {renderNodes(child.components, path, new Set([...stack, c.partPath]), false)}
+            </ul>
+          )}
+        </li>
+      );
+    });
+  }
+
+  return <>{renderNodes(components, [], new Set<string>(), true)}</>;
+}
+
 
 export default function BrowserPane({ part, sketchPicker, partNames = new Map() }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
@@ -65,59 +188,11 @@ export default function BrowserPane({ part, sketchPicker, partNames = new Map() 
         <ul className="space-y-0.5">
           <li className="pl-3">Origin</li>
           <li className="pl-3">Components ({asm.components.length})</li>
-          {asm.components.map((c) => {
-            const partFileName = c.partPath.split('/').pop()!.replace(/\.zipt$/, '');
-            const isGrounded = asm.groundedComponentPaths.some((p) => p.length === 1 && p[0] === c.id);
-            // Constraints where this component is an endpoint
-            const myConstraints = asm.constraints.filter(
-              (k) =>
-                (k.refA as any).componentPath?.[0] === c.id ||
-                (k.refB as any).componentPath?.[0] === c.id,
-            );
-            return (
-              <li key={c.id} className="pl-3">
-                <details open>
-                  <summary
-                    className="cursor-pointer hover:text-white"
-                    onDoubleClick={() => useAppStore.getState().openEditComponentDialog(c.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (window.confirm(`Toggle grounded for ${c.id}?`)) {
-                        useAppStore.getState().toggleGrounded(c.id);
-                      }
-                    }}
-                  >
-                    {isGrounded ? '⛓ ' : '▸ '}{c.id} — {partFileName}
-                  </summary>
-                  {myConstraints.length > 0 && (
-                    <ul className="pl-4 space-y-0.5">
-                      {myConstraints.map((k) => {
-                        const isSuppressed = k.suppressed;
-                        const isSelected = selectedConstraintId === k.id;
-                        return (
-                          <li
-                            key={k.id}
-                            style={{
-                              opacity: isSuppressed ? 0.4 : 1,
-                              textDecoration: isSuppressed ? 'line-through' : 'none',
-                              background: isSelected ? '#334' : undefined,
-                              cursor: 'pointer',
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              useAppStore.getState().selectConstraint(k.id);
-                            }}
-                            onDoubleClick={() => useAppStore.getState().openEditConstraintDialog(k.id)}
-                          >
-                            {constraintLabel(k.kind)}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </details>
-              </li>
-            );
+          {renderAssemblyTree({
+            components: asm.components,
+            doc: asm,
+            constraintLabel,
+            selectedConstraintId,
           })}
         </ul>
       </div>
