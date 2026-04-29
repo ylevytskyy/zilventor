@@ -42,7 +42,7 @@ describe('wouldCreateCycle', () => {
 
   it('returns false for a candidate with no transitive references', async () => {
     await opfs.write('drawer.ziasm', await packAssembly(doc('drawer'), new Uint8Array()));
-    expect(await wouldCreateCycle(doc('top'), 'top.ziasm', 'drawer.ziasm', opfs as any)).toBe(false);
+    expect(await wouldCreateCycle('top.ziasm', 'drawer.ziasm', opfs as any)).toBe(false);
   });
 
   it('returns true when candidate transitively references the active doc', async () => {
@@ -50,14 +50,14 @@ describe('wouldCreateCycle', () => {
       { id: 'inner', partPath: 'top.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ]);
     await opfs.write('drawer.ziasm', await packAssembly(drawer, new Uint8Array()));
-    expect(await wouldCreateCycle(doc('top'), 'top.ziasm', 'drawer.ziasm', opfs as any)).toBe(true);
+    expect(await wouldCreateCycle('top.ziasm', 'drawer.ziasm', opfs as any)).toBe(true);
   });
 
   it('returns true on direct self-cycle', async () => {
-    expect(await wouldCreateCycle(doc('top'), 'top.ziasm', 'top.ziasm', opfs as any)).toBe(true);
+    expect(await wouldCreateCycle('top.ziasm', 'top.ziasm', opfs as any)).toBe(true);
   });
 
   it('returns false when candidate file is missing', async () => {
-    expect(await wouldCreateCycle(doc('top'), 'top.ziasm', 'absent.ziasm', opfs as any)).toBe(false);
+    expect(await wouldCreateCycle('top.ziasm', 'absent.ziasm', opfs as any)).toBe(false);
   });
 });

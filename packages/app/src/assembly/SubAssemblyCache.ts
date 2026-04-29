@@ -46,6 +46,7 @@ export class SubAssemblyCache {
   }
 
   async loadSubAssemblyTree(rootDoc: AssemblyDocument): Promise<void> {
+    this.clearDiagnostics();
     await this.walkTree(rootDoc, new Set<string>());
   }
 

@@ -1,9 +1,7 @@
-import type { AssemblyDocument } from '@zilventor/shared';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { OpfsLike } from './SubAssemblyCache';
 
 export async function wouldCreateCycle(
-  _activeDoc: AssemblyDocument,
   activeDocPath: string,
   candidatePath: string,
   opfs: OpfsLike,

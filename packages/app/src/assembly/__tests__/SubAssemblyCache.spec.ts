@@ -135,4 +135,23 @@ describe('SubAssemblyCache.loadSubAssemblyTree', () => {
     await cache.loadSubAssemblyTree(top);
     expect(cache.diagnostics().some((d) => d.kind === 'cycle' && d.partPath === 'a.ziasm')).toBe(true);
   });
+
+  it('loadSubAssemblyTree clears prior diagnostics on each call', async () => {
+    const a = makeDoc('a-id', 'a', [
+      { id: 'self', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await opfs.write('a.ziasm', await packAssembly(a, new Uint8Array()));
+    const cache = new SubAssemblyCache(opfs as any);
+    const top = makeDoc('top', 'top', [
+      { id: 'p', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ]);
+    await cache.loadSubAssemblyTree(top);
+    expect(cache.diagnostics().length).toBeGreaterThan(0);
+    cache.invalidate('a.ziasm');
+    await cache.loadSubAssemblyTree(top);
+    // After re-walk, diagnostics list should reflect only the latest walk's findings
+    // (no double-count of the same cycle from the previous walk)
+    const cycleHits = cache.diagnostics().filter((d) => d.kind === 'cycle' && d.partPath === 'a.ziasm');
+    expect(cycleHits).toHaveLength(1);
+  });
 });
