@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { BomTable } from '../BomTable';
 import { useAppStore } from '../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 import { bomRowKey } from '@zilventor/shared/src/bomRow';
 
 function seedAssembly(doc: AssemblyDocument): void {
@@ -41,6 +42,7 @@ describe('BomTable', () => {
       activeDocument: null,
       activeAssembly: null,
       selectedComponentPaths: [],
+      subAssemblyDocs: {},
     } as any);
   });
 
@@ -171,6 +173,47 @@ describe('BomTable', () => {
     const next = useAppStore.getState().activeAssembly!;
     expect(next.components[0]!.color).toBeUndefined();
     expect(next.components[1]!.color).toBeUndefined();
+  });
+
+  it('color picker on a sub-asm leaf row writes to colorOverrides for every leaf path', () => {
+    const subAsmPath = 'sub.ziasm';
+    const subDoc: AssemblyDocument = {
+      id: 'S', name: 'sub', units: 'mm', parameters: {},
+      components: [
+        { id: 'leaf-a', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'leaf-b', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {},
+      bomItemNumbers: {}, colorOverrides: {},
+    };
+    const top = makeAsm({
+      colors: { Cherry: '#ff0000' },
+      components: [
+        { id: 'sub-id', partPath: subAsmPath,
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    seedAssembly(top);
+    useAppStore.getState().setSubAssemblyDocs({ [subAsmPath]: subDoc });
+    const partNames = new Map([['parts/cube.zipt', 'cube']]);
+    render(<BomTable partNames={partNames} />);
+    // qty=2 row for cube via 2 leaves inside the sub-asm
+    const cubeRow = rowFor('cube');
+    const cubeCells = within(cubeRow).getAllByRole('cell');
+    expect(cubeCells[1]!.textContent).toBe('2');
+    // Click the color cell (currently '—'), then pick palette Cherry
+    fireEvent.click(within(cubeRow).getByText('—'));
+    const select = screen.getByLabelText('component-color') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'palette:Cherry' } });
+    const overrides = useAppStore.getState().activeDocument!.kind === 'assembly'
+      ? (useAppStore.getState().activeDocument as { kind: 'assembly'; document: AssemblyDocument }).document.colorOverrides
+      : {};
+    const ka = pathKey(['sub-id', 'leaf-a']);
+    const kb = pathKey(['sub-id', 'leaf-b']);
+    expect(overrides[ka]).toEqual({ kind: 'palette', name: 'Cherry' });
+    expect(overrides[kb]).toEqual({ kind: 'palette', name: 'Cherry' });
   });
 
   it('Export CSV button invokes ExportBomCsvCommand (showSaveFilePicker is called)', async () => {

@@ -5,6 +5,7 @@ import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive
 import { ColorPicker } from './ColorPicker';
 import { SetBomItemNumberCommand } from '../commands/SetBomItemNumberCommand';
 import { SetComponentColorCommand } from '../commands/SetComponentColorCommand';
+import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { ExportBomCsvCommand } from '../commands/ExportBomCsvCommand';
 
 type Props = { partNames: Map<string, string> };
@@ -83,7 +84,12 @@ export function BomTable({ partNames }: Props) {
                     palette={palette}
                     onChange={(next) => {
                       for (const cid of r.componentIds) {
-                        void new SetComponentColorCommand({ id: cid, color: next }).apply();
+                        const path = parsePathKey(cid);
+                        if (path.length === 1) {
+                          void new SetComponentColorCommand({ id: path[0]!, color: next }).apply();
+                        } else {
+                          void new SetComponentColorOverrideCommand({ path, color: next ?? null }).apply();
+                        }
                       }
                       setColorEditingRowKey(null);
                     }}
