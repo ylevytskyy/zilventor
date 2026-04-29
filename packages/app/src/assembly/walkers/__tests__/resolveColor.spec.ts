@@ -46,6 +46,19 @@ describe('resolveColor', () => {
     expect(resolveColor(['sub', 'leaf'], top, stubCache(new Map([['s.ziasm', sub]])))).toEqual({ kind: 'palette', name: 'walnut' });
   });
 
+  it('override at ancestor (sub-asm) path does NOT propagate to leaves below', () => {
+    const sub = doc({ components: [
+      { id: 'leaf', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, color: { kind: 'palette', name: 'oak' } },
+    ] });
+    const top = doc({
+      components: [
+        { id: 'sub', partPath: 's.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      colorOverrides: { [pathKey(['sub'])]: { kind: 'palette', name: 'walnut' } },
+    });
+    expect(resolveColor(['sub', 'leaf'], top, stubCache(new Map([['s.ziasm', sub]])))).toEqual({ kind: 'palette', name: 'oak' });
+  });
+
   it('returns undefined when nothing in chain has a color', () => {
     const sub = doc({ components: [
       { id: 'leaf', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },

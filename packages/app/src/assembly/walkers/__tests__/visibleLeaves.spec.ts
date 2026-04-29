@@ -59,4 +59,21 @@ describe('visibleLeaves', () => {
     expect(out[0]!.kind).toBe('placeholder');
     expect(out[0]!.componentPath).toEqual(['t', 'self']);
   });
+
+  it('emits placeholder for a transitive cycle (A -> B -> A)', () => {
+    const a = doc({ components: [
+      { id: 'p', partPath: 'b.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const b = doc({ components: [
+      { id: 'p', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 't', partPath: 'a.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const cache = stubCache(new Map([['a.ziasm', a], ['b.ziasm', b]]));
+    const out = visibleLeaves(top, cache);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.kind).toBe('placeholder');
+    expect(out[0]!.componentPath).toEqual(['t', 'p', 'p']);
+  });
 });
