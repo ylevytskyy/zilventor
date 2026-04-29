@@ -43,6 +43,16 @@ export class Opfs {
     return new Uint8Array(await f.arrayBuffer());
   }
 
+  async exists(path: string): Promise<boolean> {
+    try {
+      const { dir, name } = await this.resolveHandle(path, false);
+      await dir.getFileHandle(name);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async listAll(): Promise<string[]> {
     const out: string[] = [];
     const walk = async (d: FileSystemDirectoryHandle, prefix: string): Promise<void> => {

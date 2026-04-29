@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { parsePathKey } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
-import { aggregateBom } from '@zilventor/shared/src/bomRow';
+import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { ColorPicker } from './ColorPicker';
 import { SetBomItemNumberCommand } from '../commands/SetBomItemNumberCommand';
 import { SetComponentColorCommand } from '../commands/SetComponentColorCommand';
@@ -10,8 +11,21 @@ type Props = { partNames: Map<string, string> };
 
 export function BomTable({ partNames }: Props) {
   const assembly = useAppStore((s) => s.activeAssembly);
+  const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
   const palette = assembly?.colors ?? {};
-  const rows = useMemo(() => assembly ? aggregateBom(assembly, partNames) : [], [assembly, partNames]);
+  const subAsmCacheAdapter = useMemo(
+    () => ({
+      get: (p: string) =>
+        subAssemblyDocs[p]
+          ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p })
+          : undefined,
+    }),
+    [subAssemblyDocs],
+  );
+  const rows = useMemo(
+    () => (assembly ? aggregateBomRecursive(assembly, subAsmCacheAdapter, partNames) : []),
+    [assembly, subAsmCacheAdapter, partNames],
+  );
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [colorEditingRowKey, setColorEditingRowKey] = useState<string | null>(null);
@@ -31,7 +45,7 @@ export function BomTable({ partNames }: Props) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.rowKey} onClick={() => useAppStore.getState().selectComponents(r.componentIds)}>
+            <tr key={r.rowKey} onClick={() => useAppStore.getState().selectComponentPaths(r.componentIds.map((k) => parsePathKey(k)))}>
               <td onClick={(e) => e.stopPropagation()}>
                 {editingRowKey === r.rowKey ? (
                   <input

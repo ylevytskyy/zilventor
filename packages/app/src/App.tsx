@@ -86,6 +86,7 @@ import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/
 import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
+import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { resolvePartName } from './shell/resolvePartName';
 
@@ -2042,7 +2043,15 @@ export default function App() {
           const doc = useAppStore.getState().activeDocument;
           if (!doc) return;
           if (doc.kind === 'assembly') {
-            const merged = mergeAndPruneBom(doc.document, partNameCacheRef.current);
+            const subAssemblyDocsSnapshot = useAppStore.getState().subAssemblyDocs;
+            const cacheAdapter = {
+              get: (p: string) =>
+                subAssemblyDocsSnapshot[p]
+                  ? ({ kind: 'ok' as const, doc: subAssemblyDocsSnapshot[p]!, partPath: p })
+                  : undefined,
+            };
+            const withBom = mergeAndPruneBom(doc.document, partNameCacheRef.current, cacheAdapter);
+            const merged = mergeAndPruneColorOverrides(withBom, cacheAdapter);
             const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
           } else {
