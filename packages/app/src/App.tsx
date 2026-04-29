@@ -89,6 +89,8 @@ import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { resolvePartName } from './shell/resolvePartName';
+import { visibleLeaves } from './assembly/walkers/visibleLeaves';
+import { pathKey, type ComponentPath } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -137,7 +139,7 @@ export default function App() {
   // delegates to dragAlongFreeDofs once threshold is exceeded, pointerup
   // commits the new translation back to the store via updateComponent.
   const componentDragRef = useRef<{
-    componentId: string;
+    componentPath: ComponentPath;
     startScreenX: number;
     startScreenY: number;
     lastWorld: { x: number; y: number };
@@ -1023,11 +1025,11 @@ export default function App() {
         assemblyState.editComponentDialogOpen;
 
       if (!dragBusy && ev.type === 'pointerdown') {
-        const componentId = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
-        if (componentId) {
+        const componentPath = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
+        if (componentPath) {
           const startWorld = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
           componentDragRef.current = {
-            componentId,
+            componentPath,
             startScreenX: ev.clientX,
             startScreenY: ev.clientY,
             lastWorld: startWorld,
@@ -1047,7 +1049,7 @@ export default function App() {
         const delta = { x: cur.x - ds.lastWorld.x, y: cur.y - ds.lastWorld.y };
         ds.lastWorld = cur;
         const freeDofBasis = useAppStore.getState().freeDofBasis;
-        viewportRef.current.dragAlongFreeDofs(ds.componentId, delta, freeDofBasis);
+        viewportRef.current.dragAlongFreeDofs(ds.componentPath, delta, freeDofBasis);
         return;
       }
 
@@ -1057,7 +1059,7 @@ export default function App() {
         if (ds.didDrag) {
           suppressNextClickRef.current = true;
           const sm = viewportRef.current.getSceneManager();
-          const mesh = sm?.getComponentMesh(ds.componentId);
+          const mesh = sm?.getComponentMesh(pathKey(ds.componentPath));
           if (mesh) {
             const e = mesh.matrix.elements;
             const newTranslation = {
@@ -1069,17 +1071,20 @@ export default function App() {
             // updateComponent (which mutates `assembly`) does not snap the
             // mesh back to the pre-drag solver pose. The pose's quaternion
             // is preserved — drag-along-free-DOFs is translation-only in v1.
+            // T31 follow-up: pose updates currently key by tail id; deep paths
+            // require switching componentPoses to a path-keyed map.
+            const tailId = ds.componentPath[ds.componentPath.length - 1]!;
             const poses = useAppStore.getState().componentPoses;
-            const prevPose = poses.get(ds.componentId);
+            const prevPose = poses.get(tailId);
             if (prevPose) {
               const nextPoses = new Map(poses);
-              nextPoses.set(ds.componentId, {
+              nextPoses.set(tailId, {
                 translation: newTranslation,
                 quaternion: prevPose.quaternion,
               });
               useAppStore.setState({ componentPoses: nextPoses });
             }
-            useAppStore.getState().updateComponent(ds.componentId, {
+            useAppStore.getState().updateComponent(tailId, {
               position: newTranslation,
             });
           }
@@ -1093,7 +1098,12 @@ export default function App() {
           return;
         }
         const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
-        useAppStore.getState().selectComponent(hit);
+        // T29: store the full path; selectComponentPaths replaces selection.
+        if (hit) {
+          useAppStore.getState().selectComponentPaths([hit as string[]]);
+        } else {
+          useAppStore.getState().selectComponentPaths([]);
+        }
         return;
       }
     }
@@ -1222,11 +1232,12 @@ export default function App() {
       if (pickerMode && (ev.type === 'click' || ev.type === 'pointerdown')) {
         const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
         if (hit) {
-          // raycastComponent returns { componentId: string } — for now dispatch
-          // as a face hit with unresolved FaceName. T36/T38 will complete the path
-          // once the tessellated-face registry is queryable in assembly mode.
+          // T28/T30: raycastComponent now returns ComponentPath. Picker is
+          // migrated in T30 to consume componentPath directly. For now (T28
+          // bridge) we pass the tail id as a string so the picker compiles.
+          const tailId = hit[hit.length - 1] ?? '';
           assemblyPickerRef.current.handleFaceHit(
-            hit,
+            tailId,
             { featureId: 'unresolved', role: 'unresolved' }
           );
         }
@@ -1741,9 +1752,11 @@ export default function App() {
         else if (kind === 'vertex') picker.handleVertexHit(payload.componentId as string, payload.edge as import('@zilventor/shared').EdgeName, payload.end as 'start' | 'end');
       };
       // T45: expose dragAlongFreeDofs via dev hook so E2E can call it directly.
+      // T30: dev hook still accepts componentId for back-compat with existing
+      // E2E specs; we wrap it as a single-segment ComponentPath internally.
       w.__zilventorViewportDrag = (componentId: string, delta: { x: number; y: number }) => {
         const freeDofBasis = useAppStore.getState().freeDofBasis;
-        viewportRef.current?.dragAlongFreeDofs(componentId, delta, freeDofBasis);
+        viewportRef.current?.dragAlongFreeDofs([componentId], delta, freeDofBasis);
       };
       // T46: expose pure solveAssembly for perf tests (bypasses OCCT ref resolution).
       w.__zilventorSolveAssembly = solveAssembly;
@@ -1764,16 +1777,19 @@ export default function App() {
         useAppStore.getState().setSolverDirty(true);
       };
       // 4c E2E hooks (T31): probe per-component material colour + selection-overlay state.
+      // T28/T29: meshes/overlays are now keyed by ComponentPathKey. The 4c
+      // E2E specs only place top-level components, so we resolve componentId
+      // → pathKey([id]) for back-compat.
       w.__zilventorComponentMaterialHex = (componentId: string): string | null => {
         const sm = viewportRef.current?.getSceneManager();
-        const mesh = sm?.getComponentMesh(componentId);
+        const mesh = sm?.getComponentMesh(pathKey([componentId]));
         const mat = mesh?.material as THREE.MeshStandardMaterial | undefined;
         if (!mat || !('color' in mat) || !(mat.color instanceof THREE.Color)) return null;
         return '#' + mat.color.getHexString();
       };
       w.__zilventorComponentSelectedOverlay = (componentId: string): boolean => {
         const sm = viewportRef.current?.getSceneManager();
-        return sm?.hasSelectionOverlay?.(componentId) ?? false;
+        return sm?.hasSelectionOverlay?.(pathKey([componentId])) ?? false;
       };
       // T39 perf hook: run aggregateBom against the live assembly + part-name
       // cache `trials` times and return p95 ms. Used by the BOM perf spec.
@@ -1914,22 +1930,83 @@ export default function App() {
       if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
       const opfs = opfsRef.current;
       const cache = geometryCacheRef.current;
-      const specs: Array<{
-        componentId: string;
-        geometry: THREE.BufferGeometry;
-        transform: THREE.Matrix4;
-        pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
-        colorHex?: string;
-        visible: boolean;
-      }> = [];
+      const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+      const subAsmCacheAdapter = {
+        get: (p: string) => subAssemblyDocs[p]
+          ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p })
+          : undefined,
+      };
+      const leaves = visibleLeaves(assembly, subAsmCacheAdapter);
       const diagnostics: Array<{ componentId: string; message: string }> = [];
 
-      for (const c of assembly.components) {
-        let geom = cache.get(c.partPath);
+      // Compute composedPosesMap: for top-level components, use componentPoses
+      // (from solver) keyed by id; for sub-asm leaves, compose ancestor placements
+      // from each ComponentInstance.position. The composedPoses walker output
+      // would be the correct path-keyed map but the solver bridge isn't yet
+      // adapted to flatten/composedPoses (TODO followup), so v1 uses a simple
+      // inline composition: walk the path and accumulate translations.
+      const composedPosesMap = new Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>();
+      function composeAlongPath(path: ReadonlyArray<string>, doc: typeof assembly): { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] } | undefined {
+        if (!doc || path.length === 0) return undefined;
+        if (path.length === 1) {
+          // Top-level — prefer solver pose if available
+          const solverPose = componentPoses.get(path[0]!);
+          if (solverPose) return solverPose;
+          const c = doc.components.find((x) => x.id === path[0]!);
+          if (!c) return undefined;
+          return {
+            translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+            quaternion: [0, 0, 0, 1],
+          };
+        }
+        // Recursive: get parent pose at prefix, then apply local position of leaf
+        const parent = composeAlongPath(path.slice(0, -1), doc);
+        if (!parent) return undefined;
+        // Walk down to the parent's sub-asm doc
+        const headId = path[0]!;
+        const headC = doc.components.find((x) => x.id === headId);
+        if (!headC) return undefined;
+        const subDoc = subAssemblyDocs[headC.partPath];
+        if (!subDoc) return undefined;
+        // Continue resolving inside the sub-asm doc using the tail
+        const tail = path.slice(1);
+        if (tail.length === 1) {
+          const c = subDoc.components.find((x) => x.id === tail[0]!);
+          if (!c) return undefined;
+          return {
+            translation: {
+              x: parent.translation.x + c.position.x,
+              y: parent.translation.y + c.position.y,
+              z: parent.translation.z + c.position.z,
+            },
+            quaternion: parent.quaternion,
+          };
+        }
+        // Deeper nesting: best-effort additive composition (rotations from parent only)
+        const subLeaf = composeAlongPath(tail, subDoc);
+        if (!subLeaf) return undefined;
+        return {
+          translation: {
+            x: parent.translation.x + subLeaf.translation.x,
+            y: parent.translation.y + subLeaf.translation.y,
+            z: parent.translation.z + subLeaf.translation.z,
+          },
+          quaternion: parent.quaternion,
+        };
+      }
+      for (const l of leaves) {
+        const p = composeAlongPath(l.componentPath, assembly);
+        if (p) composedPosesMap.set(pathKey(l.componentPath), p);
+      }
+
+      // Ensure kernel has loaded each unique leaf partPath, register geometry.
+      const uniquePartPaths = [...new Set(leaves.filter((l) => l.kind === 'leaf').map((l) => l.partPath))];
+      for (const partPath of uniquePartPaths) {
+        let geom = cache.get(partPath);
         if (!geom) {
           try {
             if (!kernel) throw new Error('kernel not ready');
-            const bytes = await opfs.read(c.partPath);
+            const bytes = await opfs.read(partPath);
             const partId = await kernel.loadFromBytes(bytes);
             const res = await kernel.execute(partId);
             if (!res.ok) throw new Error(res.error.message);
@@ -1938,39 +2015,38 @@ export default function App() {
             geom.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
             geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
             geom.computeVertexNormals();
-            cache.set(c.partPath, geom);
+            cache.set(partPath, geom);
           } catch (e) {
-            diagnostics.push({ componentId: c.id, message: `Failed to load ${c.partPath}: ${(e as Error).message}` });
+            diagnostics.push({ componentId: partPath, message: `Failed to load ${partPath}: ${(e as Error).message}` });
             geom = new THREE.BoxGeometry(50, 50, 50);
           }
         }
-        const transform = new THREE.Matrix4();
-        transform.makeRotationFromEuler(new THREE.Euler(
-          (c.rotation.rx * Math.PI) / 180,
-          (c.rotation.ry * Math.PI) / 180,
-          (c.rotation.rz * Math.PI) / 180,
-          'XYZ',
-        ));
-        transform.setPosition(c.position.x, c.position.y, c.position.z);
-        const pose = componentPoses.get(c.id);
-        let colorHex: string | undefined;
-        if (showComponentColors && c.color) {
-          if (c.color.kind === 'hex') colorHex = c.color.hex;
-          else if (c.color.kind === 'palette' && assembly.colors[c.color.name]) {
-            colorHex = assembly.colors[c.color.name];
+        vp.setPartGeometry(partPath, geom);
+      }
+
+      const componentLeaves = leaves.map((l) => {
+        let materialColor: string | undefined;
+        if (showComponentColors && l.effectiveColor) {
+          if (l.effectiveColor.kind === 'hex') materialColor = l.effectiveColor.hex;
+          else if (l.effectiveColor.kind === 'palette' && assembly.colors[l.effectiveColor.name]) {
+            materialColor = assembly.colors[l.effectiveColor.name];
           }
         }
-        specs.push({
-          componentId: c.id,
-          geometry: geom,
-          transform,
-          ...(pose !== undefined ? { pose } : {}),
-          ...(colorHex !== undefined ? { colorHex } : {}),
-          visible: c.visible,
-        });
-      }
+        const worldPose = composedPosesMap.get(pathKey(l.componentPath)) ?? {
+          translation: { x: 0, y: 0, z: 0 },
+          quaternion: [0, 0, 0, 1] as [number, number, number, number],
+        };
+        return {
+          kind: l.kind,
+          componentPath: l.componentPath,
+          partPath: l.partPath,
+          worldPose,
+          ...(materialColor !== undefined ? { materialColor } : {}),
+          visible: true,
+        };
+      });
       if (!cancelled) {
-        vp.setComponentMeshes(specs);
+        vp.setComponentMeshes(componentLeaves);
         useAppStore.getState().setComponentDiagnostics(diagnostics);
       }
     })();
@@ -2003,12 +2079,11 @@ export default function App() {
   }, [assembly]);
 
   // Selection-sync: forward the store's selectedComponentPaths to the viewport
-  // so it can render outline overlays on the selected component meshes. The
-  // viewport currently keys overlays by leaf component id, so we project each
-  // path down to its tail.
+  // so it can render outline overlays on the selected component meshes.
+  // T29: viewport now keys overlays by ComponentPath (path-equality on
+  // userData.componentPath), so we forward the full paths.
   useEffect(() => {
-    const ids = selectedComponentPaths.map((p) => p[p.length - 1] ?? '').filter((id) => id !== '');
-    viewportRef.current?.setSelectedComponentIds(ids);
+    viewportRef.current?.setSelectedComponentPaths(selectedComponentPaths);
   }, [selectedComponentPaths]);
 
   // OPFS autosave — debounce 500 ms after the last activeDocument mutation.

@@ -1,11 +1,21 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { pathKey, type ComponentPath, type ComponentPathKey } from '@zilventor/shared';
 
 export type Vec3 = { x: number; y: number; z: number };
 export type WorkFeatureSpec =
   | { featureId: string; kind: 'axis'; origin: Vec3; direction: Vec3; visible: boolean }
   | { featureId: string; kind: 'plane'; origin: Vec3; normal: Vec3; visible: boolean }
   | { featureId: string; kind: 'point'; origin: Vec3; visible: boolean };
+
+export type ComponentLeaf = {
+  kind: 'leaf' | 'placeholder';
+  componentPath: ComponentPath;
+  partPath: string;
+  worldPose: { translation: Vec3; quaternion: [number, number, number, number] };
+  materialColor?: string;
+  visible: boolean;
+};
 
 
 export class SceneManager {
@@ -15,11 +25,19 @@ export class SceneManager {
   readonly controls: OrbitControls;
   private current: THREE.Mesh | null = null;
   private preview: THREE.Mesh | null = null;
-  private componentMeshes = new Map<string, THREE.Mesh>();
+  // T28: keyed by ComponentPathKey (pathKey(componentPath))
+  private componentMeshes = new Map<ComponentPathKey, THREE.Mesh>();
+  // T28: per-partPath geometry cache. Callers register geometry for each unique
+  // .zipt partPath via setPartGeometry(); setComponentMeshes() looks up the
+  // shared BufferGeometry for each leaf. Sub-asm leaves with the same partPath
+  // share geometry across instances.
+  private partGeometries = new Map<string, THREE.BufferGeometry>();
+  private placeholderGeometry: THREE.BufferGeometry | null = null;
   private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
   private colorMaterials: Map<string, THREE.MeshStandardMaterial> = new Map();
   private selectionOverlayMaterial: THREE.LineBasicMaterial | null = null;
-  private selectionOverlays: Map<string, THREE.LineSegments> = new Map();
+  // T29: selection overlays keyed by ComponentPathKey
+  private selectionOverlays: Map<ComponentPathKey, THREE.LineSegments> = new Map();
   private partGeometryHash: number = 2166136261;
   private workFeatureNodes = new Map<string, THREE.Object3D>();
   private workFeatureMaterials = {
@@ -90,7 +108,8 @@ export class SceneManager {
     let h = this.partGeometryHash >>> 0;
     const ids = Array.from(this.componentMeshes.keys()).sort();
     for (const id of ids) {
-      const mesh = this.componentMeshes.get(id)!;
+      const mesh = this.componentMeshes.get(id);
+      if (!mesh) continue;
       for (let i = 0; i < id.length; i++) {
         h = Math.imul(h ^ id.charCodeAt(i), 16777619);
       }
@@ -183,89 +202,112 @@ export class SceneManager {
     return new Uint8Array(await blob.arrayBuffer());
   }
 
-  setComponentMeshes(specs: Array<{
-    componentId: string;
-    geometry: THREE.BufferGeometry;
-    transform: THREE.Matrix4;
-    pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
-    colorHex?: string;
-    visible: boolean;
-  }>): void {
-    const incomingIds = new Set(specs.map((s) => s.componentId));
+  /**
+   * T28: Register a tessellated geometry for a partPath. setComponentMeshes()
+   * looks up geometry per leaf via this cache, so multiple instances of the
+   * same .zipt share one BufferGeometry.
+   */
+  setPartGeometry(partPath: string, geometry: THREE.BufferGeometry): void {
+    this.partGeometries.set(partPath, geometry);
+  }
+
+  hasPartGeometry(partPath: string): boolean {
+    return this.partGeometries.has(partPath);
+  }
+
+  private getPlaceholderGeometry(): THREE.BufferGeometry {
+    if (!this.placeholderGeometry) {
+      this.placeholderGeometry = new THREE.BoxGeometry(50, 50, 50);
+    }
+    return this.placeholderGeometry;
+  }
+
+  setComponentMeshes(leaves: ComponentLeaf[]): void {
+    const incomingKeys = new Set(leaves.map((l) => pathKey(l.componentPath)));
 
     // Remove meshes that aren't in the incoming list
-    for (const [id, mesh] of this.componentMeshes) {
-      if (!incomingIds.has(id)) {
+    for (const [key, mesh] of this.componentMeshes) {
+      if (!incomingKeys.has(key)) {
         this.scene.remove(mesh);
-        // Don't dispose geometry — it may be shared
-        this.componentMeshes.delete(id);
+        // Don't dispose geometry — it's shared via the partGeometries cache
+        this.componentMeshes.delete(key);
       }
     }
 
     // Add or update
-    for (const spec of specs) {
-      let mesh = this.componentMeshes.get(spec.componentId);
+    for (const leaf of leaves) {
+      const key = pathKey(leaf.componentPath);
+      const geom = this.partGeometries.get(leaf.partPath) ?? this.getPlaceholderGeometry();
+      let mesh = this.componentMeshes.get(key);
       if (!mesh) {
-        mesh = new THREE.Mesh(spec.geometry, this.componentMaterial);
+        mesh = new THREE.Mesh(geom, this.componentMaterial);
         mesh.matrixAutoUpdate = false;
-        mesh.userData.componentId = spec.componentId;
+        // T28: store the path on the mesh so pickers / overlays can match by path
+        mesh.userData.componentPath = [...leaf.componentPath];
         this.scene.add(mesh);
-        this.componentMeshes.set(spec.componentId, mesh);
-      }
-      mesh.geometry = spec.geometry;
-      if (spec.pose) {
-        const m = new THREE.Matrix4();
-        const q = new THREE.Quaternion(
-          spec.pose.quaternion[0],
-          spec.pose.quaternion[1],
-          spec.pose.quaternion[2],
-          spec.pose.quaternion[3],
-        );
-        m.makeRotationFromQuaternion(q);
-        m.setPosition(spec.pose.translation.x, spec.pose.translation.y, spec.pose.translation.z);
-        mesh.matrix.copy(m);
+        this.componentMeshes.set(key, mesh);
       } else {
-        mesh.matrix.copy(spec.transform);
+        mesh.userData.componentPath = [...leaf.componentPath];
       }
-      if (spec.colorHex) {
-        let mat = this.colorMaterials.get(spec.colorHex);
+      mesh.geometry = geom;
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion(
+        leaf.worldPose.quaternion[0],
+        leaf.worldPose.quaternion[1],
+        leaf.worldPose.quaternion[2],
+        leaf.worldPose.quaternion[3],
+      );
+      m.makeRotationFromQuaternion(q);
+      m.setPosition(leaf.worldPose.translation.x, leaf.worldPose.translation.y, leaf.worldPose.translation.z);
+      mesh.matrix.copy(m);
+      if (leaf.materialColor) {
+        let mat = this.colorMaterials.get(leaf.materialColor);
         if (!mat) {
-          mat = new THREE.MeshStandardMaterial({ color: spec.colorHex });
-          this.colorMaterials.set(spec.colorHex, mat);
+          mat = new THREE.MeshStandardMaterial({ color: leaf.materialColor });
+          this.colorMaterials.set(leaf.materialColor, mat);
         }
         mesh.material = mat;
       } else {
         mesh.material = this.componentMaterial;
       }
-      mesh.visible = spec.visible;
+      mesh.visible = leaf.visible;
     }
   }
 
-  setSelectedComponentIds(ids: string[]): void {
+  /**
+   * T29: Update the selection overlay set. Path-equality on each mesh's
+   * userData.componentPath drives overlay attachment.
+   */
+  setSelectedComponentPaths(paths: ComponentPath[]): void {
     if (!this.selectionOverlayMaterial) {
       this.selectionOverlayMaterial = new THREE.LineBasicMaterial({ color: 0xff8800 });
     }
-    const wanted = new Set(ids);
-    for (const id of wanted) {
-      if (this.selectionOverlays.has(id)) continue;
-      const mesh = this.componentMeshes.get(id);
+    const wantedKeys = new Set(paths.map((p) => pathKey(p)));
+    for (const key of wantedKeys) {
+      if (this.selectionOverlays.has(key)) continue;
+      const mesh = this.componentMeshes.get(key);
       if (!mesh) continue;
       const edges = new THREE.EdgesGeometry(mesh.geometry);
       const overlay = new THREE.LineSegments(edges, this.selectionOverlayMaterial);
       overlay.userData.selectionOverlay = true;
       mesh.add(overlay);
-      this.selectionOverlays.set(id, overlay);
+      this.selectionOverlays.set(key, overlay);
     }
-    for (const [id, overlay] of this.selectionOverlays) {
-      if (wanted.has(id)) continue;
+    for (const [key, overlay] of this.selectionOverlays) {
+      if (wantedKeys.has(key)) continue;
       overlay.parent?.remove(overlay);
       overlay.geometry.dispose();
-      this.selectionOverlays.delete(id);
+      this.selectionOverlays.delete(key);
     }
   }
 
-  hasSelectionOverlay(id: string): boolean {
-    return this.selectionOverlays.has(id);
+  /** T29: test/picker hook — returns the keys of currently-attached overlays. */
+  selectionOverlayPathKeys(): string[] {
+    return Array.from(this.selectionOverlays.keys());
+  }
+
+  hasSelectionOverlay(key: ComponentPathKey): boolean {
+    return this.selectionOverlays.has(key);
   }
 
   clearComponentMeshes(): void {
@@ -279,11 +321,20 @@ export class SceneManager {
     return this.componentMeshes.size;
   }
 
-  getComponentMesh(id: string): THREE.Mesh | undefined {
-    return this.componentMeshes.get(id);
+  /** T28: read accessor keyed by ComponentPathKey for tests/pickers. */
+  componentMeshesByPathKey(): Map<ComponentPathKey, THREE.Mesh> {
+    return this.componentMeshes;
   }
 
-  raycastComponent(camera: THREE.Camera, ndc: THREE.Vector2): string | null {
+  getComponentMesh(key: ComponentPathKey): THREE.Mesh | undefined {
+    return this.componentMeshes.get(key);
+  }
+
+  /**
+   * T28/T30: returns the componentPath of the picked mesh (or null on miss).
+   * Pickers consume this directly (no more componentId reads).
+   */
+  raycastComponent(camera: THREE.Camera, ndc: THREE.Vector2): ComponentPath | null {
     if (this.componentMeshes.size === 0) return null;
     // Component meshes are matrixAutoUpdate=false; force world matrices to reflect manually-set local matrices
     for (const m of this.componentMeshes.values()) {
@@ -294,8 +345,8 @@ export class SceneManager {
     const meshes = Array.from(this.componentMeshes.values());
     const hits = raycaster.intersectObjects(meshes, false);
     if (hits.length === 0) return null;
-    const id = hits[0]!.object.userData.componentId;
-    return typeof id === 'string' ? id : null;
+    const path = hits[0]!.object.userData.componentPath;
+    return Array.isArray(path) ? (path as ComponentPath) : null;
   }
 
   setWorkFeatures(specs: Array<WorkFeatureSpec>): void {
@@ -429,6 +480,10 @@ export class SceneManager {
       overlay.geometry.dispose();
     }
     this.selectionOverlays.clear();
+    if (this.placeholderGeometry) {
+      this.placeholderGeometry.dispose();
+      this.placeholderGeometry = null;
+    }
     this.scene.traverse((o) => {
       if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose();
     });

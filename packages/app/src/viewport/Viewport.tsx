@@ -1,22 +1,26 @@
 import { useEffect, useRef, useImperativeHandle, useState, forwardRef } from 'react';
 import * as THREE from 'three';
-import { SceneManager, type WorkFeatureSpec } from './SceneManager';
+import { SceneManager, type WorkFeatureSpec, type ComponentLeaf } from './SceneManager';
+import type { ComponentPath } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 import ViewCube from './ViewCube';
 
-export type ComponentMeshSpec = {
-  componentId: string;
-  geometry: THREE.BufferGeometry;
-  transform: THREE.Matrix4;
-  pose?: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
-  colorHex?: string;
-  visible: boolean;
-};
+/**
+ * T28 (4d Phase 9): Component meshes are now keyed by `ComponentPath`. The
+ * Viewport forwards `ComponentLeaf[]` to the SceneManager and exposes a
+ * `setPartGeometry(partPath, geom)` method so callers can register tessellated
+ * geometry per unique `.zipt` partPath. Sub-asm leaves with the same partPath
+ * share one BufferGeometry.
+ */
+export type ComponentMeshSpec = ComponentLeaf;
 
 /**
  * Raw raycast hit returned by raycastAssemblyRef. The Viewport has no access
  * to per-component tessellated face/edge tables, so name resolution
  * (triangleIndex → FaceName, ray → EdgeName) is the caller's responsibility
  * (done in App.tsx by T34 using FacePickController / EdgePickController).
+ *
+ * T30 (4d Phase 9): hits now carry `componentPath`, not `componentId`.
  *
  * - face:  triangleIndex into the component mesh's index buffer (same units as
  *          raycastBody). Caller feeds it to FacePickController.pickByTriangleIndex.
@@ -26,15 +30,16 @@ export type ComponentMeshSpec = {
  *   these modes always return null until T34/T38 wires them.
  */
 export type AssemblyRefHit =
-  | { kind: 'face'; componentId: string; triangleIndex: number }
-  | { kind: 'edge'; componentId: string; origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
+  | { kind: 'face'; componentPath: ComponentPath; triangleIndex: number }
+  | { kind: 'edge'; componentPath: ComponentPath; origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
 
 export type ViewportRef = {
   setMesh(positions: Float32Array, indices: Uint32Array): void;
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
   clearPreviewMesh(): void;
-  setComponentMeshes(specs: ComponentMeshSpec[]): void;
-  setSelectedComponentIds(ids: string[]): void;
+  setComponentMeshes(leaves: ComponentLeaf[]): void;
+  setPartGeometry(partPath: string, geometry: THREE.BufferGeometry): void;
+  setSelectedComponentPaths(paths: ComponentPath[]): void;
   clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
@@ -46,16 +51,16 @@ export type ViewportRef = {
   worldToScreen(worldX: number, worldY: number): { x: number; y: number };
   worldToScreen3d(worldX: number, worldY: number, worldZ: number): { x: number; y: number };
   raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
-  raycastComponent(clientX: number, clientY: number): string | null;
+  raycastComponent(clientX: number, clientY: number): ComponentPath | null;
   raycastWorkFeature(clientX: number, clientY: number): string | null;
   setWorkFeatures(specs: WorkFeatureSpec[]): void;
   /**
    * Assembly-mode pick. Raycasts against component meshes (those with
-   * userData.componentId) and returns a raw hit annotated with componentId.
+   * userData.componentPath) and returns a raw hit annotated with componentPath.
    *
    * Supported modes:
-   *   'face' → { kind:'face', componentId, triangleIndex } — caller resolves FaceName
-   *   'edge' → { kind:'edge', componentId, origin, direction } — caller resolves EdgeName
+   *   'face' → { kind:'face', componentPath, triangleIndex } — caller resolves FaceName
+   *   'edge' → { kind:'edge', componentPath, origin, direction } — caller resolves EdgeName
    *
    * Unsupported modes ('axis', 'point', 'circularEdge') always return null.
    * TODO: axis/point/circularEdge pick in T34/T38.
@@ -76,16 +81,16 @@ export type ViewportRef = {
    * Pointer-down/move/up wiring is a TODO; this method is exposed so T45
    * E2E can call it directly via a dev hook.
    *
-   * @param componentId - id of the component to drag
+   * @param componentPath - path of the component to drag (T30: was string id)
    * @param deltaWorldXY - desired translation delta in world XY (mm)
    * @param freeDofBasis - null-space basis rows (from store.freeDofBasis); null → apply delta directly
    * @param onComplete - called after matrix update so caller can write back to store
    */
   dragAlongFreeDofs(
-    componentId: string,
+    componentPath: ComponentPath,
     deltaWorldXY: { x: number; y: number },
     freeDofBasis: Float64Array | null,
-    onComplete?: (componentId: string, translation: { x: number; y: number; z: number }) => void,
+    onComplete?: (componentPath: ComponentPath, translation: { x: number; y: number; z: number }) => void,
   ): void;
 };
 
@@ -144,14 +149,18 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.clearPreviewMesh();
     },
-    setComponentMeshes: (specs) => {
+    setComponentMeshes: (leaves) => {
       if (!sceneRef.current) return;
-      sceneRef.current.setComponentMeshes(specs);
+      sceneRef.current.setComponentMeshes(leaves);
       setGeometryHash(sceneRef.current.geometryHash());
     },
-    setSelectedComponentIds: (ids) => {
+    setPartGeometry: (partPath, geometry) => {
       if (!sceneRef.current) return;
-      sceneRef.current.setSelectedComponentIds(ids);
+      sceneRef.current.setPartGeometry(partPath, geometry);
+    },
+    setSelectedComponentPaths: (paths) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setSelectedComponentPaths(paths);
     },
     clearComponentMeshes: () => {
       if (!sceneRef.current) return;
@@ -265,11 +274,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(ndc, sm.getCamera());
 
-      // Collect only component meshes (those tagged with userData.componentId).
+      // Collect only component meshes (those tagged with userData.componentPath).
       const scene = sm.getScene();
       const componentMeshes: THREE.Mesh[] = [];
       scene.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh && typeof obj.userData.componentId === 'string') {
+        if ((obj as THREE.Mesh).isMesh && Array.isArray(obj.userData.componentPath)) {
           // Ensure world matrix is current (matrixAutoUpdate is false for component meshes).
           obj.updateMatrixWorld(true);
           componentMeshes.push(obj as THREE.Mesh);
@@ -281,11 +290,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (hits.length === 0) return null;
 
       const firstHit = hits[0]!;
-      const componentId = firstHit.object.userData.componentId as string;
+      const componentPath = firstHit.object.userData.componentPath as ComponentPath;
 
       if (mode === 'face') {
         if (firstHit.faceIndex === undefined) return null;
-        return { kind: 'face', componentId, triangleIndex: firstHit.faceIndex };
+        return { kind: 'face', componentPath, triangleIndex: firstHit.faceIndex };
       }
 
       // mode === 'edge': return the world-space ray; caller runs EdgePickController.
@@ -293,7 +302,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const d = raycaster.ray.direction;
       return {
         kind: 'edge',
-        componentId,
+        componentPath,
         origin: { x: o.x, y: o.y, z: o.z },
         direction: { x: d.x, y: d.y, z: d.z },
       };
@@ -308,9 +317,9 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const y = ((-vec.y + 1) / 2) * rect.height;
       return { x, y };
     },
-    dragAlongFreeDofs: (componentId, deltaWorldXY, freeDofBasis, onComplete) => {
+    dragAlongFreeDofs: (componentPath, deltaWorldXY, freeDofBasis, onComplete) => {
       if (!sceneRef.current) return;
-      const mesh = sceneRef.current.getComponentMesh(componentId);
+      const mesh = sceneRef.current.getComponentMesh(pathKey(componentPath));
       if (!mesh) return;
 
       // Project the 2-D screen-plane delta onto the null-space basis.
@@ -353,7 +362,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
 
       // TODO T45: pointer-down/move/up event wiring to call this per move event.
       // For now the method is exposed for direct E2E invocation via dev hook.
-      onComplete?.(componentId, translation);
+      onComplete?.(componentPath, translation);
     },
   }), []);
 

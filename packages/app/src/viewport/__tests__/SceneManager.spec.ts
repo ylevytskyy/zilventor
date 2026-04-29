@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { SceneManager } from '../SceneManager';
+import { SceneManager, type ComponentLeaf } from '../SceneManager';
+import { pathKey } from '@zilventor/shared';
 
 vi.mock('three', async (orig) => {
   const actual = (await orig()) as typeof import('three');
@@ -24,6 +25,22 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
   return { OrbitControls: FakeOrbitControls };
 });
 
+const identityPose = {
+  translation: { x: 0, y: 0, z: 0 },
+  quaternion: [0, 0, 0, 1] as [number, number, number, number],
+};
+
+function leaf(opts: Partial<ComponentLeaf> & { componentPath: ReadonlyArray<string> }): ComponentLeaf {
+  return {
+    kind: 'leaf',
+    componentPath: opts.componentPath,
+    partPath: opts.partPath ?? 'p.zipt',
+    worldPose: opts.worldPose ?? identityPose,
+    visible: opts.visible ?? true,
+    ...(opts.materialColor !== undefined ? { materialColor: opts.materialColor } : {}),
+  };
+}
+
 describe('SceneManager — component meshes', () => {
   let mgr: SceneManager;
   beforeEach(() => {
@@ -33,50 +50,64 @@ describe('SceneManager — component meshes', () => {
 
   it('setComponentMeshes adds a mesh per component', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-    ]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
     expect(mgr.componentMeshCount()).toBe(1);
   });
 
-  it('updating same id updates the mesh in place', () => {
+  it('updating same path updates the mesh in place', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    const t1 = new THREE.Matrix4();
-    const t2 = new THREE.Matrix4().setPosition(50, 0, 0);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t1, visible: true }]);
-    const meshA = mgr.getComponentMesh('C1');
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t2, visible: true }]);
-    const meshB = mgr.getComponentMesh('C1');
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
+    const meshA = mgr.getComponentMesh(pathKey(['C1']));
+    mgr.setComponentMeshes([leaf({
+      componentPath: ['C1'],
+      worldPose: { translation: { x: 50, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] },
+    })]);
+    const meshB = mgr.getComponentMesh(pathKey(['C1']));
     expect(meshA).toBe(meshB);
-    expect(meshB!.matrix.elements[12]).toBe(50);
+    expect(meshB!.matrix.elements[12]).toBeCloseTo(50, 5);
   });
 
-  it('removing an id disposes its mesh and removes from scene', () => {
+  it('removing a path removes its mesh from the scene', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true }]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
     expect(mgr.componentMeshCount()).toBe(1);
     mgr.setComponentMeshes([]);
     expect(mgr.componentMeshCount()).toBe(0);
   });
 
-  it('two components sharing geometry reference the same BufferGeometry', () => {
+  it('two components sharing partPath reference the same BufferGeometry', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true },
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'], worldPose: { translation: { x: 10, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } }),
     ]);
-    const m1 = mgr.getComponentMesh('C1');
-    const m2 = mgr.getComponentMesh('C2');
+    const m1 = mgr.getComponentMesh(pathKey(['C1']));
+    const m2 = mgr.getComponentMesh(pathKey(['C2']));
     expect(m1!.geometry).toBe(g);
     expect(m2!.geometry).toBe(g);
     expect(m1!.geometry).toBe(m2!.geometry);
   });
 
+  it('attaches mesh.userData.componentPath to each placed leaf', () => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([
+      leaf({ componentPath: ['a', 'b'], materialColor: '#888888' }),
+    ]);
+    const meshes = mgr.componentMeshesByPathKey();
+    expect(meshes.get(pathKey(['a', 'b']))!.userData.componentPath).toEqual(['a', 'b']);
+  });
+
   it('clearComponentMeshes removes all', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'] }),
     ]);
     mgr.clearComponentMeshes();
     expect(mgr.componentMeshCount()).toBe(0);
@@ -84,134 +115,146 @@ describe('SceneManager — component meshes', () => {
 
   it('geometry hash includes component transforms', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true }]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
     const hashA = mgr.geometryHash();
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4().setPosition(50, 0, 0), visible: true }]);
+    mgr.setComponentMeshes([leaf({
+      componentPath: ['C1'],
+      worldPose: { translation: { x: 50, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] },
+    })]);
     const hashB = mgr.geometryHash();
     expect(hashA).not.toBe(hashB);
   });
 
   it('geometry hash differs by component count', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true }]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
     const hashA = mgr.geometryHash();
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true },
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'], worldPose: { translation: { x: 10, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } }),
     ]);
     const hashB = mgr.geometryHash();
     expect(hashA).not.toBe(hashB);
   });
 
-  it('raycastComponent returns the componentId of the hit mesh', () => {
+  it('raycastComponent returns the componentPath of the hit mesh', () => {
     const g = new THREE.BoxGeometry(50, 50, 50);
-    const t = new THREE.Matrix4();
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t, visible: true }]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
     camera.position.set(0, 0, 200);
     camera.lookAt(0, 0, 0);
     camera.updateMatrixWorld(true);
-    // NDC at center → straight ahead — should hit the cube at origin
     const ndc = new THREE.Vector2(0, 0);
-    const id = mgr.raycastComponent(camera, ndc);
-    expect(id).toBe('C1');
+    const path = mgr.raycastComponent(camera, ndc);
+    expect(path).toEqual(['C1']);
   });
 
   it('raycastComponent returns null when nothing is hit', () => {
     const g = new THREE.BoxGeometry(50, 50, 50);
-    const t = new THREE.Matrix4().setPosition(1000, 0, 0);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform: t, visible: true }]);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({
+      componentPath: ['C1'],
+      worldPose: { translation: { x: 1000, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] },
+    })]);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
     camera.position.set(0, 0, 200);
     camera.lookAt(0, 0, 0);
     camera.updateMatrixWorld(true);
-    // NDC at center → straight ahead, but cube is way off to +X
     const ndc = new THREE.Vector2(0, 0);
-    const id = mgr.raycastComponent(camera, ndc);
-    expect(id).toBeNull();
+    const path = mgr.raycastComponent(camera, ndc);
+    expect(path).toBeNull();
   });
 
-  it('pose overrides Euler transform when present', () => {
+  it('worldPose places the mesh at the requested translation', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    const transform = new THREE.Matrix4(); // identity — position at origin
-    const pose = {
-      translation: { x: 42, y: 7, z: 3 },
-      quaternion: [0, 0, 0, 1] as [number, number, number, number],
-    };
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform, pose, visible: true }]);
-    const mesh = mgr.getComponentMesh('C1')!;
-    // pose.translation should win over the identity transform
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({
+      componentPath: ['C1'],
+      worldPose: { translation: { x: 42, y: 7, z: 3 }, quaternion: [0, 0, 0, 1] },
+    })]);
+    const mesh = mgr.getComponentMesh(pathKey(['C1']))!;
     expect(mesh.matrix.elements[12]).toBeCloseTo(42, 5);
     expect(mesh.matrix.elements[13]).toBeCloseTo(7, 5);
     expect(mesh.matrix.elements[14]).toBeCloseTo(3, 5);
   });
 
-  it('pose-less spec still uses the Euler transform', () => {
+  it('materialColor produces a MeshStandardMaterial with that color', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
-    const transform = new THREE.Matrix4().setPosition(99, 0, 0);
-    mgr.setComponentMeshes([{ componentId: 'C1', geometry: g, transform, visible: true }]);
-    const mesh = mgr.getComponentMesh('C1')!;
-    expect(mesh.matrix.elements[12]).toBeCloseTo(99, 5);
-  });
-
-  it('colorHex spec produces a MeshStandardMaterial with that color', () => {
-    const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#cc8866' },
+      leaf({ componentPath: ['C1'], materialColor: '#cc8866' }),
     ]);
-    const mesh = mgr.getComponentMesh('C1')!;
+    const mesh = mgr.getComponentMesh(pathKey(['C1']))!;
     expect(mesh.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     const mat = mesh.material as THREE.MeshStandardMaterial;
     expect(mat.color.getHexString()).toBe('cc8866');
   });
 
-  it('two components with same colorHex share the cached material instance', () => {
+  it('two components with same materialColor share the cached material instance', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#cc8866' },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true, colorHex: '#cc8866' },
+      leaf({ componentPath: ['C1'], materialColor: '#cc8866' }),
+      leaf({ componentPath: ['C2'], materialColor: '#cc8866' }),
     ]);
-    const a = mgr.getComponentMesh('C1')!;
-    const b = mgr.getComponentMesh('C2')!;
+    const a = mgr.getComponentMesh(pathKey(['C1']))!;
+    const b = mgr.getComponentMesh(pathKey(['C2']))!;
     expect(a.material).toBe(b.material);
   });
 
-  it('spec without colorHex uses the shared grey component material', () => {
+  it('leaf without materialColor uses the shared grey component material', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(10, 0, 0), visible: true },
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'] }),
     ]);
-    const a = mgr.getComponentMesh('C1')!;
-    const b = mgr.getComponentMesh('C2')!;
+    const a = mgr.getComponentMesh(pathKey(['C1']))!;
+    const b = mgr.getComponentMesh(pathKey(['C2']))!;
     expect(a.material).toBe(b.material);
     expect(a.material).toBeInstanceOf(THREE.MeshStandardMaterial);
   });
 
-  it('reverts to shared grey material when colorHex is removed on update', () => {
+  it('reverts to shared grey material when materialColor is removed on update', () => {
     const g = new THREE.BoxGeometry(1, 1, 1);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true, colorHex: '#aabbcc' },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      leaf({ componentPath: ['C1'], materialColor: '#aabbcc' }),
+      leaf({ componentPath: ['C2'] }),
     ]);
-    const c2Grey = mgr.getComponentMesh('C2')!.material;
+    const c2Grey = mgr.getComponentMesh(pathKey(['C2']))!.material;
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4(), visible: true },
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'] }),
     ]);
-    const c1AfterRevert = mgr.getComponentMesh('C1')!.material;
+    const c1AfterRevert = mgr.getComponentMesh(pathKey(['C1']))!.material;
     expect(c1AfterRevert).toBe(c2Grey);
   });
 
-  it('setSelectedComponentIds adds an outline overlay to selected meshes only', () => {
+  it('selection overlay activates for the matching componentPath only', () => {
     const g = new THREE.BoxGeometry(50, 50, 50);
+    mgr.setPartGeometry('p.zipt', g);
     mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-      { componentId: 'C2', geometry: g, transform: new THREE.Matrix4().setPosition(100, 0, 0), visible: true },
+      leaf({ componentPath: ['a'] }),
+      leaf({ componentPath: ['s', 'leaf'] }),
     ]);
-    mgr.setSelectedComponentIds(['C1']);
-    const m1 = mgr.getComponentMesh('C1')!;
-    const m2 = mgr.getComponentMesh('C2')!;
+    mgr.setSelectedComponentPaths([['s', 'leaf']]);
+    expect(mgr.selectionOverlayPathKeys()).toEqual([pathKey(['s', 'leaf'])]);
+  });
+
+  it('setSelectedComponentPaths adds an outline overlay to selected meshes only', () => {
+    const g = new THREE.BoxGeometry(50, 50, 50);
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([
+      leaf({ componentPath: ['C1'] }),
+      leaf({ componentPath: ['C2'], worldPose: { translation: { x: 100, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } }),
+    ]);
+    mgr.setSelectedComponentPaths([['C1']]);
+    const m1 = mgr.getComponentMesh(pathKey(['C1']))!;
+    const m2 = mgr.getComponentMesh(pathKey(['C2']))!;
     const overlays1 = m1.children.filter((c) => c instanceof THREE.LineSegments);
     const overlays2 = m2.children.filter((c) => c instanceof THREE.LineSegments);
     expect(overlays1.length).toBe(1);
@@ -219,34 +262,32 @@ describe('SceneManager — component meshes', () => {
     const mat = (overlays1[0] as THREE.LineSegments).material as THREE.LineBasicMaterial;
     expect(mat).toBeInstanceOf(THREE.LineBasicMaterial);
     expect(mat.color.getHexString()).toBe('ff8800');
-    expect(mgr.hasSelectionOverlay('C1')).toBe(true);
-    expect(mgr.hasSelectionOverlay('C2')).toBe(false);
+    expect(mgr.hasSelectionOverlay(pathKey(['C1']))).toBe(true);
+    expect(mgr.hasSelectionOverlay(pathKey(['C2']))).toBe(false);
   });
 
-  it('setSelectedComponentIds removes overlay and disposes its geometry when deselected', () => {
+  it('setSelectedComponentPaths removes overlay and disposes its geometry when deselected', () => {
     const g = new THREE.BoxGeometry(50, 50, 50);
-    mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-    ]);
-    mgr.setSelectedComponentIds(['C1']);
-    const m1 = mgr.getComponentMesh('C1')!;
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
+    mgr.setSelectedComponentPaths([['C1']]);
+    const m1 = mgr.getComponentMesh(pathKey(['C1']))!;
     const overlay = m1.children.find((c) => c instanceof THREE.LineSegments) as THREE.LineSegments;
     expect(overlay).toBeDefined();
     const disposeSpy = vi.spyOn(overlay.geometry, 'dispose');
-    mgr.setSelectedComponentIds([]);
-    expect(mgr.hasSelectionOverlay('C1')).toBe(false);
+    mgr.setSelectedComponentPaths([]);
+    expect(mgr.hasSelectionOverlay(pathKey(['C1']))).toBe(false);
     expect(m1.children.filter((c) => c instanceof THREE.LineSegments).length).toBe(0);
     expect(disposeSpy).toHaveBeenCalled();
   });
 
-  it('setSelectedComponentIds is idempotent for already-selected meshes', () => {
+  it('setSelectedComponentPaths is idempotent for already-selected meshes', () => {
     const g = new THREE.BoxGeometry(50, 50, 50);
-    mgr.setComponentMeshes([
-      { componentId: 'C1', geometry: g, transform: new THREE.Matrix4(), visible: true },
-    ]);
-    mgr.setSelectedComponentIds(['C1']);
-    mgr.setSelectedComponentIds(['C1']);
-    const m1 = mgr.getComponentMesh('C1')!;
+    mgr.setPartGeometry('p.zipt', g);
+    mgr.setComponentMeshes([leaf({ componentPath: ['C1'] })]);
+    mgr.setSelectedComponentPaths([['C1']]);
+    mgr.setSelectedComponentPaths([['C1']]);
+    const m1 = mgr.getComponentMesh(pathKey(['C1']))!;
     expect(m1.children.filter((c) => c instanceof THREE.LineSegments).length).toBe(1);
   });
 
