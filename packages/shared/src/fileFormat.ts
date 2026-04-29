@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 7 as const;
+export const CURRENT_FORMAT_VERSION = 8 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -91,10 +91,51 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 7 };
   },
+
+  // v7 → v8: assembly schema — componentId → componentPath: [componentId] on
+  // every constraint ref; groundedComponentIds → groundedComponentPaths;
+  // colorOverrides defaults to {}; ComponentInstance.flexible left absent
+  // (defaults to rigid).
+  7: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: any };
+    if (anyM.kind !== 'assembly' || !anyM.document) {
+      return { ...m, formatVersion: 8 };
+    }
+    const doc = anyM.document;
+
+    // groundedComponentIds → groundedComponentPaths
+    if (Array.isArray(doc.groundedComponentIds)) {
+      doc.groundedComponentPaths = doc.groundedComponentIds.map((id: string) => [id]);
+      delete doc.groundedComponentIds;
+    } else if (!Array.isArray(doc.groundedComponentPaths)) {
+      doc.groundedComponentPaths = [];
+    }
+
+    // Constraint refs: componentId → componentPath
+    if (Array.isArray(doc.constraints)) {
+      doc.constraints = doc.constraints.map((c: any) => {
+        const next = { ...c };
+        for (const slot of ['refA', 'refB'] as const) {
+          const r = next[slot];
+          if (r && typeof r.componentId === 'string') {
+            const { componentId, ...rest } = r;
+            next[slot] = { ...rest, componentPath: [componentId] };
+          }
+        }
+        return next;
+      });
+    }
+
+    // colorOverrides default
+    if (doc.colorOverrides == null) doc.colorOverrides = {};
+
+    return { ...m, document: doc, formatVersion: 8 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if (m.formatVersion === 7 && (m as any).kind === undefined) {
+  if (m.formatVersion === 8 && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;
@@ -142,9 +183,10 @@ function backfillAssembly4b(m: AnyManifest): AnyManifest {
   if (anyM.kind !== 'assembly' || !anyM.document) return m;
   const doc = { ...anyM.document };
   if (!Array.isArray(doc.constraints)) doc.constraints = [];
-  if (!Array.isArray(doc.groundedComponentIds)) doc.groundedComponentIds = [];
+  if (!Array.isArray(doc.groundedComponentPaths)) doc.groundedComponentPaths = [];
   if (doc.colors == null) doc.colors = {};
   if (doc.bomItemNumbers == null) doc.bomItemNumbers = {};
+  if (doc.colorOverrides == null) doc.colorOverrides = {};
   if (Array.isArray(doc.components)) {
     doc.components = doc.components.map((c: any) => {
       if (c.pose) return c;
