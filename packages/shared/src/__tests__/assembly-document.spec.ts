@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, expectTypeOf } from 'vitest';
 import type {
   ComponentInstance, AssemblyDocument, ProjectFile, PartDocument,
+  AssemblyConstraintRef, ComponentColor,
 } from '../types';
+import type { ComponentPath, ComponentPathKey } from '../componentPath';
 
 describe('AssemblyDocument', () => {
   it('ComponentInstance has the documented shape', () => {
@@ -46,5 +48,26 @@ describe('AssemblyDocument', () => {
     if (asm.kind === 'assembly') {
       expect(asm.document.components).toEqual([]);
     }
+  });
+});
+
+describe('v8 schema additions', () => {
+  it('ComponentInstance has optional flexible flag', () => {
+    expectTypeOf<ComponentInstance['flexible']>().toEqualTypeOf<boolean | undefined>();
+  });
+
+  it('AssemblyDocument has colorOverrides keyed by ComponentPathKey', () => {
+    expectTypeOf<AssemblyDocument['colorOverrides']>().toEqualTypeOf<
+      Record<ComponentPathKey, ComponentColor>
+    >();
+  });
+
+  it('AssemblyDocument has groundedComponentPaths', () => {
+    expectTypeOf<AssemblyDocument['groundedComponentPaths']>().toEqualTypeOf<ComponentPath[]>();
+  });
+
+  it('face-kind constraint ref carries componentPath, not componentId', () => {
+    type FaceRef = Extract<AssemblyConstraintRef, { kind: 'face' }>;
+    expectTypeOf<FaceRef['componentPath']>().toEqualTypeOf<ComponentPath>();
   });
 });

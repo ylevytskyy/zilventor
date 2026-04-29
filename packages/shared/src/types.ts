@@ -1,5 +1,6 @@
 import type { SketchConstraint } from './constraints';
 import type { SketchParameter, ParameterUnit } from './parameters';
+import type { ComponentPath, ComponentPathKey } from './componentPath';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -66,6 +67,7 @@ export type ComponentInstance = {
   visible: boolean;
   pose?: { translation: Vec3; quaternion: [number, number, number, number] };
   color?: ComponentColor;
+  flexible?: boolean;
 };
 
 export type AssemblyDocument = {
@@ -75,18 +77,19 @@ export type AssemblyDocument = {
   parameters: Record<string, SketchParameter>;
   components: ComponentInstance[];
   constraints: AssemblyConstraint[];
-  groundedComponentIds: string[];
+  groundedComponentPaths: ComponentPath[];
   colors: Record<string, string>;
   bomItemNumbers: Record<string, number>;
+  colorOverrides: Record<ComponentPathKey, ComponentColor>;
 };
 
 export type AssemblyConstraintRef =
-  | { kind: 'face'; componentId: string; face: FaceName }
-  | { kind: 'axis'; componentId: string; axis:
+  | { kind: 'face';  componentPath: ComponentPath; face: FaceName }
+  | { kind: 'axis';  componentPath: ComponentPath; axis:
         | { source: 'cylindricalFace'; face: FaceName }
         | { source: 'edge'; edge: EdgeName }
         | { source: 'workAxis'; featureId: string } }
-  | { kind: 'point'; componentId: string; point:
+  | { kind: 'point'; componentPath: ComponentPath; point:
         | { source: 'vertex'; edge: EdgeName; end: 'start' | 'end' }
         | { source: 'workPoint'; featureId: string } };
 
@@ -95,13 +98,13 @@ export type AssemblyConstraint =
   | { id: string; kind: 'flush';  refA: AssemblyConstraintRef; refB: AssemblyConstraintRef; offset: ParamOrLiteral; suppressed: boolean }
   | { id: string; kind: 'angle';  refA: AssemblyConstraintRef; refB: AssemblyConstraintRef; angle:  ParamOrLiteral; suppressed: boolean }
   | { id: string; kind: 'insert';
-      refA: { componentId: string; circularEdge: EdgeName };
-      refB: { componentId: string; circularEdge: EdgeName };
+      refA: { componentPath: ComponentPath; circularEdge: EdgeName };
+      refB: { componentPath: ComponentPath; circularEdge: EdgeName };
       offset: ParamOrLiteral; suppressed: boolean };
 
 export type ProjectFile =
-  | { formatVersion: 7; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
+  | { formatVersion: 7 | 8; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
 
 export type FaceName = {
   featureId: string;
