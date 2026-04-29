@@ -88,6 +88,7 @@ import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
+import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartName } from './shell/resolvePartName';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
 import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
@@ -2038,6 +2039,94 @@ export default function App() {
       }
       useAppStore.getState().setSubAssemblyDocs(docs);
     };
+    // T43 perf hook: run aggregateBomRecursive against the live activeAssembly
+    // + sub-asm cache + part-name cache `trials` times and return p95 ms.
+    w.__zilventorBomAggregateRecursiveMs = (trials: number): number => {
+      const a = useAppStore.getState().activeAssembly;
+      if (!a) return -1;
+      const docs = useAppStore.getState().subAssemblyDocs;
+      const adapter = {
+        get: (p: string) => docs[p]
+          ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
+          : undefined,
+      };
+      const partNames = partNameCacheRef.current;
+      const samples: number[] = [];
+      for (let i = 0; i < trials; i++) {
+        const t0 = performance.now();
+        aggregateBomRecursive(a, adapter, partNames);
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((x, y) => x - y);
+      const idx = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
+      return samples[idx]!;
+    };
+    // T44 perf hook: flattenForSolver + solveAssembly against the live
+    // activeAssembly with stub plane refs (so we don't pay OCCT cost).
+    // Returns p95 ms over `trials` runs.
+    w.__zilventorFlattenAndSolveMs = (trials: number): number => {
+      const a = useAppStore.getState().activeAssembly;
+      if (!a) return -1;
+      const docs = useAppStore.getState().subAssemblyDocs;
+      const adapter = {
+        get: (p: string) => docs[p]
+          ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
+          : undefined,
+      };
+      const flat = flattenForSolver(a, adapter);
+      // Synthesize stub plane refs for every constraint side. The kernel
+      // expects resolvedRefs keyed by `${k.id}#${synthId}` where synthId =
+      // pathKey(refPath). Two opposing planes guarantee the LM solver does
+      // real iterative work without OCCT involvement.
+      const planeUp = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } };
+      const planeDown = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: -1 } };
+      const resolvedRefs = new Map<string, typeof planeUp | typeof planeDown>();
+      const rewrittenConstraints = flat.constraints.map((k) => {
+        const aKey = pathKey(k.refA.componentPath);
+        const bKey = pathKey(k.refB.componentPath);
+        resolvedRefs.set(`${k.id}#${aKey}`, planeUp);
+        resolvedRefs.set(`${k.id}#${bKey}`, planeDown);
+        return {
+          ...k,
+          refA: { ...k.refA, componentPath: [aKey] },
+          refB: { ...k.refB, componentPath: [bKey] },
+        } as import('@zilventor/shared').AssemblyConstraint;
+      });
+      const indexToPath = new Array<string>(flat.unknowns.length);
+      for (const [key, v] of flat.pathToUnknown) indexToPath[v] = key;
+      const components = flat.unknowns.map((p, i) => ({
+        id: indexToPath[i]!,
+        T: p.translation,
+        q: p.quaternion,
+      }));
+      const groundedComponentIds = a.groundedComponentPaths
+        .map((p) => pathKey(p))
+        .filter((key) => flat.pathToUnknown.has(key));
+      const baseInput = {
+        components,
+        groundedComponentIds,
+        constraints: rewrittenConstraints,
+        resolvedRefs,
+        paramValues: {} as Record<string, number>,
+      };
+      // Warm-up.
+      flattenForSolver(a, adapter);
+      solveAssembly(baseInput);
+      const samples: number[] = [];
+      for (let i = 0; i < trials; i++) {
+        const perturbed = components.map((c, idx2) => ({
+          ...c,
+          T: { x: c.T.x + (idx2 % 3) * 0.1, y: (i % 5) * 0.01, z: 0 },
+        }));
+        const t0 = performance.now();
+        flattenForSolver(a, adapter);
+        solveAssembly({ ...baseInput, components: perturbed });
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((x, y) => x - y);
+      const idx = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
+      return samples[idx]!;
+    };
     return () => {
       delete w.__zilventorSubAsmCacheGet;
       delete w.__zilventorComponentPathToLeafCount;
@@ -2045,6 +2134,8 @@ export default function App() {
       delete w.__zilventorSubAsmInvalidate;
       delete w.__zilventorSubAsmInvalidateAll;
       delete w.__zilventorLoadSubAsmTree;
+      delete w.__zilventorBomAggregateRecursiveMs;
+      delete w.__zilventorFlattenAndSolveMs;
     };
   }, []);
 
