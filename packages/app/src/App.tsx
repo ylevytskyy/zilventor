@@ -1876,7 +1876,8 @@ export default function App() {
   }, [placeOpen]);
 
   const handlePlace = async (partPath: string): Promise<void> => {
-    const cmd = new PlaceComponentCommand({ partPath });
+    if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+    const cmd = new PlaceComponentCommand({ partPath, opfs: opfsRef.current });
     try {
       await cmd.apply();
     } catch (e) {

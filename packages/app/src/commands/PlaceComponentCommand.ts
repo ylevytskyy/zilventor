@@ -1,8 +1,10 @@
 import type { Command } from './Command';
 import type { ComponentInstance } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { wouldCreateCycle } from '../assembly/cycleCheck';
+import type { OpfsLike } from '../assembly/SubAssemblyCache';
 
-export type PlaceComponentOpts = { partPath: string };
+export type PlaceComponentOpts = { partPath: string; opfs?: OpfsLike };
 
 export class PlaceComponentCommand implements Command {
   readonly name = 'PlaceComponent';
@@ -10,6 +12,18 @@ export class PlaceComponentCommand implements Command {
   constructor(private opts: PlaceComponentOpts) {}
 
   async apply(): Promise<void> {
+    if (this.opts.partPath.endsWith('.ziasm') && this.opts.opfs) {
+      const active = useAppStore.getState().activeAssembly;
+      if (!active) return;
+      const activeDocPath = `${active.name}.ziasm`;
+      const cyclic = await wouldCreateCycle(activeDocPath, this.opts.partPath, this.opts.opfs);
+      if (cyclic) {
+        useAppStore.getState().setStatus(
+          `Cannot place ${this.opts.partPath}: would create a sub-assembly cycle.`,
+        );
+        return;
+      }
+    }
     const id = `C${Date.now()}`;
     const instance: ComponentInstance = {
       id,
