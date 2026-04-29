@@ -90,8 +90,10 @@ import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { resolvePartName } from './shell/resolvePartName';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
-import { composePoses } from './assembly/walkers/composedPoses';
+import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
 import type { Pose } from './assembly/walkers/flattenForSolver';
+import { flattenForSolver } from './assembly/walkers/flattenForSolver';
+import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
@@ -108,6 +110,7 @@ function formatExpressionError(err: EvaluationError): string {
     case 'referenced':    return `Parameter '${err.name}' is referenced by: ${err.referencedBy.join(', ')}`;
   }
 }
+
 
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
@@ -634,8 +637,21 @@ export default function App() {
   const assemblyPartIdCacheRef = useRef(new Map<string, string>());
 
   // Debounced solver effect: fires 50ms after solverDirty is set to true.
-  // Resolves all constraint refs via KernelClient RPCs (option c: async loop
-  // builds resolvedRefs before the synchronous solveAssembly call).
+  //
+  // T31b: path-keyed flatten/solve/composedPoses bridge.
+  //   1. flattenForSolver(activeDoc, subAsmCache) → unknowns + path-prefixed
+  //      constraints + rigidSubtreeRoots.
+  //   2. Resolve each constraint ref's leaf partId by walking the activeDoc
+  //      tree (resolveLeafPartPath), extract local geometry via the kernel
+  //      RPC keyed by `${k.id}#${pathKey(ref.componentPath)}`.
+  //   3. Rewrite each ref's componentPath to a single segment
+  //      `[pathKey(originalPath)]` so the kernel's componentPath[0]-based id
+  //      lookup sees the synthetic path-keyed id.
+  //   4. solveAssembly(input) → Map<pathKey, Pose> for every unknown.
+  //   5. composedPoses(activeDoc, cache, {pathToUnknown, poses,
+  //      rigidSubtreeRoots}) → Map<pathKey, Pose> for every visible leaf.
+  //   6. Store the composed map as componentPoses (path-keyed). Top-level-only
+  //      assemblies are unaffected: pathKey([id]) === id.
   const solverDirty = useAppStore((s) => s.solverDirty);
   const solverAssembly = useAppStore((s) => s.activeAssembly);
   useEffect(() => {
@@ -649,55 +665,64 @@ export default function App() {
         if (cancelled) return;
         const cache = assemblyRefCacheRef.current;
         const partIdCache = assemblyPartIdCacheRef.current;
+        const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+        const subAsmCacheAdapter = {
+          get: (p: string) => subAssemblyDocs[p]
+            ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p })
+            : undefined,
+        };
+
+        // Step 1: flatten the activeDoc + sub-asms into a flat unknown list +
+        // path-prefixed constraint set.
+        const flat = flattenForSolver(solverAssembly, subAsmCacheAdapter);
+
+        // Step 2: resolve each ref-bearing constraint's leaf partId by walking
+        // the tree along its (already-flattened) componentPath.
         const resolvedRefs = new Map<string, import('@zilventor/kernel/src/assembly/AssemblyConstraintRefs').PartLocalGeometry>();
-
-        // Resolve each constraint's refs asynchronously via the KernelClient RPC.
-        for (const k of solverAssembly.constraints) {
+        for (const k of flat.constraints) {
           if (k.suppressed) continue;
-          const componentA = solverAssembly.components.find((c) => c.id === k.refA.componentPath[0]);
-          const componentB = solverAssembly.components.find((c) => c.id === k.refB.componentPath[0]);
+          for (const side of ['A', 'B'] as const) {
+            const ref = side === 'A' ? k.refA : k.refB;
+            const refPath = ref.componentPath;
+            const synthId = pathKey(refPath);
+            const cacheKey = `${k.id}#${synthId}`;
+            if (resolvedRefs.has(cacheKey)) continue;
 
-          for (const [component, side] of [[componentA, 'A'], [componentB, 'B']] as const) {
-            if (!component) continue;
-            const partPath = component.partPath;
+            // Walk the activeDoc tree along refPath to find the leaf component
+            // (refPath always points at a .zipt leaf — sub-asm refs are not
+            // valid constraint targets).
+            const leafPartPath = resolveLeafPartPath(refPath, solverAssembly, subAsmCacheAdapter);
+            if (!leafPartPath) continue;
 
-            // Ensure the part is loaded into the kernel worker and we have its partId.
-            let partId = partIdCache.get(partPath);
+            // Ensure the part is loaded into the kernel worker.
+            let partId = partIdCache.get(leafPartPath);
             if (!partId) {
-              // Load from OPFS — requires an opfs handle.
-              // If opfsRef has the instance, use it; otherwise skip.
               if (!opfsRef.current) continue;
               try {
-                const bytes = await opfsRef.current.read(partPath);
+                const bytes = await opfsRef.current.read(leafPartPath);
                 partId = await kernelClient.loadFromBytes(bytes);
-                partIdCache.set(partPath, partId);
+                partIdCache.set(leafPartPath, partId);
               } catch {
                 continue;
               }
             }
 
-            // Resolve the ref for this side.
-            const cacheKey = `${k.id}#${component.id}`;
-            if (resolvedRefs.has(cacheKey)) continue;
-
             try {
               let result: import('@zilventor/shared').Result<import('@zilventor/kernel/src/assembly/AssemblyConstraintRefs').PartLocalGeometry, import('@zilventor/shared').KernelError>;
               if (k.kind === 'insert') {
-                // Insert uses circularEdge refs on both sides.
                 const edgeSide = side === 'A' ? (k.refA as any).circularEdge : (k.refB as any).circularEdge;
-                const cacheHit = cache.getOrComputeCircularEdge(partPath, edgeSide, () => ({ ok: false, error: { kind: 'invalidGeometry' as const, message: 'async-pending', correlationId: '' } }));
+                const cacheHit = cache.getOrComputeCircularEdge(leafPartPath, edgeSide, () => ({ ok: false, error: { kind: 'invalidGeometry' as const, message: 'async-pending', correlationId: '' } }));
                 if (cacheHit.ok) { resolvedRefs.set(cacheKey, cacheHit.value); continue; }
                 result = await kernelClient.extractAssemblyCircularEdge(partId, edgeSide);
-                if (result.ok) cache.getOrComputeCircularEdge(partPath, edgeSide, () => result);
+                if (result.ok) cache.getOrComputeCircularEdge(leafPartPath, edgeSide, () => result);
               } else {
-                const ref = side === 'A' ? k.refA : k.refB;
-                const rk = `${partPath}#${refKey(ref as import('@zilventor/shared').AssemblyConstraintRef)}`;
+                const rk = `${leafPartPath}#${refKey(ref as import('@zilventor/shared').AssemblyConstraintRef)}`;
                 if ((cache as any)['map']?.has(rk)) {
                   const hit = (cache as any)['map'].get(rk);
                   if (hit.ok) { resolvedRefs.set(cacheKey, hit.value); continue; }
                 }
                 result = await kernelClient.extractAssemblyRef(partId, ref as import('@zilventor/shared').AssemblyConstraintRef);
-                if (result.ok) cache.getOrCompute(partPath, ref as import('@zilventor/shared').AssemblyConstraintRef, () => result);
+                if (result.ok) cache.getOrCompute(leafPartPath, ref as import('@zilventor/shared').AssemblyConstraintRef, () => result);
               }
               if (result.ok) resolvedRefs.set(cacheKey, result.value);
             } catch {
@@ -708,27 +733,64 @@ export default function App() {
 
         if (cancelled) return;
 
-        // Build solver input and run solve synchronously.
+        // Step 3: rewrite constraints so each ref's componentPath collapses
+        // to a single synthetic segment = pathKey(originalPath). The kernel
+        // reads componentPath[0] as the component id; this makes that lookup
+        // align with the synthetic ids in the components array.
+        const rewrittenConstraints: import('@zilventor/shared').AssemblyConstraint[] = flat.constraints.map((k) => {
+          if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle') {
+            return {
+              ...k,
+              refA: { ...k.refA, componentPath: [pathKey(k.refA.componentPath)] },
+              refB: { ...k.refB, componentPath: [pathKey(k.refB.componentPath)] },
+            };
+          }
+          return {
+            ...k,
+            refA: { ...k.refA, componentPath: [pathKey(k.refA.componentPath)] },
+            refB: { ...k.refB, componentPath: [pathKey(k.refB.componentPath)] },
+          };
+        });
+
+        // Step 4: build the kernel input keyed by synthetic pathKey ids.
         const paramValues = parameterRegistry.getAll().reduce(
           (acc, p) => { if (p.name && p.value !== undefined) acc[p.name] = p.value; return acc; },
           {} as Record<string, number>
         );
+        // Reverse pathToUnknown so we can map index → pathKey.
+        const indexToPath = new Array<string>(flat.unknowns.length);
+        for (const [k, v] of flat.pathToUnknown) indexToPath[v] = k;
+        const components = flat.unknowns.map((p, i) => ({
+          id: indexToPath[i]!,
+          T: p.translation,
+          q: p.quaternion,
+        }));
+        const groundedComponentIds = solverAssembly.groundedComponentPaths
+          .map((p) => pathKey(p))
+          .filter((k) => flat.pathToUnknown.has(k));
         const input = {
-          components: solverAssembly.components.map((c) => ({
-            id: c.id,
-            T: c.position,
-            q: c.pose?.quaternion ?? quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
-          })),
-          groundedComponentIds: solverAssembly.groundedComponentPaths
-            .map((p) => p[0])
-            .filter((id): id is string => typeof id === 'string'),
-          constraints: solverAssembly.constraints,
+          components,
+          groundedComponentIds,
+          constraints: rewrittenConstraints,
           resolvedRefs,
           paramValues,
         };
         const out = solveAssembly(input);
-        useAppStore.getState().setSolverResult(out.poses, out.diagnostics, out.freeDofBasis);
-        // T37 will wire out.poses → viewport component transforms.
+
+        // Step 5: assemble solvedPoses array indexed by pathToUnknown, then
+        // run composedPoses to derive every visible leaf's world pose.
+        const solvedPoses: Pose[] = flat.unknowns.slice();
+        for (const [k, idx] of flat.pathToUnknown) {
+          const p = out.poses.get(k);
+          if (p) solvedPoses[idx] = p;
+        }
+        const composed = composedPoses(solverAssembly, subAsmCacheAdapter, {
+          pathToUnknown: flat.pathToUnknown,
+          poses: solvedPoses,
+          rigidSubtreeRoots: flat.rigidSubtreeRoots,
+        });
+
+        useAppStore.getState().setSolverResult(composed, out.diagnostics, out.freeDofBasis);
       })();
     }, 50);
     return () => { cancelled = true; clearTimeout(handle); };
@@ -2105,67 +2167,24 @@ export default function App() {
       const leaves = visibleLeaves(assembly, subAsmCacheAdapter);
       const diagnostics: Array<{ componentId: string; message: string }> = [];
 
-      // T31: composedPosesMap maps each leaf's pathKey → world pose.
+      // T31b: composedPosesMap maps each leaf's pathKey → world pose.
       //
-      // Wiring: solver produces componentPoses (Map<id, Pose>) keyed by string
-      // id, treating only top-level components as unknowns. For T31's MVP we
-      // compose poses recursively along each path: top-level segment uses the
-      // solver pose (or initial Euler from ComponentInstance), and each deeper
-      // segment composes parent ⊕ child via parent.quaternion-rotated child
-      // translation + child quaternion. Rigid sub-asms with innerStaticPoses
-      // would compose those next, but the store-level subAssemblyDocs do not
-      // currently carry pre-solved poses (a TODO follow-up — wiring
-      // SubAssemblyCache + SolverBridge into the store).
-      const composedPosesMap = new Map<string, Pose>();
-      function topLevelPose(id: string, doc: typeof assembly): Pose | undefined {
-        if (!doc) return undefined;
-        const solverPose = componentPoses.get(id);
-        if (solverPose) return solverPose;
-        const c = doc.components.find((x) => x.id === id);
-        if (!c) return undefined;
-        // Build a quaternion from the ComponentInstance Euler XYZ in degrees.
-        const q = quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz);
-        return {
-          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
-          quaternion: q,
-        };
-      }
-      function composeAlongPath(path: ReadonlyArray<string>, doc: typeof assembly): Pose | undefined {
-        if (!doc || path.length === 0) return undefined;
-        if (path.length === 1) return topLevelPose(path[0]!, doc);
-        const parent = composeAlongPath(path.slice(0, -1), doc);
-        if (!parent) return undefined;
-        // Find the sub-asm doc under the parent path's last segment
-        const ancestorPath = path.slice(0, -1);
-        // Walk into the doc to find the sub-asm whose path is `ancestorPath`,
-        // then look up the leaf id at path[-1] in that sub-asm doc.
-        let cursorDoc: typeof assembly | undefined = doc;
-        for (const seg of ancestorPath) {
-          const c: ComponentInstance | undefined = cursorDoc?.components.find((x) => x.id === seg);
-          if (!c) return undefined;
-          if (c.partPath.endsWith('.ziasm')) {
-            cursorDoc = subAssemblyDocs[c.partPath];
-            if (!cursorDoc) return undefined;
-          } else {
-            // Mid-path lookup hit a leaf — invalid path
-            return undefined;
-          }
-        }
-        const leafId = path[path.length - 1]!;
-        const c = cursorDoc.components.find((x) => x.id === leafId);
-        if (!c) return undefined;
-        const localQ = quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz);
-        const localPose: Pose = {
-          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
-          quaternion: localQ,
-        };
-        // T31: parent ⊕ local using composePoses (q_parent * q_local for rotation,
-        // t_parent + R(q_parent) * t_local for translation).
-        return composePoses(parent, localPose);
-      }
-      for (const l of leaves) {
-        const p = composeAlongPath(l.componentPath, assembly);
-        if (p) composedPosesMap.set(pathKey(l.componentPath), p);
+      // Source of truth: the solver-bridge effect publishes a path-keyed
+      // Map<pathKey, Pose> in componentPoses. If the solver has run since
+      // the last assembly mutation, that map already covers every visible
+      // leaf. If it hasn't (e.g. first render after placement, or a sub-asm
+      // doc just loaded), fall back to running flattenForSolver +
+      // composedPoses against initial unknown poses so the viewport still
+      // gets a consistent placement.
+      let composedPosesMap: Map<string, Pose> = componentPoses;
+      const haveSolved = leaves.every((l) => composedPosesMap.has(pathKey(l.componentPath)));
+      if (!haveSolved) {
+        const flat = flattenForSolver(assembly, subAsmCacheAdapter);
+        composedPosesMap = composedPoses(assembly, subAsmCacheAdapter, {
+          pathToUnknown: flat.pathToUnknown,
+          poses: flat.unknowns,
+          rigidSubtreeRoots: flat.rigidSubtreeRoots,
+        });
       }
 
       // Ensure kernel has loaded each unique leaf partPath, register geometry.
