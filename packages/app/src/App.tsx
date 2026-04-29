@@ -1858,6 +1858,16 @@ export default function App() {
         if (!mat || !('color' in mat) || !(mat.color instanceof THREE.Color)) return null;
         return '#' + mat.color.getHexString();
       };
+      // T40 (4d Phase 11b): path-aware variant — sub-asm leaves are keyed by
+      // pathKey(componentPath), so this lets specs probe the material colour
+      // on a leaf inside a placed sub-assembly.
+      w.__zilventorComponentMaterialHexByPath = (path: string[]): string | null => {
+        const sm = viewportRef.current?.getSceneManager();
+        const mesh = sm?.getComponentMesh(pathKey(path));
+        const mat = mesh?.material as THREE.MeshStandardMaterial | undefined;
+        if (!mat || !('color' in mat) || !(mat.color instanceof THREE.Color)) return null;
+        return '#' + mat.color.getHexString();
+      };
       w.__zilventorComponentSelectedOverlay = (componentId: string): boolean => {
         const sm = viewportRef.current?.getSceneManager();
         return sm?.hasSelectionOverlay?.(pathKey([componentId])) ?? false;

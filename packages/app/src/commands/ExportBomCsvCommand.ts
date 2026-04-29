@@ -1,5 +1,5 @@
 import { useAppStore } from '../store/useAppStore';
-import { aggregateBom } from '@zilventor/shared/src/bomRow';
+import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { buildBomCsv } from './buildBomCsv';
 
 export class ExportBomCsvCommand {
@@ -7,7 +7,16 @@ export class ExportBomCsvCommand {
   async apply(): Promise<void> {
     const a = useAppStore.getState().activeAssembly;
     if (!a) return;
-    const rows = aggregateBom(a, this.opts.partNames);
+    // 4d Phase 11b T42: walk into placed sub-assemblies so the CSV reflects
+    // the recursive leaf count (mirrors BomTable's aggregator).
+    const docs = useAppStore.getState().subAssemblyDocs;
+    const cache = {
+      get: (p: string) =>
+        docs[p]
+          ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
+          : undefined,
+    };
+    const rows = aggregateBomRecursive(a, cache, this.opts.partNames);
     const csv = buildBomCsv(rows);
     const bytes = new TextEncoder().encode(csv);
     const suggestedName = `${a.name}-bom.csv`;
