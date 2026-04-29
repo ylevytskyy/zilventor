@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
 import type { KernelClient } from '../kernel-client/KernelClient';
@@ -162,10 +163,18 @@ type AppState = {
   editComponentDialogOpen: boolean;
   editingComponentId: string | null;
   editComponentInitialValues: ComponentInstance | null;
-  selectedComponentIds: string[];
+  selectedComponentPaths: ComponentPath[];
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   showComponentColors: boolean;
+  // 4d additions (T18)
+  subAssemblyDocs: Record<string, AssemblyDocument>;
+  subAssemblyDiagnostics: Array<{ partPath: string; kind: 'cycle' | 'missing' | 'parse'; message: string }>;
+  expandedSubAsmPaths: Set<string>;
+  setSubAssemblyDocs: (next: Record<string, AssemblyDocument>) => void;
+  setSubAssemblyDiagnostics: (next: Array<{ partPath: string; kind: 'cycle' | 'missing' | 'parse'; message: string }>) => void;
+  toggleSubAsmExpanded: (key: string) => void;
+  selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
 
@@ -398,16 +407,28 @@ export const useAppStore = create<AppState>((set) => ({
   editComponentDialogOpen: false,
   editingComponentId: null,
   editComponentInitialValues: null,
-  selectedComponentIds: [],
+  selectedComponentPaths: [],
   componentDiagnostics: [],
   bomTabActive: false,
   showComponentColors: false,
+  // 4d additions (T18)
+  subAssemblyDocs: {},
+  subAssemblyDiagnostics: [],
+  expandedSubAsmPaths: new Set<string>(),
+  setSubAssemblyDocs: (next) => set({ subAssemblyDocs: next }),
+  setSubAssemblyDiagnostics: (next) => set({ subAssemblyDiagnostics: next }),
+  toggleSubAsmExpanded: (key) => set((s) => {
+    const next = new Set(s.expandedSubAsmPaths);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return { expandedSubAsmPaths: next };
+  }),
+  selectComponentPaths: (paths) => set({ selectedComponentPaths: [...paths] }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
 
   openPlaceComponentDialog: () => set({
     placeComponentDialogOpen: true,
-    selectedComponentIds: [],
+    selectedComponentPaths: [],
   }),
   resetPlaceComponentDialog: () => set({ placeComponentDialogOpen: false }),
 
@@ -466,8 +487,8 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
 
-  selectComponents: (ids) => set({ selectedComponentIds: [...ids] }),
-  selectComponent: (id) => set({ selectedComponentIds: id == null ? [] : [id] }),
+  selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
+  selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),
   setComponentColor: (componentId, color) => set((s) => {
     if (!s.activeAssembly) return s;
     const next: AssemblyDocument = {

@@ -40,7 +40,7 @@ describe('BomTable', () => {
     useAppStore.setState({
       activeDocument: null,
       activeAssembly: null,
-      selectedComponentIds: [],
+      selectedComponentPaths: [],
     } as any);
   });
 
@@ -70,8 +70,9 @@ describe('BomTable', () => {
     ]);
     render(<BomTable partNames={partNames} />);
     fireEvent.click(screen.getByText('cube'));
-    const sel = useAppStore.getState().selectedComponentIds;
-    expect(sel.slice().sort()).toEqual(['C1', 'C2']);
+    const sel = useAppStore.getState().selectedComponentPaths;
+    const leafIds = sel.map((p) => p[p.length - 1] ?? '');
+    expect(leafIds.slice().sort()).toEqual(['C1', 'C2']);
   });
 
   it('clicking the Item# cell switches to inline input; blurring fires SetBomItemNumberCommand', () => {

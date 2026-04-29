@@ -17,7 +17,10 @@ const btn: React.CSSProperties = {
 type Props = { partNames?: Map<string, string> };
 
 export function AssemblyTab({ partNames }: Props = {}): JSX.Element {
-  const selectedId = useAppStore((s) => s.selectedComponentIds[0] ?? null);
+  const selectedId = useAppStore((s) => {
+    const p = s.selectedComponentPaths[0];
+    return p ? p[p.length - 1] ?? null : null;
+  });
   const hasAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
   const selectedConstraintId = useAppStore((s) => s.selectedConstraintId);
   const activeAssembly = useAppStore((s) => s.activeAssembly);

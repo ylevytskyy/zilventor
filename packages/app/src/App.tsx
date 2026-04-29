@@ -885,7 +885,8 @@ export default function App() {
         if (e.key === 'n' || e.key === 'N') { OpenPlaceConstraintDialogCommand('angle'); e.preventDefault(); return; }
         if (e.key === 'i' || e.key === 'I') { OpenPlaceConstraintDialogCommand('insert'); e.preventDefault(); return; }
         if (e.key === 'g' || e.key === 'G') {
-          const id = useAppStore.getState().selectedComponentIds[0] ?? null;
+          const sel = useAppStore.getState().selectedComponentPaths[0];
+          const id = sel ? sel[sel.length - 1] ?? null : null;
           if (id) { void new ToggleGroundedCommand({ componentId: id }).apply(); e.preventDefault(); return; }
         }
       }
@@ -1705,7 +1706,7 @@ export default function App() {
   const assembly = useAppStore((s) => s.activeAssembly);
   const componentPoses = useAppStore((s) => s.componentPoses);
   const showComponentColors = useAppStore((s) => s.showComponentColors);
-  const selectedComponentIds = useAppStore((s) => s.selectedComponentIds);
+  const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
   const partNameCacheRef = useRef<Map<string, string>>(new Map());
   // Bumped after each resolvePartName population pass so consumers re-render.
@@ -1999,11 +2000,14 @@ export default function App() {
     return () => { cancelled = true; };
   }, [assembly]);
 
-  // Selection-sync: forward the store's selectedComponentIds to the viewport so
-  // it can render outline overlays on the selected component meshes.
+  // Selection-sync: forward the store's selectedComponentPaths to the viewport
+  // so it can render outline overlays on the selected component meshes. The
+  // viewport currently keys overlays by leaf component id, so we project each
+  // path down to its tail.
   useEffect(() => {
-    viewportRef.current?.setSelectedComponentIds(selectedComponentIds);
-  }, [selectedComponentIds]);
+    const ids = selectedComponentPaths.map((p) => p[p.length - 1] ?? '').filter((id) => id !== '');
+    viewportRef.current?.setSelectedComponentIds(ids);
+  }, [selectedComponentPaths]);
 
   // OPFS autosave — debounce 500 ms after the last activeDocument mutation.
   // Parts are packed via kernel.saveToBytes (re-runs the feature tree to bake

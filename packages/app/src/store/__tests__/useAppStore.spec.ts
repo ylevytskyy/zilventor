@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore } from '../useAppStore';
 import type { AssemblyDocument, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
+import { pathKey } from '@zilventor/shared';
 
 const mkPart = (): PartDocument => ({
   id: 'P1',
@@ -299,7 +300,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
     expect(s.editComponentDialogOpen).toBe(false);
     expect(s.editingComponentId).toBeNull();
     expect(s.editComponentInitialValues).toBeNull();
-    expect(s.selectedComponentIds).toEqual([]);
+    expect(s.selectedComponentPaths).toEqual([]);
     expect(s.componentDiagnostics).toEqual([]);
   });
 
@@ -363,18 +364,60 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
   });
 });
 
-describe('useAppStore selectedComponentIds slice (4c)', () => {
-  it('selectComponents replaces the selection array', () => {
-    useAppStore.setState({ selectedComponentIds: [] } as any);
+describe('useAppStore selectedComponentPaths slice (4d)', () => {
+  it('selectComponents replaces the selection (one-element paths per id)', () => {
+    useAppStore.setState({ selectedComponentPaths: [] } as any);
     useAppStore.getState().selectComponents(['C1', 'C2']);
-    expect(useAppStore.getState().selectedComponentIds).toEqual(['C1', 'C2']);
+    expect(useAppStore.getState().selectedComponentPaths).toEqual([['C1'], ['C2']]);
   });
 
-  it('selectComponent shim accepts string | null and writes a one-element array', () => {
+  it('selectComponent shim accepts string | null and writes a one-element path', () => {
     useAppStore.getState().selectComponent('C7');
-    expect(useAppStore.getState().selectedComponentIds).toEqual(['C7']);
+    expect(useAppStore.getState().selectedComponentPaths).toEqual([['C7']]);
     useAppStore.getState().selectComponent(null);
-    expect(useAppStore.getState().selectedComponentIds).toEqual([]);
+    expect(useAppStore.getState().selectedComponentPaths).toEqual([]);
+  });
+
+  it('selectComponentPaths replaces the array', () => {
+    useAppStore.setState({ selectedComponentPaths: [] } as any);
+    useAppStore.getState().selectComponentPaths([['drawer', 'screw'], ['leg']]);
+    expect(useAppStore.getState().selectedComponentPaths).toEqual([['drawer', 'screw'], ['leg']]);
+  });
+});
+
+describe('useAppStore subAssembly slices (4d T18)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      subAssemblyDocs: {},
+      subAssemblyDiagnostics: [],
+      expandedSubAsmPaths: new Set<string>(),
+    } as any);
+  });
+
+  it('useAppStore tracks subAssemblyDocs by partPath', () => {
+    const doc: AssemblyDocument = {
+      id: 'a-id', name: 'a', units: 'mm', parameters: {},
+      components: [], constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    };
+    useAppStore.getState().setSubAssemblyDocs({ 'a.ziasm': doc });
+    expect(useAppStore.getState().subAssemblyDocs['a.ziasm']?.id).toBe('a-id');
+  });
+
+  it('useAppStore tracks subAssemblyDiagnostics', () => {
+    useAppStore.getState().setSubAssemblyDiagnostics([
+      { partPath: 'a.ziasm', kind: 'cycle', message: 'x' },
+    ]);
+    expect(useAppStore.getState().subAssemblyDiagnostics).toHaveLength(1);
+    expect(useAppStore.getState().subAssemblyDiagnostics[0]!.kind).toBe('cycle');
+  });
+
+  it('toggleSubAsmExpanded toggles a path key', () => {
+    const k = pathKey(['drawer']);
+    useAppStore.getState().toggleSubAsmExpanded(k);
+    expect(useAppStore.getState().expandedSubAsmPaths.has(k)).toBe(true);
+    useAppStore.getState().toggleSubAsmExpanded(k);
+    expect(useAppStore.getState().expandedSubAsmPaths.has(k)).toBe(false);
   });
 });
 
