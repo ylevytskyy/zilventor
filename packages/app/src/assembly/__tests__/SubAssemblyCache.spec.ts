@@ -79,6 +79,18 @@ describe('SubAssemblyCache', () => {
     expect(b).not.toBe(a);
     expect(b.kind).toBe('ok');
   });
+
+  it('entriesAsRecord returns only ok entries keyed by partPath', async () => {
+    const drawerDoc = makeDoc('drawer-id', 'drawer');
+    await opfs.write('drawer.ziasm', await packAssembly(drawerDoc, new Uint8Array()));
+    const cache = new SubAssemblyCache(opfs as any);
+    expect(cache.entriesAsRecord()).toEqual({});
+    await cache.loadSubAssembly('drawer.ziasm');
+    await cache.loadSubAssembly('missing.ziasm');
+    const rec = cache.entriesAsRecord();
+    expect(Object.keys(rec)).toEqual(['drawer.ziasm']);
+    expect(rec['drawer.ziasm']!.name).toBe('drawer');
+  });
 });
 
 describe('SubAssemblyCache.loadSubAssemblyTree', () => {

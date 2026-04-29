@@ -79,7 +79,7 @@ import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/share
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
-import type { ComponentInstance } from '@zilventor/shared';
+import type { ComponentInstance, AssemblyDocument } from '@zilventor/shared';
 import * as THREE from 'three';
 import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraintSolver';
 import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/src/assembly/AssemblyConstraintRefs';
@@ -1818,6 +1818,163 @@ export default function App() {
       // __zilventorBomCsvBytes is set by ExportBomCsvCommand on each apply().
     }
   }, []);
+
+  // 4d E2E dev hooks (T33): expose sub-asm cache + componentPath introspection.
+  // No long-lived SubAssemblyCache instance exists in App.tsx yet (Phase 9
+  // deferred that wiring); the source of truth is the store's subAssemblyDocs
+  // mirror, which BomTable + the autosave + mesh-sync effects all read from.
+  // The invalidate/reload hooks therefore round-trip via OPFS:
+  // unpackAssembly → setSubAssemblyDocs → setSolverDirty.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as unknown as Record<string, unknown>;
+    w.__zilventorSubAsmCacheGet = (p: string) =>
+      useAppStore.getState().subAssemblyDocs[p];
+    w.__zilventorComponentPathToLeafCount = (path: string[]): number => {
+      const a = useAppStore.getState().activeAssembly;
+      if (!a) return 0;
+      const docs = useAppStore.getState().subAssemblyDocs;
+      const adapter = {
+        get: (p: string) => docs[p]
+          ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
+          : undefined,
+      };
+      return visibleLeaves(a, adapter).filter(
+        (l) => l.componentPath.length >= path.length
+          && path.every((p, i) => l.componentPath[i] === p),
+      ).length;
+    };
+    w.__zilventorComposedPoseFor = (path: string[]): Pose | undefined => {
+      const a = useAppStore.getState().activeAssembly;
+      if (!a || path.length === 0) return undefined;
+      const docs = useAppStore.getState().subAssemblyDocs;
+      const cps = useAppStore.getState().componentPoses;
+      // Mirrors the mesh-sync composeAlongPath logic: top-level uses the
+      // solver pose (or initial Euler), each deeper segment composes parent
+      // ⊕ child via composePoses.
+      function topLevelPose(id: string): Pose | undefined {
+        const sp = cps.get(id);
+        if (sp) return sp;
+        const c = a!.components.find((x) => x.id === id);
+        if (!c) return undefined;
+        return {
+          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+          quaternion: quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
+        };
+      }
+      if (path.length === 1) return topLevelPose(path[0]!);
+      // Walk into nested .ziasm docs along the ancestor segments, then
+      // compose parent ⊕ local for the leaf.
+      let cursorDoc: typeof a | undefined = a;
+      let parentPose: Pose | undefined = topLevelPose(path[0]!);
+      const top = a.components.find((x) => x.id === path[0]);
+      if (!top) return undefined;
+      if (top.partPath.endsWith('.ziasm')) cursorDoc = docs[top.partPath];
+      else if (path.length > 1) return undefined;
+      for (let i = 1; i < path.length - 1; i++) {
+        if (!cursorDoc || !parentPose) return undefined;
+        const c = cursorDoc.components.find((x) => x.id === path[i]);
+        if (!c) return undefined;
+        const localPose: Pose = {
+          translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+          quaternion: quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
+        };
+        parentPose = composePoses(parentPose, localPose);
+        if (c.partPath.endsWith('.ziasm')) cursorDoc = docs[c.partPath];
+        else return undefined;
+      }
+      if (!cursorDoc || !parentPose) return undefined;
+      const leafId = path[path.length - 1]!;
+      const c = cursorDoc.components.find((x) => x.id === leafId);
+      if (!c) return undefined;
+      const localPose: Pose = {
+        translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+        quaternion: quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
+      };
+      return composePoses(parentPose, localPose);
+    };
+    w.__zilventorSubAsmInvalidate = async (p: string): Promise<void> => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const docs = { ...useAppStore.getState().subAssemblyDocs };
+      delete docs[p];
+      try {
+        if (await opfs.exists(p)) {
+          const reloaded = await unpackAssembly(await opfs.read(p));
+          docs[p] = reloaded;
+        }
+      } catch { /* leave dropped on parse failure */ }
+      useAppStore.getState().setSubAssemblyDocs(docs);
+      useAppStore.getState().setSolverDirty(true);
+    };
+    w.__zilventorSubAsmInvalidateAll = async (): Promise<void> => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const a = useAppStore.getState().activeAssembly;
+      const docs: Record<string, AssemblyDocument> = {};
+      if (a) {
+        const seen = new Set<string>();
+        const stack: AssemblyDocument[] = [a];
+        while (stack.length) {
+          const d = stack.pop()!;
+          for (const c of d.components) {
+            if (!c.partPath.endsWith('.ziasm')) continue;
+            if (seen.has(c.partPath)) continue;
+            seen.add(c.partPath);
+            try {
+              if (await opfs.exists(c.partPath)) {
+                const sub = await unpackAssembly(await opfs.read(c.partPath));
+                docs[c.partPath] = sub;
+                stack.push(sub);
+              }
+            } catch { /* skip parse failures */ }
+          }
+        }
+      }
+      useAppStore.getState().setSubAssemblyDocs(docs);
+      useAppStore.getState().setSolverDirty(true);
+    };
+    w.__zilventorLoadSubAsmTree = async (): Promise<void> => {
+      // Same walk as InvalidateAll but additive: keep already-loaded docs,
+      // only fetch the ones missing from the store mirror.
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const a = useAppStore.getState().activeAssembly;
+      if (!a) return;
+      const docs = { ...useAppStore.getState().subAssemblyDocs };
+      const seen = new Set<string>();
+      const stack: AssemblyDocument[] = [a];
+      while (stack.length) {
+        const d = stack.pop()!;
+        for (const c of d.components) {
+          if (!c.partPath.endsWith('.ziasm')) continue;
+          if (seen.has(c.partPath)) continue;
+          seen.add(c.partPath);
+          if (docs[c.partPath]) {
+            stack.push(docs[c.partPath]!);
+            continue;
+          }
+          try {
+            if (await opfs.exists(c.partPath)) {
+              const sub = await unpackAssembly(await opfs.read(c.partPath));
+              docs[c.partPath] = sub;
+              stack.push(sub);
+            }
+          } catch { /* skip parse failures */ }
+        }
+      }
+      useAppStore.getState().setSubAssemblyDocs(docs);
+    };
+    return () => {
+      delete w.__zilventorSubAsmCacheGet;
+      delete w.__zilventorComponentPathToLeafCount;
+      delete w.__zilventorComposedPoseFor;
+      delete w.__zilventorSubAsmInvalidate;
+      delete w.__zilventorSubAsmInvalidateAll;
+      delete w.__zilventorLoadSubAsmTree;
+    };
+  }, []);
+
 
 
   const onPickSlot = useCallback((slot: 'A' | 'B') => {

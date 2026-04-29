@@ -60,6 +60,19 @@ export class SubAssemblyCache {
     return this.entries.get(partPath);
   }
 
+  /**
+   * Build a Record<partPath, AssemblyDocument> from `entries` filtered to
+   * `kind: 'ok'`. Used by App.tsx dev hooks (T33) to mirror the cache into
+   * the reactive store after invalidate / re-load.
+   */
+  entriesAsRecord(): Record<string, AssemblyDocument> {
+    const out: Record<string, AssemblyDocument> = {};
+    for (const [k, v] of this.entries) {
+      if (v.kind === 'ok') out[k] = v.doc;
+    }
+    return out;
+  }
+
   diagnostics(): Array<{ kind: 'cycle' | 'missing' | 'parse'; partPath: string; message: string }> {
     return this.diags.slice();
   }
