@@ -714,7 +714,9 @@ export default function App() {
             T: c.position,
             q: c.pose?.quaternion ?? quatFromEulerXYZ(c.rotation.rx, c.rotation.ry, c.rotation.rz),
           })),
-          groundedComponentIds: solverAssembly.groundedComponentPaths.map((p) => p[0]!),
+          groundedComponentIds: solverAssembly.groundedComponentPaths
+            .map((p) => p[0])
+            .filter((id): id is string => typeof id === 'string'),
           constraints: solverAssembly.constraints,
           resolvedRefs,
           paramValues,

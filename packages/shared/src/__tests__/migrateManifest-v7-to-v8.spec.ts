@@ -94,6 +94,29 @@ describe('v7 → v8 migration', () => {
     expect(v8.document.constraints[0].refA.axis).toEqual({ source: 'workAxis', featureId: 'origin.X' });
   });
 
+  it('migrates a point-kind ref: componentId → componentPath, preserves point source', () => {
+    const v7: any = {
+      formatVersion: 7,
+      kind: 'assembly',
+      createdAt: '', appVersion: '',
+      document: {
+        id: 'a', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [
+          {
+            id: 'm1', kind: 'mate',
+            refA: { kind: 'point', componentId: 'A', point: { source: 'workPoint', featureId: 'origin.O' } },
+            refB: { kind: 'point', componentId: 'B', point: { source: 'workPoint', featureId: 'origin.O' } },
+            offset: { kind: 'literal', value: 0 },
+            suppressed: false,
+          },
+        ],
+        groundedComponentIds: [], colors: {}, bomItemNumbers: {},
+      },
+    };
+    const v8 = migrateManifest(v7) as any;
+    expect(v8.document.constraints[0].refA.componentPath).toEqual(['A']);
+    expect(v8.document.constraints[0].refA.point).toEqual({ source: 'workPoint', featureId: 'origin.O' });
+  });
+
   it('migrates a part document idempotently (no assembly fields touched)', () => {
     const v7: any = {
       formatVersion: 7,

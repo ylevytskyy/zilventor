@@ -57,7 +57,9 @@ function resolveOffset(p: any, paramValues: Record<string, number>): number {
 }
 
 function refComponentId(k: AssemblyConstraint, side: 'A' | 'B'): string {
-  return side === 'A' ? k.refA.componentPath[0]! : k.refB.componentPath[0]!;
+  const id = side === 'A' ? k.refA.componentPath[0] : k.refB.componentPath[0];
+  if (typeof id !== 'string') throw new Error(`empty componentPath on constraint ${k.id} ref${side}`);
+  return id;
 }
 
 function buildSingleResidual(
