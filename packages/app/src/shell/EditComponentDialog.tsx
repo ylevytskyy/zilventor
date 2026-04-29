@@ -3,6 +3,7 @@ import type { ComponentColor, ComponentInstance } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { ColorPicker } from './ColorPicker';
 import { SetComponentColorCommand } from '../commands/SetComponentColorCommand';
+import { ToggleSubAssemblyFlexibleCommand } from '../commands/ToggleSubAssemblyFlexibleCommand';
 
 type Props = {
   initial: ComponentInstance;
@@ -29,6 +30,12 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
   const [visible, setVisible] = useState(initial.visible);
   const [color, setColor] = useState<ComponentColor | undefined>(initial.color);
   const palette = useAppStore((s) => s.activeAssembly?.colors ?? {});
+  const subAsmDoc = useAppStore((s) => s.subAssemblyDocs[initial.partPath]);
+  const isSubAssembly = initial.partPath.endsWith('.ziasm');
+  const subAsmLeafCount = subAsmDoc?.components.length ?? 0;
+  const flexibleChecked = !!useAppStore((s) =>
+    s.activeAssembly?.components.find((c) => c.id === initial.id)?.flexible,
+  );
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
@@ -86,6 +93,25 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
         />
         <span>visible</span>
       </label>
+
+      {isSubAssembly && (
+        <div style={{ marginBottom: 8 }}>
+          <div role="status" style={{ color: '#aaa', fontSize: 11, marginBottom: 4 }}>
+            Sub-assembly ({subAsmLeafCount} components)
+          </div>
+          <label style={row}>
+            <input
+              type="checkbox"
+              aria-label="flexible"
+              checked={flexibleChecked}
+              onChange={() => {
+                void new ToggleSubAssemblyFlexibleCommand({ componentId: initial.id }).apply();
+              }}
+            />
+            <span>Flexible</span>
+          </label>
+        </div>
+      )}
 
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>Color</div>

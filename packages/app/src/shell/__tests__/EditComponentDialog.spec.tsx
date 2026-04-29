@@ -121,3 +121,89 @@ describe('EditComponentDialog — color row (4c)', () => {
     expect(a.components[0]!.color).toEqual({ kind: 'palette', name: 'Cherry' });
   });
 });
+
+describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
+  const seedSubAsm = (component: ComponentInstance, subAsmDocs: Record<string, AssemblyDocument> = {}): void => {
+    const assembly: AssemblyDocument = {
+      id: 'A', name: 'A', units: 'mm', parameters: {},
+      components: [component],
+      constraints: [], groundedComponentPaths: [[component.id]],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    };
+    useAppStore.setState({
+      activeAssembly: assembly,
+      activeDocument: { kind: 'assembly', document: assembly },
+      editingComponentId: component.id,
+      subAssemblyDocs: subAsmDocs,
+    } as any);
+  };
+
+  it('renders a Flexible checkbox and Sub-assembly label for .ziasm placements', () => {
+    const subAsmDoc: AssemblyDocument = {
+      id: 'SA', name: 'drawer', units: 'mm', parameters: {},
+      components: [
+        { id: 'X1', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'X2', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'X3', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    };
+    const subPlacement: ComponentInstance = {
+      id: 'SUB1', partPath: 'sub/drawer.ziasm',
+      position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+    };
+    seedSubAsm(subPlacement, { 'sub/drawer.ziasm': subAsmDoc });
+    render(
+      <EditComponentDialog
+        initial={subPlacement}
+        onCommit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText(/flexible/i)).toBeInTheDocument();
+    expect(screen.getByText(/sub-assembly \(3 components\)/i)).toBeInTheDocument();
+  });
+
+  it('does not render the Flexible row for .zipt placements', () => {
+    const ziptPlacement: ComponentInstance = {
+      id: 'C1', partPath: 'parts/leg.zipt',
+      position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+    };
+    seedSubAsm(ziptPlacement, {});
+    render(
+      <EditComponentDialog
+        initial={ziptPlacement}
+        onCommit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.queryByLabelText(/flexible/i)).toBeNull();
+    expect(screen.queryByText(/sub-assembly/i)).toBeNull();
+  });
+
+  it('toggling Flexible dispatches ToggleSubAssemblyFlexibleCommand (sets flexible:true)', async () => {
+    const subPlacement: ComponentInstance = {
+      id: 'SUB1', partPath: 'sub/drawer.ziasm',
+      position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+    };
+    seedSubAsm(subPlacement, { 'sub/drawer.ziasm': {
+      id: 'SA', name: 'drawer', units: 'mm', parameters: {},
+      components: [],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    } as AssemblyDocument });
+    render(
+      <EditComponentDialog
+        initial={subPlacement}
+        onCommit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText(/flexible/i));
+    // Allow async apply() to flush.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(useAppStore.getState().activeAssembly!.components[0]!.flexible).toBe(true);
+  });
+});
