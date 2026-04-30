@@ -1,9 +1,10 @@
 import { useAppStore } from '../store/useAppStore';
 import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { buildBomCsv } from './buildBomCsv';
+import type { PartInfo } from '@zilventor/shared';
 
 export class ExportBomCsvCommand {
-  constructor(private opts: { partNames: Map<string, string> }) {}
+  constructor(private opts: { partInfo: Map<string, PartInfo> }) {}
   async apply(): Promise<void> {
     const a = useAppStore.getState().activeAssembly;
     if (!a) return;
@@ -16,7 +17,7 @@ export class ExportBomCsvCommand {
           ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
           : undefined,
     };
-    const rows = aggregateBomRecursive(a, cache, this.opts.partNames);
+    const rows = aggregateBomRecursive(a, cache, this.opts.partInfo);
     const csv = buildBomCsv(rows);
     const bytes = new TextEncoder().encode(csv);
     const suggestedName = `${a.name}-bom.csv`;

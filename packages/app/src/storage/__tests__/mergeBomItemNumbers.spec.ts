@@ -20,8 +20,8 @@ describe('mergeAndPruneBom', () => {
       ],
       bomItemNumbers: { 'parts/cube.zipt::none': 5, 'parts/orphan.zipt::none': 99 },
     });
-    const partNames = new Map([['parts/cube.zipt', 'cube'], ['parts/leg.zipt', 'leg']]);
-    const out = mergeAndPruneBom(a, partNames, { get: () => undefined });
+    const partInfo = new Map([['parts/cube.zipt', { name: 'cube' }], ['parts/leg.zipt', { name: 'leg' }]]);
+    const out = mergeAndPruneBom(a, partInfo, { get: () => undefined });
     expect(out.bomItemNumbers['parts/cube.zipt::none']).toBe(5);            // preserved
     expect(out.bomItemNumbers['parts/leg.zipt::none']).toBe(6);              // newly assigned (max + 1)
     expect(out.bomItemNumbers['parts/orphan.zipt::none']).toBeUndefined();   // pruned

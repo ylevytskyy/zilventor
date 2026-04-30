@@ -6,3 +6,4 @@ export * from './fileFormat';
 export * from './constraints';
 export { inferFromGeometry } from './inferFromGeometry';
 export * from './componentPath';
+export * from './partInfo';

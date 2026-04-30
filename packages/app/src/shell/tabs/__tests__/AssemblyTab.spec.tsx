@@ -92,7 +92,7 @@ describe('AssemblyTab BOM panel', () => {
     expect(useAppStore.getState().bomTabActive).toBe(true);
   });
 
-  it('Renumber button assigns 1..N item numbers using provided partNames', async () => {
+  it('Renumber button assigns 1..N item numbers using provided partInfo', async () => {
     const asm: AssemblyDocument = {
       id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
       components: [
@@ -102,11 +102,11 @@ describe('AssemblyTab BOM panel', () => {
       constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {},
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
-    const partNames = new Map([
-      ['parts/alpha.zipt', 'alpha'],
-      ['parts/zelda.zipt', 'zelda'],
+    const partInfo = new Map([
+      ['parts/alpha.zipt', { name: 'alpha' }],
+      ['parts/zelda.zipt', { name: 'zelda' }],
     ]);
-    render(<AssemblyTab partNames={partNames} />);
+    render(<AssemblyTab partInfo={partInfo} />);
     fireEvent.click(screen.getByRole('button', { name: /^Renumber$/i }));
     await Promise.resolve();
     await Promise.resolve();

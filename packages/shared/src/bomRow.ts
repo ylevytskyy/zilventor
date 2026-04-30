@@ -1,4 +1,5 @@
 import type { AssemblyDocument, ComponentColor, ComponentInstance } from './types';
+import type { PartInfo } from './partInfo';
 
 export function bomRowKey(partPath: string, color?: ComponentColor): string {
   if (!color) return `${partPath}::none`;
@@ -12,6 +13,8 @@ export type BomRow = {
   qty: number;
   partPath: string;
   partName: string;
+  partNumber?: string;
+  description?: string;
   color: ComponentColor | undefined;
   componentIds: string[];
 };
@@ -22,7 +25,7 @@ function effectiveColor(c: ComponentInstance, palette: Record<string, string>): 
   return c.color;
 }
 
-export function aggregateBom(assembly: AssemblyDocument, partNames: Map<string, string>): BomRow[] {
+export function aggregateBom(assembly: AssemblyDocument, partInfo: Map<string, PartInfo>): BomRow[] {
   const groups = new Map<string, { partPath: string; color: ComponentColor | undefined; componentIds: string[] }>();
   for (const c of assembly.components) {
     const color = effectiveColor(c, assembly.colors);
@@ -40,12 +43,15 @@ export function aggregateBom(assembly: AssemblyDocument, partNames: Map<string, 
     if (itemNumber === undefined) {
       itemNumber = nextNumber++;
     }
+    const info = partInfo.get(g.partPath);
     rows.push({
       rowKey,
       itemNumber,
       qty: g.componentIds.length,
       partPath: g.partPath,
-      partName: partNames.get(g.partPath) ?? '(missing part)',
+      partName: info?.name ?? '(missing part)',
+      ...(info?.partNumber !== undefined ? { partNumber: info.partNumber } : {}),
+      ...(info?.description !== undefined ? { description: info.description } : {}),
       color: g.color,
       componentIds: [...g.componentIds],
     });

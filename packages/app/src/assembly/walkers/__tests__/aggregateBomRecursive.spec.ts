@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AssemblyDocument } from '@zilventor/shared';
+import type { AssemblyDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { aggregateBomRecursive } from '../aggregateBomRecursive';
 import type { SubAssemblyCache } from '../../SubAssemblyCache';
@@ -11,7 +11,9 @@ function doc(over: Partial<AssemblyDocument> = {}): AssemblyDocument {
 function stubCache(map: Map<string, AssemblyDocument>): SubAssemblyCache {
   return { get: (p: string) => map.has(p) ? { kind: 'ok', doc: map.get(p)!, partPath: p } as const : undefined } as unknown as SubAssemblyCache;
 }
-const names = (m: Record<string, string>) => new Map(Object.entries(m));
+const names = (m: Record<string, string>) =>
+  new Map<string, PartInfo>(Object.entries(m).map(([k, v]) => [k, { name: v }]));
+const infos = (m: Record<string, PartInfo>) => new Map<string, PartInfo>(Object.entries(m));
 
 describe('aggregateBomRecursive', () => {
   it('aggregates leaves across a 2-level tree by partPath', () => {
@@ -53,5 +55,26 @@ describe('aggregateBomRecursive', () => {
     const rows = aggregateBomRecursive(top, stubCache(new Map()), names({ 'cube.zipt': 'Cube' }));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.partPath).toBe('cube.zipt');
+  });
+
+  it('propagates partNumber and description into rows when present in PartInfo', () => {
+    const top = doc({ components: [
+      { id: 'C1', partPath: 'panel.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const rows = aggregateBomRecursive(top, stubCache(new Map()),
+      infos({ 'panel.zipt': { name: 'Panel', partNumber: 'PN-1', description: 'Side panel' } }));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.partName).toBe('Panel');
+    expect(rows[0]!.partNumber).toBe('PN-1');
+    expect(rows[0]!.description).toBe('Side panel');
+  });
+
+  it('omits partNumber and description when PartInfo lacks them', () => {
+    const top = doc({ components: [
+      { id: 'C1', partPath: 'panel.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const rows = aggregateBomRecursive(top, stubCache(new Map()), names({ 'panel.zipt': 'Panel' }));
+    expect(rows[0]!.partNumber).toBeUndefined();
+    expect(rows[0]!.description).toBeUndefined();
   });
 });

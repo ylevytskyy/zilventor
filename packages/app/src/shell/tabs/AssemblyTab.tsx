@@ -8,15 +8,16 @@ import { DeleteAssemblyConstraintCommand } from '../../commands/DeleteAssemblyCo
 import { ToggleConstraintSuppressionCommand } from '../../commands/ToggleConstraintSuppressionCommand';
 import { OpenBomTabCommand } from '../../commands/OpenBomTabCommand';
 import { RenumberBomCommand } from '../../commands/RenumberBomCommand';
+import type { PartInfo } from '@zilventor/shared';
 
 const btn: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
   padding: '4px 10px', cursor: 'pointer', fontSize: 11, marginRight: 4,
 };
 
-type Props = { partNames?: Map<string, string> };
+type Props = { partInfo?: Map<string, PartInfo> };
 
-export function AssemblyTab({ partNames }: Props = {}): JSX.Element {
+export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   const selectedId = useAppStore((s) => {
     const p = s.selectedComponentPaths[0];
     return p ? p[p.length - 1] ?? null : null;
@@ -144,7 +145,7 @@ export function AssemblyTab({ partNames }: Props = {}): JSX.Element {
           aria-label="Renumber"
           disabled={!hasAssembly}
           onClick={async () => {
-            const cmd = new RenumberBomCommand({ partNames: partNames ?? new Map() });
+            const cmd = new RenumberBomCommand({ partInfo: partInfo ?? new Map() });
             await cmd.apply();
           }}
           style={btn}

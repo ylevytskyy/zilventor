@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { bomRowKey, aggregateBom, type BomRow } from '../bomRow';
+import type { PartInfo } from '../partInfo';
 import type { AssemblyDocument } from '../types';
 
 function makeAssembly(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
@@ -43,7 +44,7 @@ describe('aggregateBom', () => {
         { id: 'C3', partPath: 'parts/cube.zipt', position: { x: 2, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
     });
-    const rows = aggregateBom(a, new Map([['parts/cube.zipt', 'cube']]));
+    const rows = aggregateBom(a, new Map([['parts/cube.zipt', { name: 'cube' }]]));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.qty).toBe(3);
     expect(rows[0]!.partName).toBe('cube');
@@ -58,7 +59,7 @@ describe('aggregateBom', () => {
         { id: 'C2', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, color: { kind: 'palette', name: 'Maple' } },
       ],
     });
-    const rows = aggregateBom(a, new Map([['parts/cube.zipt', 'cube']]));
+    const rows = aggregateBom(a, new Map([['parts/cube.zipt', { name: 'cube' }]]));
     expect(rows).toHaveLength(2);
   });
 
@@ -70,7 +71,7 @@ describe('aggregateBom', () => {
       ],
       bomItemNumbers: { 'parts/a.zipt::none': 5 },
     });
-    const rows = aggregateBom(a, new Map([['parts/a.zipt', 'a'], ['parts/b.zipt', 'b']]));
+    const rows = aggregateBom(a, new Map<string, PartInfo>([['parts/a.zipt', { name: 'a' }], ['parts/b.zipt', { name: 'b' }]]));
     const aRow = rows.find((r) => r.partPath === 'parts/a.zipt')!;
     const bRow = rows.find((r) => r.partPath === 'parts/b.zipt')!;
     expect(aRow.itemNumber).toBe(5);
@@ -85,7 +86,7 @@ describe('aggregateBom', () => {
       ],
       bomItemNumbers: { 'parts/a.zipt::none': 7, 'parts/b.zipt::none': 3 },
     });
-    const rows = aggregateBom(a, new Map([['parts/a.zipt', 'a'], ['parts/b.zipt', 'b']]));
+    const rows = aggregateBom(a, new Map<string, PartInfo>([['parts/a.zipt', { name: 'a' }], ['parts/b.zipt', { name: 'b' }]]));
     expect(rows.map((r) => r.itemNumber)).toEqual([3, 7]);
   });
 
@@ -96,7 +97,7 @@ describe('aggregateBom', () => {
         { id: 'C1', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, color: { kind: 'palette', name: 'GoneAway' } },
       ],
     });
-    const rows = aggregateBom(a, new Map([['parts/cube.zipt', 'cube']]));
+    const rows = aggregateBom(a, new Map([['parts/cube.zipt', { name: 'cube' }]]));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.color).toBeUndefined();
   });
@@ -109,6 +110,29 @@ describe('aggregateBom', () => {
     });
     const rows = aggregateBom(a, new Map());
     expect(rows[0]!.partName).toBe('(missing part)');
+  });
+
+  it('propagates partNumber and description from PartInfo into rows when present', () => {
+    const a = makeAssembly({
+      components: [
+        { id: 'C1', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    const info: PartInfo = { name: 'cube', partNumber: 'CUBE-001', description: 'A test cube' };
+    const rows = aggregateBom(a, new Map([['parts/cube.zipt', info]]));
+    expect(rows[0]!.partNumber).toBe('CUBE-001');
+    expect(rows[0]!.description).toBe('A test cube');
+  });
+
+  it('omits partNumber and description on rows when absent in PartInfo', () => {
+    const a = makeAssembly({
+      components: [
+        { id: 'C1', partPath: 'parts/cube.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    const rows = aggregateBom(a, new Map([['parts/cube.zipt', { name: 'cube' }]]));
+    expect(rows[0]!.partNumber).toBeUndefined();
+    expect(rows[0]!.description).toBeUndefined();
   });
 });
 

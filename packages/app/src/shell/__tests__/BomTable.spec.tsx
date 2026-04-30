@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { BomTable } from '../BomTable';
 import { useAppStore } from '../../store/useAppStore';
-import type { AssemblyDocument } from '@zilventor/shared';
+import type { AssemblyDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { bomRowKey } from '@zilventor/shared/src/bomRow';
 
@@ -36,6 +36,11 @@ function rowFor(partName: string): HTMLElement {
   return screen.getByText(partName).closest('tr') as HTMLElement;
 }
 
+const basicPartInfo = (): Map<string, PartInfo> => new Map([
+  ['parts/cube.zipt', { name: 'cube' }],
+  ['parts/shelf.zipt', { name: 'shelf' }],
+]);
+
 describe('BomTable', () => {
   beforeEach(() => {
     useAppStore.setState({
@@ -48,29 +53,21 @@ describe('BomTable', () => {
 
   it('renders one row per aggregated row with Item#, QTY, partName', () => {
     seedAssembly(makeAsm());
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
-    render(<BomTable partNames={partNames} />);
+    render(<BomTable partInfo={basicPartInfo()} />);
     expect(screen.getByText('cube')).toBeInTheDocument();
     expect(screen.getByText('shelf')).toBeInTheDocument();
     const rows = screen.getAllByRole('row');
     // header + 2 rows
     expect(rows.length).toBe(3);
-    // cube row should have qty=2
+    // cube row should have qty=2 (column index moved: Item# | Part # | Description | QTY | ...)
     const cubeRow = rowFor('cube');
     const cubeCells = within(cubeRow).getAllByRole('cell');
-    expect(cubeCells[1]!.textContent).toBe('2'); // QTY
+    expect(cubeCells[3]!.textContent).toBe('2'); // QTY
   });
 
   it('clicking a row calls selectComponents with the row component ids', () => {
     seedAssembly(makeAsm());
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
-    render(<BomTable partNames={partNames} />);
+    render(<BomTable partInfo={basicPartInfo()} />);
     fireEvent.click(screen.getByText('cube'));
     const sel = useAppStore.getState().selectedComponentPaths;
     const leafIds = sel.map((p) => p[p.length - 1] ?? '');
@@ -79,11 +76,7 @@ describe('BomTable', () => {
 
   it('clicking the Item# cell switches to inline input; blurring fires SetBomItemNumberCommand', () => {
     seedAssembly(makeAsm());
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
-    render(<BomTable partNames={partNames} />);
+    render(<BomTable partInfo={basicPartInfo()} />);
     const cubeKey = bomRowKey('parts/cube.zipt', undefined);
     const cubeRow = rowFor('cube');
     const cubeItemCell = within(cubeRow).getAllByRole('cell')[0]!;
@@ -98,11 +91,7 @@ describe('BomTable', () => {
     const cubeKey = bomRowKey('parts/cube.zipt', undefined);
     const shelfKey = bomRowKey('parts/shelf.zipt', undefined);
     seedAssembly(makeAsm({ bomItemNumbers: { [cubeKey]: 1, [shelfKey]: 2 } }));
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
-    render(<BomTable partNames={partNames} />);
+    render(<BomTable partInfo={basicPartInfo()} />);
     const cubeRow = rowFor('cube');
     const cubeItemCell = within(cubeRow).getAllByRole('cell')[0]!;
     fireEvent.click(within(cubeItemCell).getByText('1'));
@@ -118,11 +107,7 @@ describe('BomTable', () => {
     const cubeKey = bomRowKey('parts/cube.zipt', undefined);
     const shelfKey = bomRowKey('parts/shelf.zipt', undefined);
     seedAssembly(makeAsm({ bomItemNumbers: { [cubeKey]: 1, [shelfKey]: 2 } }));
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
-    render(<BomTable partNames={partNames} />);
+    render(<BomTable partInfo={basicPartInfo()} />);
     const cubeRow = rowFor('cube');
     const cubeItemCell = within(cubeRow).getAllByRole('cell')[0]!;
     fireEvent.click(within(cubeItemCell).getByText('1'));
@@ -146,8 +131,8 @@ describe('BomTable', () => {
       ],
     });
     seedAssembly(asm);
-    const partNames = new Map([['parts/cube.zipt', 'cube']]);
-    render(<BomTable partNames={partNames} />);
+    const partInfo = new Map<string, PartInfo>([['parts/cube.zipt', { name: 'cube' }]]);
+    render(<BomTable partInfo={partInfo} />);
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByText('Cherry')).toBeInTheDocument();
   });
@@ -165,8 +150,8 @@ describe('BomTable', () => {
       ],
     });
     seedAssembly(asm);
-    const partNames = new Map([['parts/cube.zipt', 'cube']]);
-    render(<BomTable partNames={partNames} />);
+    const partInfo = new Map<string, PartInfo>([['parts/cube.zipt', { name: 'cube' }]]);
+    render(<BomTable partInfo={partInfo} />);
     fireEvent.click(screen.getByText('Cherry'));
     const select = screen.getByLabelText('component-color') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: '__none__' } });
@@ -197,12 +182,12 @@ describe('BomTable', () => {
     });
     seedAssembly(top);
     useAppStore.getState().setSubAssemblyDocs({ [subAsmPath]: subDoc });
-    const partNames = new Map([['parts/cube.zipt', 'cube']]);
-    render(<BomTable partNames={partNames} />);
-    // qty=2 row for cube via 2 leaves inside the sub-asm
+    const partInfo = new Map<string, PartInfo>([['parts/cube.zipt', { name: 'cube' }]]);
+    render(<BomTable partInfo={partInfo} />);
+    // qty=2 row for cube via 2 leaves inside the sub-asm; QTY is 4th column
     const cubeRow = rowFor('cube');
     const cubeCells = within(cubeRow).getAllByRole('cell');
-    expect(cubeCells[1]!.textContent).toBe('2');
+    expect(cubeCells[3]!.textContent).toBe('2');
     // Click the color cell (currently '—'), then pick palette Cherry
     fireEvent.click(within(cubeRow).getByText('—'));
     const select = screen.getByLabelText('component-color') as HTMLSelectElement;
@@ -218,10 +203,6 @@ describe('BomTable', () => {
 
   it('Export CSV button invokes ExportBomCsvCommand (showSaveFilePicker is called)', async () => {
     seedAssembly(makeAsm());
-    const partNames = new Map([
-      ['parts/cube.zipt', 'cube'],
-      ['parts/shelf.zipt', 'shelf'],
-    ]);
     const writes: Uint8Array[] = [];
     const mockHandle = {
       createWritable: async () => ({
@@ -232,7 +213,7 @@ describe('BomTable', () => {
     const picker = vi.fn(async () => mockHandle);
     (globalThis as any).showSaveFilePicker = picker;
     try {
-      render(<BomTable partNames={partNames} />);
+      render(<BomTable partInfo={basicPartInfo()} />);
       fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));
@@ -240,5 +221,25 @@ describe('BomTable', () => {
     } finally {
       delete (globalThis as any).showSaveFilePicker;
     }
+  });
+
+  it('renders Part # and Description columns and shows their values for parts with iProperties', () => {
+    seedAssembly(makeAsm());
+    const partInfo = new Map<string, PartInfo>([
+      ['parts/cube.zipt', { name: 'cube', partNumber: 'CUBE-001', description: 'A test cube' }],
+      ['parts/shelf.zipt', { name: 'shelf' }],
+    ]);
+    render(<BomTable partInfo={partInfo} />);
+    // Header columns include Part # and Description
+    expect(screen.getByText('Part #')).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    // cube row populates partNumber + description
+    expect(screen.getByText('CUBE-001')).toBeInTheDocument();
+    expect(screen.getByText('A test cube')).toBeInTheDocument();
+    // shelf row leaves them as empty cells
+    const shelfRow = rowFor('shelf');
+    const shelfCells = within(shelfRow).getAllByRole('cell');
+    expect(shelfCells[1]!.textContent).toBe('');
+    expect(shelfCells[2]!.textContent).toBe('');
   });
 });

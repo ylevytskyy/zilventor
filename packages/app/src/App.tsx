@@ -91,7 +91,8 @@ import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
-import { resolvePartName } from './shell/resolvePartName';
+import { resolvePartInfo } from './shell/resolvePartInfo';
+import type { PartInfo } from '@zilventor/shared';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
 import { computeInnerStaticPoses } from './assembly/computeInnerStaticPoses';
 import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
@@ -1819,12 +1820,12 @@ export default function App() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
-  const partNameCacheRef = useRef<Map<string, string>>(new Map());
-  // Bumped after each resolvePartName population pass so consumers re-render.
-  const [partNamesVersion, setPartNamesVersion] = useState(0);
-  // Snapshot whose identity changes whenever the partNames cache mutates,
+  const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
+  // Bumped after each resolvePartInfo population pass so consumers re-render.
+  const [partInfoVersion, setPartInfoVersion] = useState(0);
+  // Snapshot whose identity changes whenever the partInfo cache mutates,
   // so memoised consumers (BomTable) recompute.
-  const partNamesSnapshot = useMemo(() => new Map(partNameCacheRef.current), [partNamesVersion]);
+  const partInfoSnapshot = useMemo(() => new Map(partInfoCacheRef.current), [partInfoVersion]);
 
   // Assembly constraint pick controller (T34).
   const assemblyPickerRef = useRef(new AssemblyRefPickController());
@@ -1913,11 +1914,11 @@ export default function App() {
       w.__zilventorBomAggregateMs = (trials: number): number => {
         const a = useAppStore.getState().activeAssembly;
         if (!a) return -1;
-        const partNames = partNameCacheRef.current;
+        const partInfo = partInfoCacheRef.current;
         const samples: number[] = [];
         for (let i = 0; i < trials; i++) {
           const t0 = performance.now();
-          aggregateBom(a, partNames);
+          aggregateBom(a, partInfo);
           samples.push(performance.now() - t0);
         }
         samples.sort((x, y) => x - y);
@@ -2088,11 +2089,11 @@ export default function App() {
           ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
           : undefined,
       };
-      const partNames = partNameCacheRef.current;
+      const partInfo = partInfoCacheRef.current;
       const samples: number[] = [];
       for (let i = 0; i < trials; i++) {
         const t0 = performance.now();
-        aggregateBomRecursive(a, adapter, partNames);
+        aggregateBomRecursive(a, adapter, partInfo);
         samples.push(performance.now() - t0);
       }
       samples.sort((x, y) => x - y);
@@ -2383,26 +2384,27 @@ export default function App() {
     return () => { cancelled = true; };
   }, [assembly, kernel, componentPoses, showComponentColors]);
 
-  // PartNames cache sync: resolve the document.name for each unique partPath
-  // referenced by the active assembly so BomTable / autosave merge can show
-  // human names. Cached per-path; bumps partNamesVersion to re-render.
+  // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
+  // description) for each unique partPath referenced by the active assembly so
+  // BomTable / autosave merge can show human names + Inventor metadata.
+  // Cached per-path; bumps partInfoVersion to re-render.
   useEffect(() => {
     if (!assembly) return;
     let cancelled = false;
     void (async () => {
       if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
       const opfs = opfsRef.current;
-      const cache = partNameCacheRef.current;
+      const cache = partInfoCacheRef.current;
       const before = cache.size;
       const seen = new Set<string>();
       for (const c of assembly.components) {
         if (seen.has(c.partPath)) continue;
         seen.add(c.partPath);
         if (cache.has(c.partPath)) continue;
-        await resolvePartName(opfs, c.partPath, cache);
+        await resolvePartInfo(opfs, c.partPath, cache);
       }
       if (!cancelled && cache.size !== before) {
-        setPartNamesVersion((v) => v + 1);
+        setPartInfoVersion((v) => v + 1);
       }
     })();
     return () => { cancelled = true; };
@@ -2455,7 +2457,7 @@ export default function App() {
                   ? ({ kind: 'ok' as const, doc: subAssemblyDocsSnapshot[p]!, partPath: p })
                   : undefined,
             };
-            const withBom = mergeAndPruneBom(doc.document, partNameCacheRef.current, cacheAdapter);
+            const withBom = mergeAndPruneBom(doc.document, partInfoCacheRef.current, cacheAdapter);
             const merged = mergeAndPruneColorOverrides(withBom, cacheAdapter);
             const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
@@ -2953,10 +2955,10 @@ export default function App() {
           <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
         </header>
         <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-          <Ribbon partNames={partNamesSnapshot} />
+          <Ribbon partInfo={partInfoSnapshot} />
         </div>
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partNames={partNamesSnapshot} />
+          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} />
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
           <Viewport ref={viewportRef} onPointer={handleViewportPointer} />

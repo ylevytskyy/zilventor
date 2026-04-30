@@ -26,11 +26,11 @@ describe('ExportBomCsvCommand', () => {
     };
     (globalThis as any).showSaveFilePicker = vi.fn(async (_opts: any) => mockHandle);
     try {
-      await new ExportBomCsvCommand({ partNames: new Map([['parts/cube.zipt', 'cube']]) }).apply();
+      await new ExportBomCsvCommand({ partInfo: new Map([['parts/cube.zipt', { name: 'cube', partNumber: 'CUBE-001', description: 'A test cube' }]]) }).apply();
       expect(writes).toHaveLength(1);
       const csv = new TextDecoder().decode(writes[0]!);
-      expect(csv).toContain('Item#,QTY,Part Name,Color,Part Path');
-      expect(csv).toContain('1,1,cube,,parts/cube.zipt');
+      expect(csv).toContain('Item#,Part #,Description,QTY,Part Name,Color,Part Path');
+      expect(csv).toContain('1,CUBE-001,A test cube,1,cube,,parts/cube.zipt');
     } finally {
       delete (globalThis as any).showSaveFilePicker;
     }
@@ -39,7 +39,7 @@ describe('ExportBomCsvCommand', () => {
   it('silently no-ops when the user cancels the save dialog', async () => {
     (globalThis as any).showSaveFilePicker = vi.fn(async () => { throw new DOMException('cancelled', 'AbortError'); });
     try {
-      await expect(new ExportBomCsvCommand({ partNames: new Map([['parts/cube.zipt', 'cube']]) }).apply()).resolves.toBeUndefined();
+      await expect(new ExportBomCsvCommand({ partInfo: new Map([['parts/cube.zipt', { name: 'cube' }]]) }).apply()).resolves.toBeUndefined();
     } finally {
       delete (globalThis as any).showSaveFilePicker;
     }

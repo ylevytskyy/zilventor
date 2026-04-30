@@ -428,7 +428,7 @@ describe('BrowserPane BOM tab strip', () => {
 
   it('clicking the BOM tab sets bomTabActive=true and renders BomTable', () => {
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
-    render(<BrowserPane part={null} partNames={new Map([['parts/leg.zipt', 'leg']])} />);
+    render(<BrowserPane part={null} partInfo={new Map([['parts/leg.zipt', { name: 'leg' }]])} />);
     fireEvent.click(screen.getByRole('button', { name: /^bom$/i }));
     expect(useAppStore.getState().bomTabActive).toBe(true);
     expect(screen.getByTestId('bom-table')).toBeInTheDocument();
@@ -440,7 +440,7 @@ describe('BrowserPane BOM tab strip', () => {
       activeAssembly: asm,
       bomTabActive: true,
     } as any);
-    render(<BrowserPane part={null} partNames={new Map([['parts/leg.zipt', 'leg']])} />);
+    render(<BrowserPane part={null} partInfo={new Map([['parts/leg.zipt', { name: 'leg' }]])} />);
     fireEvent.click(screen.getByRole('button', { name: /^assembly$/i }));
     expect(useAppStore.getState().bomTabActive).toBe(false);
     expect(screen.queryByTestId('bom-table')).toBeNull();

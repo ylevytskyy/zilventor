@@ -1,4 +1,4 @@
-import type { AssemblyDocument, ComponentColor } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentColor, PartInfo } from '@zilventor/shared';
 import { bomRowKey, type BomRow } from '@zilventor/shared/src/bomRow';
 import { pathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
@@ -7,7 +7,7 @@ import { resolveColor } from './resolveColor';
 export function aggregateBomRecursive(
   activeDoc: AssemblyDocument,
   cache: Pick<SubAssemblyCache, 'get'>,
-  partNames: Map<string, string>,
+  partInfo: Map<string, PartInfo>,
 ): BomRow[] {
   const groups = new Map<string, { partPath: string; color: ComponentColor | undefined; componentIds: string[] }>();
   function effective(p: string[]): ComponentColor | undefined {
@@ -39,8 +39,18 @@ export function aggregateBomRecursive(
   for (const [rowKey, g] of groups) {
     let n = existing[rowKey];
     if (n === undefined) n = nextNumber++;
-    rows.push({ rowKey, itemNumber: n, qty: g.componentIds.length, partPath: g.partPath,
-      partName: partNames.get(g.partPath) ?? '(missing part)', color: g.color, componentIds: [...g.componentIds] });
+    const info = partInfo.get(g.partPath);
+    rows.push({
+      rowKey,
+      itemNumber: n,
+      qty: g.componentIds.length,
+      partPath: g.partPath,
+      partName: info?.name ?? '(missing part)',
+      ...(info?.partNumber !== undefined ? { partNumber: info.partNumber } : {}),
+      ...(info?.description !== undefined ? { description: info.description } : {}),
+      color: g.color,
+      componentIds: [...g.componentIds],
+    });
   }
   rows.sort((a, b) => a.itemNumber - b.itemNumber);
   return rows;

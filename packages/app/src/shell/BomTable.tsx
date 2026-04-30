@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { parsePathKey } from '@zilventor/shared';
+import { parsePathKey, type PartInfo } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { ColorPicker } from './ColorPicker';
@@ -8,9 +8,9 @@ import { SetComponentColorCommand } from '../commands/SetComponentColorCommand';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { ExportBomCsvCommand } from '../commands/ExportBomCsvCommand';
 
-type Props = { partNames: Map<string, string> };
+type Props = { partInfo: Map<string, PartInfo> };
 
-export function BomTable({ partNames }: Props) {
+export function BomTable({ partInfo }: Props) {
   const assembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
   const palette = assembly?.colors ?? {};
@@ -24,8 +24,8 @@ export function BomTable({ partNames }: Props) {
     [subAssemblyDocs],
   );
   const rows = useMemo(
-    () => (assembly ? aggregateBomRecursive(assembly, subAsmCacheAdapter, partNames) : []),
-    [assembly, subAsmCacheAdapter, partNames],
+    () => (assembly ? aggregateBomRecursive(assembly, subAsmCacheAdapter, partInfo) : []),
+    [assembly, subAsmCacheAdapter, partInfo],
   );
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -33,11 +33,13 @@ export function BomTable({ partNames }: Props) {
 
   return (
     <div data-testid="bom-table">
-      <button onClick={() => void new ExportBomCsvCommand({ partNames }).apply()}>Export CSV</button>
+      <button onClick={() => void new ExportBomCsvCommand({ partInfo }).apply()}>Export CSV</button>
       <table>
         <thead>
           <tr>
             <th>Item#</th>
+            <th>Part #</th>
+            <th>Description</th>
             <th>QTY</th>
             <th>Part Name</th>
             <th>Color</th>
@@ -75,6 +77,8 @@ export function BomTable({ partNames }: Props) {
                   </span>
                 )}
               </td>
+              <td>{r.partNumber ?? ''}</td>
+              <td>{r.description ?? ''}</td>
               <td>{r.qty}</td>
               <td>{r.partName}</td>
               <td onClick={(e) => { e.stopPropagation(); setColorEditingRowKey(r.rowKey); }}>

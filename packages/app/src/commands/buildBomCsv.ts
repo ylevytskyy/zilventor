@@ -11,10 +11,12 @@ function colorCell(c: BomRow['color']): string {
 }
 
 export function buildBomCsv(rows: BomRow[]): string {
-  let out = 'Item#,QTY,Part Name,Color,Part Path\n';
+  let out = 'Item#,Part #,Description,QTY,Part Name,Color,Part Path\n';
   for (const r of rows) {
     out += [
       String(r.itemNumber),
+      csvCell(r.partNumber ?? ''),
+      csvCell(r.description ?? ''),
       String(r.qty),
       csvCell(r.partName),
       csvCell(colorCell(r.color)),

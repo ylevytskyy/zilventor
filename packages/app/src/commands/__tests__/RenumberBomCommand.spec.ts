@@ -16,12 +16,12 @@ describe('RenumberBomCommand', () => {
         colors: {}, bomItemNumbers: { 'parts/zelda.zipt::none': 9 },
       },
     } as any);
-    const partNames = new Map([
-      ['parts/alpha.zipt', 'alpha'],
-      ['parts/midway.zipt', 'midway'],
-      ['parts/zelda.zipt', 'zelda'],
+    const partInfo = new Map([
+      ['parts/alpha.zipt', { name: 'alpha' }],
+      ['parts/midway.zipt', { name: 'midway' }],
+      ['parts/zelda.zipt', { name: 'zelda' }],
     ]);
-    await new RenumberBomCommand({ partNames }).apply();
+    await new RenumberBomCommand({ partInfo }).apply();
     const map = useAppStore.getState().activeAssembly!.bomItemNumbers;
     expect(map['parts/alpha.zipt::none']).toBe(1);
     expect(map['parts/midway.zipt::none']).toBe(2);

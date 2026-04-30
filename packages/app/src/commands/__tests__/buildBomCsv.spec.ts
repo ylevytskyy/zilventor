@@ -4,12 +4,12 @@ import type { BomRow } from '@zilventor/shared/src/bomRow';
 
 describe('buildBomCsv', () => {
   it('produces a header-only CSV when there are no rows', () => {
-    expect(buildBomCsv([])).toBe('Item#,QTY,Part Name,Color,Part Path\n');
+    expect(buildBomCsv([])).toBe('Item#,Part #,Description,QTY,Part Name,Color,Part Path\n');
   });
 
   it('writes palette name in Color cell', () => {
     const row: BomRow = { rowKey: 'X::palette:Maple', itemNumber: 1, qty: 2, partPath: 'parts/cube.zipt', partName: 'cube', color: { kind: 'palette', name: 'Maple' }, componentIds: ['C1', 'C2'] };
-    expect(buildBomCsv([row])).toBe('Item#,QTY,Part Name,Color,Part Path\n1,2,cube,Maple,parts/cube.zipt\n');
+    expect(buildBomCsv([row])).toBe('Item#,Part #,Description,QTY,Part Name,Color,Part Path\n1,,,2,cube,Maple,parts/cube.zipt\n');
   });
 
   it('writes hex string in Color cell', () => {
@@ -22,5 +22,24 @@ describe('buildBomCsv', () => {
     const csv = buildBomCsv([row]);
     expect(csv).toContain('"has ""quote"", and comma"');
     expect(csv).toContain('"parts/odd, name.zipt"');
+  });
+
+  it('emits Part # and Description columns when row has those fields', () => {
+    const row: BomRow = {
+      rowKey: 'X::none', itemNumber: 1, qty: 1, partPath: 'parts/cube.zipt',
+      partName: 'cube', partNumber: 'CUBE-001', description: 'A test cube',
+      color: undefined, componentIds: ['C1'],
+    };
+    const csv = buildBomCsv([row]);
+    expect(csv).toContain('1,CUBE-001,A test cube,1,cube,,parts/cube.zipt');
+  });
+
+  it('leaves Part # and Description empty when absent on the row', () => {
+    const row: BomRow = {
+      rowKey: 'X::none', itemNumber: 1, qty: 1, partPath: 'parts/cube.zipt',
+      partName: 'cube', color: undefined, componentIds: ['C1'],
+    };
+    const csv = buildBomCsv([row]);
+    expect(csv).toContain('1,,,1,cube,,parts/cube.zipt');
   });
 });

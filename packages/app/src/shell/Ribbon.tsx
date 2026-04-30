@@ -9,13 +9,14 @@ import InspectTab from './tabs/InspectTab';
 import DrawingTab from './tabs/DrawingTab';
 import { AssemblyTab } from './tabs/AssemblyTab';
 import { useAppStore } from '../store/useAppStore';
+import type { PartInfo } from '@zilventor/shared';
 
 const PART_TABS = ['File', 'Model', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 const ASSEMBLY_TABS = ['File', 'Assembly', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 
-type Props = { partNames?: Map<string, string> };
+type Props = { partInfo?: Map<string, PartInfo> };
 
-export default function Ribbon({ partNames }: Props = {}) {
+export default function Ribbon({ partInfo }: Props = {}) {
   const isAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
   const TABS: string[] = isAssembly ? [...ASSEMBLY_TABS] : [...PART_TABS];
 
@@ -31,7 +32,7 @@ export default function Ribbon({ partNames }: Props = {}) {
 
   const assemblyPanels: Record<string, ReactElement> = {
     File: <FileTab />,
-    Assembly: <AssemblyTab partNames={partNames ?? new Map()} />,
+    Assembly: <AssemblyTab partInfo={partInfo ?? new Map()} />,
     Sketch: <SketchTab />,
     Furniture: <FurnitureTab />,
     Inspect: <InspectTab />,

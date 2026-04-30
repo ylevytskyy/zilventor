@@ -1,4 +1,4 @@
-import type { AssemblyDocument, ComponentInstance, Feature, PartDocument } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentInstance, Feature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
@@ -6,7 +6,7 @@ import { BomTable } from './BomTable';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 
-type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partNames?: Map<string, string> };
+type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
 
 type WorkFeature = Extract<Feature, { kind: 'workAxis' | 'workPlane' | 'workPoint' }>;
 
@@ -140,7 +140,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
 }
 
 
-export default function BrowserPane({ part, sketchPicker, partNames = new Map() }: Props) {
+export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
@@ -182,7 +182,7 @@ export default function BrowserPane({ part, sketchPicker, partNames = new Map() 
       return (
         <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
           {tabStrip}
-          <BomTable partNames={partNames} />
+          <BomTable partInfo={partInfo} />
         </div>
       );
     }
