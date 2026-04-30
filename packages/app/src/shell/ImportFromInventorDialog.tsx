@@ -28,13 +28,13 @@ export function ImportFromInventorDialog(props: ImportFromInventorDialogProps): 
         <fieldset className="mb-3">
           <legend className="text-xs mb-1">If a file already exists in the target:</legend>
           <label className="block text-xs">
-            <input type="radio" checked={conflict === 'overwrite'} onChange={() => setConflict('overwrite')} /> Overwrite
+            <input type="radio" name="conflict-policy" checked={conflict === 'overwrite'} onChange={() => setConflict('overwrite')} /> Overwrite
           </label>
           <label className="block text-xs">
-            <input type="radio" checked={conflict === 'skip'} onChange={() => setConflict('skip')} /> Skip existing
+            <input type="radio" name="conflict-policy" checked={conflict === 'skip'} onChange={() => setConflict('skip')} /> Skip existing
           </label>
           <label className="block text-xs">
-            <input type="radio" checked={conflict === 'cancel-on-conflict'} onChange={() => setConflict('cancel-on-conflict')} /> Cancel on conflict
+            <input type="radio" name="conflict-policy" checked={conflict === 'cancel-on-conflict'} onChange={() => setConflict('cancel-on-conflict')} /> Cancel on conflict
           </label>
         </fieldset>
         {props.status.kind === 'importing' && (
