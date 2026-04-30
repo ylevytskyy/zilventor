@@ -22,6 +22,7 @@ import { executeLinearPatternFeature } from './features/LinearPatternFeature';
 import { executeMirrorFeature } from './features/MirrorFeature';
 import { executeHoleFeature } from './features/HoleFeature';
 import { executeSweepFeature } from './features/SweepFeature';
+import { executeImportedFeature } from './features/ImportedFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -102,7 +103,6 @@ export async function executeTree(
   part: PartDocument,
   /** Lookup for ImportedFeature bodies. Required when the tree contains
    *  any kind:'imported' feature; T8 wires the dispatch. */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   lookupImportedShape?: (bodyRef: string) => OcctShape | undefined,
 ): Promise<Result<ExecutionResult, KernelError>> {
   const sketches = new Map<string, SketchResult>();
@@ -724,6 +724,34 @@ export async function executeTree(
           featureId: feature.id
         });
         continue;
+      }
+    } else if (feature.kind === 'imported') {
+      if (!lookupImportedShape) {
+        cleanupOnError();
+        return err({
+          kind: 'invalidParameter',
+          message: `ImportedFeature ${feature.id}: no lookup function provided to executeTree`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+      }
+      // Imported feature semantically replaces the running solid (operation:
+      // implicit 'new'). Dispose any prior running body before installing
+      // the imported one.
+      if (finalSolid) {
+        disposeShape(finalSolid.shape);
+        finalSolid = null;
+      }
+      try {
+        finalSolid = executeImportedFeature(oc, feature, lookupImportedShape);
+      } catch (e) {
+        cleanupOnError();
+        return err({
+          kind: 'invalidGeometry',
+          message: `ImportedFeature ${feature.id}: ${(e as Error).message}`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
       }
     }
   }

@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Feature, AssemblyConstraintRef } from '@zilventor/shared';
 import { createKernelApi } from '../api';
 
@@ -155,5 +157,39 @@ describe('KernelApi (end-to-end, in-process)', () => {
       expect(r.value.featureErrors).toBeDefined();
       expect(r.value.featureErrors!.get('F1')?.kind).toBe('edgeNotFound');
     }
+  }, 120_000);
+});
+
+describe('importStep + ImportedFeature roundtrip', () => {
+  it('imports a STEP, attaches it as an imported feature, and execute() returns a mesh with 6 face names', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const bytes = readFileSync(
+      resolve(__dirname, '../occt/__tests__/fixtures/step/cube-10mm.step')
+    );
+    const result = await api.importStep({
+      stepBytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      partName: 'Cube',
+    });
+    expect(result.faceCount).toBe(6);
+    expect(result.triangleCount).toBeGreaterThan(0);
+
+    const partId = await api.createPart('Cube');
+    await api.addFeature(partId, {
+      kind: 'imported',
+      id: 'imp-1',
+      sourceStep: 'cube-10mm.step',
+      bodyRef: result.brepBlobId,
+    });
+    const exec = await api.execute(partId);
+    if (!exec.ok) throw new Error(`execute failed: ${JSON.stringify(exec.error)}`);
+    expect(exec.value.mesh.indices.length).toBeGreaterThan(0);
+    expect(exec.value.faceNames?.length).toBe(6);
+    const roles = (exec.value.faceNames ?? []).map((f) => f.role);
+    expect(new Set(roles)).toEqual(new Set(['imported-face']));
+    const instances = (exec.value.faceNames ?? [])
+      .map((f) => f.instance ?? -1)
+      .sort((a, b) => a - b);
+    expect(instances).toEqual([0, 1, 2, 3, 4, 5]);
   }, 120_000);
 });

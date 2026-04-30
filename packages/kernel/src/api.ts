@@ -1,10 +1,12 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
 import { disposeShape, type OcctShape } from './occt/SolidOps';
 import { writeBRep } from './occt/BRepIO';
+import { readStep } from './occt/StepIO';
+import { tessellate } from './occt/Tessellator';
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocalGeometry } from './assembly/AssemblyConstraintRefs';
@@ -51,6 +53,15 @@ export type KernelApi = {
   loadFromBytes(bytes: Uint8Array): Promise<string>;
   extractAssemblyRef(partId: string, ref: AssemblyConstraintRef): Promise<Result<PartLocalGeometry, KernelError>>;
   extractAssemblyCircularEdge(partId: string, edge: EdgeName): Promise<Result<PartLocalGeometry, KernelError>>;
+  importStep(params: {
+    stepBytes: ArrayBuffer;
+    partName: string;
+  }): Promise<{
+    brepBlobId: string;
+    triangleCount: number;
+    boundingBox: BoundingBox;
+    faceCount: number;
+  }>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -274,6 +285,22 @@ export function createKernelApi(): KernelApi {
       const ex = realExtractorBundle(occt);
       const wfMap = new Map<string, import('@zilventor/shared').WorkFeatureValue>((wfs ?? []).map((w) => [w.featureId, w]));
       return resolveRef(ref, ns, wfMap, ex);
+    },
+
+    async importStep({ stepBytes, partName: _partName }) {
+      if (!occt) throw new Error('kernel not initialized');
+      const result = readStep(occt, stepBytes);
+      // Tessellate so we can return triangleCount; the mesh itself is
+      // recomputed later by execute() when the feature tree runs.
+      const mesh = tessellate(occt, result.shape, { linearDeflection: 0.1 });
+      const brepBlobId = `imp-${crypto.randomUUID()}`;
+      registerImportedShape(brepBlobId, result.shape);
+      return {
+        brepBlobId,
+        triangleCount: mesh.indices.length / 3,
+        boundingBox: result.boundingBox,
+        faceCount: result.faceCount,
+      };
     },
 
     async extractAssemblyCircularEdge(partId, edge) {
