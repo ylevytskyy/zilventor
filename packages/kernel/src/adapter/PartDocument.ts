@@ -6,6 +6,7 @@ export function newPart(name: string): PartDocument {
     name,
     units: 'mm',
     parameters: {},
+    properties: {},
     featureTree: [
       { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
       { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },

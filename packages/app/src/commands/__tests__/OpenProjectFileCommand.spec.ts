@@ -15,7 +15,7 @@ describe('OpenProjectFileCommand', () => {
   });
 
   const subDoc: AssemblyDocument = {
-    id: 'D1', name: 'drawer', units: 'mm', parameters: {},
+    id: 'D1', name: 'drawer', units: 'mm', parameters: {}, properties: {},
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
   };

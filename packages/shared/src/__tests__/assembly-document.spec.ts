@@ -19,7 +19,7 @@ describe('AssemblyDocument', () => {
 
   it('AssemblyDocument has the documented shape', () => {
     const a: AssemblyDocument = {
-      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
       components: [],
       constraints: [],
       groundedComponentPaths: [],
@@ -41,7 +41,7 @@ describe('AssemblyDocument', () => {
       formatVersion: 8, kind: 'assembly',
       createdAt: '2026-04-25T00:00:00Z',
       appVersion: '0.0.1',
-      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} },
+      document: { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} },
     };
     if (part.kind === 'part') {
       expect((part.document as PartDocument).featureTree).toEqual([]);

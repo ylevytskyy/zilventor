@@ -14,6 +14,7 @@ describe('WorkFeature integration — sketch on derived work plane', () => {
         h1: { name: 'h1', expression: '10', value: 10, unit: 'mm' },
         h2: { name: 'h2', expression: '5', value: 5, unit: 'mm' },
       },
+      properties: {},
       featureTree: [
         { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
         { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },

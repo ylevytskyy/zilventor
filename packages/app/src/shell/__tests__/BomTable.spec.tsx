@@ -15,7 +15,7 @@ function seedAssembly(doc: AssemblyDocument): void {
 
 function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return {
-    id: 'A', name: 'demo', units: 'mm', parameters: {},
+    id: 'A', name: 'demo', units: 'mm', parameters: {}, properties: {},
     components: [
       { id: 'C1', partPath: 'parts/cube.zipt',
         position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -178,7 +178,7 @@ describe('BomTable', () => {
   it('color picker on a sub-asm leaf row writes to colorOverrides for every leaf path', () => {
     const subAsmPath = 'sub.ziasm';
     const subDoc: AssemblyDocument = {
-      id: 'S', name: 'sub', units: 'mm', parameters: {},
+      id: 'S', name: 'sub', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'leaf-a', partPath: 'parts/cube.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },

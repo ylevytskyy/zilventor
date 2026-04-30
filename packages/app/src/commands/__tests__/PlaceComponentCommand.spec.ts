@@ -18,7 +18,7 @@ class MemOpfs {
 
 function makeDoc(name: string, components: AssemblyDocument['components'] = []): AssemblyDocument {
   return {
-    id: name, name, units: 'mm', parameters: {},
+    id: name, name, units: 'mm', parameters: {}, properties: {},
     components, constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
   };

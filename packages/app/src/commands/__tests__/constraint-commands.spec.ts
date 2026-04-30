@@ -5,7 +5,7 @@ import { RemoveConstraintCommand } from '../RemoveConstraintCommand';
 import { useAppStore } from '../../store/useAppStore';
 
 const mkPart = () => ({
-  id: 'P1', name: 'Part1', units: 'mm' as const, parameters: {},
+  id: 'P1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {},
   featureTree: [{ kind: 'sketch' as const, id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const, primitives: [], constraints: [] }]
 });
 

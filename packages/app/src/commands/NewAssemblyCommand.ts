@@ -9,6 +9,7 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     name: opts.name,
     units: 'mm',
     parameters: {},
+    properties: {},
     components: [],
     constraints: [],
     groundedComponentPaths: [],

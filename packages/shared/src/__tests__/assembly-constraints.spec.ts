@@ -48,7 +48,7 @@ describe('AssemblyConstraint discriminator', () => {
 describe('AssemblyDocument 4b extensions', () => {
   it('carries constraints[] and groundedComponentPaths[]', () => {
     const doc: AssemblyDocument = {
-      id: 'A', name: 'asm', units: 'mm', parameters: {},
+      id: 'A', name: 'asm', units: 'mm', parameters: {}, properties: {},
       components: [],
       constraints: [],
       groundedComponentPaths: [],

@@ -13,7 +13,7 @@ describe('EditComponentCommand', () => {
 
   beforeEach(() => {
     const asm: AssemblyDocument = {
-      id: 'A1', name: 'a', units: 'mm', parameters: {},
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
       components: [{ ...original }],
       constraints: [],
       groundedComponentPaths: [],

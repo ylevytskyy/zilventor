@@ -125,6 +125,7 @@ describe('FeatureTree.executeTree', () => {
     const part = {
       id: 'p1', name: 'Part1', units: 'mm' as const,
       parameters: { d1: { name: 'd1', expression: '50', value: 50, unit: 'mm' as const } },
+      properties: {},
       featureTree: [
         { kind: 'sketch' as const, id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const, primitives: [{ id: 'p1', kind: 'rectangle' as const, x: 0, y: 0, w: 100, h: 200 }], constraints: [] },
         { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
@@ -156,6 +157,7 @@ describe('FeatureTree.executeTree', () => {
     const part = {
       id: 'p1', name: 'Part1', units: 'mm' as const,
       parameters: { d1: { name: 'd1', expression: '50', value: 50, unit: 'mm' as const } },
+      properties: {},
       featureTree: [
         { kind: 'extrude' as const, id: 'e1', sketchRef: 'missing', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ]
@@ -419,6 +421,7 @@ describe('FeatureTree — hole feature integration', () => {
       parameters: {
         d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
       },
+      properties: {},
       featureTree: [
         {
           kind: 'sketch',
@@ -487,6 +490,7 @@ describe('FeatureTree — hole feature integration', () => {
       parameters: {
         d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
       },
+      properties: {},
       featureTree: [
         {
           kind: 'sketch',
@@ -550,6 +554,7 @@ describe('FeatureTree — sweep feature integration', () => {
       name: 'Part1',
       units: 'mm',
       parameters: {},
+      properties: {},
       featureTree: [
         {
           kind: 'sketch',
@@ -608,6 +613,7 @@ describe('FeatureTree — sweep feature integration', () => {
       parameters: {
         d0: { name: 'd0', expression: '5', value: 5, unit: 'mm' }
       },
+      properties: {},
       featureTree: [
         {
           kind: 'sketch',
@@ -666,6 +672,7 @@ describe('executeTree work features', () => {
       id: 'P1', name: 'p', units: 'mm', parameters: {
         d: { name: 'd', expression: '5', value: 5, unit: 'mm' },
       },
+      properties: {},
       featureTree: [
         { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
         { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },

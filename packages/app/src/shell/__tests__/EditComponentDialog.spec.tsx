@@ -47,7 +47,7 @@ describe('EditComponentDialog — color row (4c)', () => {
       visible: true,
     };
     const assembly: AssemblyDocument = {
-      id: 'A', name: 'A', units: 'mm', parameters: {},
+      id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
       components: [c],
       constraints: [], groundedComponentPaths: [['C1']],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
@@ -125,7 +125,7 @@ describe('EditComponentDialog — color row (4c)', () => {
 describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
   const seedSubAsm = (component: ComponentInstance, subAsmDocs: Record<string, AssemblyDocument> = {}): void => {
     const assembly: AssemblyDocument = {
-      id: 'A', name: 'A', units: 'mm', parameters: {},
+      id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
       components: [component],
       constraints: [], groundedComponentPaths: [[component.id]],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
@@ -140,7 +140,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
 
   it('renders a Flexible checkbox and Sub-assembly label for .ziasm placements', () => {
     const subAsmDoc: AssemblyDocument = {
-      id: 'SA', name: 'drawer', units: 'mm', parameters: {},
+      id: 'SA', name: 'drawer', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'X1', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
         { id: 'X2', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -188,7 +188,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
     };
     seedSubAsm(subPlacement, { 'sub/drawer.ziasm': {
-      id: 'SA', name: 'drawer', units: 'mm', parameters: {},
+      id: 'SA', name: 'drawer', units: 'mm', parameters: {}, properties: {},
       components: [],
       constraints: [], groundedComponentPaths: [],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},

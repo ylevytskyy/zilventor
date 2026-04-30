@@ -41,7 +41,7 @@ describe('Ribbon', () => {
   it('Modify panel renders a Hole button that fires AddHoleFeatureCommand', () => {
     // Give the store a part with a running body so the Modify buttons are enabled.
     useAppStore.getState().setActivePart({
-      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [
         { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
         { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd1', direction: 'forward', operation: 'new' },
@@ -61,7 +61,7 @@ describe('Ribbon', () => {
 
   it('Model → Create → Sweep button opens the sweep dialog', () => {
     useAppStore.getState().setActivePart({
-      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [
         { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
       ],

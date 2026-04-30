@@ -6,7 +6,7 @@ import type { AssemblyDocument, ComponentInstance } from '@zilventor/shared';
 
 function makeDoc(components: ComponentInstance[]): AssemblyDocument {
   return {
-    id: 'A', name: 'A', units: 'mm', parameters: {},
+    id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
     components, constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
   };

@@ -13,7 +13,7 @@ describe('AssemblyTab', () => {
   });
 
   it('Place button opens the place dialog', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<AssemblyTab />);
     fireEvent.click(screen.getByRole('button', { name: /^place$/i }));
@@ -21,7 +21,7 @@ describe('AssemblyTab', () => {
   });
 
   it('Edit button is disabled until a component is selected', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {},
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'C1', partPath: 'p', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
@@ -49,7 +49,7 @@ describe('AssemblyTab Constraint panel', () => {
   });
 
   it('renders all 4 mode buttons (Mate / Flush / Angle / Insert)', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<AssemblyTab />);
     expect(screen.getByRole('button', { name: /^mate$/i })).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('AssemblyTab Constraint panel', () => {
   });
 
   it('Mate button opens placeConstraintDialog with mode=mate', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<AssemblyTab />);
     fireEvent.click(screen.getByRole('button', { name: /^mate$/i }));
@@ -75,7 +75,7 @@ describe('AssemblyTab BOM panel', () => {
   });
 
   it('renders a BOM panel with BOM and Renumber buttons', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<AssemblyTab />);
     expect(screen.getByLabelText(/^BOM panel$/i)).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe('AssemblyTab BOM panel', () => {
   });
 
   it('BOM button sets bomTabActive=true', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.setState({ bomTabActive: false } as any);
     render(<AssemblyTab />);
@@ -94,7 +94,7 @@ describe('AssemblyTab BOM panel', () => {
 
   it('Renumber button assigns 1..N item numbers using provided partNames', async () => {
     const asm: AssemblyDocument = {
-      id: 'A1', name: 'a', units: 'mm', parameters: {},
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'C1', partPath: 'parts/zelda.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
         { id: 'C2', partPath: 'parts/alpha.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },

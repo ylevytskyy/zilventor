@@ -8,7 +8,7 @@ import type { FilletFeature } from '@zilventor/shared';
 describe('AddFilletFeatureCommand', () => {
   it('apply writes parameters + feature; revert rolls them back', async () => {
     useAppStore.getState().setActivePart({
-      id: 'P1', name: 'P', units: 'mm', parameters: {}, featureTree: []
+      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {}, featureTree: []
     });
     const kernel = {
       addFeature: vi.fn().mockResolvedValue(undefined),

@@ -8,7 +8,7 @@ describe('DragPrimitivesCommand', () => {
     const before: Record<string, Partial<SketchPrimitive>> = { L1: { x2: 10, y2: 0 } };
     const after:  Record<string, Partial<SketchPrimitive>> = { L1: { x2: 50, y2: 30 } };
     useAppStore.getState().setActivePart({
-      id: 'P1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'P1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [{
         kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, constraints: [],
         primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]

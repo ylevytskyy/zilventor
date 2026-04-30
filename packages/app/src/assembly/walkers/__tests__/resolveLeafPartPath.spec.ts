@@ -6,7 +6,7 @@ function doc(over: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return {
     id: 'x', name: 'x', units: 'mm', parameters: {},
     components: [], constraints: [],
-    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {}, properties: {},
     ...over,
   };
 }

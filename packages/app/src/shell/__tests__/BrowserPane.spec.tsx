@@ -22,7 +22,7 @@ describe('BrowserPane', () => {
 
   it('lists features (Sketch1, Extrusion1, End of Part) when a part is loaded', () => {
     const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [
         { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
@@ -37,7 +37,7 @@ describe('BrowserPane', () => {
 
   it('numbers sequential sketches and extrusions independently', () => {
     const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [
         { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
         { kind: 'sketch', id: 's2', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
@@ -106,7 +106,7 @@ describe('BrowserPane', () => {
 
   it('assembly mode renders Components node + N component leaves', () => {
     const asm: AssemblyDocument = {
-      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'C1', partPath: 'parts/leg.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -128,7 +128,7 @@ describe('BrowserPane', () => {
 
   it('double-clicking a component opens the edit dialog', () => {
     const asm: AssemblyDocument = {
-      id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'C1', partPath: 'parts/leg.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -354,7 +354,7 @@ describe('BrowserPane BOM tab strip', () => {
   });
 
   const asm: AssemblyDocument = {
-    id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+    id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
     components: [
       { id: 'C1', partPath: 'parts/leg.zipt',
         position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -396,7 +396,7 @@ describe('BrowserPane BOM tab strip', () => {
 
   it('part mode hides the tab strip', () => {
     const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [],
     };
     render(<BrowserPane part={part} />);
@@ -418,7 +418,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
   });
 
   const childDoc: AssemblyDocument = {
-    id: 'CH', name: 'drawer', units: 'mm', parameters: {},
+    id: 'CH', name: 'drawer', units: 'mm', parameters: {}, properties: {},
     components: [
       { id: 'P1', partPath: 'parts/panel-front.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       { id: 'P2', partPath: 'parts/panel-back.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
@@ -429,7 +429,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
   };
 
   const topDoc = (subOverrides: Partial<any> = {}): AssemblyDocument => ({
-    id: 'A1', name: 'cabinet', units: 'mm', parameters: {},
+    id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
     components: [
       { id: 'SUB1', partPath: 'sub/drawer.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, ...subOverrides },
     ],
@@ -532,7 +532,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
 
   it('handles a self-referential cycle without infinite recursion', () => {
     const cyclicDoc: AssemblyDocument = {
-      id: 'CY', name: 'cy', units: 'mm', parameters: {},
+      id: 'CY', name: 'cy', units: 'mm', parameters: {}, properties: {},
       components: [
         { id: 'INNER', partPath: 'sub/cyclic.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],

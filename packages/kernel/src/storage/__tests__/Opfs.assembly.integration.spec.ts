@@ -84,6 +84,7 @@ describe('Opfs — assembly integration', () => {
       name: 'cabinet',
       units: 'mm',
       parameters: {},
+      properties: {},
       components: [],
       constraints: [],
       groundedComponentPaths: [],
@@ -118,6 +119,7 @@ describe('Opfs — assembly integration', () => {
       name: 'cabinet',
       units: 'mm',
       parameters: {},
+      properties: {},
       components: [
         {
           id: 'C1',
