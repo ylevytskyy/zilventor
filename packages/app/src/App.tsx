@@ -1139,20 +1139,24 @@ export default function App() {
             // is preserved — drag-along-free-DOFs is translation-only in v1.
             // T31 follow-up: pose updates currently key by tail id; deep paths
             // require switching componentPoses to a path-keyed map.
-            const tailId = ds.componentPath[ds.componentPath.length - 1]!;
+            const poseKey = pathKey(ds.componentPath);
             const poses = useAppStore.getState().componentPoses;
-            const prevPose = poses.get(tailId);
+            const prevPose = poses.get(poseKey);
             if (prevPose) {
               const nextPoses = new Map(poses);
-              nextPoses.set(tailId, {
+              nextPoses.set(poseKey, {
                 translation: newTranslation,
                 quaternion: prevPose.quaternion,
               });
               useAppStore.setState({ componentPoses: nextPoses });
             }
-            useAppStore.getState().updateComponent(tailId, {
-              position: newTranslation,
-            });
+            // Document write-back is top-level-only: updateComponent targets s.activeAssembly.components by id.
+            // For deep-path drags the new pose lives in componentPoses (path-keyed) and survives until the next solve.
+            if (ds.componentPath.length === 1) {
+              useAppStore.getState().updateComponent(ds.componentPath[0]!, {
+                position: newTranslation,
+              });
+            }
           }
         }
         return;
@@ -1826,9 +1830,10 @@ export default function App() {
       // T45: expose dragAlongFreeDofs via dev hook so E2E can call it directly.
       // T30: dev hook still accepts componentId for back-compat with existing
       // E2E specs; we wrap it as a single-segment ComponentPath internally.
-      w.__zilventorViewportDrag = (componentId: string, delta: { x: number; y: number }) => {
+      w.__zilventorViewportDrag = (componentRef: string | string[], delta: { x: number; y: number }) => {
         const freeDofBasis = useAppStore.getState().freeDofBasis;
-        viewportRef.current?.dragAlongFreeDofs([componentId], delta, freeDofBasis);
+        const componentPath = Array.isArray(componentRef) ? componentRef : [componentRef];
+        viewportRef.current?.dragAlongFreeDofs(componentPath, delta, freeDofBasis);
       };
       // T46: expose pure solveAssembly for perf tests (bypasses OCCT ref resolution).
       w.__zilventorSolveAssembly = solveAssembly;
