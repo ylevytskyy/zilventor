@@ -120,10 +120,12 @@ export async function runInventorImport(args: RunImportArgs): Promise<ImportSumm
   const summary: ImportSummary = { partsImported: 0, assembliesImported: 0, skipped: 0, errors: [] };
   const discovered = await walkDir(args.input);
 
+  const partsByPath = new Map<string, DiscoveredPart>();
   const parsedAssemblies = new Map<string, ReturnType<typeof parseAssemblyJson>>();
   const graphNodes: GraphNode[] = [];
   for (const d of discovered) {
     if (d.kind === 'part') {
+      partsByPath.set(d.relPath, d);
       graphNodes.push({ inputRelPath: d.relPath, kind: 'part', refs: [] });
     } else {
       const parsed = parseAssemblyJson(JSON.parse(new TextDecoder().decode(d.bytesJson)));
@@ -177,8 +179,7 @@ export async function runInventorImport(args: RunImportArgs): Promise<ImportSumm
 
     if (node.kind === 'part') {
       try {
-        const partRecord = discovered.find((d) => d.kind === 'part' && d.relPath === node.inputRelPath) as DiscoveredPart | undefined;
-        if (!partRecord) throw new Error('internal: part record vanished');
+        const partRecord = partsByPath.get(node.inputRelPath)!;
         if (!partRecord.bytesStep) throw new Error(`STEP file missing for ${node.inputRelPath}`);
         const parsed = parsePartJson(JSON.parse(new TextDecoder().decode(partRecord.bytesJson)));
         if (!parsed.ok) throw new Error(parsed.error);
