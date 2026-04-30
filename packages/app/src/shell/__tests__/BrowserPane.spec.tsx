@@ -312,6 +312,58 @@ describe('BrowserPane', () => {
 
 });
 
+describe('BrowserPane — imported feature (T21)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null, activePart: null,
+      holeDialogOpen: false, shellDialogOpen: false, chamferDialogOpen: false,
+      filletDialogOpen: false, sweepDialogOpen: false,
+      workAxisDialogOpen: false, workPlaneDialogOpen: false, workPointDialogOpen: false,
+    } as Partial<ReturnType<typeof useAppStore.getState>>);
+    useAppStore.getState().setFeatureErrors(new Map());
+  });
+
+  function makeImportedPart(): PartDocument {
+    return {
+      id: 'p-imported', name: 'Imported', units: 'mm', parameters: {},
+      featureTree: [
+        { kind: 'imported', id: 'imp-1', sourceStep: 'SidePanel.step', bodyRef: 'blob-1' },
+      ],
+      properties: {},
+    } as any;
+  }
+
+  it('renders an imported feature with the source STEP filename', () => {
+    const part = makeImportedPart();
+    render(<BrowserPane part={part} />);
+    expect(screen.getByText(/Imported \(SidePanel\.step\)/)).toBeInTheDocument();
+  });
+
+  it('renders the imported feature li with data-imported="true"', () => {
+    const part = makeImportedPart();
+    const { container } = render(<BrowserPane part={part} />);
+    const li = container.querySelector('li[data-imported="true"]');
+    expect(li).toBeTruthy();
+  });
+
+  it('does not open any edit dialog when double-clicking the imported feature', () => {
+    const part = makeImportedPart();
+    const { container } = render(<BrowserPane part={part} />);
+    const li = container.querySelector('li[data-imported="true"]') as HTMLElement;
+    expect(li).toBeTruthy();
+    fireEvent.doubleClick(li);
+    const s = useAppStore.getState();
+    expect(s.holeDialogOpen).toBeFalsy();
+    expect(s.shellDialogOpen).toBeFalsy();
+    expect(s.chamferDialogOpen).toBeFalsy();
+    expect(s.filletDialogOpen).toBeFalsy();
+    expect(s.sweepDialogOpen).toBeFalsy();
+    expect(s.workAxisDialogOpen).toBeFalsy();
+    expect(s.workPlaneDialogOpen).toBeFalsy();
+    expect(s.workPointDialogOpen).toBeFalsy();
+  });
+});
+
 describe('BrowserPane assembly + constraints', () => {
   beforeEach(() => {
     useAppStore.setState({

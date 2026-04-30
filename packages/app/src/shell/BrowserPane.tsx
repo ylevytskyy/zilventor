@@ -461,6 +461,18 @@ export default function BrowserPane({ part, sketchPicker, partNames = new Map() 
               </li>
             );
           }
+          if (f.kind === 'imported') {
+            return (
+              <li
+                key={f.id}
+                className="pl-3 hover:text-white"
+                data-imported="true"
+              >
+                ▸ Imported ({f.sourceStep})
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
           extrudeCount += 1;
           return (
             <li
