@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "part",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": { "iptPath": "SidePanel.ipt", "fileVersion": "Inventor 2012" },
+  "step": "SidePanel.step",
+  "name": "SidePanel",
+  "properties": { "partNumber": "Z-1", "description": "Side panel", "material": "Plywood 18mm" },
+  "parameters": { "Width": { "value": 600, "unit": "mm", "expression": "600 mm" } }
+}

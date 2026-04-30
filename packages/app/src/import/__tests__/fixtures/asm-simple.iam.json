@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "assembly",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": { "iamPath": "Cabinet.iam", "fileVersion": "Inventor 2012" },
+  "name": "Cabinet",
+  "properties": {},
+  "parameters": {},
+  "occurrences": [
+    { "occurrenceName": "SidePanel:1", "ref": "./SidePanel.ipt.json",
+      "pose": { "translation": { "x": 0, "y": 0, "z": 0 }, "quaternion": [0, 0, 0, 1] },
+      "visible": true, "grounded": false }
+  ]
+}
