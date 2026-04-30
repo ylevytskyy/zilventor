@@ -91,10 +91,12 @@ import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartName } from './shell/resolvePartName';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
+import { computeInnerStaticPoses } from './assembly/computeInnerStaticPoses';
 import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
 import type { Pose } from './assembly/walkers/flattenForSolver';
 import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
+import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
@@ -668,9 +670,10 @@ export default function App() {
         const cache = assemblyRefCacheRef.current;
         const partIdCache = assemblyPartIdCacheRef.current;
         const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+        const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
         const subAsmCacheAdapter = {
           get: (p: string) => subAssemblyDocs[p]
-            ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p })
+            ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
             : undefined,
         };
 
@@ -686,7 +689,15 @@ export default function App() {
           for (const side of ['A', 'B'] as const) {
             const ref = side === 'A' ? k.refA : k.refB;
             const refPath = ref.componentPath;
-            const synthId = pathKey(refPath);
+            const rawSynthId = pathKey(refPath);
+            // For refs targeting leaves inside a rigid sub-asm: the kernel-side
+            // id is the rigid root's pathKey (since rigid leaves share the
+            // root's unknown index), and the extracted PartLocalGeometry must
+            // be pre-composed with the leaf's static inner pose.
+            const rigidLeafPose = flat.rigidLeafStaticPoses.get(rawSynthId);
+            const synthId = rigidLeafPose
+              ? flat.primaryPathByIndex[flat.pathToUnknown.get(rawSynthId)!]!
+              : rawSynthId;
             const cacheKey = `${k.id}#${synthId}`;
             if (resolvedRefs.has(cacheKey)) continue;
 
@@ -714,19 +725,19 @@ export default function App() {
               if (k.kind === 'insert') {
                 const edgeSide = side === 'A' ? (k.refA as any).circularEdge : (k.refB as any).circularEdge;
                 const cacheHit = cache.getOrComputeCircularEdge(leafPartPath, edgeSide, () => ({ ok: false, error: { kind: 'invalidGeometry' as const, message: 'async-pending', correlationId: '' } }));
-                if (cacheHit.ok) { resolvedRefs.set(cacheKey, cacheHit.value); continue; }
+                if (cacheHit.ok) { resolvedRefs.set(cacheKey, rigidLeafPose ? transformPartLocalGeometry(cacheHit.value, rigidLeafPose) : cacheHit.value); continue; }
                 result = await kernelClient.extractAssemblyCircularEdge(partId, edgeSide);
                 if (result.ok) cache.getOrComputeCircularEdge(leafPartPath, edgeSide, () => result);
               } else {
                 const rk = `${leafPartPath}#${refKey(ref as import('@zilventor/shared').AssemblyConstraintRef)}`;
                 if ((cache as any)['map']?.has(rk)) {
                   const hit = (cache as any)['map'].get(rk);
-                  if (hit.ok) { resolvedRefs.set(cacheKey, hit.value); continue; }
+                  if (hit.ok) { resolvedRefs.set(cacheKey, rigidLeafPose ? transformPartLocalGeometry(hit.value, rigidLeafPose) : hit.value); continue; }
                 }
                 result = await kernelClient.extractAssemblyRef(partId, ref as import('@zilventor/shared').AssemblyConstraintRef);
                 if (result.ok) cache.getOrCompute(leafPartPath, ref as import('@zilventor/shared').AssemblyConstraintRef, () => result);
               }
-              if (result.ok) resolvedRefs.set(cacheKey, result.value);
+              if (result.ok) resolvedRefs.set(cacheKey, rigidLeafPose ? transformPartLocalGeometry(result.value, rigidLeafPose) : result.value);
             } catch {
               // Broken ref — solver will skip this constraint.
             }
@@ -740,17 +751,24 @@ export default function App() {
         // reads componentPath[0] as the component id; this makes that lookup
         // align with the synthetic ids in the components array.
         const rewrittenConstraints: import('@zilventor/shared').AssemblyConstraint[] = flat.constraints.map((k) => {
+        const kernelSynthFor = (componentPath: ReadonlyArray<string>): string => {
+          const k0 = pathKey(componentPath);
+          if (flat.rigidLeafStaticPoses.has(k0)) {
+            return flat.primaryPathByIndex[flat.pathToUnknown.get(k0)!]!;
+          }
+          return k0;
+        };
           if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle') {
             return {
               ...k,
-              refA: { ...k.refA, componentPath: [pathKey(k.refA.componentPath)] },
-              refB: { ...k.refB, componentPath: [pathKey(k.refB.componentPath)] },
+              refA: { ...k.refA, componentPath: [kernelSynthFor(k.refA.componentPath)] },
+              refB: { ...k.refB, componentPath: [kernelSynthFor(k.refB.componentPath)] },
             };
           }
           return {
             ...k,
-            refA: { ...k.refA, componentPath: [pathKey(k.refA.componentPath)] },
-            refB: { ...k.refB, componentPath: [pathKey(k.refB.componentPath)] },
+            refA: { ...k.refA, componentPath: [kernelSynthFor(k.refA.componentPath)] },
+            refB: { ...k.refB, componentPath: [kernelSynthFor(k.refB.componentPath)] },
           };
         });
 
@@ -760,8 +778,7 @@ export default function App() {
           {} as Record<string, number>
         );
         // Reverse pathToUnknown so we can map index → pathKey.
-        const indexToPath = new Array<string>(flat.unknowns.length);
-        for (const [k, v] of flat.pathToUnknown) indexToPath[v] = k;
+        const indexToPath = flat.primaryPathByIndex;
         const components = flat.unknowns.map((p, i) => ({
           id: indexToPath[i]!,
           T: p.translation,
@@ -1786,6 +1803,14 @@ export default function App() {
   const editInitial = useAppStore((s) => s.editComponentInitialValues);
   const assembly = useAppStore((s) => s.activeAssembly);
   const componentPoses = useAppStore((s) => s.componentPoses);
+  const subAssemblyDocsForInnerPoses = useAppStore((s) => s.subAssemblyDocs);
+  useEffect(() => {
+    const inner: Record<string, Map<string, Pose>> = {};
+    for (const [pp, d] of Object.entries(subAssemblyDocsForInnerPoses)) {
+      inner[pp] = computeInnerStaticPoses(d);
+    }
+    useAppStore.getState().setSubAssemblyInnerPoses(inner);
+  }, [subAssemblyDocsForInnerPoses]);
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
@@ -1984,6 +2009,7 @@ export default function App() {
         }
       } catch { /* leave dropped on parse failure */ }
       useAppStore.getState().setSubAssemblyDocs(docs);
+      // (innerStaticPoses computed reactively by the watcher effect that mirrors docs.)
       useAppStore.getState().setSolverDirty(true);
     };
     w.__zilventorSubAsmInvalidateAll = async (): Promise<void> => {
@@ -2011,6 +2037,7 @@ export default function App() {
         }
       }
       useAppStore.getState().setSubAssemblyDocs(docs);
+      // (innerStaticPoses computed reactively by the watcher effect that mirrors docs.)
       useAppStore.getState().setSolverDirty(true);
     };
     w.__zilventorLoadSubAsmTree = async (): Promise<void> => {
@@ -2043,6 +2070,7 @@ export default function App() {
         }
       }
       useAppStore.getState().setSubAssemblyDocs(docs);
+      // (innerStaticPoses computed reactively by the watcher effect that mirrors docs.)
     };
     // T43 perf hook: run aggregateBomRecursive against the live activeAssembly
     // + sub-asm cache + part-name cache `trials` times and return p95 ms.
@@ -2087,8 +2115,10 @@ export default function App() {
       const planeDown = { kind: 'plane' as const, P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: -1 } };
       const resolvedRefs = new Map<string, typeof planeUp | typeof planeDown>();
       const rewrittenConstraints = flat.constraints.map((k) => {
-        const aKey = pathKey(k.refA.componentPath);
-        const bKey = pathKey(k.refB.componentPath);
+        const aRaw = pathKey(k.refA.componentPath);
+        const bRaw = pathKey(k.refB.componentPath);
+        const aKey = flat.rigidLeafStaticPoses.has(aRaw) ? flat.primaryPathByIndex[flat.pathToUnknown.get(aRaw)!]! : aRaw;
+        const bKey = flat.rigidLeafStaticPoses.has(bRaw) ? flat.primaryPathByIndex[flat.pathToUnknown.get(bRaw)!]! : bRaw;
         resolvedRefs.set(`${k.id}#${aKey}`, planeUp);
         resolvedRefs.set(`${k.id}#${bKey}`, planeDown);
         return {
@@ -2097,8 +2127,7 @@ export default function App() {
           refB: { ...k.refB, componentPath: [bKey] },
         } as import('@zilventor/shared').AssemblyConstraint;
       });
-      const indexToPath = new Array<string>(flat.unknowns.length);
-      for (const [key, v] of flat.pathToUnknown) indexToPath[v] = key;
+      const indexToPath = flat.primaryPathByIndex;
       const components = flat.unknowns.map((p, i) => ({
         id: indexToPath[i]!,
         T: p.translation,
@@ -2266,9 +2295,10 @@ export default function App() {
       const opfs = opfsRef.current;
       const cache = geometryCacheRef.current;
       const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+      const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
       const subAsmCacheAdapter = {
         get: (p: string) => subAssemblyDocs[p]
-          ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p })
+          ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
           : undefined,
       };
       const leaves = visibleLeaves(assembly, subAsmCacheAdapter);

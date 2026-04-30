@@ -169,9 +169,11 @@ type AppState = {
   showComponentColors: boolean;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
+  subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
   subAssemblyDiagnostics: Array<{ partPath: string; kind: 'cycle' | 'missing' | 'parse'; message: string }>;
   expandedSubAsmPaths: Set<string>;
   setSubAssemblyDocs: (next: Record<string, AssemblyDocument>) => void;
+  setSubAssemblyInnerPoses: (next: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>) => void;
   setSubAssemblyDiagnostics: (next: Array<{ partPath: string; kind: 'cycle' | 'missing' | 'parse'; message: string }>) => void;
   toggleSubAsmExpanded: (key: string) => void;
   selectComponentPaths: (paths: ComponentPath[]) => void;
@@ -415,9 +417,11 @@ export const useAppStore = create<AppState>((set) => ({
   showComponentColors: false,
   // 4d additions (T18)
   subAssemblyDocs: {},
+  subAssemblyInnerPoses: {},
   subAssemblyDiagnostics: [],
   expandedSubAsmPaths: new Set<string>(),
   setSubAssemblyDocs: (next) => set({ subAssemblyDocs: next }),
+  setSubAssemblyInnerPoses: (next) => set({ subAssemblyInnerPoses: next }),
   setSubAssemblyDiagnostics: (next) => set({ subAssemblyDiagnostics: next }),
   toggleSubAsmExpanded: (key) => set((s) => {
     const next = new Set(s.expandedSubAsmPaths);

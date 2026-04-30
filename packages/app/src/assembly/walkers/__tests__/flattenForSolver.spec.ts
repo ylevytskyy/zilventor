@@ -56,19 +56,40 @@ describe('flattenForSolver — top-level baseline', () => {
 });
 
 describe('flattenForSolver — rigid sub-asm composite', () => {
-  it('emits exactly one unknown for a rigid sub-asm placement; no inner leaves', () => {
+  it('emits exactly one unknown for a rigid sub-asm placement; rigid leaves point at root index', () => {
     const sub = doc({ components: [
-      { id: 'leaf', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      { id: 'leaf', partPath: 'p.zipt', position: { x: 7, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ] });
     const top = doc({ components: [
       { id: 's1', partPath: 'sub.ziasm', position: { x: 5, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ] });
-    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const innerStaticPoses = new Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>([
+      [pathKey(['leaf']), { translation: { x: 7, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] }],
+    ]);
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p, innerStaticPoses } : undefined } as unknown as SubAssemblyCache;
     const r = flattenForSolver(top, cache);
     expect(r.unknowns).toHaveLength(1);
     expect(r.pathToUnknown.get(pathKey(['s1']))).toBe(0);
-    expect(r.pathToUnknown.has(pathKey(['s1', 'leaf']))).toBe(false);
+    expect(r.pathToUnknown.get(pathKey(['s1', 'leaf']))).toBe(0);
     expect(r.rigidSubtreeRoots.get(pathKey(['s1']))).toEqual(['s1']);
+    expect(r.primaryPathByIndex[0]).toBe(pathKey(['s1']));
+    const lp = r.rigidLeafStaticPoses.get(pathKey(['s1', 'leaf']));
+    expect(lp).toBeDefined();
+    expect(lp!.translation.x).toBeCloseTo(7);
+  });
+
+  it('emits no rigidLeafStaticPoses entries when the sub-asm has no innerStaticPoses', () => {
+    const sub = doc({ components: [
+      { id: 'leaf', partPath: 'p.zipt', position: { x: 7, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 's1', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ] });
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const r = flattenForSolver(top, cache);
+    expect(r.unknowns).toHaveLength(1);
+    expect(r.rigidLeafStaticPoses.size).toBe(0);
+    expect(r.pathToUnknown.has(pathKey(['s1', 'leaf']))).toBe(false);
   });
 });
 

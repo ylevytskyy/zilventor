@@ -1,5 +1,5 @@
 import type { AssemblyConstraint, AssemblyDocument, ComponentInstance, ComponentPath, Vec3 } from '@zilventor/shared';
-import { pathKey } from '@zilventor/shared';
+import { pathKey, parsePathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
 
 export type Pose = { translation: Vec3; quaternion: [number, number, number, number] };
@@ -7,9 +7,13 @@ export type Pose = { translation: Vec3; quaternion: [number, number, number, num
 export type SolverInput = {
   unknowns: Pose[];
   pathToUnknown: Map<string, number>;
+  /** Canonical pathKey for each unknown index (top-level component id OR rigid sub-asm root pathKey). */
+  primaryPathByIndex: string[];
   constraints: AssemblyConstraint[];
   /** For rigid sub-asms: which top-of-subtree path maps to which unknown. */
   rigidSubtreeRoots: Map<string, ComponentPath>;
+  /** For each leaf inside a rigid sub-asm: the composed static pose relative to the rigid root. */
+  rigidLeafStaticPoses: Map<string, Pose>;
 };
 
 function initialPose(c: ComponentInstance): Pose {
@@ -50,8 +54,19 @@ export function flattenForSolver(
 ): SolverInput {
   const unknowns: Pose[] = [];
   const pathToUnknown = new Map<string, number>();
+  const primaryPathByIndex: string[] = [];
   const constraints: AssemblyConstraint[] = [];
   const rigidSubtreeRoots = new Map<string, ComponentPath>();
+  const rigidLeafStaticPoses = new Map<string, Pose>();
+
+  function pushUnknown(path: string[], pose: Pose): number {
+    const idx = unknowns.length;
+    unknowns.push(pose);
+    const k = pathKey(path);
+    pathToUnknown.set(k, idx);
+    primaryPathByIndex.push(k);
+    return idx;
+  }
 
   function walk(doc: AssemblyDocument, prefix: string[], inFlexible: boolean) {
     for (const c of doc.components) {
@@ -59,8 +74,7 @@ export function flattenForSolver(
       const isSubAsm = c.partPath.endsWith('.ziasm');
       if (!isSubAsm) {
         if (inFlexible || prefix.length === 0) {
-          unknowns.push(initialPose(c));
-          pathToUnknown.set(pathKey(path), unknowns.length - 1);
+          pushUnknown(path, initialPose(c));
         }
         continue;
       }
@@ -68,16 +82,29 @@ export function flattenForSolver(
       if (!e || e.kind !== 'ok') continue;
       const subDoc = e.doc;
       if (!c.flexible) {
-        unknowns.push(initialPose(c));
-        pathToUnknown.set(pathKey(path), unknowns.length - 1);
+        const rootIdx = pushUnknown(path, initialPose(c));
         rigidSubtreeRoots.set(pathKey(path), path);
+        // Register rigid-leaf paths under the rigid root's unknown index so
+        // top-level constraints targeting leaves inside this rigid sub-asm
+        // can resolve. The leaf's static-relative pose (from
+        // innerStaticPoses) is recorded so the solver bridge can pre-compose
+        // it into the extracted PartLocalGeometry.
+        const inner = (e as { innerStaticPoses?: Map<string, Pose> }).innerStaticPoses;
+        if (inner) {
+          for (const [innerKey, innerPose] of inner) {
+            const innerPath = parsePathKey(innerKey);
+            const leafFullPath = [...path, ...innerPath];
+            const leafKey = pathKey(leafFullPath);
+            pathToUnknown.set(leafKey, rootIdx);
+            rigidLeafStaticPoses.set(leafKey, innerPose);
+          }
+        }
         // Do NOT recurse into rigid subtrees — leaves are computed in composedPoses.
         continue;
       }
       // flexible: placement is an unknown anchor, recurse with inFlexible=true,
       // inline sub-asm constraints with path-prefixed refs.
-      unknowns.push(initialPose(c));
-      pathToUnknown.set(pathKey(path), unknowns.length - 1);
+      pushUnknown(path, initialPose(c));
       walk(subDoc, path, true);
       for (const innerC of subDoc.constraints) {
         constraints.push(prefixConstraint(innerC, path));
@@ -87,5 +114,5 @@ export function flattenForSolver(
   // Top-level constraints, refs unchanged
   for (const c of activeDoc.constraints) constraints.push(c);
   walk(activeDoc, [], false);
-  return { unknowns, pathToUnknown, constraints, rigidSubtreeRoots };
+  return { unknowns, pathToUnknown, primaryPathByIndex, constraints, rigidSubtreeRoots, rigidLeafStaticPoses };
 }
