@@ -58,4 +58,35 @@ describe('ProjectPacker', () => {
     // Compare as array-of-bytes for a clear diff if they diverge.
     expect(Array.from(first)).toEqual(Array.from(second));
   });
+
+  it('round-trips properties on a part manifest verbatim', async () => {
+    const manifest = {
+      formatVersion: 9, kind: 'part', createdAt: 'now', appVersion: '0.0.1',
+      document: {
+        id: 'p1', name: 'X', units: 'mm', parameters: {}, featureTree: [],
+        properties: { partNumber: 'Z-1', description: 'тест', mass: 1.5, isFinished: true },
+      },
+    };
+    const archive = await packProject({ manifest, blobs: {} });
+    const out = await unpackProject(archive);
+    expect((out.manifest as { document: { properties: Record<string, unknown> } }).document.properties).toEqual({
+      partNumber: 'Z-1', description: 'тест', mass: 1.5, isFinished: true,
+    });
+  });
+
+  it('round-trips an ImportedFeature.bodyRef blob alongside the manifest', async () => {
+    const blobBytes = new Uint8Array([0xDC, 0xCA, 0xCA, 0xFE]);
+    const manifest = {
+      formatVersion: 9, kind: 'part', createdAt: 'now', appVersion: '0.0.1',
+      document: {
+        id: 'p1', name: 'X', units: 'mm', parameters: {}, properties: {},
+        featureTree: [{ kind: 'imported', id: 'imp-1', sourceStep: 'X.step', bodyRef: 'blob-imp-1' }],
+      },
+    };
+    const archive = await packProject({ manifest, blobs: { 'blob-imp-1': blobBytes } });
+    const out = await unpackProject(archive);
+    expect(out.blobs['blob-imp-1']).toEqual(blobBytes);
+    const tree = (out.manifest as { document: { featureTree: Array<{ kind: string; id: string; bodyRef: string }> } }).document.featureTree;
+    expect(tree[0]).toMatchObject({ kind: 'imported', id: 'imp-1', bodyRef: 'blob-imp-1' });
+  });
 });
