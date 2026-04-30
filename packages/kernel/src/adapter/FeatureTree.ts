@@ -99,7 +99,11 @@ export type ExecutionResult = {
  */
 export async function executeTree(
   oc: OcctInstance,
-  part: PartDocument
+  part: PartDocument,
+  /** Lookup for ImportedFeature bodies. Required when the tree contains
+   *  any kind:'imported' feature; T8 wires the dispatch. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  lookupImportedShape?: (bodyRef: string) => OcctShape | undefined,
 ): Promise<Result<ExecutionResult, KernelError>> {
   const sketches = new Map<string, SketchResult>();
   let finalSolid: NamedShape | null = null;

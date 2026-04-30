@@ -3,7 +3,7 @@ import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
-import { disposeShape } from './occt/SolidOps';
+import { disposeShape, type OcctShape } from './occt/SolidOps';
 import { writeBRep } from './occt/BRepIO';
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
@@ -68,12 +68,26 @@ export function createKernelApi(): KernelApi {
   const namedShapeCache = new Map<string, import('./occt/FaceNaming').NamedShape>();
   /** Also cache the last work-feature values alongside the shape. */
   const workFeatureCache = new Map<string, import('@zilventor/shared').WorkFeatureValue[]>();
+  /** Imported-STEP brep blob cache, keyed by ImportedFeature.bodyRef.
+   *  Populated by `importStep` and by `loadFromBytes` (when restoring an
+   *  imported part). Read by the ImportedFeature evaluator (Task 8) and
+   *  walked by `saveToBytes` to write blobs back into the .zipt. */
+  const importedShapeCache = new Map<string, OcctShape>();
 
   function updateNamedShapeCache(partId: string, ns: import('./occt/FaceNaming').NamedShape, wfs: import('@zilventor/shared').WorkFeatureValue[]): void {
     const prev = namedShapeCache.get(partId);
     if (prev) disposeShape(prev.shape);
     namedShapeCache.set(partId, ns);
     workFeatureCache.set(partId, wfs);
+  }
+
+  function registerImportedShape(bodyRef: string, shape: OcctShape): void {
+    const prev = importedShapeCache.get(bodyRef);
+    if (prev) disposeShape(prev);
+    importedShapeCache.set(bodyRef, shape);
+  }
+  function lookupImportedShape(bodyRef: string): OcctShape | undefined {
+    return importedShapeCache.get(bodyRef);
   }
 
   return {
@@ -139,7 +153,7 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
-      const r = await executeTree(occt, p);
+      const r = await executeTree(occt, p, lookupImportedShape);
       if (!r.ok) return r;
       // Cache the NamedShape (with live OCCT face handles) for assembly ref
       // resolution. The cache takes ownership of namedShape; do NOT dispose
@@ -164,7 +178,7 @@ export function createKernelApi(): KernelApi {
       if (!p) throw new Error(`no part ${partId}`);
       // Virtual tree: stored part + scratch feature appended. No persistence.
       const virtual: PartDocument = { ...p, featureTree: [...p.featureTree, feature] };
-      const r = await executeTree(occt, virtual);
+      const r = await executeTree(occt, virtual, lookupImportedShape);
       if (!r.ok) return r;
       disposeShape(r.value.finalSolid);
       // Preview intentionally drops featureErrors: the scratch feature is the
@@ -189,7 +203,7 @@ export function createKernelApi(): KernelApi {
       if (!part) throw new Error(`no part ${partId}`);
 
       // Re-run the feature tree to build the solid for BRep serialisation.
-      const r = await executeTree(occt, part);
+      const r = await executeTree(occt, part, lookupImportedShape);
       if (!r.ok) throw new Error(`execute failed before save: ${r.error.message}`);
 
       // Update the NamedShape cache before we do anything that might throw,
@@ -251,7 +265,7 @@ export function createKernelApi(): KernelApi {
       let wfs = workFeatureCache.get(partId);
       if (!ns) {
         const p = parts.get(partId)!;
-        const r = await executeTree(occt, p);
+        const r = await executeTree(occt, p, lookupImportedShape);
         if (!r.ok) return r;
         updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
         ns = r.value.namedShape;
@@ -269,7 +283,7 @@ export function createKernelApi(): KernelApi {
       let ns = namedShapeCache.get(partId);
       if (!ns) {
         const p = parts.get(partId)!;
-        const r = await executeTree(occt, p);
+        const r = await executeTree(occt, p, lookupImportedShape);
         if (!r.ok) return r;
         updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
         ns = r.value.namedShape;
