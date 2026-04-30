@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
+import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partNames?: Map<string, string> };
 
@@ -76,7 +77,12 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                if (!isSubAsm) {
+                if (isSubAsm) {
+                  // Right-click on a sub-asm opens the underlying .ziasm in standalone (Inventor convention).
+                  if (window.confirm(`Open ${partFileName} in standalone?`)) {
+                    OpenProjectFileCommand(c.partPath);
+                  }
+                } else {
                   // Right-click on a leaf opens an Override color dialog (minimal: prompt for hex).
                   const hex = window.prompt('Override color (hex, e.g. #d4a574); blank to clear:');
                   if (hex === null) return;

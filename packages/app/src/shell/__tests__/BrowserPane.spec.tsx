@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BrowserPane from '../BrowserPane';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
@@ -500,6 +500,34 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
     expect(useAppStore.getState().editComponentDialogOpen).toBe(true);
     expect(useAppStore.getState().editingComponentId).toBe('SUB1');
   });
+
+  it('right-click on a sub-asm placement opens it in standalone after confirm (G2)', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    fireEvent.contextMenu(screen.getByText(/SUB1/));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(useAppStore.getState().activeDocument).toEqual({ kind: 'assembly', document: childDoc });
+    confirmSpy.mockRestore();
+  });
+
+  it('right-click on a sub-asm placement does nothing when user cancels confirm', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const before = { kind: 'assembly', document: topDoc() } as const;
+    useAppStore.setState({
+      activeDocument: before,
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    fireEvent.contextMenu(screen.getByText(/SUB1/));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(useAppStore.getState().activeDocument).toBe(before);
+    confirmSpy.mockRestore();
+  });
+
 
 
   it('handles a self-referential cycle without infinite recursion', () => {
