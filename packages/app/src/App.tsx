@@ -48,6 +48,8 @@ import { OpenSweepDialogCommand } from './commands/OpenSweepDialogCommand';
 import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDialogCommand';
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
+import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
+import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
 import type { WorkAxisCommit } from './shell/WorkAxisDialog';
 import type { WorkPointCommit } from './shell/WorkPointDialog';
@@ -318,6 +320,9 @@ export default function App() {
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const parametersPanelOpen = useAppStore((s) => s.parametersPanelOpen);
   const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
+  const importFromInventorDialogOpen = useAppStore((s) => s.importFromInventorDialogOpen);
+  const setImportFromInventorDialogOpen = useAppStore((s) => s.setImportFromInventorDialogOpen);
+  const [importStatus, setImportStatus] = useState<ImportDialogStatus>({ kind: 'idle' });
   const revolveDialogOpen = useAppStore((s) => s.revolveDialogOpen);
   const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
   const filletDialogOpen = useAppStore((s) => s.filletDialogOpen);
@@ -3142,6 +3147,34 @@ export default function App() {
         onWorkPlaneCommit={onWorkPlaneCommit}
         onWorkAxisCommit={onWorkAxisCommit}
         onWorkPointCommit={onWorkPointCommit}
+      />
+      <ImportFromInventorDialog
+        isOpen={importFromInventorDialogOpen}
+        status={importStatus}
+        onCancel={() => {
+          setImportFromInventorDialogOpen(false);
+          setImportStatus({ kind: 'idle' });
+        }}
+        onConfirm={async (conflict) => {
+          if (!kernel) {
+            setImportStatus({ kind: 'error', message: 'Kernel not ready' });
+            return;
+          }
+          setImportStatus({ kind: 'scanning' });
+          try {
+            const cmd = new ImportFromInventorCommand({
+              pickInput: () => (window as any).showDirectoryPicker({ id: 'inventor-import-input', mode: 'read' }),
+              pickTarget: () => (window as any).showDirectoryPicker({ id: 'inventor-import-target', mode: 'readwrite' }),
+              conflict,
+              kernel,
+              onProgress: (p) => setImportStatus({ kind: 'importing', ...p }),
+            });
+            await cmd.apply();
+            setImportStatus({ kind: 'done', summary: cmd.summary! });
+          } catch (e) {
+            setImportStatus({ kind: 'error', message: (e as Error).message });
+          }
+        }}
       />
       {revolveDialogOpen && (
         <RevolveDialog

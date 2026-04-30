@@ -85,6 +85,7 @@ type AppState = {
   shellInitialThickness: string | undefined;
   linearPatternDialogOpen: boolean;
   mirrorDialogOpen: boolean;
+  importFromInventorDialogOpen: boolean;
   holeDialogOpen: boolean;
   holePlacementMode: 'fromSketch' | 'linear' | 'concentric';
   holeSketchId: string | null;
@@ -158,6 +159,7 @@ type AppState = {
   openShellForEdit(featureId: string): void;
   setLinearPatternDialogOpen(v: boolean): void;
   setMirrorDialogOpen(v: boolean): void;
+  setImportFromInventorDialogOpen(v: boolean): void;
 
   placeComponentDialogOpen: boolean;
   editComponentDialogOpen: boolean;
@@ -406,6 +408,8 @@ export const useAppStore = create<AppState>((set) => ({
   setLinearPatternDialogOpen: (v) => set({ linearPatternDialogOpen: v }),
   mirrorDialogOpen: false,
   setMirrorDialogOpen: (v) => set({ mirrorDialogOpen: v }),
+  importFromInventorDialogOpen: false,
+  setImportFromInventorDialogOpen: (v) => set({ importFromInventorDialogOpen: v }),
 
   placeComponentDialogOpen: false,
   editComponentDialogOpen: false,

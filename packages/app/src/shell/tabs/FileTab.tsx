@@ -118,6 +118,12 @@ export default function FileTab() {
       <button className="hover:text-white" onClick={handleOpen}>Open…</button>
       <button className="hover:text-white" disabled>Save</button>
       <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
+      <button
+        className="hover:text-white"
+        onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
+      >
+        Import from Inventor
+      </button>
       {errorDialog && (
         <div role="alertdialog" aria-label="Error" className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-shell-panel border border-shell-border p-4 w-80 text-xs">
