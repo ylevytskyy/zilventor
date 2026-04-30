@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "kind": "assembly",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": {
+    "iamPath": "Asm0.iam",
+    "fileVersion": "Inventor 2012"
+  },
+  "name": "Asm0",
+  "properties": {},
+  "parameters": {},
+  "occurrences": [
+    {
+      "occurrenceName": "Part00:1",
+      "ref": "./Part00.ipt.json",
+      "pose": {
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "visible": true,
+      "grounded": true
+    },
+    {
+      "occurrenceName": "Part01:1",
+      "ref": "./Part01.ipt.json",
+      "pose": {
+        "translation": {
+          "x": 20,
+          "y": 0,
+          "z": 0
+        },
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "visible": true,
+      "grounded": false
+    },
+    {
+      "occurrenceName": "Part02:1",
+      "ref": "./Part02.ipt.json",
+      "pose": {
+        "translation": {
+          "x": 40,
+          "y": 0,
+          "z": 0
+        },
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "visible": true,
+      "grounded": false
+    },
+    {
+      "occurrenceName": "Part03:1",
+      "ref": "./Part03.ipt.json",
+      "pose": {
+        "translation": {
+          "x": 60,
+          "y": 0,
+          "z": 0
+        },
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "visible": true,
+      "grounded": false
+    },
+    {
+      "occurrenceName": "Part04:1",
+      "ref": "./Part04.ipt.json",
+      "pose": {
+        "translation": {
+          "x": 80,
+          "y": 0,
+          "z": 0
+        },
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "visible": true,
+      "grounded": false
+    }
+  ]
+}

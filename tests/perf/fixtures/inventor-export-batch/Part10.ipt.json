@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "part",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": {
+    "iptPath": "Part10.ipt",
+    "fileVersion": "Inventor 2012"
+  },
+  "step": "Part10.step",
+  "name": "Part10",
+  "properties": {
+    "partNumber": "P-10",
+    "description": "Perf part 10"
+  },
+  "parameters": {}
+}
