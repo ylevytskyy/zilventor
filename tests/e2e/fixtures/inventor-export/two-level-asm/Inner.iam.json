@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "assembly",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": { "iamPath": "Inner.iam", "fileVersion": "Inventor 2012" },
+  "name": "Inner",
+  "properties": {},
+  "parameters": {},
+  "occurrences": [
+    {
+      "occurrenceName": "Leaf:1",
+      "ref": "./Leaf.ipt.json",
+      "pose": { "translation": { "x": 0, "y": 0, "z": 0 }, "quaternion": [0, 0, 0, 1] },
+      "color": { "hex": "#aabbcc" },
+      "visible": true,
+      "grounded": false
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "part",
+  "exportedAt": "2026-04-30T00:00:00Z",
+  "source": { "iptPath": "Leaf.ipt", "fileVersion": "Inventor 2012" },
+  "step": "Leaf.step",
+  "name": "Leaf",
+  "properties": {
+    "partNumber": "L-100",
+    "description": "Leaf cube — bottom of the two-level hierarchy"
+  },
+  "parameters": {}
+}
