@@ -50,6 +50,7 @@ import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
+import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
 import type { WorkAxisCommit } from './shell/WorkAxisDialog';
 import type { WorkPointCommit } from './shell/WorkPointDialog';
@@ -355,6 +356,30 @@ export default function App() {
       w.__zilventorGetOpfs = async () => {
         if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
         return opfsRef.current;
+      };
+      w.__zilventorImportFromFiles = async (
+        files: Record<string, string | number[]>,
+        target: string,
+      ) => {
+        const { kernel } = useAppStore.getState();
+        if (!kernel) throw new Error('kernel not ready');
+
+        const fakeFiles: Record<string, string | Uint8Array> = {};
+        for (const [k, v] of Object.entries(files)) {
+          fakeFiles[k] = typeof v === 'string' ? v : new Uint8Array(v);
+        }
+        const inputDir = makeFakeInputDir(fakeFiles);
+
+        const root = await navigator.storage.getDirectory();
+        const targetDir = await root.getDirectoryHandle(target, { create: true });
+
+        const { runInventorImport } = await import('./import/InventorImporter');
+        return await runInventorImport({
+          input: inputDir,
+          target: targetDir,
+          conflict: 'overwrite',
+          kernel: kernel as unknown as Parameters<typeof runInventorImport>[0]['kernel'],
+        });
       };
       w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
     }

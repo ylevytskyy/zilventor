@@ -1,70 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { runInventorImport } from '../InventorImporter';
+import { makeFakeInputDir, makeFakeWritableTarget } from '../buildFakeImportEnv';
 
-/** Minimal in-memory directory handle that satisfies the subset of FileSystemDirectoryHandle the importer uses. */
-function makeDir(entries: Record<string, Uint8Array | Record<string, unknown>>): any {
-  return {
-    kind: 'directory',
-    async *entries() {
-      for (const [name, val] of Object.entries(entries)) {
-        if (val instanceof Uint8Array) {
-          yield [name, {
-            kind: 'file', name,
-            getFile: async () => ({
-              arrayBuffer: async () => val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength),
-            }),
-          }];
-        } else {
-          yield [name, makeDir(val as any)];
-        }
-      }
-    },
-    async getDirectoryHandle(name: string) {
-      const child = entries[name];
-      if (child instanceof Uint8Array || child === undefined) throw new Error(`not a dir: ${name}`);
-      return makeDir(child as Record<string, Uint8Array | Record<string, unknown>>);
-    },
-  };
-}
-
-function makeWritableTarget(): { dir: any; writes: Map<string, Uint8Array> } {
-  const writes = new Map<string, Uint8Array>();
-  function makeDirNode(prefix: string): any {
-    const fileNames = new Set<string>();
-    return {
-      kind: 'directory' as const,
-      async getFileHandle(name: string, _opts: { create?: boolean }) {
-        if (!fileNames.has(name) && !writes.has(prefix + name) && !_opts?.create) {
-          throw new DOMException('not found', 'NotFoundError');
-        }
-        fileNames.add(name);
-        return {
-          kind: 'file' as const, name,
-          async createWritable() {
-            const chunks: Uint8Array[] = [];
-            return {
-              async write(data: Uint8Array | { type: string; data?: Uint8Array }) {
-                if (data instanceof Uint8Array) chunks.push(data);
-                else if ((data as any).data) chunks.push((data as any).data);
-              },
-              async close() {
-                const total = chunks.reduce((a, c) => a + c.byteLength, 0);
-                const merged = new Uint8Array(total);
-                let off = 0; for (const c of chunks) { merged.set(c, off); off += c.byteLength; }
-                writes.set(prefix + name, merged);
-              },
-            };
-          },
-        };
-      },
-      async getDirectoryHandle(name: string, _opts: { create?: boolean }) {
-        return makeDirNode(`${prefix}${name}/`);
-      },
-    };
-  }
-  return { dir: makeDirNode(''), writes };
-}
+const makeDir = (entries: Record<string, Uint8Array>) => makeFakeInputDir(entries);
+const makeWritableTarget = () => makeFakeWritableTarget();
 
 function utf8(s: string): Uint8Array { return new TextEncoder().encode(s); }
 
