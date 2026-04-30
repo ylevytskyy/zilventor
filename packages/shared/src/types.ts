@@ -25,6 +25,16 @@ export type SketchPrimitive =
 
 export type BooleanOperation = 'new' | 'join' | 'cut';
 
+export type ImportedFeature = {
+  kind: 'imported';
+  id: string;
+  /** Source filename of the originating STEP, for diagnostics only. */
+  sourceStep: string;
+  /** Blob id of the cached B-rep body. The kernel keeps a runtime
+   *  cache keyed by this id; ProjectPacker (un)packs it on save/load. */
+  bodyRef: string;
+};
+
 export type Feature =
   | { kind: 'sketch'; id: string; plane: WorkPlaneRef; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation }
@@ -38,7 +48,8 @@ export type Feature =
   | SweepFeature
   | WorkAxisFeature
   | WorkPlaneFeature
-  | WorkPointFeature;
+  | WorkPointFeature
+  | ImportedFeature;
 
 export type CachedGeometry = {
   brepBlobId: string;
@@ -53,6 +64,7 @@ export type PartDocument = {
   parameters: Record<string, SketchParameter>;
   featureTree: Feature[];
   cachedGeometry?: CachedGeometry;
+  properties: Record<string, string | number | boolean>;
 };
 
 export type ComponentColor =
@@ -81,6 +93,7 @@ export type AssemblyDocument = {
   colors: Record<string, string>;
   bomItemNumbers: Record<string, number>;
   colorOverrides: Record<ComponentPathKey, ComponentColor>;
+  properties: Record<string, string | number | boolean>;
 };
 
 export type AssemblyConstraintRef =
@@ -103,8 +116,8 @@ export type AssemblyConstraint =
       offset: ParamOrLiteral; suppressed: boolean };
 
 export type ProjectFile =
-  | { formatVersion: 7 | 8; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
+  | { formatVersion: 7 | 8 | 9; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
 
 export type FaceName = {
   featureId: string;
@@ -353,4 +366,9 @@ export function originPlaneLiteralOf(ref: WorkPlaneRef): 'XY' | 'YZ' | 'XZ' | nu
   if (ref.featureId === 'origin.YZ') return 'YZ';
   if (ref.featureId === 'origin.XZ') return 'XZ';
   return null;
+}
+
+export function isImportedPart(doc: PartDocument): boolean {
+  const nonOrigin = doc.featureTree.filter((f) => !(typeof f.id === 'string' && f.id.startsWith('origin.')));
+  return nonOrigin.length === 1 && nonOrigin[0]!.kind === 'imported';
 }
