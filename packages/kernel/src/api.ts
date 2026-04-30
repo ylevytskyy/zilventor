@@ -4,7 +4,7 @@ import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
 import { disposeShape, type OcctShape } from './occt/SolidOps';
-import { writeBRep } from './occt/BRepIO';
+import { writeBRep, readBRep } from './occt/BRepIO';
 import { readStep } from './occt/StepIO';
 import { tessellate } from './occt/Tessellator';
 import { packProject, unpackProject } from './storage/ProjectPacker';
@@ -226,6 +226,16 @@ export function createKernelApi(): KernelApi {
       // writeBRep reads r.value.finalSolid (alias to namedShape.shape) which
       // is still alive in the cache — do NOT call disposeShape here.
       const brep = writeBRep(occt, r.value.finalSolid);
+      const blobs: Record<string, Uint8Array> = { main: brep };
+      for (const f of part.featureTree) {
+        if (f.kind === 'imported') {
+          const cached = importedShapeCache.get(f.bodyRef);
+          if (!cached) {
+            throw new Error(`saveToBytes: imported feature ${f.id} bodyRef=${f.bodyRef} not in cache`);
+          }
+          blobs[f.bodyRef] = writeBRep(occt, cached);
+        }
+      }
       const manifest = {
         formatVersion: 1 as const,
         kind: 'part' as const,
@@ -242,7 +252,7 @@ export function createKernelApi(): KernelApi {
       };
       return await packProject({
         manifest,
-        blobs: { main: brep },
+        blobs,
         ...(thumbnail ? { thumbnail } : {})
       });
     },
@@ -259,9 +269,22 @@ export function createKernelApi(): KernelApi {
 
     async loadFromBytes(bytes) {
       if (!occt) throw new Error('kernel not initialized');
-      const { manifest } = await unpackProject(bytes);
+      const { manifest, blobs } = await unpackProject(bytes);
       const migrated = migrateManifest(manifest as AnyManifest);
       const part = (migrated as unknown as { document: PartDocument }).document;
+
+      // Restore any imported-feature breps into the kernel cache
+      for (const f of part.featureTree) {
+        if (f.kind === 'imported') {
+          const blob = blobs[f.bodyRef];
+          if (!blob) {
+            throw new Error(`loadFromBytes: imported feature ${f.id} bodyRef=${f.bodyRef} missing from .zipt blobs`);
+          }
+          const shape = readBRep(occt, blob);
+          registerImportedShape(f.bodyRef, shape);
+        }
+      }
+
       parts.set(part.id, part);
       return part.id;
     },

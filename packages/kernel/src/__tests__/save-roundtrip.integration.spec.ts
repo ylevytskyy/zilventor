@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createKernelApi } from '../api';
 
 class FakeHandle {
@@ -103,5 +105,29 @@ describe('Save/Load round-trip via FakeHandle', () => {
     const part2 = await api2.getPart(id2);
     expect(part2?.featureTree.length).toBe(9);
     expect(part2?.parameters.d1?.value).toBe(15);
+  }, 120_000);
+
+  it('round-trips an imported part: importStep → addFeature → saveToBytes → loadFromBytes (fresh API) → execute', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const bytes = readFileSync(resolve(__dirname, '../occt/__tests__/fixtures/step/cube-10mm.step'));
+    const imp = await api.importStep({
+      stepBytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      partName: 'Cube',
+    });
+    const partId = await api.createPart('Cube');
+    await api.addFeature(partId, {
+      kind: 'imported', id: 'imp-1', sourceStep: 'cube-10mm.step', bodyRef: imp.brepBlobId,
+    });
+    const saved = await api.saveToBytes(partId);
+
+    // Fresh API instance simulates a reload
+    const api2 = createKernelApi();
+    await api2.init();
+    const partId2 = await api2.loadFromBytes(saved);
+    const exec = await api2.execute(partId2);
+    if (!exec.ok) throw new Error(`execute after reload failed: ${JSON.stringify(exec.error)}`);
+    expect(exec.value.mesh.indices.length).toBeGreaterThan(0);
+    expect(exec.value.faceNames?.length).toBe(6);
   }, 120_000);
 });
