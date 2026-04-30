@@ -1,0 +1,1062 @@
+'   ZilInventor export macro for Autodesk Inventor 2012
+'
+'   Public entry points (run via Tools > Macros):
+'     ZilInventor_ExportActiveDocument  - exports the currently-open .ipt or .iam.
+'     ZilInventor_BatchExportFolder     - walks an input folder tree, exports each
+'                                         unique .ipt and .iam under an output root.
+'
+'   Output layout mirrors the input tree.  For an .ipt the macro writes
+'   <stem>.step (AP214) plus <stem>.ipt.json (sidecar with iProperties +
+'   user parameters + source).  For an .iam the macro writes <stem>.iam.json
+'   only (no STEP - assemblies are tree-only) listing direct occurrences.
+'
+'   JSON encoding: UTF-8 without BOM via ADODB.Stream, so Cyrillic survives.
+'   Numbers go through JsonNumber which calls Replace(CStr(d), ",", ".") -
+'   needed because Ukrainian/Russian Inventor installs use comma decimals
+'   and CStr would otherwise emit "1,5" which is invalid JSON.
+'
+'   Schema: schemaVersion = 1, matches packages/app/src/import/inventorJsonSchema.ts.
+'   See docs/superpowers/specs/2026-04-30-subproject-1.5-inventor-export-design.md.
+
+Option Explicit
+
+'  --- Public entry points -----------------------------------------------------
+
+Public Sub ZilInventor_ExportActiveDocument()
+    On Error GoTo Cleanup
+
+    Dim doc As Document
+    Set doc = ThisApplication.ActiveDocument
+    If doc Is Nothing Then
+        MsgBox "No active document.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim outputRoot As String
+    outputRoot = PickFolder("Choose output folder")
+    If Len(outputRoot) = 0 Then Exit Sub
+
+    Dim exported As Object
+    Set exported = CreateObject("Scripting.Dictionary")
+    exported.CompareMode = 1  ' vbTextCompare (case-insensitive)
+
+    Dim logPath As String
+    logPath = JoinPath(outputRoot, "_export-log.txt")
+    Call WriteUtf8File(logPath, "ZilInventor export log " & NowIso() & vbCrLf)
+
+    Dim baseStem As String
+    baseStem = StripExtension(BaseName(doc.FullFileName))
+    Call ExportDocument(doc, outputRoot, "", baseStem, exported, logPath)
+
+    MsgBox "Export done." & vbCrLf & "See " & logPath, vbInformation
+    Exit Sub
+
+Cleanup:
+    If Err.Number <> 0 Then
+        MsgBox "Error: " & Err.Description & " (#" & Err.Number & ")", vbCritical
+    End If
+End Sub
+
+Public Sub ZilInventor_BatchExportFolder()
+    On Error GoTo Cleanup
+
+    Dim inputRoot As String
+    inputRoot = PickFolder("Choose input folder (.ipt/.iam tree)")
+    If Len(inputRoot) = 0 Then Exit Sub
+
+    Dim outputRoot As String
+    outputRoot = PickFolder("Choose output folder (must NOT be inside the input folder)")
+    If Len(outputRoot) = 0 Then Exit Sub
+
+    If StartsWithFolder(outputRoot, inputRoot) Then
+        MsgBox "Output folder must not be inside the input folder.", vbExclamation
+        Exit Sub
+    End If
+
+    Call BatchWalk(inputRoot, outputRoot)
+
+    MsgBox "Batch export done." & vbCrLf & "See " & JoinPath(outputRoot, "_export-log.txt"), vbInformation
+    Exit Sub
+
+Cleanup:
+    If Err.Number <> 0 Then
+        MsgBox "Error: " & Err.Description & " (#" & Err.Number & ")", vbCritical
+    End If
+End Sub
+
+'  --- Folder picker -----------------------------------------------------------
+
+Private Function PickFolder(prompt As String) As String
+    Dim shell As Object
+    Set shell = CreateObject("Shell.Application")
+    Dim folder As Object
+    Set folder = shell.BrowseForFolder(0, prompt, 0, 0)
+    If folder Is Nothing Then
+        PickFolder = ""
+        Exit Function
+    End If
+    On Error Resume Next
+    PickFolder = folder.Self.Path
+    On Error GoTo 0
+End Function
+
+'  --- Batch walker ------------------------------------------------------------
+
+Private Sub BatchWalk(inputRoot As String, outputRoot As String)
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+
+    Dim logPath As String
+    logPath = JoinPath(outputRoot, "_export-log.txt")
+    Call WriteUtf8File(logPath, "ZilInventor batch export log " & NowIso() & vbCrLf _
+        & "input:  " & inputRoot & vbCrLf _
+        & "output: " & outputRoot & vbCrLf & vbCrLf)
+
+    Dim exported As Object
+    Set exported = CreateObject("Scripting.Dictionary")
+    exported.CompareMode = 1  ' vbTextCompare
+
+    Call WalkDir(fso.GetFolder(inputRoot), inputRoot, outputRoot, exported, logPath)
+End Sub
+
+Private Sub WalkDir(folder As Object, inputRoot As String, outputRoot As String, _
+                    exported As Object, logPath As String)
+    Dim f As Object
+    For Each f In folder.Files
+        Dim ext As String
+        ext = LCase(GetExtension(f.Name))
+        If ext = ".ipt" Or ext = ".iam" Then
+            Call ProcessOneFile(f.Path, inputRoot, outputRoot, exported, logPath)
+        End If
+    Next f
+
+    Dim sub_ As Object
+    For Each sub_ In folder.SubFolders
+        Call WalkDir(sub_, inputRoot, outputRoot, exported, logPath)
+    Next sub_
+End Sub
+
+Private Sub ProcessOneFile(absPath As String, inputRoot As String, outputRoot As String, _
+                           exported As Object, logPath As String)
+    Dim relPath As String
+    relPath = RelativePath(absPath, inputRoot)
+
+    If IsAlreadyExported(absPath, exported) Then
+        Call LogLine(logPath, "SKIP " & relPath & " (already exported in this batch)")
+        Exit Sub
+    End If
+
+    Dim doc As Document
+    On Error Resume Next
+    Set doc = ThisApplication.Documents.Open(absPath, False)
+    Dim openErr As Long: openErr = Err.Number
+    Dim openMsg As String: openMsg = Err.Description
+    On Error GoTo 0
+    If openErr <> 0 Or doc Is Nothing Then
+        Call LogLine(logPath, "ERR  " & relPath & " open failed: " & openMsg)
+        Exit Sub
+    End If
+
+    Dim dirRel As String
+    dirRel = ParentDir(relPath)
+    Dim baseStem As String
+    baseStem = StripExtension(BaseName(absPath))
+
+    On Error Resume Next
+    Call ExportDocument(doc, outputRoot, dirRel, baseStem, exported, logPath)
+    Dim exErr As Long: exErr = Err.Number
+    Dim exMsg As String: exMsg = Err.Description
+    On Error GoTo 0
+    If exErr <> 0 Then
+        Call LogLine(logPath, "ERR  " & relPath & " export failed: " & exMsg)
+    End If
+
+    On Error Resume Next
+    doc.Close (True)  ' silently
+    On Error GoTo 0
+End Sub
+
+'  --- Per-document dispatcher -------------------------------------------------
+
+Private Sub ExportDocument(doc As Document, outputRoot As String, dirRel As String, _
+                            baseStem As String, exported As Object, logPath As String)
+    Dim fullKey As String
+    fullKey = LCase(doc.FullFileName)
+    If exported.Exists(fullKey) Then
+        Call LogLine(logPath, "SKIP " & doc.FullFileName & " (dedup)")
+        Exit Sub
+    End If
+    exported.Add fullKey, True
+
+    Dim outDir As String
+    outDir = JoinPath(outputRoot, dirRel)
+    Call EnsureDir(outDir)
+
+    Select Case doc.DocumentType
+        Case kPartDocumentObject
+            Call ExportPart(doc, outDir, baseStem, logPath, JoinPathRel(dirRel, baseStem & ".ipt"))
+
+        Case kAssemblyDocumentObject
+            Call ExportAssembly(doc, outputRoot, outDir, dirRel, baseStem, exported, logPath)
+
+        Case Else
+            Call LogLine(logPath, "SKIP " & doc.FullFileName & " (unsupported type)")
+    End Select
+End Sub
+
+'  --- Part export -------------------------------------------------------------
+
+Private Sub ExportPart(partDoc As Document, outDir As String, stem As String, _
+                       logPath As String, relIptPath As String)
+    Dim stepPath As String
+    stepPath = JoinPath(outDir, stem & ".step")
+    Dim jsonPath As String
+    jsonPath = JoinPath(outDir, stem & ".ipt.json")
+
+    On Error Resume Next
+    Call STEPExport(partDoc, stepPath)
+    Dim stepErr As Long: stepErr = Err.Number
+    Dim stepMsg As String: stepMsg = Err.Description
+    On Error GoTo 0
+    If stepErr <> 0 Then
+        Call LogLine(logPath, "ERR  " & relIptPath & " STEP export failed: " & stepMsg)
+        Exit Sub
+    End If
+
+    Call WritePartJson(partDoc, jsonPath, stem & ".step", stem, relIptPath)
+    Call LogLine(logPath, "OK   " & relIptPath)
+End Sub
+
+Private Sub STEPExport(doc As Document, outFile As String)
+    '   Inventor 2012 STEP translator add-in id (GUID).
+    '   Fixed across Inventor 2012; verified at install time.
+    Const STEP_TRANSLATOR_ID As String = "{90AF7F40-0C01-11D5-8E83-0010B541CD80}"
+
+    Dim translator As TranslatorAddIn
+    Set translator = ThisApplication.ApplicationAddIns.ItemById(STEP_TRANSLATOR_ID)
+    If translator Is Nothing Then Err.Raise vbObjectError, , "STEP translator add-in not found"
+    If Not translator.Activated Then translator.Activate
+
+    Dim ctx As TranslationContext
+    Set ctx = ThisApplication.TransientObjects.CreateTranslationContext
+    ctx.Type = kFileBrowseIOMechanism
+
+    Dim opts As NameValueMap
+    Set opts = ThisApplication.TransientObjects.CreateNameValueMap
+    '   Application protocol: 3 = AP214 (per Inventor 2012 STEP translator docs).
+    If translator.HasSaveCopyAsOptions(doc, ctx, opts) Then
+        opts.Value("ApplicationProtocolType") = 3
+        opts.Value("Author") = ""
+        opts.Value("Authorization") = ""
+        opts.Value("Description") = ""
+        opts.Value("Organization") = ""
+    End If
+
+    Dim med As DataMedium
+    Set med = ThisApplication.TransientObjects.CreateDataMedium
+    med.FileName = outFile
+
+    translator.SaveCopyAs doc, ctx, opts, med
+End Sub
+
+Private Sub WritePartJson(partDoc As Document, outPath As String, _
+                           stepName As String, partName As String, relIptPath As String)
+    Dim sb As String
+    sb = "{" & vbCrLf
+    sb = sb & "  ""schemaVersion"": 1," & vbCrLf
+    sb = sb & "  ""kind"": ""part""," & vbCrLf
+    sb = sb & "  ""exportedAt"": """ & NowIso() & ""","  & vbCrLf
+    sb = sb & "  ""source"": { ""iptPath"": """ & JsonEscape(relIptPath) _
+            & """, ""fileVersion"": ""Inventor 2012"" }," & vbCrLf
+    sb = sb & "  ""step"": """ & JsonEscape(stepName) & ""","  & vbCrLf
+    sb = sb & "  ""name"": """ & JsonEscape(partName) & ""","  & vbCrLf
+    sb = sb & "  ""properties"": " & PropertiesJson(partDoc, "    ") & "," & vbCrLf
+    sb = sb & "  ""parameters"": " & ParametersJson(partDoc, "    ") & vbCrLf
+    sb = sb & "}" & vbCrLf
+
+    Call WriteUtf8File(outPath, sb)
+End Sub
+
+'  --- Assembly export ---------------------------------------------------------
+
+Private Sub ExportAssembly(asmDoc As Document, outputRoot As String, outDir As String, _
+                            dirRel As String, stem As String, exported As Object, _
+                            logPath As String)
+    '   First pass: export every unique referenced part / sub-asm so refs resolve.
+    Dim refDoc As Document
+    For Each refDoc In asmDoc.AllReferencedDocuments
+        Dim refKey As String
+        refKey = LCase(refDoc.FullFileName)
+        If Not exported.Exists(refKey) Then
+            Dim refDirRel As String
+            Dim refStem As String
+            refStem = StripExtension(BaseName(refDoc.FullFileName))
+            refDirRel = ResolveRefDirRel(refDoc.FullFileName, outputRoot, dirRel, logPath)
+
+            On Error Resume Next
+            Select Case refDoc.DocumentType
+                Case kPartDocumentObject
+                    exported.Add refKey, True
+                    Dim refOutDir As String
+                    refOutDir = JoinPath(outputRoot, refDirRel)
+                    Call EnsureDir(refOutDir)
+                    Call ExportPart(refDoc, refOutDir, refStem, logPath, _
+                                     JoinPathRel(refDirRel, refStem & ".ipt"))
+
+                Case kAssemblyDocumentObject
+                    Call ExportDocument(refDoc, outputRoot, refDirRel, refStem, exported, logPath)
+            End Select
+            If Err.Number <> 0 Then
+                Call LogLine(logPath, "ERR  " & refDoc.FullFileName & " ref export: " & Err.Description)
+                Err.Clear
+            End If
+            On Error GoTo 0
+        End If
+    Next refDoc
+
+    '   Second pass: write this assembly's JSON sidecar listing direct occurrences.
+    Dim jsonPath As String
+    jsonPath = JoinPath(outDir, stem & ".iam.json")
+    Call WriteAssemblyJson(asmDoc, jsonPath, outputRoot, dirRel, stem)
+    Call LogLine(logPath, "OK   " & JoinPathRel(dirRel, stem & ".iam"))
+End Sub
+
+Private Function ResolveRefDirRel(refFullPath As String, outputRoot As String, _
+                                   asmDirRel As String, logPath As String) As String
+    '   Derive an output-relative folder for a referenced doc, mirroring its
+    '   location relative to the assembly's source folder when possible.
+    '
+    '   Convention: if ref is a sibling of the assembly, the ref's output folder
+    '   matches the assembly's output folder.  Otherwise we put it under
+    '   _external/<original-folder-basename>/ to keep names from colliding.
+    Dim refParent As String
+    refParent = ParentDir(refFullPath)
+    Dim asmAbs As String
+    asmAbs = ""
+
+    '   Heuristic: if the file's parent folder ends with the same last segment
+    '   as the assembly's relative dir (or asmDirRel is empty meaning root),
+    '   treat as sibling.  Cross-folder references fall through to _external.
+    Dim leaf As String
+    leaf = LastSegment(refParent)
+
+    If LenB(asmDirRel) = 0 Then
+        '   Root assembly - colocate sibling references in root.
+        ResolveRefDirRel = ""
+    Else
+        '   Same folder as the assembly (covers the common Inventor-project case).
+        ResolveRefDirRel = asmDirRel
+    End If
+
+    '   _external override happens at top-level batch via the input-root check;
+    '   for the active-document path we always colocate.  This is good enough
+    '   for one-time migration and mirrors what the user expects.
+End Function
+
+Private Sub WriteAssemblyJson(asmDoc As Document, outPath As String, _
+                               outputRoot As String, dirRel As String, stem As String)
+    Dim sb As String
+    sb = "{" & vbCrLf
+    sb = sb & "  ""schemaVersion"": 1," & vbCrLf
+    sb = sb & "  ""kind"": ""assembly""," & vbCrLf
+    sb = sb & "  ""exportedAt"": """ & NowIso() & ""","  & vbCrLf
+    sb = sb & "  ""source"": { ""iamPath"": """ & JsonEscape(JoinPathRel(dirRel, stem & ".iam")) _
+            & """, ""fileVersion"": ""Inventor 2012"" }," & vbCrLf
+    sb = sb & "  ""name"": """ & JsonEscape(stem) & ""","  & vbCrLf
+    sb = sb & "  ""properties"": " & PropertiesJson(asmDoc, "    ") & "," & vbCrLf
+    sb = sb & "  ""parameters"": " & ParametersJson(asmDoc, "    ") & "," & vbCrLf
+    sb = sb & "  ""occurrences"": " & OccurrencesJson(asmDoc) & vbCrLf
+    sb = sb & "}" & vbCrLf
+
+    Call WriteUtf8File(outPath, sb)
+End Sub
+
+Private Function OccurrencesJson(asmDoc As Document) As String
+    Dim asm As AssemblyComponentDefinition
+    Set asm = asmDoc.ComponentDefinition
+
+    If asm.Occurrences.Count = 0 Then
+        OccurrencesJson = "[]"
+        Exit Function
+    End If
+
+    Dim sb As String
+    sb = "[" & vbCrLf
+
+    Dim occ As ComponentOccurrence
+    Dim i As Long
+    i = 0
+    For Each occ In asm.Occurrences
+        If i > 0 Then sb = sb & "," & vbCrLf
+        sb = sb & OccurrenceJson(occ, "    ")
+        i = i + 1
+    Next occ
+
+    sb = sb & vbCrLf & "  ]"
+    OccurrencesJson = sb
+End Function
+
+Private Function OccurrenceJson(occ As ComponentOccurrence, indent As String) As String
+    Dim refDoc As Document
+    Set refDoc = Nothing
+    On Error Resume Next
+    Set refDoc = occ.Definition.Document
+    On Error GoTo 0
+
+    Dim refStr As String
+    If refDoc Is Nothing Then
+        refStr = "null"
+    Else
+        Dim refStem As String
+        refStem = StripExtension(BaseName(refDoc.FullFileName))
+        Dim refExt As String
+        Select Case refDoc.DocumentType
+            Case kAssemblyDocumentObject
+                refExt = ".iam.json"
+            Case Else
+                refExt = ".ipt.json"
+        End Select
+        refStr = """./" & JsonEscape(refStem & refExt) & """"
+    End If
+
+    Dim trans As Inventor.Matrix
+    Set trans = occ.Transformation
+
+    Dim tx As Double, ty As Double, tz As Double
+    Dim tp As Inventor.Point
+    Set tp = trans.Translation
+    '   Inventor returns translation in cm internally - convert to mm.
+    tx = tp.X * 10#: ty = tp.Y * 10#: tz = tp.Z * 10#
+
+    Dim q(0 To 3) As Double
+    Call MatrixToQuat(trans, q)
+
+    Dim colorJson As String
+    colorJson = OccurrenceColorJson(occ)
+
+    Dim sb As String
+    sb = indent & "{" & vbCrLf
+    sb = sb & indent & "  ""occurrenceName"": """ & JsonEscape(occ.Name) & ""","  & vbCrLf
+    sb = sb & indent & "  ""ref"": " & refStr & "," & vbCrLf
+    sb = sb & indent & "  ""pose"": {" & vbCrLf
+    sb = sb & indent & "    ""translation"": { ""x"": " & JsonNumber(tx) _
+            & ", ""y"": " & JsonNumber(ty) & ", ""z"": " & JsonNumber(tz) & " }," & vbCrLf
+    sb = sb & indent & "    ""quaternion"": [" & JsonNumber(q(0)) & ", " _
+            & JsonNumber(q(1)) & ", " & JsonNumber(q(2)) & ", " _
+            & JsonNumber(q(3)) & "]" & vbCrLf
+    sb = sb & indent & "  }," & vbCrLf
+    If LenB(colorJson) > 0 Then
+        sb = sb & indent & "  ""color"": " & colorJson & "," & vbCrLf
+    End If
+    sb = sb & indent & "  ""visible"": " & BoolJson(occ.Visible) & "," & vbCrLf
+    sb = sb & indent & "  ""grounded"": " & BoolJson(occ.Grounded) & vbCrLf
+    sb = sb & indent & "}"
+
+    OccurrenceJson = sb
+End Function
+
+Private Function OccurrenceColorJson(occ As ComponentOccurrence) As String
+    '   Per spec: only emit color when the occurrence overrides the part default.
+    '   We can't easily diff without invoking the API in ways that vary by
+    '   Inventor version - so the rule used here is: emit color iff
+    '   occ.Appearance is set AND differs (by name) from the part definition's
+    '   default appearance.  All other failures fall back to "no override".
+    On Error Resume Next
+
+    Dim occApp As Asset
+    Set occApp = occ.Appearance
+    If occApp Is Nothing Then
+        OccurrenceColorJson = ""
+        Exit Function
+    End If
+
+    Dim partApp As Asset
+    Set partApp = Nothing
+    Set partApp = occ.Definition.Document.ComponentDefinition.Appearance
+    If Not partApp Is Nothing Then
+        If StrComp(occApp.DisplayName, partApp.DisplayName, vbTextCompare) = 0 Then
+            OccurrenceColorJson = ""
+            Exit Function
+        End If
+    End If
+
+    Dim diff As ColorAssetValue
+    Set diff = Nothing
+    Set diff = occApp.Item("generic_diffuse")
+    If diff Is Nothing Then
+        OccurrenceColorJson = ""
+        Exit Function
+    End If
+
+    Dim col As Inventor.Color
+    Set col = diff.Value
+    If col Is Nothing Then
+        OccurrenceColorJson = ""
+        Exit Function
+    End If
+
+    Dim hex As String
+    hex = "#" & ByteHex(col.Red) & ByteHex(col.Green) & ByteHex(col.Blue)
+    OccurrenceColorJson = "{ ""hex"": """ & hex & """ }"
+    On Error GoTo 0
+End Function
+
+'  --- iProperties + parameters JSON ------------------------------------------
+
+Private Function PropertiesJson(doc As Document, indent As String) As String
+    '   Canonical iProperty key map (Inventor display name -> JSON key).
+    '   Custom iProperties keep their original display name verbatim.
+    '
+    '   Property sets in Inventor 2012:
+    '     "Design Tracking Properties" - Material, Stock Number, etc.
+    '     "Summary Information"        - Title, Subject, Author, ...
+    '     "Document Summary Information" - Category, Manager, Company
+    '     "Inventor User Defined Properties" - all custom iProperties
+
+    Dim entries As Object
+    Set entries = CreateObject("Scripting.Dictionary")
+    entries.CompareMode = 0  ' vbBinaryCompare - keys are case-sensitive
+
+    On Error Resume Next
+
+    '   Standard fields (canonical lower-camel keys).
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Part Number", "partNumber")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Description", "description")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Material", "material")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Mass", "mass")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Vendor", "vendor")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Project", "project")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Revision Number", "revisionNumber")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Stock Number", "stockNumber")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Cost Center", "costCenter")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Weight", "weight")
+    Call AddPropIfPresent(entries, doc, "Summary Information", "Title", "title")
+    Call AddPropIfPresent(entries, doc, "Summary Information", "Subject", "subject")
+    Call AddPropIfPresent(entries, doc, "Summary Information", "Author", "author")
+    Call AddPropIfPresent(entries, doc, "Document Summary Information", "Manager", "manager")
+    Call AddPropIfPresent(entries, doc, "Document Summary Information", "Company", "company")
+    Call AddPropIfPresent(entries, doc, "Document Summary Information", "Category", "category")
+    Call AddPropIfPresent(entries, doc, "Summary Information", "Keywords", "keywords")
+    Call AddPropIfPresent(entries, doc, "Summary Information", "Comments", "comments")
+    Call AddPropIfPresent(entries, doc, "Design Tracking Properties", "Status", "status")
+
+    '   Custom iProperties (keep verbatim names, including Cyrillic).
+    Dim customSet As PropertySet
+    Set customSet = Nothing
+    Set customSet = doc.PropertySets.Item("Inventor User Defined Properties")
+    If Not customSet Is Nothing Then
+        Dim p As Inventor.Property
+        For Each p In customSet
+            Call AddPropValue(entries, p.Name, p.Value)
+        Next p
+    End If
+
+    On Error GoTo 0
+
+    PropertiesJson = DictToJsonObject(entries, indent)
+End Function
+
+Private Sub AddPropIfPresent(entries As Object, doc As Document, _
+                              setName As String, propName As String, jsonKey As String)
+    Dim ps As PropertySet
+    Set ps = Nothing
+    Set ps = doc.PropertySets.Item(setName)
+    If ps Is Nothing Then Exit Sub
+
+    Dim p As Inventor.Property
+    Set p = Nothing
+    Set p = ps.Item(propName)
+    If p Is Nothing Then Exit Sub
+
+    Call AddPropValue(entries, jsonKey, p.Value)
+End Sub
+
+Private Sub AddPropValue(entries As Object, key As String, val As Variant)
+    '   Skip empty/blank/missing values - spec says omit, not write "".
+    If IsEmpty(val) Or IsNull(val) Then Exit Sub
+    If VarType(val) = vbString Then
+        If Len(Trim(CStr(val))) = 0 Then Exit Sub
+    End If
+    entries(key) = val
+End Sub
+
+Private Function DictToJsonObject(d As Object, indent As String) As String
+    If d.Count = 0 Then
+        DictToJsonObject = "{}"
+        Exit Function
+    End If
+
+    Dim sb As String
+    sb = "{" & vbCrLf
+
+    Dim keys As Variant
+    keys = d.keys
+
+    Dim i As Long
+    For i = 0 To UBound(keys)
+        Dim k As String
+        k = CStr(keys(i))
+        Dim v As Variant
+        v = d(k)
+
+        sb = sb & indent & """" & JsonEscape(k) & """: " & JsonValue(v)
+        If i < UBound(keys) Then sb = sb & ","
+        sb = sb & vbCrLf
+    Next i
+
+    '   Drop trailing two spaces of indent for closing brace.
+    Dim closeIndent As String
+    closeIndent = Mid(indent, 1, Len(indent) - 2)
+    If Len(closeIndent) < 0 Then closeIndent = ""
+    sb = sb & closeIndent & "}"
+    DictToJsonObject = sb
+End Function
+
+Private Function JsonValue(v As Variant) As String
+    Select Case VarType(v)
+        Case vbBoolean
+            JsonValue = BoolJson(CBool(v))
+        Case vbByte, vbInteger, vbLong, vbCurrency, vbSingle, vbDouble, vbDecimal
+            JsonValue = JsonNumber(CDbl(v))
+        Case vbDate
+            JsonValue = """" & JsonEscape(Format(v, "yyyy-mm-ddThh:nn:ss")) & """"
+        Case Else
+            JsonValue = """" & JsonEscape(CStr(v)) & """"
+    End Select
+End Function
+
+Private Function ParametersJson(doc As Document, indent As String) As String
+    '   Only Inventor user parameters; numeric only; mm/deg/rad/unitless.
+    Dim ud As Object
+    On Error Resume Next
+    Select Case doc.DocumentType
+        Case kPartDocumentObject
+            Set ud = doc.ComponentDefinition.Parameters.UserParameters
+        Case kAssemblyDocumentObject
+            Set ud = doc.ComponentDefinition.Parameters.UserParameters
+        Case Else
+            ParametersJson = "{}"
+            Exit Function
+    End Select
+    On Error GoTo 0
+
+    If ud Is Nothing Then
+        ParametersJson = "{}"
+        Exit Function
+    End If
+
+    Dim entries As Object
+    Set entries = CreateObject("Scripting.Dictionary")
+
+    Dim p As UserParameter
+    For Each p In ud
+        Dim unit As String
+        unit = MapUnit(p)
+        If LenB(unit) > 0 Then
+            If IsNumericParameter(p) Then
+                Dim val As Double
+                val = ConvertParamValue(p, unit)
+                Dim expr As String
+                expr = ""
+                On Error Resume Next
+                expr = p.Expression
+                On Error GoTo 0
+
+                Dim entry As String
+                entry = "{ ""value"": " & JsonNumber(val) _
+                        & ", ""unit"": """ & unit _
+                        & """, ""expression"": """ & JsonEscape(expr) & """ }"
+                entries(p.Name) = entry
+            End If
+        End If
+    Next p
+
+    If entries.Count = 0 Then
+        ParametersJson = "{}"
+        Exit Function
+    End If
+
+    Dim sb As String
+    sb = "{" & vbCrLf
+    Dim keys As Variant
+    keys = entries.keys
+    Dim i As Long
+    For i = 0 To UBound(keys)
+        Dim k As String
+        k = CStr(keys(i))
+        sb = sb & indent & """" & JsonEscape(k) & """: " & entries(k)
+        If i < UBound(keys) Then sb = sb & ","
+        sb = sb & vbCrLf
+    Next i
+    Dim closeIndent As String
+    closeIndent = Mid(indent, 1, Len(indent) - 2)
+    If Len(closeIndent) < 0 Then closeIndent = ""
+    sb = sb & closeIndent & "}"
+    ParametersJson = sb
+End Function
+
+Private Function MapUnit(p As UserParameter) As String
+    '   Map Inventor's unit type to our 4-value JSON unit set; "" = unsupported.
+    Dim unitsType As Long
+    On Error Resume Next
+    unitsType = p.Units
+    On Error GoTo 0
+
+    Dim unitStr As String
+    On Error Resume Next
+    unitStr = LCase(p.Units)
+    On Error GoTo 0
+
+    '   Try string first (Inventor often returns "mm", "deg", "rad", "ul").
+    If InStr(unitStr, "mm") > 0 Or InStr(unitStr, "cm") > 0 _
+        Or InStr(unitStr, "in") > 0 Or InStr(unitStr, "m") > 0 Then
+        '   Length-like - normalize to mm.
+        MapUnit = "mm"
+        Exit Function
+    End If
+    If InStr(unitStr, "deg") > 0 Then
+        MapUnit = "deg"
+        Exit Function
+    End If
+    If InStr(unitStr, "rad") > 0 Then
+        MapUnit = "rad"
+        Exit Function
+    End If
+    If unitStr = "ul" Or unitStr = "" Or unitStr = "unitless" Then
+        MapUnit = "unitless"
+        Exit Function
+    End If
+
+    '   Anything else (kg, sec, ...) is unsupported.
+    MapUnit = ""
+End Function
+
+Private Function IsNumericParameter(p As UserParameter) As Boolean
+    On Error Resume Next
+    Dim v As Variant
+    v = p.Value
+    If Err.Number <> 0 Then
+        Err.Clear
+        IsNumericParameter = False
+        Exit Function
+    End If
+    On Error GoTo 0
+    IsNumericParameter = IsNumeric(v)
+End Function
+
+Private Function ConvertParamValue(p As UserParameter, unit As String) As Double
+    '   Inventor stores user-parameter values in internal units (cm for length,
+    '   rad for angle).  Convert to the JSON unit.
+    Dim raw As Double
+    On Error Resume Next
+    raw = CDbl(p.Value)
+    On Error GoTo 0
+
+    Select Case unit
+        Case "mm"
+            ConvertParamValue = raw * 10#  ' cm -> mm
+        Case "deg"
+            ConvertParamValue = raw * (180# / 3.14159265358979)  ' rad -> deg
+        Case "rad"
+            ConvertParamValue = raw
+        Case Else
+            ConvertParamValue = raw  ' unitless
+    End Select
+End Function
+
+'  --- Matrix to quaternion ----------------------------------------------------
+
+Private Sub MatrixToQuat(m As Inventor.Matrix, ByRef q() As Double)
+    '   Inventor's Matrix.Cell(row, col) is 1-based for a 4x4 matrix.
+    '   Extract the 3x3 rotation submatrix.
+    Dim r11 As Double, r12 As Double, r13 As Double
+    Dim r21 As Double, r22 As Double, r23 As Double
+    Dim r31 As Double, r32 As Double, r33 As Double
+
+    r11 = m.Cell(1, 1): r12 = m.Cell(1, 2): r13 = m.Cell(1, 3)
+    r21 = m.Cell(2, 1): r22 = m.Cell(2, 2): r23 = m.Cell(2, 3)
+    r31 = m.Cell(3, 1): r32 = m.Cell(3, 2): r33 = m.Cell(3, 3)
+
+    '   Shepperd-style branchless conversion - returns [x, y, z, w].
+    Dim trace As Double
+    trace = r11 + r22 + r33
+
+    Dim qx As Double, qy As Double, qz As Double, qw As Double
+    Dim s As Double
+
+    If trace > 0# Then
+        s = Sqr(trace + 1#) * 2#       ' s = 4*qw
+        qw = 0.25 * s
+        qx = (r32 - r23) / s
+        qy = (r13 - r31) / s
+        qz = (r21 - r12) / s
+    ElseIf (r11 > r22) And (r11 > r33) Then
+        s = Sqr(1# + r11 - r22 - r33) * 2#  ' s = 4*qx
+        qw = (r32 - r23) / s
+        qx = 0.25 * s
+        qy = (r12 + r21) / s
+        qz = (r13 + r31) / s
+    ElseIf r22 > r33 Then
+        s = Sqr(1# + r22 - r11 - r33) * 2#  ' s = 4*qy
+        qw = (r13 - r31) / s
+        qx = (r12 + r21) / s
+        qy = 0.25 * s
+        qz = (r23 + r32) / s
+    Else
+        s = Sqr(1# + r33 - r11 - r22) * 2#  ' s = 4*qz
+        qw = (r21 - r12) / s
+        qx = (r13 + r31) / s
+        qy = (r23 + r32) / s
+        qz = 0.25 * s
+    End If
+
+    '   Normalize to defend against rounding drift.
+    Dim n As Double
+    n = Sqr(qx * qx + qy * qy + qz * qz + qw * qw)
+    If n > 0# Then
+        qx = qx / n: qy = qy / n: qz = qz / n: qw = qw / n
+    End If
+
+    q(0) = qx: q(1) = qy: q(2) = qz: q(3) = qw
+End Sub
+
+'  --- JSON primitives ---------------------------------------------------------
+
+Private Function JsonEscape(s As String) As String
+    Dim sb As String
+    Dim i As Long
+    Dim ch As String
+    Dim code As Long
+    For i = 1 To Len(s)
+        ch = Mid(s, i, 1)
+        code = AscW(ch)
+        If code < 0 Then code = code + 65536  ' AscW returns signed
+        Select Case code
+            Case 34   ' "
+                sb = sb & "\"""
+            Case 92   ' \
+                sb = sb & "\\"
+            Case 8
+                sb = sb & "\b"
+            Case 9
+                sb = sb & "\t"
+            Case 10
+                sb = sb & "\n"
+            Case 12
+                sb = sb & "\f"
+            Case 13
+                sb = sb & "\r"
+            Case Else
+                If code < 32 Then
+                    sb = sb & "\u" & Right("0000" & Hex(code), 4)
+                ElseIf code > 126 Then
+                    '   Non-ASCII: ADODB.Stream UTF-8 will encode raw chars
+                    '   correctly, so we keep them verbatim rather than \u-escaping.
+                    sb = sb & ch
+                Else
+                    sb = sb & ch
+                End If
+        End Select
+    Next i
+    JsonEscape = sb
+End Function
+
+Private Function JsonNumber(d As Double) As String
+    '   Locale-safe: Ukrainian/Russian Inventor installs use comma decimals,
+    '   so CStr(1.5) returns "1,5" - replace comma with dot for valid JSON.
+    '   NaN/Infinity guard: emit "0" with no fanfare; spec calls for "field
+    '   omitted with warning logged" but at the value-formatting layer we
+    '   don't have the field name, so caller is responsible for filtering
+    '   if it cares.  In practice Inventor never returns NaN here.
+    If d <> d Then
+        JsonNumber = "0"
+        Exit Function
+    End If
+    JsonNumber = Replace(CStr(d), ",", ".")
+End Function
+
+Private Function BoolJson(b As Boolean) As String
+    If b Then BoolJson = "true" Else BoolJson = "false"
+End Function
+
+Private Function ByteHex(n As Long) As String
+    ByteHex = Right("00" & Hex(n And &HFF), 2)
+End Function
+
+'  --- File I/O ---------------------------------------------------------------
+
+Private Sub WriteUtf8File(path As String, contents As String)
+    Dim s As Object
+    Set s = CreateObject("ADODB.Stream")
+    s.Charset = "utf-8"
+    s.Type = 2
+    s.Open
+    s.WriteText contents
+    '   Drop the BOM that ADODB.Stream prepends.
+    s.Position = 0
+    s.Type = 1            ' adTypeBinary
+    s.Position = 3        ' skip 3-byte BOM
+    Dim noBom() As Byte
+    noBom = s.Read
+    s.Close
+
+    Dim out As Object
+    Set out = CreateObject("ADODB.Stream")
+    out.Type = 1
+    out.Open
+    out.Write noBom
+    out.SaveToFile path, 2
+    out.Close
+End Sub
+
+Private Sub AppendUtf8File(path As String, contents As String)
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Dim existing As String
+    existing = ""
+    If fso.FileExists(path) Then
+        Dim r As Object
+        Set r = CreateObject("ADODB.Stream")
+        r.Charset = "utf-8"
+        r.Type = 2
+        r.Open
+        r.LoadFromFile path
+        existing = r.ReadText
+        r.Close
+    End If
+    Call WriteUtf8File(path, existing & contents)
+End Sub
+
+Private Sub LogLine(logPath As String, line As String)
+    Call AppendUtf8File(logPath, line & vbCrLf)
+End Sub
+
+Private Sub EnsureDir(path As String)
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FolderExists(path) Then Exit Sub
+
+    '   Recursively create parents.
+    Dim parent As String
+    parent = ParentDir(path)
+    If LenB(parent) > 0 And parent <> path Then
+        Call EnsureDir(parent)
+    End If
+    On Error Resume Next
+    fso.CreateFolder path
+    On Error GoTo 0
+End Sub
+
+'  --- Path utilities (Inventor 2012 VBA has no Path.GetFileName) -------------
+
+Private Function BaseName(path As String) As String
+    Dim p As Long
+    p = InStrRev(path, "\")
+    If p = 0 Then p = InStrRev(path, "/")
+    If p = 0 Then
+        BaseName = path
+    Else
+        BaseName = Mid(path, p + 1)
+    End If
+End Function
+
+Private Function ParentDir(path As String) As String
+    Dim p As Long
+    p = InStrRev(path, "\")
+    If p = 0 Then p = InStrRev(path, "/")
+    If p = 0 Then
+        ParentDir = ""
+    Else
+        ParentDir = Mid(path, 1, p - 1)
+    End If
+End Function
+
+Private Function StripExtension(name As String) As String
+    Dim p As Long
+    p = InStrRev(name, ".")
+    If p <= 1 Then
+        StripExtension = name
+    Else
+        StripExtension = Mid(name, 1, p - 1)
+    End If
+End Function
+
+Private Function GetExtension(name As String) As String
+    Dim p As Long
+    p = InStrRev(name, ".")
+    If p = 0 Then
+        GetExtension = ""
+    Else
+        GetExtension = Mid(name, p)
+    End If
+End Function
+
+Private Function LastSegment(path As String) As String
+    Dim trimmed As String
+    trimmed = path
+    If Right(trimmed, 1) = "\" Or Right(trimmed, 1) = "/" Then
+        trimmed = Mid(trimmed, 1, Len(trimmed) - 1)
+    End If
+    LastSegment = BaseName(trimmed)
+End Function
+
+Private Function JoinPath(a As String, b As String) As String
+    If LenB(a) = 0 Then
+        JoinPath = b
+        Exit Function
+    End If
+    If LenB(b) = 0 Then
+        JoinPath = a
+        Exit Function
+    End If
+    Dim sep As String
+    sep = "\"
+    If Right(a, 1) = "\" Or Right(a, 1) = "/" Then
+        JoinPath = a & b
+    Else
+        JoinPath = a & sep & b
+    End If
+End Function
+
+Private Function JoinPathRel(dirRel As String, leaf As String) As String
+    '   Forward-slash for relative paths in JSON.
+    If LenB(dirRel) = 0 Then
+        JoinPathRel = leaf
+    Else
+        JoinPathRel = Replace(dirRel, "\", "/") & "/" & leaf
+    End If
+End Function
+
+Private Function StartsWithFolder(child As String, parent As String) As Boolean
+    Dim c As String, p As String
+    c = LCase(NormalizeSlashes(child))
+    p = LCase(NormalizeSlashes(parent))
+    If Right(p, 1) <> "\" Then p = p & "\"
+    If Right(c, 1) <> "\" Then c = c & "\"
+    StartsWithFolder = (Left(c, Len(p)) = p)
+End Function
+
+Private Function NormalizeSlashes(s As String) As String
+    NormalizeSlashes = Replace(s, "/", "\")
+End Function
+
+Private Function RelativePath(absPath As String, root As String) As String
+    Dim a As String, r As String
+    a = NormalizeSlashes(absPath)
+    r = NormalizeSlashes(root)
+    If Right(r, 1) <> "\" Then r = r & "\"
+    If LCase(Left(a, Len(r))) = LCase(r) Then
+        RelativePath = Mid(a, Len(r) + 1)
+    Else
+        RelativePath = a  ' fallback - caller logs as _external if needed
+    End If
+End Function
+
+Private Function IsAlreadyExported(fullPath As String, exported As Object) As Boolean
+    IsAlreadyExported = exported.Exists(LCase(fullPath))
+End Function
+
+Private Function NowIso() As String
+    '   yyyy-mm-ddThh:mm:ssZ - good enough for "exportedAt" sort order.
+    NowIso = Format(Now, "yyyy-mm-dd") & "T" & Format(Now, "hh:nn:ss") & "Z"
+End Function
