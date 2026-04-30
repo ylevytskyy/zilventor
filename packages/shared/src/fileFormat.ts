@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 8 as const;
+export const CURRENT_FORMAT_VERSION = 9 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -132,10 +132,21 @@ const migrations: Record<number, MigrateFn> = {
 
     return { ...m, document: doc, formatVersion: 8 };
   },
+
+  // v8 → v9: additive — add `properties: {}` bag to part/assembly documents
+  // for iProperty / custom-iProperty storage (sub-project 1.5).
+  8: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: any };
+    if (anyM.document && anyM.document.properties == null) {
+      anyM.document.properties = {};
+    }
+    return { ...m, formatVersion: 9 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if (m.formatVersion === 8 && (m as any).kind === undefined) {
+  if (m.formatVersion === 9 && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;
