@@ -70,7 +70,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
               className="cursor-pointer hover:text-white"
               onClick={() => useAppStore.getState().selectComponentPaths([path])}
               onDoubleClick={() => {
-                if (isRoot && !isSubAsm) {
+                if (isRoot) {
                   useAppStore.getState().openEditComponentDialog(c.id);
                 }
               }}

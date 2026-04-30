@@ -490,6 +490,18 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
     expect(screen.getByText(/SUB1/)).toBeInTheDocument();
   });
 
+  it('double-clicking a top-level sub-asm placement opens the edit dialog (G1)', () => {
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: topDoc() },
+      subAssemblyDocs: { 'sub/drawer.ziasm': childDoc },
+    } as any);
+    render(<BrowserPane part={null} />);
+    fireEvent.doubleClick(screen.getByText(/SUB1/));
+    expect(useAppStore.getState().editComponentDialogOpen).toBe(true);
+    expect(useAppStore.getState().editingComponentId).toBe('SUB1');
+  });
+
+
   it('handles a self-referential cycle without infinite recursion', () => {
     const cyclicDoc: AssemblyDocument = {
       id: 'CY', name: 'cy', units: 'mm', parameters: {},
