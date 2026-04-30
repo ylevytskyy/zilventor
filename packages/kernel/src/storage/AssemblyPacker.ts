@@ -1,14 +1,13 @@
 import type { AssemblyDocument } from '@zilventor/shared';
+import { CURRENT_FORMAT_VERSION, migrateManifest } from '@zilventor/shared';
 import { writeTarGz, readTarGz } from './tarGzipUtil';
-
-const FORMAT_VERSION = 8;
 
 export async function packAssembly(
   doc: AssemblyDocument,
   thumbnail: Uint8Array,
 ): Promise<Uint8Array> {
   const manifest = {
-    formatVersion: FORMAT_VERSION,
+    formatVersion: CURRENT_FORMAT_VERSION,
     kind: 'assembly' as const,
     document: doc,
   };
@@ -27,23 +26,19 @@ export async function unpackAssembly(bytes: Uint8Array): Promise<AssemblyDocumen
     throw new Error('AssemblyPacker: manifest.json not found in archive');
   }
 
-  let manifest: any;
+  let raw: any;
   try {
-    manifest = JSON.parse(new TextDecoder().decode(manifestEntry.data));
+    raw = JSON.parse(new TextDecoder().decode(manifestEntry.data));
   } catch (e) {
     throw new Error(`AssemblyPacker: malformed manifest.json: ${(e as Error).message}`);
   }
 
-  if (manifest.kind !== 'assembly') {
+  if (raw.kind !== 'assembly') {
     throw new Error(
-      `AssemblyPacker: expected kind: 'assembly', got kind: '${manifest.kind ?? 'undefined'}'`,
-    );
-  }
-  if (manifest.formatVersion !== FORMAT_VERSION) {
-    throw new Error(
-      `AssemblyPacker: unsupported formatVersion ${manifest.formatVersion}`,
+      `AssemblyPacker: expected kind: 'assembly', got kind: '${raw.kind ?? 'undefined'}'`,
     );
   }
 
-  return manifest.document as AssemblyDocument;
+  const migrated = migrateManifest(raw);
+  return (migrated as unknown as { document: AssemblyDocument }).document;
 }
