@@ -12,10 +12,10 @@ describe('Ribbon', () => {
     expect(screen.getByRole('tab', { name: 'Model' }).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('switching to Furniture shows the stub notice', () => {
+  it('switching to Furniture shows the Panel button (sub-project 5a)', () => {
     render(<Ribbon />);
     fireEvent.click(screen.getByRole('tab', { name: 'Furniture' }));
-    expect(screen.getByText(/sub-project 5/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Panel/i })).toBeTruthy();
   });
 
   it('switching to Inspect references sub-project 3', () => {
