@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { SceneManager, type ComponentLeaf } from '../SceneManager';
-import { pathKey } from '@zilventor/shared';
+import { SceneManager, type ComponentLeaf, type PanelOverlaySpec } from '../SceneManager';
+import { pathKey, type MaterialEntry } from '@zilventor/shared';
 
 vi.mock('three', async (orig) => {
   const actual = (await orig()) as typeof import('three');
@@ -397,3 +397,115 @@ describe('SceneManager — work features', () => {
     expect(id).toBeNull();
   });
 });
+
+describe('SceneManager — edge-band overlay (T29)', () => {
+  let mgr: SceneManager;
+  beforeEach(() => {
+    const canvas = document.createElement('canvas');
+    mgr = new SceneManager(canvas);
+  });
+
+  const MAT_OAK: MaterialEntry = { id: 'oak', name: 'Oak', defaultThickness: 18, color: '#8b5a2b' };
+  const MAT_BAND: MaterialEntry = { id: 'band-pvc', name: 'PVC band', defaultThickness: 1, color: '#ff0000' };
+
+  const allBandsSpec: PanelOverlaySpec = {
+    key: 'p1#panel-1',
+    length: 600,
+    width: 400,
+    thickness: 18,
+    edgeBands: {
+      front: { materialId: 'band-pvc' },
+      back: { materialId: 'band-pvc' },
+      left: { materialId: 'band-pvc' },
+      right: { materialId: 'band-pvc' },
+    },
+  };
+
+  it('builds LineSegments overlay for each banded edge when showEdgeBands=true', () => {
+    mgr.setShowEdgeBands(true);
+    mgr.setPanelOverlays([allBandsSpec], [MAT_OAK, MAT_BAND]);
+    expect(mgr.edgeBandOverlayCount()).toBe(4);
+    for (const line of mgr.edgeBandOverlayList()) {
+      expect(line).toBeInstanceOf(THREE.LineSegments);
+      expect(line.userData.kind).toBe('edgeBand');
+    }
+  });
+
+  it('removes overlay when showEdgeBands=false', () => {
+    mgr.setShowEdgeBands(true);
+    mgr.setPanelOverlays([allBandsSpec], [MAT_OAK, MAT_BAND]);
+    expect(mgr.edgeBandOverlayCount()).toBe(4);
+    mgr.setShowEdgeBands(false);
+    expect(mgr.edgeBandOverlayCount()).toBe(0);
+  });
+
+  it('skips edges where edgeBands[key] is null', () => {
+    mgr.setShowEdgeBands(true);
+    const partial: PanelOverlaySpec = {
+      ...allBandsSpec,
+      edgeBands: {
+        front: { materialId: 'band-pvc' },
+        back: null,
+        left: { materialId: 'band-pvc' },
+        right: null,
+      },
+    };
+    mgr.setPanelOverlays([partial], [MAT_BAND]);
+    expect(mgr.edgeBandOverlayCount()).toBe(2);
+    const keys = mgr.edgeBandOverlayList().map((l) => l.userData.edgeKey).sort();
+    expect(keys).toEqual(['front', 'left']);
+  });
+
+  it('uses material color from registry', () => {
+    mgr.setShowEdgeBands(true);
+    mgr.setPanelOverlays([allBandsSpec], [MAT_OAK, MAT_BAND]);
+    for (const line of mgr.edgeBandOverlayList()) {
+      const mat = line.material as THREE.LineBasicMaterial;
+      expect(mat.color.getHexString()).toBe('ff0000');
+    }
+  });
+
+  it('falls back to warning color #cfa84b when band materialId is unresolved', () => {
+    mgr.setShowEdgeBands(true);
+    const ghostBand: PanelOverlaySpec = {
+      ...allBandsSpec,
+      edgeBands: {
+        front: { materialId: 'does-not-exist' },
+        back: null,
+        left: null,
+        right: null,
+      },
+    };
+    mgr.setPanelOverlays([ghostBand], [MAT_OAK]);
+    expect(mgr.edgeBandOverlayCount()).toBe(1);
+    const mat = mgr.edgeBandOverlayList()[0]!.material as THREE.LineBasicMaterial;
+    expect(mat.color.getHexString()).toBe('cfa84b');
+  });
+
+  it('rebuilds on parameter cascade (panel L/W/T change)', () => {
+    mgr.setShowEdgeBands(true);
+    mgr.setPanelOverlays([allBandsSpec], [MAT_BAND]);
+    const firstLine = mgr.edgeBandOverlayList()[0]!;
+    const firstGeom = firstLine.geometry;
+    const disposeSpy = vi.spyOn(firstGeom, 'dispose');
+
+    const bigger: PanelOverlaySpec = { ...allBandsSpec, length: 800, width: 500 };
+    mgr.setPanelOverlays([bigger], [MAT_BAND]);
+    expect(disposeSpy).toHaveBeenCalled();
+    expect(mgr.edgeBandOverlayCount()).toBe(4);
+
+    const frontLine = mgr.edgeBandOverlayList().find((l) => l.userData.edgeKey === 'front')!;
+    const positions = (frontLine.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
+    expect(positions[0]).toBeCloseTo(-400, 5);
+    expect(positions[3]).toBeCloseTo(400, 5);
+  });
+
+  it('disposes overlays on dispose()', () => {
+    mgr.setShowEdgeBands(true);
+    mgr.setPanelOverlays([allBandsSpec], [MAT_BAND]);
+    expect(mgr.edgeBandOverlayCount()).toBe(4);
+    mgr.dispose();
+    expect(mgr.edgeBandOverlayCount()).toBe(0);
+  });
+});
+

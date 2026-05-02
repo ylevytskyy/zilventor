@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { pathKey, type ComponentPath, type ComponentPathKey } from '@zilventor/shared';
+import { pathKey, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 
 export type Vec3 = { x: number; y: number; z: number };
 export type WorkFeatureSpec =
@@ -15,6 +15,27 @@ export type ComponentLeaf = {
   worldPose: { translation: Vec3; quaternion: [number, number, number, number] };
   materialColor?: string;
   visible: boolean;
+};
+
+/**
+ * T29: Specification for the four edge-band overlays of one panel-bearing
+ * part. The caller (App.tsx) walks the active part's featureTree, finds each
+ * `kind: 'panel'` feature, resolves its L/W/T against the part parameters,
+ * and emits one PanelOverlaySpec per panel. SceneManager classifies the four
+ * top-rim edges geometrically (panel sits Z=0..T centred at X=0,Y=0):
+ *   front +Y, back -Y, left -X, right +X — all on the top face Z=T.
+ *
+ * `edgeBands[k] = null` means "no band on this edge"; an entry with a
+ * `materialId` looks up the color in `materials`. Unresolved materialIds
+ * fall back to the warning color #cfa84b.
+ */
+export type PanelOverlaySpec = {
+  /** Stable key for this panel within the scene (e.g. partPath + featureId). */
+  key: string;
+  length: number;
+  width: number;
+  thickness: number;
+  edgeBands: { readonly [K in PanelEdgeKey]: { materialId: string } | null };
 };
 
 
@@ -49,6 +70,20 @@ export class SceneManager {
     planeBorder: new THREE.LineBasicMaterial({ color: 0x5b9ad8, depthTest: false }),
     point: new THREE.LineBasicMaterial({ color: 0x7ed957, depthTest: false }),
   };
+  // T29: edge-band overlay state. `edgeBandOverlays` are world-space
+  // LineSegments added to the scene; `panelOverlaySpecs` is the last-known
+  // list (rebuilt on flag toggle without recomputation by the caller);
+  // `materialColorMap` maps materialId -> hex color. Falls back to
+  // EDGE_BAND_FALLBACK_COLOR (#cfa84b) when a band's materialId is
+  // unresolved. Default `showEdgeBands` is true so initial render shows
+  // bands as soon as a panel-bearing geometry registers.
+  private edgeBandOverlays: THREE.LineSegments[] = [];
+  private panelOverlaySpecs: PanelOverlaySpec[] = [];
+  private materialColorMap: Map<string, string> = new Map();
+  private showEdgeBands = true;
+  private storeUnsubscribers: Array<() => void> = [];
+  private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
+
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -102,6 +137,8 @@ export class SceneManager {
       h = Math.imul(h ^ Math.round(positions[k]! * 1000), 16777619);
     }
     this.partGeometryHash = h;
+    // T29: a fresh part geometry replaces any previous panel; rebuild bands.
+    this.rebuildEdgeBandOverlays();
   }
 
   geometryHash(): string {
@@ -272,6 +309,8 @@ export class SceneManager {
       }
       mesh.visible = leaf.visible;
     }
+    // T29: assembly rebuilds may have replaced panel geometry; rebuild bands.
+    this.rebuildEdgeBandOverlays();
   }
 
   /**
@@ -316,6 +355,91 @@ export class SceneManager {
     }
     this.componentMeshes.clear();
   }
+
+  /**
+   * T29: Register the list of panel-bearing parts whose four top-rim edge
+   * bands should be highlighted. The caller (App.tsx) walks the active
+   * document's part(s), filters featureTree for `kind: 'panel'`, resolves
+   * the L/W/T against the part's parameters, and emits one
+   * `PanelOverlaySpec` per panel. `materials` is the active registry used
+   * to look up each band's color.
+   *
+   * Calling this clears and rebuilds all current edge-band overlays. To
+   * remove every overlay, pass `[]`.
+   */
+  setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void {
+    this.panelOverlaySpecs = specs.slice();
+    this.materialColorMap = new Map(materials.map((m) => [m.id, m.color]));
+    this.rebuildEdgeBandOverlays();
+  }
+
+  /**
+   * T29/T30: Toggle visibility of the edge-band overlays. Subscribed to
+   * `useAppStore.showEdgeBands` via `attach()`; tests drive it directly.
+   */
+  setShowEdgeBands(v: boolean): void {
+    this.showEdgeBands = v;
+    this.rebuildEdgeBandOverlays();
+  }
+
+  /**
+   * T29: Drop existing overlays from the scene; if `showEdgeBands` is true,
+   * rebuild one `THREE.LineSegments` per non-null band of every registered
+   * panel. Edges are computed analytically from the panel's L/W/T (panel
+   * sits centred on X/Y, Z=0..T):
+   *   front (+Y), back (-Y) span L on the top face;
+   *   left  (-X), right (+X) span W on the top face.
+   */
+  rebuildEdgeBandOverlays(): void {
+    for (const overlay of this.edgeBandOverlays) {
+      this.scene.remove(overlay);
+      overlay.geometry.dispose();
+      (overlay.material as THREE.Material).dispose();
+    }
+    this.edgeBandOverlays.length = 0;
+    if (!this.showEdgeBands) return;
+    for (const spec of this.panelOverlaySpecs) {
+      const halfL = spec.length / 2;
+      const halfW = spec.width / 2;
+      const z = spec.thickness;
+      const corners = {
+        ftl: new THREE.Vector3(-halfL,  halfW, z),
+        ftr: new THREE.Vector3( halfL,  halfW, z),
+        bbl: new THREE.Vector3(-halfL, -halfW, z),
+        bbr: new THREE.Vector3( halfL, -halfW, z),
+      };
+      const segments: Array<{ key: PanelEdgeKey; a: THREE.Vector3; b: THREE.Vector3 }> = [
+        { key: 'front', a: corners.ftl, b: corners.ftr },
+        { key: 'back',  a: corners.bbl, b: corners.bbr },
+        { key: 'left',  a: corners.bbl, b: corners.ftl },
+        { key: 'right', a: corners.bbr, b: corners.ftr },
+      ];
+      for (const seg of segments) {
+        const band = spec.edgeBands[seg.key];
+        if (!band) continue;
+        const color = this.materialColorMap.get(band.materialId) ?? SceneManager.EDGE_BAND_FALLBACK_COLOR;
+        const geom = new THREE.BufferGeometry().setFromPoints([seg.a, seg.b]);
+        const mat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
+        const line = new THREE.LineSegments(geom, mat);
+        line.userData.kind = 'edgeBand';
+        line.userData.panelKey = spec.key;
+        line.userData.edgeKey = seg.key;
+        this.scene.add(line);
+        this.edgeBandOverlays.push(line);
+      }
+    }
+  }
+
+  /** T29: test/debug accessor — count of currently-attached edge-band overlays. */
+  edgeBandOverlayCount(): number {
+    return this.edgeBandOverlays.length;
+  }
+
+  /** T29: test/debug accessor — read-only handle to the overlays. */
+  edgeBandOverlayList(): ReadonlyArray<THREE.LineSegments> {
+    return this.edgeBandOverlays;
+  }
+
 
   componentMeshCount(): number {
     return this.componentMeshes.size;
@@ -469,6 +593,14 @@ export class SceneManager {
 
   dispose(): void {
     this.controls.dispose();
+    for (const u of this.storeUnsubscribers) u();
+    this.storeUnsubscribers.length = 0;
+    for (const overlay of this.edgeBandOverlays) {
+      this.scene.remove(overlay);
+      overlay.geometry.dispose();
+      (overlay.material as THREE.Material).dispose();
+    }
+    this.edgeBandOverlays.length = 0;
     this.renderer.dispose();
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
