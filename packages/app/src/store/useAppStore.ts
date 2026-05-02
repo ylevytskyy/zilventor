@@ -54,6 +54,19 @@ export type WorkFeaturePickResultPayload =
   | { kind: 'axis'; role: string; hit: WorkFeaturePickHitAxis }
   | { kind: 'point'; role: string; hit: WorkFeaturePickHitPoint };
 
+/**
+ * Slot for the Panel feature dialog (T21). Two modes:
+ * - 'part': empty active part — submit dispatches AddPanelFeatureCommand.
+ * - 'assembly': assembly active — submit dispatches CreateAndPlacePanelCommand.
+ * The dialog component reads `initial` for prefill and calls `onSubmit`/`onCancel`.
+ */
+export type PanelDialogState = {
+  mode: 'part' | 'assembly';
+  initial?: import('@zilventor/shared').PanelFeature;
+  onSubmit: (panel: import('@zilventor/shared').PanelFeature) => void;
+  onCancel: () => void;
+};
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -204,6 +217,8 @@ type AppState = {
   addMaterial(entry: MaterialEntry): void;
   updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>>): void;
   removeMaterial(id: string): void;
+  panelDialog: PanelDialogState | null;
+  setPanelDialog(s: PanelDialogState | null): void;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -584,6 +599,9 @@ export const useAppStore = create<AppState>((set) => ({
     }
     return s;
   }),
+
+  panelDialog: null,
+  setPanelDialog: (s) => set({ panelDialog: s }),
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
   selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),
