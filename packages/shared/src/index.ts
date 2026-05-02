@@ -8,3 +8,4 @@ export { inferFromGeometry } from './inferFromGeometry';
 export * from './componentPath';
 export * from './partInfo';
 export * from './material';
+export * from './panel-feature';
