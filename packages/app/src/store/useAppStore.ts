@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -201,6 +201,9 @@ type AppState = {
   setBomItemNumber(rowKey: string, n: number): void;
   setBomItemNumbers(map: Record<string, number>): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
+  addMaterial(entry: MaterialEntry): void;
+  updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>>): void;
+  removeMaterial(id: string): void;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -526,6 +529,60 @@ export const useAppStore = create<AppState>((set) => ({
       activeDocument: { kind: 'assembly', document: next },
       activeAssembly: next,
     };
+  }),
+
+  addMaterial: (entry) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        materials: [...s.activeAssembly.materials, entry],
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        materials: [...s.activePart.materials, entry],
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  updateMaterial: (id, patch) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        materials: s.activeAssembly.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        materials: s.activePart.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  removeMaterial: (id) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        materials: s.activeAssembly.materials.filter((m) => m.id !== id),
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        materials: s.activePart.materials.filter((m) => m.id !== id),
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
   }),
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
