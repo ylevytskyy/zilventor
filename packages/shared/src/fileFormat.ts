@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 9 as const;
+export const CURRENT_FORMAT_VERSION = 10 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -143,10 +143,22 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 9 };
   },
+
+  // v9 → v10: additive — add `materials: []` array to part- and assembly-kind
+  // documents (sub-project 5a). Empty default; populated by Panel-creating
+  // commands and material-registry editor.
+  9: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: { materials?: unknown } };
+    if (anyM.document && anyM.document.materials == null) {
+      anyM.document.materials = [];
+    }
+    return { ...m, formatVersion: 10 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if (m.formatVersion === 9 && (m as any).kind === undefined) {
+  if (m.formatVersion === 10 && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;
