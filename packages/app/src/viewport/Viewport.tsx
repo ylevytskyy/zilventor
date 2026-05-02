@@ -1,7 +1,7 @@
 import { useEffect, useRef, useImperativeHandle, useState, forwardRef } from 'react';
 import * as THREE from 'three';
-import { SceneManager, type WorkFeatureSpec, type ComponentLeaf } from './SceneManager';
-import type { ComponentPath } from '@zilventor/shared';
+import { SceneManager, type WorkFeatureSpec, type ComponentLeaf, type PanelOverlaySpec } from './SceneManager';
+import type { ComponentPath, MaterialEntry } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import ViewCube from './ViewCube';
 
@@ -40,6 +40,7 @@ export type ViewportRef = {
   setComponentMeshes(leaves: ComponentLeaf[]): void;
   setPartGeometry(partPath: string, geometry: THREE.BufferGeometry): void;
   setSelectedComponentPaths(paths: ComponentPath[]): void;
+  setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void;
   clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
@@ -164,6 +165,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     setSelectedComponentPaths: (paths) => {
       if (!sceneRef.current) return;
       sceneRef.current.setSelectedComponentPaths(paths);
+    },
+    setPanelOverlays: (specs, materials) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setPanelOverlays(specs, materials);
+      setGeometryHash(sceneRef.current.geometryHash());
     },
     clearComponentMeshes: () => {
       if (!sceneRef.current) return;

@@ -50,6 +50,8 @@ import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { PanelDialog } from './shell/PanelDialog';
+import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
+import type { PanelOverlaySpec } from './viewport/SceneManager';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
@@ -106,6 +108,22 @@ import { pathKey, type ComponentPath } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
+
+/**
+ * T29-T30: Resolve a `ParamOrLiteral` to a numeric value for the panel
+ * overlay walker. Returns `null` when a referenced parameter is missing or
+ * non-numeric so the caller can skip building an overlay rather than throw
+ * mid-render.
+ */
+function resolvePanelDim(
+  v: import('@zilventor/shared').ParamOrLiteral,
+  parameters: Record<string, { value: number }>,
+): number | null {
+  if (v.kind === 'literal') return v.value;
+  const p = parameters[v.paramName];
+  if (!p || !Number.isFinite(p.value)) return null;
+  return p.value;
+}
 
 function formatExpressionError(err: EvaluationError): string {
   switch (err.code) {
@@ -419,7 +437,7 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasExecutableFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint');
+      const hasExecutableFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint');
       if (!hasExecutableFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
@@ -629,7 +647,7 @@ export default function App() {
           if (!freshPart || freshPart.id !== part.id) return;
           if (useAppStore.getState().sketchMode) return;
           const hasExecutableFeature = freshPart.featureTree.some(
-            (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint'
+            (f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint'
           );
           if (!hasExecutableFeature) return;
           const res = await kernelClient.execute(freshPart.id);
@@ -1098,7 +1116,7 @@ export default function App() {
       useAppStore.getState().setKernel(client);
       const { activePart: ap } = useAppStore.getState();
       if (ap && viewportRef.current) {
-        const hasSolidFeature = ap.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep');
+        const hasSolidFeature = ap.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel');
         if (hasSolidFeature) {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
@@ -2409,6 +2427,45 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, [assembly, kernel, componentPoses, showComponentColors]);
+
+  // T29-T30: Panel edge-band overlay sync. Walks the active part's featureTree
+  // for `kind: 'panel'` features, resolves L/W/T against the part parameters,
+  // and forwards a PanelOverlaySpec[] + the active material registry to the
+  // SceneManager. The SceneManager builds/disposes overlay LineSegments and
+  // honors the `showEdgeBands` view-tab flag (subscribed in attach()).
+  //
+  // Scope: part-mode only. Assembly mode is intentionally not handled here —
+  // the SceneManager builds overlays in part-local coordinates centred on
+  // origin, which would all collide at world origin if multiple panels were
+  // emitted from an assembly. Per-leaf placement of overlays is a future
+  // follow-up; for now assemblies clear any prior overlay so toggling the
+  // flag in an assembly view is well-defined.
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const specs: PanelOverlaySpec[] = [];
+    let materials: ReadonlyArray<MaterialEntry> = [];
+    if (activePart && !assembly) {
+      materials = activePart.materials ?? [];
+      for (const f of activePart.featureTree) {
+        if (f.kind !== 'panel') continue;
+        const panel = f as PanelFeature;
+        if (panel.suppressed) continue;
+        const length = resolvePanelDim(panel.length, activePart.parameters);
+        const width = resolvePanelDim(panel.width, activePart.parameters);
+        const thickness = resolvePanelDim(panel.thickness, activePart.parameters);
+        if (length == null || width == null || thickness == null) continue;
+        specs.push({
+          key: `${activePart.id}/${panel.id}`,
+          length,
+          width,
+          thickness,
+          edgeBands: panel.edgeBands,
+        });
+      }
+    }
+    vp.setPanelOverlays(specs, materials);
+  }, [activePart, assembly, parameterValues]);
 
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
   // description) for each unique partPath referenced by the active assembly so
