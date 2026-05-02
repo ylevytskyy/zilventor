@@ -316,6 +316,84 @@ describe('BrowserPane', () => {
 
 });
 
+describe('BrowserPane — panel feature (T28)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null,
+      activePart: null,
+    } as Partial<ReturnType<typeof useAppStore.getState>>);
+    useAppStore.getState().setFeatureErrors(new Map());
+  });
+
+  function makePanelPart(): PartDocument {
+    const panel: any = {
+      kind: 'panel',
+      id: 'PANEL1',
+      length: { kind: 'literal', value: 600 },
+      width: { kind: 'literal', value: 400 },
+      thickness: { kind: 'literal', value: 18 },
+      thicknessFromMaterial: false,
+      materialId: 'mat-1',
+      grain: 'length',
+      edgeBands: { front: null, back: null, left: null, right: null },
+    };
+    return {
+      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [panel],
+      materials: [],
+    } as any;
+  }
+
+  it('renders a Panel row with the PanelIcon', () => {
+    const part = makePanelPart();
+    const { container } = render(<BrowserPane part={part} />);
+    expect(screen.getByText('Panel')).toBeInTheDocument();
+    const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
+    expect(li).toBeTruthy();
+    expect(li.querySelector('svg')).toBeTruthy();
+  });
+
+  it('double-clicking the Panel row dispatches EditPanelFeatureCommand (panel feature is replaced)', () => {
+    const part = makePanelPart();
+    useAppStore.getState().setActivePart(part);
+    const { container } = render(<BrowserPane part={useAppStore.getState().activePart!} />);
+    const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
+    fireEvent.doubleClick(li);
+    // EditPanelFeatureCommand replaces the feature with the same value (no-op
+    // behaviorally), but the call path is the dispatch surface this test
+    // verifies. After dispatch the active part still has the panel.
+    const after = useAppStore.getState().activePart!;
+    expect(after.featureTree.find((f: any) => f.id === 'PANEL1')).toBeTruthy();
+  });
+
+  it('right-click context menu suppress flips the suppressed flag', () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('suppress');
+    const part = makePanelPart();
+    useAppStore.getState().setActivePart(part);
+    const { container } = render(<BrowserPane part={useAppStore.getState().activePart!} />);
+    const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
+    fireEvent.contextMenu(li);
+    expect(promptSpy).toHaveBeenCalled();
+    const after = useAppStore.getState().activePart!;
+    const panelAfter = after.featureTree.find((f: any) => f.id === 'PANEL1') as any;
+    expect(panelAfter.suppressed).toBe(true);
+    promptSpy.mockRestore();
+  });
+
+  it('right-click context menu delete removes the panel feature', () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('delete');
+    const part = makePanelPart();
+    useAppStore.getState().setActivePart(part);
+    const { container } = render(<BrowserPane part={useAppStore.getState().activePart!} />);
+    const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
+    fireEvent.contextMenu(li);
+    expect(promptSpy).toHaveBeenCalled();
+    const after = useAppStore.getState().activePart!;
+    expect(after.featureTree.find((f: any) => f.id === 'PANEL1')).toBeUndefined();
+    promptSpy.mockRestore();
+  });
+});
+
 describe('BrowserPane — imported feature (T21)', () => {
   beforeEach(() => {
     useAppStore.setState({

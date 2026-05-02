@@ -1,10 +1,12 @@
-import type { AssemblyDocument, ComponentInstance, Feature, PartDocument, PartInfo } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentInstance, Feature, PanelFeature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
+import { PanelIcon } from '@zilventor/icons';
 import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
+import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
 
@@ -457,6 +459,45 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
               >
                 {renderVisibilityToggle(f.id, f.visible)}
                 ▸ Point{workPointCount}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
+          if (f.kind === 'panel') {
+            const panel = f as PanelFeature;
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white flex items-center gap-1"
+                data-panel-feature-id={f.id}
+                style={{
+                  opacity: panel.suppressed ? 0.4 : 1,
+                  textDecoration: panel.suppressed ? 'line-through' : 'none',
+                }}
+                onDoubleClick={() => {
+                  void new EditPanelFeatureCommand(panel).apply();
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  const action = window.prompt('Panel actions: type "suppress" or "delete"');
+                  if (action === null) return;
+                  const cur = useAppStore.getState().activePart;
+                  if (!cur) return;
+                  if (action.trim().toLowerCase() === 'delete') {
+                    const tree = cur.featureTree.filter((x) => x.id !== panel.id);
+                    useAppStore.getState().setActivePart({ ...cur, featureTree: tree });
+                  } else if (action.trim().toLowerCase() === 'suppress') {
+                    const tree = cur.featureTree.map((x) =>
+                      x.id === panel.id && x.kind === 'panel'
+                        ? ({ ...(x as PanelFeature), suppressed: !(x as PanelFeature).suppressed } as PanelFeature)
+                        : x,
+                    );
+                    useAppStore.getState().setActivePart({ ...cur, featureTree: tree });
+                  }
+                }}
+              >
+                <PanelIcon width={12} height={12} />
+                Panel
                 {renderErrorBadge(f.id)}
               </li>
             );
