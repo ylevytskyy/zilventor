@@ -1,8 +1,10 @@
 import { useAppStore } from '../../store/useAppStore';
 import { ToggleShowComponentColorsCommand } from '../../commands/ToggleShowComponentColorsCommand';
+import { ToggleShowEdgeBandsCommand } from '../../commands/ToggleShowEdgeBandsCommand';
 
 export default function ViewTab() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
+  const showEdgeBands = useAppStore((s) => s.showEdgeBands);
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
       <button className="hover:text-white">Fit (F)</button>
@@ -15,6 +17,15 @@ export default function ViewTab() {
         }}
       >
         {showComponentColors ? '✓ ' : ''}Show component colors
+      </button>
+      <button
+        className="hover:text-white"
+        onClick={async () => {
+          const cmd = new ToggleShowEdgeBandsCommand();
+          await cmd.apply();
+        }}
+      >
+        {showEdgeBands ? '✓ ' : ''}Show edge bands
       </button>
     </div>
   );

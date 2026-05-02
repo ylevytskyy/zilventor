@@ -26,3 +26,26 @@ describe('ViewTab Show component colors toggle', () => {
     expect(after.textContent ?? '').toMatch(/^✓ /);
   });
 });
+
+describe('ViewTab Show edge bands toggle', () => {
+  beforeEach(() => {
+    cleanup();
+    useAppStore.setState({ showEdgeBands: true } as any);
+  });
+
+  it('renders the Show edge bands button initially in the on state (default true)', () => {
+    render(<ViewTab />);
+    const btn = screen.getByRole('button', { name: /Show edge bands/i });
+    expect(btn).toBeInTheDocument();
+    expect(btn.textContent ?? '').toMatch(/^✓ /);
+  });
+
+  it('clicking the button flips showEdgeBands and reflects the off state', () => {
+    render(<ViewTab />);
+    const btn = screen.getByRole('button', { name: /Show edge bands/i });
+    fireEvent.click(btn);
+    expect(useAppStore.getState().showEdgeBands).toBe(false);
+    const after = screen.getByRole('button', { name: /Show edge bands/i });
+    expect(after.textContent ?? '').not.toMatch(/^✓/);
+  });
+});
