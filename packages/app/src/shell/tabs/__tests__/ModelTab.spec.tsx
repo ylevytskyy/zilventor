@@ -24,6 +24,7 @@ const importedPart: PartDocument = {
     { kind: 'imported', id: 'imp-1', sourceStep: 'X.step', bodyRef: 'blob-1' },
   ],
   properties: {},
+  materials: [],
 };
 
 const parametricPart: PartDocument = {
@@ -50,6 +51,7 @@ const parametricPart: PartDocument = {
     },
   ],
   properties: {},
+  materials: [],
 };
 
 beforeEach(() => {

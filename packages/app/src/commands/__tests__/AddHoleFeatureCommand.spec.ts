@@ -8,7 +8,7 @@ import type { HoleFeature } from '@zilventor/shared';
 describe('AddHoleFeatureCommand', () => {
   it('apply calls kernel.addFeature + execute + store.setActivePart', async () => {
     useAppStore.getState().setActivePart({
-      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {}, featureTree: []
+      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {}, featureTree: [], materials: []
     });
     const kernel = {
       addFeature: vi.fn().mockResolvedValue(undefined),

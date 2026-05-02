@@ -2,6 +2,7 @@ import type { SketchConstraint } from './constraints';
 import type { SketchParameter, ParameterUnit } from './parameters';
 import type { ComponentPath, ComponentPathKey } from './componentPath';
 import type { PanelFeature } from './panel-feature';
+import type { MaterialEntry } from './material';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -67,6 +68,7 @@ export type PartDocument = {
   featureTree: Feature[];
   cachedGeometry?: CachedGeometry;
   properties: Record<string, string | number | boolean>;
+  materials: MaterialEntry[];
 };
 
 export type ComponentColor =
@@ -96,6 +98,7 @@ export type AssemblyDocument = {
   bomItemNumbers: Record<string, number>;
   colorOverrides: Record<ComponentPathKey, ComponentColor>;
   properties: Record<string, string | number | boolean>;
+  materials: MaterialEntry[];
 };
 
 export type AssemblyConstraintRef =
@@ -118,8 +121,8 @@ export type AssemblyConstraint =
       offset: ParamOrLiteral; suppressed: boolean };
 
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
+  | { formatVersion: 7 | 8 | 9 | 10; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
 
 export type FaceName = {
   featureId: string;

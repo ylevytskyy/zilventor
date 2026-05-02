@@ -27,6 +27,7 @@ describe('isImportedPart', () => {
       parameters: {},
       featureTree: [...ORIGIN_FEATURES, importedFeature],
       properties: {},
+      materials: [],
     };
     expect(isImportedPart(doc)).toBe(true);
   });
@@ -43,6 +44,7 @@ describe('isImportedPart', () => {
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd', direction: 'forward', operation: 'new' },
       ],
       properties: {},
+      materials: [],
     };
     expect(isImportedPart(doc)).toBe(false);
   });
@@ -52,6 +54,7 @@ describe('isImportedPart', () => {
       id: 'p3', name: 'Empty', units: 'mm', parameters: {},
       featureTree: [...ORIGIN_FEATURES],
       properties: {},
+      materials: [],
     };
     expect(isImportedPart(doc)).toBe(false);
   });
@@ -65,6 +68,7 @@ describe('isImportedPart', () => {
         { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
       ],
       properties: {},
+      materials: [],
     };
     expect(isImportedPart(doc)).toBe(false);
   });

@@ -8,7 +8,8 @@ import type { SketcherClient } from '../../sketcher/SketcherClient';
 const resetStore = () =>
   useAppStore.getState().setActivePart({
     id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {},
-    featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }]
+    featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }],
+    materials: [],
   });
 
 describe('dimension commands', () => {

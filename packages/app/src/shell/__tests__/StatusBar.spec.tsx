@@ -60,6 +60,7 @@ describe('StatusBar assembly DOF segment', () => {
   const makeAsm = (constraints: any[]) => ({
     id: 'A1', name: 'asm', units: 'mm' as const, parameters: {}, properties: {},
     components: [], constraints, groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    materials: [],
   });
 
   beforeEach(() => {

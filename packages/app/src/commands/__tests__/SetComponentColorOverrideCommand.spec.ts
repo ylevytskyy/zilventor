@@ -10,6 +10,7 @@ function makeDoc(): AssemblyDocument {
     id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    materials: [],
   };
 }
 

@@ -18,6 +18,7 @@ function makeDoc(id: string, name: string, components: AssemblyDocument['compone
     bomItemNumbers: {},
     colorOverrides: {},
     properties: {},
+    materials: [],
   };
 }
 

@@ -15,7 +15,8 @@ export function newPart(name: string): PartDocument {
       { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
       { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
       { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
-    ]
+    ],
+    materials: [],
   };
 }
 

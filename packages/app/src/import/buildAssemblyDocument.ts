@@ -74,5 +74,6 @@ export function buildAssemblyDocument(args: BuildAssemblyArgs): AssemblyDocument
     bomItemNumbers: {},
     colorOverrides,
     properties: { ...asmJson.properties },
+    materials: [],
   };
 }

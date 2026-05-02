@@ -16,6 +16,7 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     colors: {},
     bomItemNumbers: {},
     colorOverrides: {},
+    materials: [],
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
 }

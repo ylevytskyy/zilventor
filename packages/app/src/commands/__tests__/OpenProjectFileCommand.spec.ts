@@ -18,6 +18,7 @@ describe('OpenProjectFileCommand', () => {
     id: 'D1', name: 'drawer', units: 'mm', parameters: {}, properties: {},
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    materials: [],
   };
 
   it('sets activeDocument to the cached sub-asm and returns true', () => {

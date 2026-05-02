@@ -51,6 +51,7 @@ describe('EditComponentDialog — color row (4c)', () => {
       components: [c],
       constraints: [], groundedComponentPaths: [['C1']],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      materials: [],
       ...overrides,
     };
     useAppStore.setState({
@@ -129,6 +130,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       components: [component],
       constraints: [], groundedComponentPaths: [[component.id]],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      materials: [],
     };
     useAppStore.setState({
       activeAssembly: assembly,
@@ -148,6 +150,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       ],
       constraints: [], groundedComponentPaths: [],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      materials: [],
     };
     const subPlacement: ComponentInstance = {
       id: 'SUB1', partPath: 'sub/drawer.ziasm',
@@ -192,6 +195,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       components: [],
       constraints: [], groundedComponentPaths: [],
       colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      materials: [],
     } as AssemblyDocument });
     render(
       <EditComponentDialog

@@ -41,6 +41,7 @@ describe('WorkFeature integration — sketch on derived work plane', () => {
         },
         { kind: 'extrude', id: 'E2', sketchRef: 'S2', distanceParam: 'h2', direction: 'forward', operation: 'join' },
       ],
+      materials: [],
     };
     const r = await executeTree(occt, part);
     expect(r.ok).toBe(true);

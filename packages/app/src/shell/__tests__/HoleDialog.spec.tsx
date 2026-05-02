@@ -86,7 +86,7 @@ describe('HoleDialog', () => {
   });
 
   it('OK in fromSketch+simple+throughAll mode adds a HoleFeature to the active part', () => {
-    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [] };
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [], materials: [] };
     useAppStore.getState().setActivePart(part);
     useAppStore.getState().toggleHoleDialog(true);
     useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));
@@ -156,7 +156,7 @@ describe('HoleDialog', () => {
   });
 
   it('calls onCommit with a HoleFeature when OK is clicked with onCommit prop', () => {
-    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [] };
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [], materials: [] };
     useAppStore.getState().setActivePart(part);
     useAppStore.getState().toggleHoleDialog(true);
     useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1', holePlacementMode: 'fromSketch' as const }));
@@ -175,7 +175,7 @@ describe('HoleDialog', () => {
   });
 
   it('OK without onCommit prop falls back to direct store update and closes dialog', () => {
-    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [] };
+    const part = { id: 'part-1', name: 'Part1', units: 'mm' as const, parameters: {}, properties: {}, featureTree: [], materials: [] };
     useAppStore.getState().setActivePart(part);
     useAppStore.getState().toggleHoleDialog(true);
     useAppStore.setState((s) => ({ ...s, holeSketchId: 'S1' }));

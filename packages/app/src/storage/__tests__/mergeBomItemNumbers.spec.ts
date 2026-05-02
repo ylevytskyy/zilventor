@@ -7,6 +7,7 @@ function makeAssembly(overrides: Partial<AssemblyDocument> = {}): AssemblyDocume
     id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    materials: [],
     ...overrides,
   };
 }

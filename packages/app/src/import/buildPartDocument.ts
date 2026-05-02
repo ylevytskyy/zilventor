@@ -61,5 +61,6 @@ export function buildPartDocument(args: BuildPartArgs): PartDocument {
     parameters,
     featureTree: [...ORIGIN_FEATURES, importedFeature],
     properties: { ...partJson.properties },
+    materials: [],
   };
 }

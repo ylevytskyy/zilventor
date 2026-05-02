@@ -12,7 +12,8 @@ describe('DragPrimitivesCommand', () => {
       featureTree: [{
         kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, constraints: [],
         primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]
-      }]
+      }],
+      materials: [],
     });
     const cmd = new DragPrimitivesCommand('S1', before, after);
     await cmd.apply();

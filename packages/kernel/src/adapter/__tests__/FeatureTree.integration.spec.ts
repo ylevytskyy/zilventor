@@ -129,7 +129,8 @@ describe('FeatureTree.executeTree', () => {
       featureTree: [
         { kind: 'sketch' as const, id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const, primitives: [{ id: 'p1', kind: 'rectangle' as const, x: 0, y: 0, w: 100, h: 200 }], constraints: [] },
         { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
-      ]
+      ],
+      materials: [],
     };
     const res = await executeTree(occt, part);
     expect(res.ok).toBe(true);
@@ -160,7 +161,8 @@ describe('FeatureTree.executeTree', () => {
       properties: {},
       featureTree: [
         { kind: 'extrude' as const, id: 'e1', sketchRef: 'missing', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
-      ]
+      ],
+      materials: [],
     };
     const res = await executeTree(occt, part);
     expect(res.ok).toBe(false);
@@ -453,7 +455,8 @@ describe('FeatureTree — hole feature integration', () => {
           termination: { kind: 'throughAll' },
           flipAxis: false
         } as HoleFeature
-      ] as PartDocument['featureTree']
+      ] as PartDocument['featureTree'],
+      materials: [],
     };
 
     const result = await executeTree(occt, part);
@@ -515,7 +518,8 @@ describe('FeatureTree — hole feature integration', () => {
           termination: { kind: 'throughAll' },
           flipAxis: false
         } as HoleFeature
-      ] as PartDocument['featureTree']
+      ] as PartDocument['featureTree'],
+      materials: [],
     };
 
     const result = await executeTree(occt, part);
@@ -578,7 +582,8 @@ describe('FeatureTree — sweep feature integration', () => {
           orientation: { kind: 'path' },
           operation: 'new'
         } as SweepFeature
-      ] as PartDocument['featureTree']
+      ] as PartDocument['featureTree'],
+      materials: [],
     };
 
     const result = await executeTree(occt, part);
@@ -638,7 +643,8 @@ describe('FeatureTree — sweep feature integration', () => {
           orientation: { kind: 'path' },
           operation: 'new'
         } as SweepFeature
-      ] as PartDocument['featureTree']
+      ] as PartDocument['featureTree'],
+      materials: [],
     };
 
     const result = await executeTree(occt, part);
@@ -703,6 +709,7 @@ describe('executeTree work features', () => {
           plane: { source: 'workPlane', featureId: 'WP1' },
         } },
       ],
+      materials: [],
     };
     const r = await executeTree(occt, part);
     expect(r.ok).toBe(true);

@@ -28,6 +28,7 @@ function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
     groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {}, colorOverrides: {},
+    materials: [],
     ...overrides,
   };
 }
@@ -172,6 +173,7 @@ describe('BomTable', () => {
       ],
       constraints: [], groundedComponentPaths: [], colors: {},
       bomItemNumbers: {}, colorOverrides: {},
+      materials: [],
     };
     const top = makeAsm({
       colors: { Cherry: '#ff0000' },
