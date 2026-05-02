@@ -89,4 +89,35 @@ describe('ProjectPacker', () => {
     const tree = (out.manifest as { document: { featureTree: Array<{ kind: string; id: string; bodyRef: string }> } }).document.featureTree;
     expect(tree[0]).toMatchObject({ kind: 'imported', id: 'imp-1', bodyRef: 'blob-imp-1' });
   });
+
+  it('round-trips a panel-bearing part with scratchpad materials', async () => {
+    const panelFeature = {
+      kind: 'panel',
+      id: 'pf-1',
+      length: { kind: 'literal', value: 600 },
+      width: { kind: 'literal', value: 400 },
+      thickness: { kind: 'literal', value: 18 },
+      thicknessFromMaterial: true,
+      materialId: 'm1',
+      grain: 'length',
+      edgeBands: { front: null, back: null, left: null, right: null },
+    };
+    const materials = [
+      { id: 'm1', name: 'Birch 18', defaultThickness: 18, color: '#d8c896' },
+    ];
+    const manifest = {
+      formatVersion: 10, kind: 'part', createdAt: 'now', appVersion: '0.0.1',
+      document: {
+        id: 'p1', name: 'Panel Part', units: 'mm', parameters: {}, properties: {},
+        featureTree: [panelFeature],
+        materials,
+      },
+    };
+    const archive = await packProject({ manifest, blobs: {} });
+    const out = await unpackProject(archive);
+    const doc = (out.manifest as { document: { materials: unknown[]; featureTree: Array<{ kind: string }> } }).document;
+    expect(doc.materials).toEqual(materials);
+    expect(doc.featureTree.find((f) => f.kind === 'panel')).toMatchObject({ kind: 'panel', id: 'pf-1' });
+  });
+
 });
