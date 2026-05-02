@@ -109,6 +109,9 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     const canvas = canvasRef.current;
     const sm = new SceneManager(canvas);
     sceneRef.current = sm;
+    // T30: subscribe to useAppStore.showEdgeBands so the View-tab toggle
+    // shows/hides the edge-band overlays without explicit caller wiring.
+    sm.attach();
 
     const resize = () => {
       const r = canvas.getBoundingClientRect();

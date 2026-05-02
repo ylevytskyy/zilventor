@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { pathKey, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { useAppStore } from '../store/useAppStore';
 
 export type Vec3 = { x: number; y: number; z: number };
 export type WorkFeatureSpec =
@@ -439,6 +440,30 @@ export class SceneManager {
   edgeBandOverlayList(): ReadonlyArray<THREE.LineSegments> {
     return this.edgeBandOverlays;
   }
+
+  /**
+   * T30: Subscribe to `useAppStore.showEdgeBands` so the scene reflects the
+   * View-tab toggle without the caller having to wire it manually. Fires
+   * once immediately to align with the current store value.
+   *
+   * Returns the unsubscribe so callers can release it explicitly; the
+   * SceneManager also tracks all subscriptions internally and releases
+   * them in `dispose()`.
+   */
+  attach(): () => void {
+    // Static-imported above so production wiring is a single module ref.
+    this.setShowEdgeBands(useAppStore.getState().showEdgeBands);
+    let lastShow = useAppStore.getState().showEdgeBands;
+    const unsub = useAppStore.subscribe((s) => {
+      if (s.showEdgeBands !== lastShow) {
+        lastShow = s.showEdgeBands;
+        this.setShowEdgeBands(s.showEdgeBands);
+      }
+    });
+    this.storeUnsubscribers.push(unsub);
+    return unsub;
+  }
+
 
 
   componentMeshCount(): number {
