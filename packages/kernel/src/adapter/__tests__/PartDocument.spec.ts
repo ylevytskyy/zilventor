@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { newPart, addFeature, setParameter, removeParameter, removeFeature, addPrimitive, removePrimitive } from '../PartDocument';
+import { newPart, addFeature, setParameter, removeParameter, removeFeature, addPrimitive, removePrimitive, INVALID_PANEL_PLACEMENT } from '../PartDocument';
+import type { PanelFeature } from '@zilventor/shared';
 
 describe('PartDocument', () => {
   it('creates a part with defaults', () => {
@@ -98,5 +99,58 @@ describe('newPart() origin features', () => {
         expect(f.visible).toBe(false);
       }
     }
+  });
+});
+
+const PANEL: PanelFeature = {
+  kind: 'panel', id: 'pf-1',
+  length: { kind: 'literal', value: 600 },
+  width: { kind: 'literal', value: 400 },
+  thickness: { kind: 'literal', value: 18 },
+  thicknessFromMaterial: true,
+  materialId: 'mat-1',
+  grain: 'length',
+  edgeBands: { front: null, back: null, left: null, right: null },
+};
+
+describe('PartDocument panel invariant', () => {
+  it('accepts panel as the first user feature (after origins)', () => {
+    const p = newPart('P');
+    expect(() => addFeature(p, PANEL)).not.toThrow();
+  });
+
+  it('rejects panel inserted after another user feature', () => {
+    let p = newPart('P');
+    p = addFeature(p, { kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] });
+    expect(() => addFeature(p, PANEL)).toThrow(INVALID_PANEL_PLACEMENT);
+  });
+
+  it('rejects a second panel', () => {
+    let p = newPart('P');
+    p = addFeature(p, PANEL);
+    expect(() => addFeature(p, { ...PANEL, id: 'pf-2' })).toThrow(INVALID_PANEL_PLACEMENT);
+  });
+
+  it('rejects removeFeature that strands a panel mid-tree', () => {
+    // Manually construct a tree where a panel sits BEHIND a user feature.
+    // The only way to reach this state via the public API is to bypass
+    // addFeature's invariant — we splice directly to set up the test.
+    let p = newPart('P');
+    p = addFeature(p, PANEL);
+    // Splice in a sketch ahead of the panel (simulating an external mutation
+    // or future reorder). removeFeature on an unrelated id must surface the
+    // existing violation.
+    const tampered: typeof p = {
+      ...p,
+      featureTree: [
+        ...p.featureTree.slice(0, 7),
+        { kind: 'sketch', id: 's-orphan', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
+        ...p.featureTree.slice(7),
+      ],
+    };
+    // A removeFeature that doesn't target the panel and doesn't fix the
+    // ordering should throw because the resulting tree still violates the
+    // invariant.
+    expect(() => removeFeature(tampered, 'nonexistent')).toThrow(INVALID_PANEL_PLACEMENT);
   });
 });
