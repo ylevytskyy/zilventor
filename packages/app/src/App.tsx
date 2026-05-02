@@ -49,6 +49,7 @@ import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDi
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
+import { PanelDialog } from './shell/PanelDialog';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
@@ -3175,6 +3176,7 @@ export default function App() {
         onWorkAxisCommit={onWorkAxisCommit}
         onWorkPointCommit={onWorkPointCommit}
       />
+      <PanelDialog />
       <ImportFromInventorDialog
         isOpen={importFromInventorDialogOpen}
         status={importStatus}
