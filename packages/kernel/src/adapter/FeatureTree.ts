@@ -23,6 +23,7 @@ import { executeMirrorFeature } from './features/MirrorFeature';
 import { executeHoleFeature } from './features/HoleFeature';
 import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
+import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
 import { disposeShape, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
@@ -725,6 +726,126 @@ export async function executeTree(
         });
         continue;
       }
+    } else if (feature.kind === 'panel') {
+      // PanelFeature is a base feature: it must be the first user-visible
+      // feature in the part (origin features are skipped when computing the
+      // index). The evaluator enforces PANEL_NOT_BASE_FEATURE when
+      // featureIndex !== 0; we count user features ahead of this panel by
+      // walking the prefix of the tree.
+      let userFeatureIndex = 0;
+      for (const prior of part.featureTree) {
+        if (prior === feature) break;
+        if (
+          prior.kind === 'workAxis' ||
+          prior.kind === 'workPlane' ||
+          prior.kind === 'workPoint'
+        ) {
+          continue;
+        }
+        userFeatureIndex++;
+      }
+      // Adapt `part.parameters` (SketchParameter with `unit`) to the shape
+      // `evaluatePanel` expects (`{ value, expression, units }`). Only
+      // `.value` is read by the resolver, so this remap is purely
+      // structural.
+      const adaptedParams: Record<string, { value: number; expression: string; units: string }> = {};
+      for (const [k, p] of Object.entries(part.parameters)) {
+        adaptedParams[k] = { value: p.value, expression: p.expression, units: p.unit };
+      }
+      let panelResult: ReturnType<typeof evaluatePanel>;
+      try {
+        panelResult = evaluatePanel(oc, feature, {
+          parameters: adaptedParams,
+          featureIndex: userFeatureIndex,
+        });
+      } catch (e) {
+        cleanupOnError();
+        return err({
+          kind: 'invalidGeometry',
+          message: `PanelFeature ${feature.id}: ${(e as Error).message}`,
+          correlationId: newCorrelationId(),
+          featureId: feature.id,
+        });
+      }
+      if (panelResult.skipped) continue;
+      // Panel semantically replaces the running solid (it is by invariant
+      // the first user feature, but defensively dispose any prior body so
+      // a panel-after-panel insertion attempt doesn't leak).
+      if (finalSolid) {
+        disposeShape(finalSolid.shape);
+        finalSolid = null;
+      }
+      // Bind face handles from the panel shape to the canonical FaceNames
+      // produced by buildPanelBox. Classification mirrors PanelOps' own
+      // centroid-vs-bbox-center logic so the same face gets the same name
+      // across rebuilds. (We reclassify here rather than threading face
+      // handles out of buildPanelBox to keep the PanelOps API minimal.)
+      const rawShape = panelResult.shape;
+      const panelFaceNames = panelResult.faceNames!;
+      const named: NamedShape = {
+        shape: { __brand: 'OcctShape', handle: rawShape } as OcctShape,
+        faceNames: [],
+      };
+      const ocAny = oc as unknown as {
+        Bnd_Box_1: new () => {
+          CornerMin: () => { X: () => number; Y: () => number; Z: () => number };
+          CornerMax: () => { X: () => number; Y: () => number; Z: () => number };
+          delete: () => void;
+        };
+        BRepBndLib: { Add: (s: unknown, b: unknown, useTri: unknown) => void };
+        TopExp_Explorer_2: new (s: unknown, t: unknown, a: unknown) => {
+          More: () => boolean;
+          Current: () => unknown;
+          Next: () => void;
+          delete: () => void;
+        };
+        TopAbs_ShapeEnum: { TopAbs_FACE: unknown; TopAbs_SHAPE: unknown };
+        GProp_GProps_1: new () => {
+          CentreOfMass: () => { X: () => number; Y: () => number; Z: () => number };
+          delete: () => void;
+        };
+        BRepGProp: {
+          SurfaceProperties_1: (s: unknown, p: unknown, eps: number, useTri: boolean) => void;
+        };
+      };
+      const bb = new ocAny.Bnd_Box_1();
+      ocAny.BRepBndLib.Add(rawShape as never, bb as never, false as never);
+      const cmin = bb.CornerMin();
+      const cmax = bb.CornerMax();
+      const cx = (cmin.X() + cmax.X()) / 2;
+      const cy = (cmin.Y() + cmax.Y()) / 2;
+      const cz = (cmin.Z() + cmax.Z()) / 2;
+      (cmin as unknown as { delete: () => void }).delete();
+      (cmax as unknown as { delete: () => void }).delete();
+      bb.delete();
+      const expl = new ocAny.TopExp_Explorer_2(
+        rawShape,
+        ocAny.TopAbs_ShapeEnum.TopAbs_FACE,
+        ocAny.TopAbs_ShapeEnum.TopAbs_SHAPE,
+      );
+      while (expl.More()) {
+        const face = expl.Current();
+        const props = new ocAny.GProp_GProps_1();
+        ocAny.BRepGProp.SurfaceProperties_1(face, props, 1e-7, false);
+        const com = props.CentreOfMass();
+        const dx = com.X() - cx;
+        const dy = com.Y() - cy;
+        const dz = com.Z() - cz;
+        (com as unknown as { delete: () => void }).delete();
+        props.delete();
+        const ax = Math.abs(dx);
+        const ay = Math.abs(dy);
+        const az = Math.abs(dz);
+        const eps = 1e-6;
+        let role: 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right' | null = null;
+        if (az >= ax && az >= ay && az > eps) role = dz > 0 ? 'Top' : 'Bottom';
+        else if (ay >= ax && ay >= az && ay > eps) role = dy > 0 ? 'Front' : 'Back';
+        else if (ax >= ay && ax >= az && ax > eps) role = dx > 0 ? 'Right' : 'Left';
+        if (role) attachName(named, face, panelFaceNames[role]);
+        expl.Next();
+      }
+      expl.delete();
+      finalSolid = named;
     } else if (feature.kind === 'imported') {
       if (!lookupImportedShape) {
         cleanupOnError();
