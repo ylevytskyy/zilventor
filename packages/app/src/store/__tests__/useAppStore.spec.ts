@@ -713,3 +713,15 @@ describe('store T19 setColorOverride / setComponentFlexible', () => {
   });
 });
 
+describe('showEdgeBands', () => {
+  it('default is true', () => {
+    expect(useAppStore.getState().showEdgeBands).toBe(true);
+  });
+  it('toggle flips the flag', () => {
+    useAppStore.getState().setShowEdgeBands(false);
+    expect(useAppStore.getState().showEdgeBands).toBe(false);
+    useAppStore.getState().setShowEdgeBands(true);
+    expect(useAppStore.getState().showEdgeBands).toBe(true);
+  });
+});
+

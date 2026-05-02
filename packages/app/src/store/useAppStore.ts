@@ -169,6 +169,7 @@ type AppState = {
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   showComponentColors: boolean;
+  showEdgeBands: boolean;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -181,6 +182,7 @@ type AppState = {
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
+  setShowEdgeBands: (v: boolean) => void;
   setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
   setComponentFlexible: (componentId: string, flag: boolean) => void;
 
@@ -419,6 +421,7 @@ export const useAppStore = create<AppState>((set) => ({
   componentDiagnostics: [],
   bomTabActive: false,
   showComponentColors: false,
+  showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -435,6 +438,10 @@ export const useAppStore = create<AppState>((set) => ({
   selectComponentPaths: (paths) => set({ selectedComponentPaths: [...paths] }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
+  setShowEdgeBands: (v) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));
+    set({ showEdgeBands: v });
+  },
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
     const next = { ...s.activeDocument.document.colorOverrides };
