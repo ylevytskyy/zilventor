@@ -42,7 +42,9 @@ export default function FurnitureTab() {
   const handleCabinet = async () => {
     const onSubmit = async (params: BaseCabinetParams) => {
       const opfs = await Opfs.forNavigator();
-      await new CreateCabinetCommand({ template: 'baseCabinet', params, opfs }).apply();
+      await useAppStore.getState().bus.execute(
+        new CreateCabinetCommand({ template: 'baseCabinet', params, opfs }),
+      );
     };
     await new OpenCabinetDialogCommand({ template: 'baseCabinet', onSubmit }).apply();
   };

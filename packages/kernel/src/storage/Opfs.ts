@@ -53,6 +53,11 @@ export class Opfs {
     }
   }
 
+  async delete(path: string): Promise<void> {
+    const { dir, name } = await this.resolveHandle(path, false);
+    await dir.removeEntry(name);
+  }
+
   async listAll(): Promise<string[]> {
     const out: string[] = [];
     const walk = async (d: FileSystemDirectoryHandle, prefix: string): Promise<void> => {
