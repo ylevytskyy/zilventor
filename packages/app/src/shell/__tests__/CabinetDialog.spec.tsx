@@ -71,3 +71,50 @@ describe('CabinetDialog — structural', () => {
     expect(useAppStore.getState().cabinetDialog).toBeNull();
   });
 });
+
+describe('CabinetDialog — validation', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setCabinetDialog(null);
+  });
+
+  it('disables OK and shows an error when width ≤ 2·Tc', () => {
+    seedAsm();
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit: vi.fn(),
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '36' } });
+    expect(screen.getByText(/Width must exceed/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('disables OK when carcass material is unset', () => {
+    seedAsm();
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit: vi.fn(),
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    fireEvent.change(screen.getByLabelText('Carcass material'), { target: { value: '' } });
+    expect(screen.getByText('Pick a carcass material.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('does not call onSubmit when OK is clicked while invalid', () => {
+    seedAsm();
+    const onSubmit = vi.fn();
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit,
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
