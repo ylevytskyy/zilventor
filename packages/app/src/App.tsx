@@ -3066,11 +3066,41 @@ export default function App() {
     setMirrorDialogOpen(false);
   }, [setMirrorDialogOpen]);
 
-
-
+  // Warm the panelSpecCacheRef from OPFS for all leaf parts in the active assembly tree.
+  // Called automatically when the Cut List tab opens (via CutListCacheContext.warmCache).
+  const warmCutListCache = useCallback(async (): Promise<void> => {
+    if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+    const opfs = opfsRef.current;
+    const s = useAppStore.getState();
+    const doc = s.activeDocument;
+    if (!doc || doc.kind !== 'assembly') return;
+    const a = doc.document;
+    const subAssemblyDocsSnap = s.subAssemblyDocs;
+    // Recursive walk — collect all leaf (.zipt) part paths.
+    const leafPaths: string[] = [];
+    const stack: AssemblyDocument[] = [a];
+    const seenAsm = new Set<string>();
+    while (stack.length) {
+      const d = stack.pop()!;
+      for (const c of d.components) {
+        if (c.partPath.endsWith('.ziasm')) {
+          if (!seenAsm.has(c.partPath)) {
+            seenAsm.add(c.partPath);
+            const sub = subAssemblyDocsSnap[c.partPath];
+            if (sub) stack.push(sub);
+          }
+        } else {
+          leafPaths.push(c.partPath);
+        }
+      }
+    }
+    await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
+    // Force useCutListResult to re-run by bumping the assembly identity (no-op content change).
+    s.setActiveDocument({ kind: 'assembly', document: { ...a } });
+  }, [panelSpecCacheRef]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, warmCache: warmCutListCache }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

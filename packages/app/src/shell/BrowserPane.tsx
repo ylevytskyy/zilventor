@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { AssemblyDocument, ComponentInstance, Feature, PanelFeature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
@@ -12,6 +13,7 @@ import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
 import { SetCutListItemNumberCommand } from '../commands/SetCutListItemNumberCommand';
 import { ExportCutListCsvCommand } from '../commands/ExportCutListCsvCommand';
 import { useCutListResult } from './useCutListResult';
+import { useCutListCacheContext } from './CutListCacheContext';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
 
@@ -152,6 +154,16 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   const bomTabActive = useAppStore((s) => s.bomTabActive);
   const cutListTabActive = useAppStore((s) => s.cutListTabActive);
   const cutListResult = useCutListResult();
+  const { warmCache } = useCutListCacheContext();
+
+  // Warm the panel-spec cache whenever the Cut List tab becomes active so
+  // production users see real rows (not an empty list) without needing to
+  // call the dev hook manually.
+  useEffect(() => {
+    if (cutListTabActive) {
+      void warmCache();
+    }
+  }, [cutListTabActive, warmCache]);
 
   const asm = (activeDoc as { kind: 'assembly'; document: AssemblyDocument }).document;
   const selectedConstraintId = useAppStore.getState().selectedConstraintId;
