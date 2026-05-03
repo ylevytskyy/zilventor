@@ -1995,6 +1995,34 @@ export default function App() {
         return samples[idx]!;
       };
       // __zilventorBomCsvBytes is set by ExportBomCsvCommand on each apply().
+      // T33 (5d) perf hook: run aggregateCutListRecursive against the live
+      // assembly + sub-asm docs + panel-spec cache `trials` times; return p95 ms.
+      w.__zilventorCutListAggregateMs = (trials: number): number => {
+        const a = useAppStore.getState().activeAssembly;
+        if (!a) return -1;
+        const docs = useAppStore.getState().subAssemblyDocs;
+        const cacheAdapter = {
+          get: (p: string) =>
+            docs[p]
+              ? ({ kind: 'ok' as const, doc: docs[p]!, partPath: p })
+              : undefined,
+        };
+        const samples: number[] = [];
+        for (let i = 0; i < trials; i++) {
+          const t0 = performance.now();
+          aggregateCutListRecursive(
+            a,
+            cacheAdapter,
+            panelSpecCacheRef.current,
+            a.materials ?? [],
+            partInfoCacheRef.current,
+          );
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((x, y) => x - y);
+        const idx = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
+        return samples[idx]!;
+      };
     }
   }, []);
 
