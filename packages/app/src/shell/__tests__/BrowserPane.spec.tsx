@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import BrowserPane from '../BrowserPane';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
@@ -503,8 +503,8 @@ describe('BrowserPane BOM tab strip', () => {
   it('assembly mode renders both Assembly/BOM tab strip and the existing tree', () => {
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
-    expect(screen.getByRole('button', { name: /^assembly$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^bom$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Assembly tab')).toBeInTheDocument();
+    expect(screen.getByLabelText('BOM tab')).toBeInTheDocument();
     expect(screen.getByText(/Assembly: cabinet/)).toBeInTheDocument();
     expect(screen.getByText(/Components/)).toBeInTheDocument();
   });
@@ -512,7 +512,7 @@ describe('BrowserPane BOM tab strip', () => {
   it('clicking the BOM tab sets bomTabActive=true and renders BomTable', () => {
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} partInfo={new Map([['parts/leg.zipt', { name: 'leg' }]])} />);
-    fireEvent.click(screen.getByRole('button', { name: /^bom$/i }));
+    fireEvent.click(screen.getByLabelText('BOM tab'));
     expect(useAppStore.getState().bomTabActive).toBe(true);
     expect(screen.getByTestId('bom-table')).toBeInTheDocument();
   });
@@ -524,7 +524,7 @@ describe('BrowserPane BOM tab strip', () => {
       bomTabActive: true,
     } as any);
     render(<BrowserPane part={null} partInfo={new Map([['parts/leg.zipt', { name: 'leg' }]])} />);
-    fireEvent.click(screen.getByRole('button', { name: /^assembly$/i }));
+    fireEvent.click(screen.getByLabelText('Assembly tab'));
     expect(useAppStore.getState().bomTabActive).toBe(false);
     expect(screen.queryByTestId('bom-table')).toBeNull();
   });
@@ -684,5 +684,56 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
       expandedSubAsmPaths: new Set<string>(['TOP', 'TOP/INNER']),
     } as any);
     expect(() => render(<BrowserPane part={null} />)).not.toThrow();
+  });
+});
+
+// ---- T20: Cut List tab strip ----
+
+const cutListAsm: AssemblyDocument = {
+  id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+  components: [],
+  constraints: [],
+  groundedComponentPaths: [],
+  colors: {},
+  bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+  materials: [],
+};
+
+function seedAssemblyMode() {
+  useAppStore.setState({
+    activeDocument: { kind: 'assembly', document: cutListAsm },
+    activeAssembly: cutListAsm,
+    bomTabActive: false,
+    cutListTabActive: false,
+    subAssemblyDocs: {},
+  } as any);
+}
+
+describe('BrowserPane Cut List tab (5d T20)', () => {
+  beforeEach(() => {
+    seedAssemblyMode();
+  });
+
+  it('renders Assembly | BOM | Cut List tabs in assembly mode', () => {
+    render(<BrowserPane part={null} />);
+    expect(screen.getByLabelText('Assembly tab')).toBeInTheDocument();
+    expect(screen.getByLabelText('BOM tab')).toBeInTheDocument();
+    expect(screen.getByLabelText('Cut List tab')).toBeInTheDocument();
+  });
+
+  it('clicking Cut List tab dispatches OpenCutListTabCommand', async () => {
+    render(<BrowserPane part={null} />);
+    fireEvent.click(screen.getByLabelText('Cut List tab'));
+    await waitFor(() => {
+      expect(useAppStore.getState().cutListTabActive).toBe(true);
+      expect(useAppStore.getState().bomTabActive).toBe(false);
+    });
+  });
+
+  it('shows the CutListTable when cutListTabActive is true', () => {
+    useAppStore.getState().setCutListTabActive(true);
+    render(<BrowserPane part={null} />);
+    // Empty assembly → "No panels" placeholder rendered.
+    expect(screen.getByText('No panels')).toBeInTheDocument();
   });
 });

@@ -4,9 +4,14 @@ import { PanelIcon } from '@zilventor/icons';
 import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
+import { CutListTable } from './CutListTable';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
+import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
+import { SetCutListItemNumberCommand } from '../commands/SetCutListItemNumberCommand';
+import { ExportCutListCsvCommand } from '../commands/ExportCutListCsvCommand';
+import { useCutListResult } from './useCutListResult';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
 
@@ -142,69 +147,101 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
 }
 
 
+function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null; partInfo: Map<string, PartInfo> }): JSX.Element {
+  const activeDoc = useAppStore((s) => s.activeDocument);
+  const bomTabActive = useAppStore((s) => s.bomTabActive);
+  const cutListTabActive = useAppStore((s) => s.cutListTabActive);
+  const cutListResult = useCutListResult();
+
+  const asm = (activeDoc as { kind: 'assembly'; document: AssemblyDocument }).document;
+  const selectedConstraintId = useAppStore.getState().selectedConstraintId;
+
+  const constraintLabel = (kind: string) => {
+    if (kind === 'mate') return 'Mate';
+    if (kind === 'flush') return 'Flush';
+    if (kind === 'angle') return 'Angle';
+    if (kind === 'insert') return 'Insert';
+    return kind;
+  };
+
+  const setBomTabActive = useAppStore.getState().setBomTabActive;
+  const tabStrip = (
+    <div className="flex gap-1 mb-1 border-b border-shell-border" role="tablist">
+      <button
+        type="button"
+        aria-label="Assembly tab"
+        onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); }}
+        className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+      >
+        Assembly
+      </button>
+      <button
+        type="button"
+        aria-label="BOM tab"
+        onClick={() => setBomTabActive(true)}
+        className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+      >
+        BOM
+      </button>
+      <button
+        type="button"
+        aria-label="Cut List tab"
+        onClick={() => void new OpenCutListTabCommand().apply()}
+        className={`px-2 py-0.5 text-xs ${cutListTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+      >
+        Cut List
+      </button>
+    </div>
+  );
+
+  if (cutListTabActive) {
+    return (
+      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        {tabStrip}
+        <CutListTable
+          result={cutListResult}
+          onSelectRow={(ids) => useAppStore.getState().selectComponents(ids)}
+          onEditItemNumber={(k, n) => void new SetCutListItemNumberCommand({ rowKey: k, n }).apply()}
+          onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
+        />
+      </div>
+    );
+  }
+
+  if (bomTabActive) {
+    return (
+      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        {tabStrip}
+        <BomTable partInfo={partInfo} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+      {tabStrip}
+      <div className="font-semibold mb-1">Assembly: {asm.name}</div>
+      <ul className="space-y-0.5">
+        <li className="pl-3">Origin</li>
+        <li className="pl-3">Components ({asm.components.length})</li>
+        {renderAssemblyTree({
+          components: asm.components,
+          doc: asm,
+          constraintLabel,
+          selectedConstraintId,
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }: Props) {
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
-  const bomTabActive = useAppStore((s) => s.bomTabActive);
 
   if (activeDoc?.kind === 'assembly') {
-    const asm = activeDoc.document;
-    const selectedConstraintId = useAppStore.getState().selectedConstraintId;
-
-    const constraintLabel = (kind: string) => {
-      if (kind === 'mate') return 'Mate';
-      if (kind === 'flush') return 'Flush';
-      if (kind === 'angle') return 'Angle';
-      if (kind === 'insert') return 'Insert';
-      return kind;
-    };
-
-    const setBomTabActive = useAppStore.getState().setBomTabActive;
-    const tabStrip = (
-      <div className="flex gap-1 mb-1 border-b border-shell-border" role="tablist">
-        <button
-          type="button"
-          onClick={() => setBomTabActive(false)}
-          className={`px-2 py-0.5 text-xs ${!bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
-        >
-          Assembly
-        </button>
-        <button
-          type="button"
-          onClick={() => setBomTabActive(true)}
-          className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
-        >
-          BOM
-        </button>
-      </div>
-    );
-
-    if (bomTabActive) {
-      return (
-        <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
-          {tabStrip}
-          <BomTable partInfo={partInfo} />
-        </div>
-      );
-    }
-
-    return (
-      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
-        {tabStrip}
-        <div className="font-semibold mb-1">Assembly: {asm.name}</div>
-        <ul className="space-y-0.5">
-          <li className="pl-3">Origin</li>
-          <li className="pl-3">Components ({asm.components.length})</li>
-          {renderAssemblyTree({
-            components: asm.components,
-            doc: asm,
-            constraintLabel,
-            selectedConstraintId,
-          })}
-        </ul>
-      </div>
-    );
+    return <AssemblyModePane part={part} partInfo={partInfo} />;
   }
 
   if (!part) {

@@ -97,6 +97,8 @@ import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartInfo } from './shell/resolvePartInfo';
 import type { PartInfo } from '@zilventor/shared';
+import { CutListCacheContext } from './shell/CutListCacheContext';
+import type { PanelSpecCache } from './shell/resolvePanelSpec';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
 import { computeInnerStaticPoses } from './assembly/computeInnerStaticPoses';
 import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
@@ -1865,6 +1867,7 @@ export default function App() {
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
+  const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
   const [partInfoVersion, setPartInfoVersion] = useState(0);
   // Snapshot whose identity changes whenever the partInfo cache mutates,
@@ -3020,6 +3023,7 @@ export default function App() {
 
 
   return (
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div
@@ -3347,5 +3351,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </CutListCacheContext.Provider>
   );
 }
