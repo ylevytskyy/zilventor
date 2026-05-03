@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { MaterialEntry } from '../../material';
 import { buildBaseCabinet } from '../baseCabinet';
 import type { BaseCabinetParams } from '../types';
+import { CabinetTemplateError } from '../types';
 
 const carcass: MaterialEntry = {
   id: 'm-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896',
@@ -130,5 +131,40 @@ describe('buildBaseCabinet — toekick disabled (toekickHeight=0)', () => {
     const shelf = out.layout.find((c) => c.fileNameSuffix === 'Shelf 1')!;
     // Inner span = 720 − 0 − 36 = 684; step = 684/2 = 342; z = 18 + 342 = 360.
     expect(shelf.position.z).toBe(360);
+  });
+});
+
+describe('buildBaseCabinet — validation', () => {
+  function expectError(params: Partial<BaseCabinetParams>, kind: string): void {
+    expect(() => buildBaseCabinet({ ...DEFAULT_PARAMS, ...params }, REGISTRY))
+      .toThrow(expect.objectContaining({ name: 'CabinetTemplateError', kind }));
+  }
+
+  it('rejects empty name', () => expectError({ name: '   ' }, 'nameEmpty'));
+  it('rejects width ≤ 2·Tc', () => expectError({ width: 36 }, 'widthTooSmall'));
+  it('rejects depth ≤ 2·Tc', () => expectError({ depth: 36 }, 'depthTooSmall'));
+  it('rejects height ≤ 2·Tc + toekick', () => expectError({ height: 100 }, 'heightTooSmall'));
+  it('rejects toekickHeight ≥ H/2', () => expectError({ toekickHeight: 360 }, 'toekickHeightTooLarge'));
+  it('rejects toekickSetback ≥ depth − Tc', () => expectError({ toekickSetback: 600 }, 'toekickSetbackTooLarge'));
+
+  it('rejects shelfCount > maxShelves with details.maxShelves populated', () => {
+    // Inner H = 720 − 100 − 36 = 584; max = floor(584/100) = 5.
+    expect(() => buildBaseCabinet({ ...DEFAULT_PARAMS, shelfCount: 99 }, REGISTRY))
+      .toThrow(expect.objectContaining({ kind: 'shelfCountTooLarge' }));
+    try { buildBaseCabinet({ ...DEFAULT_PARAMS, shelfCount: 99 }, REGISTRY); }
+    catch (e) {
+      expect(e).toBeInstanceOf(CabinetTemplateError);
+      expect((e as CabinetTemplateError).details.maxShelves).toBe(5);
+    }
+  });
+
+  it('rejects missing carcass material', () => {
+    expect(() => buildBaseCabinet({ ...DEFAULT_PARAMS, carcassMaterialId: 'nope' }, REGISTRY))
+      .toThrow(expect.objectContaining({ kind: 'carcassMaterialMissing' }));
+  });
+
+  it('rejects missing back material', () => {
+    expect(() => buildBaseCabinet({ ...DEFAULT_PARAMS, backMaterialId: 'nope' }, REGISTRY))
+      .toThrow(expect.objectContaining({ kind: 'backMaterialMissing' }));
   });
 });
