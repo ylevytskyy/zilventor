@@ -136,3 +136,23 @@ describe('CreateCabinetCommand — revert', () => {
     expect(await opfs.list()).toEqual([]);
   });
 });
+
+describe('CreateCabinetCommand — mid-flight rollback', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('rolls back already-written files when a later write fails', async () => {
+    seedAssembly();
+    let writeCount = 0;
+    const opfs = new MemOpfs();
+    const realWrite = opfs.write.bind(opfs);
+    opfs.write = async (p: string, b: Uint8Array) => {
+      writeCount++;
+      if (writeCount === 4) throw new Error('disk full');
+      return realWrite(p, b);
+    };
+    const cmd = new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs });
+    await expect(cmd.apply()).rejects.toThrow('disk full');
+    expect(await opfs.list()).toEqual([]);
+    expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
+  });
+});
