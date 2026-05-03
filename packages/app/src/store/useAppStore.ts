@@ -67,6 +67,13 @@ export type PanelDialogState = {
   onCancel: () => void;
 };
 
+export type CabinetDialogState = {
+  template: 'baseCabinet';
+  initial?: import('@zilventor/shared').BaseCabinetParams;
+  onSubmit: (params: import('@zilventor/shared').BaseCabinetParams) => void;
+  onCancel: () => void;
+};
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -223,6 +230,8 @@ type AppState = {
   removeMaterial(id: string): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
+  cabinetDialog: CabinetDialogState | null;
+  setCabinetDialog(s: CabinetDialogState | null): void;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -608,6 +617,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   panelDialog: null,
   setPanelDialog: (s) => set({ panelDialog: s }),
+  cabinetDialog: null,
+  setCabinetDialog: (s) => set({ cabinetDialog: s }),
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
   selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),
