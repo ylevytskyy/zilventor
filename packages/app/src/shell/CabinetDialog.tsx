@@ -1,0 +1,207 @@
+import React from 'react';
+import type { BaseCabinetParams, MaterialId } from '@zilventor/shared';
+import { useAppStore } from '../store/useAppStore';
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+};
+const panelStyle: React.CSSProperties = {
+  background: '#1a1a1a', border: '1px solid #444', borderRadius: 6, padding: 16,
+  width: 480, color: '#eee', fontSize: 12, maxHeight: '90vh', overflowY: 'auto',
+};
+const sectionHeading: React.CSSProperties = {
+  display: 'block', fontWeight: 600, fontSize: 12, marginTop: 8, marginBottom: 6,
+};
+const fieldRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 };
+const labelStyle: React.CSSProperties = { width: 130, fontSize: 11 };
+const inputStyle: React.CSSProperties = {
+  flex: 1, background: '#222', border: '1px solid #444', color: '#eee',
+  padding: '4px 6px', fontSize: 11,
+};
+const errStyle: React.CSSProperties = { color: '#ffb3b3', fontSize: 10, marginLeft: 130, marginBottom: 4 };
+const btnStyle: React.CSSProperties = {
+  background: '#2a2a2a', color: '#eee', border: '1px solid #444',
+  padding: '4px 10px', cursor: 'pointer', fontSize: 11,
+};
+const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+
+const DEFAULTS: Omit<BaseCabinetParams, 'carcassMaterialId' | 'backMaterialId'> = {
+  name: 'Base Cabinet 1',
+  width: 600, depth: 560, height: 720,
+  toekickHeight: 100, toekickSetback: 50,
+  shelfCount: 1, bandMaterialId: null,
+};
+
+export function CabinetDialog(): JSX.Element | null {
+  const dialog = useAppStore((s) => s.cabinetDialog);
+  const setDialog = useAppStore((s) => s.setCabinetDialog);
+  const asm = useAppStore((s) => s.activeAssembly);
+
+  const initialCarcass = asm?.materials.find((m) => m.defaultThickness >= 12)?.id
+    ?? asm?.materials[0]?.id ?? '';
+  const initialBack = asm?.materials.find((m) => m.defaultThickness <= 8 && m.id !== initialCarcass)?.id
+    ?? asm?.materials[0]?.id ?? '';
+
+  const [params, setParams] = React.useState<BaseCabinetParams>({
+    ...DEFAULTS,
+    carcassMaterialId: initialCarcass,
+    backMaterialId: initialBack,
+    ...(dialog?.initial ?? {}),
+  });
+
+  React.useEffect(() => {
+    if (!dialog) return;
+    setParams((prev) => ({
+      ...prev,
+      carcassMaterialId: dialog.initial?.carcassMaterialId ?? initialCarcass,
+      backMaterialId: dialog.initial?.backMaterialId ?? initialBack,
+      ...(dialog.initial ?? {}),
+    }));
+  }, [dialog, initialCarcass, initialBack]);
+
+  if (!dialog || !asm) return null;
+
+  const errors = validate(params, asm.materials);
+  const hasErr = Object.keys(errors).length > 0;
+
+  function patch<K extends keyof BaseCabinetParams>(k: K, v: BaseCabinetParams[K]): void {
+    setParams((p) => ({ ...p, [k]: v }));
+  }
+
+  function handleOk(): void {
+    if (hasErr) return;
+    dialog!.onSubmit(params);
+    setDialog(null);
+  }
+
+  function handleCancel(): void {
+    dialog!.onCancel();
+    setDialog(null);
+  }
+
+  return (
+    <div style={overlayStyle} onMouseDown={(e) => { if (e.target === e.currentTarget) handleCancel(); }}>
+      <div
+        style={panelStyle}
+        role="dialog"
+        aria-label="Cabinet"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleOk();
+          else if (e.key === 'Escape') handleCancel();
+        }}
+        tabIndex={-1}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Base Cabinet</div>
+
+        <div style={sectionHeading}>Name</div>
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-name">Name</label>
+          <input id="cab-name" style={inputStyle} value={params.name} onChange={(e) => patch('name', e.target.value)} />
+        </div>
+        {errors.name && <div style={errStyle}>{errors.name}</div>}
+
+        <div style={sectionHeading}>Dimensions (mm)</div>
+        {(['width', 'depth', 'height'] as const).map((k) => (
+          <React.Fragment key={k}>
+            <div style={fieldRow}>
+              <label style={labelStyle} htmlFor={`cab-${k}`}>{cap(k)}</label>
+              <input id={`cab-${k}`} aria-label={cap(k)} type="number" style={inputStyle}
+                value={params[k]} onChange={(e) => patch(k, Number(e.target.value))} />
+            </div>
+            {errors[k] && <div style={errStyle}>{errors[k]}</div>}
+          </React.Fragment>
+        ))}
+
+        <div style={sectionHeading}>Toekick (mm)</div>
+        {(['toekickHeight', 'toekickSetback'] as const).map((k) => (
+          <React.Fragment key={k}>
+            <div style={fieldRow}>
+              <label style={labelStyle} htmlFor={`cab-${k}`}>{titleFor(k)}</label>
+              <input id={`cab-${k}`} aria-label={titleFor(k)} type="number" style={inputStyle}
+                value={params[k]} onChange={(e) => patch(k, Number(e.target.value))} />
+            </div>
+            {errors[k] && <div style={errStyle}>{errors[k]}</div>}
+          </React.Fragment>
+        ))}
+
+        <div style={sectionHeading}>Shelves</div>
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-shelfCount">Shelf count</label>
+          <input id="cab-shelfCount" aria-label="Shelf count" type="number" min={0} style={inputStyle}
+            value={params.shelfCount}
+            onChange={(e) => patch('shelfCount', Math.max(0, Math.floor(Number(e.target.value))))} />
+        </div>
+        {errors.shelfCount && <div style={errStyle}>{errors.shelfCount}</div>}
+
+        <div style={sectionHeading}>Materials</div>
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-carcass">Carcass material</label>
+          <select id="cab-carcass" aria-label="Carcass material" style={inputStyle}
+            value={params.carcassMaterialId}
+            onChange={(e) => patch('carcassMaterialId', e.target.value as MaterialId)}>
+            <option value="">— pick —</option>
+            {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+        {errors.carcassMaterialId && <div style={errStyle}>{errors.carcassMaterialId}</div>}
+
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-back">Back material</label>
+          <select id="cab-back" aria-label="Back material" style={inputStyle}
+            value={params.backMaterialId}
+            onChange={(e) => patch('backMaterialId', e.target.value as MaterialId)}>
+            <option value="">— pick —</option>
+            {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+        {errors.backMaterialId && <div style={errStyle}>{errors.backMaterialId}</div>}
+
+        <div style={sectionHeading}>Edge bands</div>
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-band">Edge band material</label>
+          <select id="cab-band" aria-label="Edge band material" style={inputStyle}
+            value={params.bandMaterialId ?? ''}
+            onChange={(e) => patch('bandMaterialId', e.target.value === '' ? null : (e.target.value as MaterialId))}>
+            <option value="">None</option>
+            {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+        <div style={{ ...errStyle, color: '#9ec0e8', fontStyle: 'italic' }}>
+          Front edges of sides, top, bottom, and shelves will be banded.
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
+          <button style={btnStyle} onClick={handleCancel}>Cancel</button>
+          <button style={okBtnStyle} onClick={handleOk} disabled={hasErr} aria-disabled={hasErr}>OK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function cap(s: string): string { return s.charAt(0).toUpperCase() + s.slice(1); }
+function titleFor(k: 'toekickHeight' | 'toekickSetback'): string {
+  return k === 'toekickHeight' ? 'Toekick height' : 'Toekick setback';
+}
+
+function validate(
+  p: BaseCabinetParams,
+  registry: ReadonlyArray<{ id: string; defaultThickness: number }>,
+): Record<string, string> {
+  const carcass = registry.find((m) => m.id === p.carcassMaterialId);
+  const Tc = carcass?.defaultThickness ?? 18;
+  const e: Record<string, string> = {};
+  if (p.name.trim() === '') e.name = 'Cabinet name required.';
+  if (p.width <= 2 * Tc) e.width = `Width must exceed ${2 * Tc} mm (2× carcass thickness).`;
+  if (p.depth <= 2 * Tc) e.depth = `Depth must exceed ${2 * Tc} mm (2× carcass thickness).`;
+  if (p.height <= 2 * Tc + p.toekickHeight) e.height = 'Height must exceed toekick + 2× carcass thickness.';
+  if (p.toekickHeight !== 0 && p.toekickHeight >= p.height / 2) e.toekickHeight = 'Toekick must be less than half the cabinet height.';
+  if (p.toekickSetback < 0 || p.toekickSetback >= p.depth - Tc) e.toekickSetback = `Setback must be between 0 and ${p.depth - Tc - 1} mm.`;
+  const innerH = p.height - p.toekickHeight - 2 * Tc;
+  const maxShelves = Math.max(0, Math.floor(innerH / 100));
+  if (p.shelfCount < 0 || p.shelfCount > maxShelves) e.shelfCount = `0 ≤ shelf count ≤ ${maxShelves}.`;
+  if (!carcass) e.carcassMaterialId = 'Pick a carcass material.';
+  if (!registry.find((m) => m.id === p.backMaterialId)) e.backMaterialId = 'Pick a back material.';
+  return e;
+}

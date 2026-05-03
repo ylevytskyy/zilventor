@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { WorkPlaneDialog, type WorkPlaneCommit } from './WorkPlaneDialog';
 import { WorkAxisDialog, type WorkAxisCommit } from './WorkAxisDialog';
 import { WorkPointDialog, type WorkPointCommit } from './WorkPointDialog';
+import { CabinetDialog } from './CabinetDialog';
 
 export type WorkFeatureDialogsHostProps = {
   onWorkPlaneCommit: (c: WorkPlaneCommit) => void;
@@ -45,6 +46,7 @@ export function WorkFeatureDialogsHost({
           onCancel={() => useAppStore.getState().resetWorkPointDialog()}
         />
       )}
+      <CabinetDialog />
     </>
   );
 }
