@@ -10,3 +10,4 @@ export * from './partInfo';
 export * from './material';
 export * from './cutListRow';
 export * from './panel-feature';
+export * from './cabinets';
