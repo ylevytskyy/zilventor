@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('v7 → v8 migration', () => {
-  it('CURRENT_FORMAT_VERSION is 9', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(10);
+  it('CURRENT_FORMAT_VERSION is 11', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(11);
   });
 
   it('migrates an assembly: groundedComponentIds → groundedComponentPaths, refs single-elem componentPath, colorOverrides default {}', () => {
@@ -34,7 +34,7 @@ describe('v7 → v8 migration', () => {
     };
 
     const v8 = migrateManifest(v7);
-    expect(v8.formatVersion).toBe(10);
+    expect(v8.formatVersion).toBe(11);
     const doc = (v8 as any).document;
     expect(doc.groundedComponentPaths).toEqual([['cubeA']]);
     expect(doc.groundedComponentIds).toBeUndefined();
@@ -125,7 +125,7 @@ describe('v7 → v8 migration', () => {
       document: { id: 'p', name: 'p', units: 'mm', parameters: {}, featureTree: [] },
     };
     const v8 = migrateManifest(v7) as any;
-    expect(v8.formatVersion).toBe(10);
+    expect(v8.formatVersion).toBe(11);
     expect(Array.isArray(v8.document.featureTree)).toBe(true);
   });
 });

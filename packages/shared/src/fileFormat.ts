@@ -1,6 +1,6 @@
 import { inferFromGeometry } from './inferFromGeometry';
 
-export const CURRENT_FORMAT_VERSION = 10 as const;
+export const CURRENT_FORMAT_VERSION = 11 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -155,10 +155,22 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 10 };
   },
+
+  // v10 → v11: additive — add `cutListItemNumbers: {}` to assembly-kind
+  // documents (sub-project 5d). Empty default; populated by user inline
+  // edits + Renumber + autosave merge path.
+  10: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: { cutListItemNumbers?: unknown } };
+    if (anyM.kind === 'assembly' && anyM.document && anyM.document.cutListItemNumbers == null) {
+      anyM.document.cutListItemNumbers = {};
+    }
+    return { ...m, formatVersion: 11 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if (m.formatVersion === 10 && (m as any).kind === undefined) {
+  if ((m.formatVersion === 10 || m.formatVersion === 11) && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;
