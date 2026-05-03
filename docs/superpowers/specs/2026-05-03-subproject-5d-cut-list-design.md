@@ -235,7 +235,7 @@ Mostly mirrors the 4c shape so reviewers can map file-by-file.
 ### 3.4 Store (`packages/app/src/store/useAppStore.ts`)
 
 - Add `cutListTabActive: boolean` (BrowserPane sub-tab, defaults `false`).
-- Refactor BrowserPane tab state from two flag booleans (`bomTabActive`, `cutListTabActive`) to a single discriminated state `activeBrowserTab: 'assembly' | 'bom' | 'cutlist'` (defaults `'assembly'`). Both flags are derived (`bomTabActive = activeBrowserTab === 'bom'`); existing tests + commands keep working unchanged.
+- Add `cutListTabActive: boolean` enforcement: `OpenCutListTabCommand` sets `cutListTabActive: true` AND `bomTabActive: false`; the existing `OpenBomTabCommand` is extended symmetrically (sets `bomTabActive: true`, `cutListTabActive: false`). No store-shape refactor of 4c state — `bomTabActive` and `cutListTabActive` remain independent booleans, mutual exclusion lives in the open commands.
 - Add `setCutListItemNumber(rowKey, n)` with conflict-bump (mirrors `setBomItemNumber` semantics exactly).
 - Add `setCutListItemNumbers(map: Record<string, number>)` — bulk write for `RenumberCutListCommand` and the deferred-write path.
 
@@ -244,13 +244,13 @@ Mostly mirrors the 4c shape so reviewers can map file-by-file.
 - **`SetCutListItemNumberCommand`** — wraps `setCutListItemNumber`.
 - **`RenumberCutListCommand`** — sorts by `compareCutListRowsForRenumber`, writes `setCutListItemNumbers({...})` to 1..N. Bound to Furniture-ribbon `Renumber` button. Reads from a shared `cutListResultRef` updated by `CutListTable` on each render; if the ref is empty (e.g. command fired before table mounted), re-runs `aggregateCutListRecursive` itself as a fallback.
 - **`ExportCutListCsvCommand`** — builds a 3-section CSV from `aggregateCutListRecursive(...)`; opens `showSaveFilePicker` with `${assembly.name}-cutlist.csv`; falls back to `<a download>`. Bound to Furniture-ribbon `Export CSV` and a button on the table view.
-- **`OpenCutListTabCommand`** — `setActiveBrowserTab('cutlist')`. Bound to Furniture-ribbon `Cut List` button and the BrowserPane tab toggle.
+- **`OpenCutListTabCommand`** — sets `cutListTabActive: true` and `bomTabActive: false`. Bound to Furniture-ribbon `Cut List` button and the BrowserPane tab toggle.
 
 `buildCutListCsv.ts` (new, alongside `buildBomCsv.ts`) holds the pure CSV-builder: header + RFC-4180 quote helper + 3-section concat (panel rows / blank / band totals / blank / exclusion line).
 
 ### 3.6 Shell UI
 
-- **`packages/app/src/shell/BrowserPane.tsx`** — extends the assembly-mode tab strip from `Assembly | BOM` to `Assembly | BOM | Cut List`. Tab selection becomes the single `activeBrowserTab` discriminant. Adds `aria-label="Cut List tab"` for E2E selector stability; existing `aria-label`s preserved.
+- **`packages/app/src/shell/BrowserPane.tsx`** — extends the assembly-mode tab strip from `Assembly | BOM` to `Assembly | BOM | Cut List`. Tab selection reads both `bomTabActive` and `cutListTabActive` flags (mutually exclusive by command-side enforcement); when both are `false`, defaults to the Assembly view. Adds `aria-label="Cut List tab"` for E2E selector stability; existing `aria-label`s preserved.
 - **`packages/app/src/shell/CutListTable.tsx`** (new) — renders `CutListResult` from `aggregateCutListRecursive(...)`. Layout: panel-rows table on top, edge-band totals subsection in the middle (hidden if empty), exclusion footer at the bottom (always shown). Top-right: `Export CSV` button (`ExportCutListCsvCommand`).
 - **`packages/app/src/shell/tabs/FurnitureTab.tsx`** — adds a `Cut List` ribbon panel with three buttons: `Cut List` (`OpenCutListTabCommand`), `Renumber` (`RenumberCutListCommand`), `Export CSV` (`ExportCutListCsvCommand`). Existing `Panel` panel untouched.
 
@@ -269,7 +269,7 @@ No new viewport code. Selection of cut-list rows reuses the existing `selectComp
 
 ### 4.1 Open the Cut List tab
 
-User clicks Furniture-ribbon `Cut List` (or BrowserPane `Cut List` tab) → `OpenCutListTabCommand` → store sets `activeBrowserTab: 'cutlist'` → BrowserPane re-renders → mounts `<CutListTable>`.
+User clicks Furniture-ribbon `Cut List` (or BrowserPane `Cut List` tab) → `OpenCutListTabCommand` → store sets `cutListTabActive: true` + `bomTabActive: false` → BrowserPane re-renders → mounts `<CutListTable>`.
 
 ### 4.2 Cut List render pipeline
 
@@ -318,7 +318,14 @@ Existing OPFS autosave effect gains a parallel branch for cut-list numbers (sits
 const cutResult = aggregateCutListRecursive(assembly, subAsmCache, panelSpecs, materials, partInfo);
 const merged = { ...assembly.cutListItemNumbers };
 for (const r of cutResult.rows) merged[r.rowKey] = r.itemNumber;
-const pruned = pruneCutListItemNumbers(cutResult.rows.map(r => r.rowKey), merged);
+// Guard: only prune if every leaf partPath in the assembly is present in panelSpecs.
+// Otherwise the cache is incomplete (e.g. user never opened the Cut List tab this session)
+// and pruning would erase stored numbers for panels we just haven't loaded yet.
+const leafPaths = getReferencedLeafPartPaths(assembly, subAsmCache);
+const cacheComplete = leafPaths.every((p) => panelSpecs.has(p));
+const pruned = cacheComplete
+  ? pruneCutListItemNumbers(cutResult.rows.map(r => r.rowKey), merged)
+  : merged;
 const toPack = { ...assembly, cutListItemNumbers: pruned };
 packAssembly(toPack);
 ```
@@ -398,12 +405,12 @@ This ensures a panel feature edit inside a `.zipt` is reflected in the cut list 
 
 ### 6.4 App unit (`packages/app/src/`)
 
-- **Store** (`store/__tests__/useAppStore.spec.ts` extended) — `setCutListItemNumber` (with conflict-bump), `setCutListItemNumbers` (bulk), `activeBrowserTab` discriminant migration (`bomTabActive` derived correctly), mutual exclusion of tab states.
+- **Store** (`store/__tests__/useAppStore.spec.ts` extended) — `setCutListItemNumber` (with conflict-bump), `setCutListItemNumbers` (bulk), `cutListTabActive` flag, mutual-exclusion enforcement (opening Cut List clears BOM and vice-versa).
 - **Commands** (one spec each, state-transition only):
   - `SetCutListItemNumberCommand.spec.ts`
   - `RenumberCutListCommand.spec.ts` — uses a stubbed `cutListResultRef`; verifies the correct rowKey→number map is written; verifies fallback re-walk when ref is empty.
   - `ExportCutListCsvCommand.spec.ts` — captures `__zilventorCutListCsvBytes` and asserts the 3-section content with RFC-4180 escaping.
-  - `OpenCutListTabCommand.spec.ts` — sets `activeBrowserTab: 'cutlist'`.
+  - `OpenCutListTabCommand.spec.ts` — sets `cutListTabActive: true`, clears `bomTabActive`.
 - **`buildCutListCsv.spec.ts`** (new, in `commands/__tests__/`) — pure-function tests for the CSV builder: panel-rows section, band-totals section, exclusion line; all RFC-4180 edge cases (commas, quotes, newlines in material names); empty-result edge case.
 - **`shell/__tests__/CutListTable.spec.tsx`** (new) — renders rows from a fixture `CutListResult`; click row triggers `selectComponents(componentPathKeys)`; inline-edit Item# triggers `SetCutListItemNumberCommand`; missing-material row gets the yellow tint; empty result shows "No panels" placeholder; `Export CSV` button enabled rule; band-totals section hidden when empty.
 - **`shell/__tests__/BrowserPane.spec.tsx`** — extended: assembly mode renders `Assembly | BOM | Cut List` tabs; clicking each swaps view; tab strip hidden in non-assembly mode (unchanged).
