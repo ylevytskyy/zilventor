@@ -1,5 +1,5 @@
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { isPanelFeature, resolvePanelSpecFromFeature, type PanelSpec } from '@zilventor/shared/src/panel-feature';
+import { isPanelFeature, resolvePanelSpecFromFeature, type PanelFeature, type PanelSpec } from '@zilventor/shared/src/panel-feature';
 import type { SketchParameter } from '@zilventor/shared';
 
 export type PanelSpecCache = Map<string, PanelSpec | null>;
@@ -22,13 +22,13 @@ export async function resolvePanelSpec(
       };
     } | null;
     const tree = manifest?.document?.featureTree ?? [];
-    const first = tree[0];
-    if (!isPanelFeature(first)) {
+    const panel = (tree as unknown[]).find((f): f is PanelFeature => isPanelFeature(f));
+    if (!panel) {
       cache.set(partPath, null);
       return null;
     }
     const params = manifest?.document?.parameters ?? {};
-    const spec = resolvePanelSpecFromFeature(first, params);
+    const spec = resolvePanelSpecFromFeature(panel, params);
     cache.set(partPath, spec);
     return spec;
   } catch (err) {
