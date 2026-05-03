@@ -101,6 +101,7 @@ import { resolvePartInfo } from './shell/resolvePartInfo';
 import type { PartInfo } from '@zilventor/shared';
 import { CutListCacheContext } from './shell/CutListCacheContext';
 import type { PanelSpecCache } from './shell/resolvePanelSpec';
+import { loadCutListInputs } from './shell/loadCutListInputs';
 import { visibleLeaves } from './assembly/walkers/visibleLeaves';
 import { computeInnerStaticPoses } from './assembly/computeInnerStaticPoses';
 import { composePoses, composedPoses } from './assembly/walkers/composedPoses';
@@ -405,6 +406,25 @@ export default function App() {
         });
       };
       w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
+      // Cut-list E2E hook: load panel specs from OPFS for all leaf components in
+      // the active assembly and populate the panelSpecCacheRef so useCutListResult
+      // can return non-empty rows immediately after placement.
+      // After loading, triggers a no-op assembly update so the useCutListResult
+      // useMemo re-runs (refs don't cause re-renders on their own).
+      w.__zilventorLoadCutListSpecs = async (): Promise<void> => {
+        if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+        const opfs = opfsRef.current;
+        const s = useAppStore.getState();
+        const doc = s.activeDocument;
+        if (!doc || doc.kind !== 'assembly') return;
+        const a = doc.document;
+        const leafPaths = a.components
+          .filter((c) => !c.partPath.endsWith('.ziasm'))
+          .map((c) => c.partPath);
+        await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
+        // Force re-render by updating the document identity (no-op content change).
+        s.setActiveDocument({ kind: 'assembly', document: { ...a } });
+      };
     }
   }, []);
 
