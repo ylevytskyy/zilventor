@@ -119,3 +119,20 @@ describe('CreateCabinetCommand — happy path', () => {
     expect(paths.some((p) => p.includes('Toekick'))).toBe(false);
   });
 });
+
+describe('CreateCabinetCommand — revert', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('removes the placed component and deletes all 8 written files', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    const cmd = new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs });
+    await cmd.apply();
+    expect(useAppStore.getState().activeAssembly!.components).toHaveLength(1);
+    expect((await opfs.list()).length).toBe(8);
+
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
+    expect(await opfs.list()).toEqual([]);
+  });
+});
