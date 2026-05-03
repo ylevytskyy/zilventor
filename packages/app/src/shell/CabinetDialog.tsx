@@ -135,6 +135,11 @@ export function CabinetDialog(): JSX.Element | null {
         {errors.shelfCount && <div style={errStyle}>{errors.shelfCount}</div>}
 
         <div style={sectionHeading}>Materials</div>
+        {asm.materials.length === 0 && (
+          <div style={{ ...errStyle, color: '#ffd6a3', marginLeft: 0 }}>
+            No materials yet — close this dialog, click <b>Manage materials</b>, then re-open Base Cabinet.
+          </div>
+        )}
         <div style={fieldRow}>
           <label style={labelStyle} htmlFor="cab-carcass">Carcass material</label>
           <select id="cab-carcass" aria-label="Carcass material" style={inputStyle}

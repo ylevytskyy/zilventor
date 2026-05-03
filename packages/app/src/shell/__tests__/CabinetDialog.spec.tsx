@@ -118,3 +118,22 @@ describe('CabinetDialog — validation', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });
+
+describe('CabinetDialog — empty registry', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setCabinetDialog(null);
+  });
+
+  it('renders an inline "No materials yet" hint when the registry is empty', () => {
+    seedAsm([]);
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit: vi.fn(),
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    expect(screen.getByText(/No materials yet/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveAttribute('aria-disabled', 'true');
+  });
+});
