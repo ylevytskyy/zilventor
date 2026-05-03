@@ -198,3 +198,12 @@ describe('buildBaseCabinet — edge bands', () => {
     }
   });
 });
+
+describe('buildBaseCabinet — grain', () => {
+  it('every role uses grain="length" by default', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    for (const p of out.panels) {
+      expect(p.panel.grain).toBe('length');
+    }
+  });
+});
