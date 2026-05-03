@@ -89,8 +89,8 @@ describe('CreateCabinetCommand — happy path', () => {
     await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
     const asm = useAppStore.getState().activeAssembly!;
     expect(asm.components).toHaveLength(1);
-    expect(asm.components[0].partPath).toBe('Base Cabinet 1.ziasm');
-    expect(asm.components[0].position).toEqual({ x: 0, y: 0, z: 0 });
+    expect(asm.components[0]!.partPath).toBe('Base Cabinet 1.ziasm');
+    expect(asm.components[0]!.position).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   it('shelfCount=0 emits 6 .zipts (no shelf)', async () => {
