@@ -62,3 +62,60 @@ describe('CreateCabinetCommand — name auto-suffix', () => {
     expect(await opfs.read('Base Cabinet 1.ziasm')).toEqual(new Uint8Array([1]));
   });
 });
+
+describe('CreateCabinetCommand — happy path', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('writes 1 .ziasm + 7 .zipt files for default params (1 shelf)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    const paths = (await opfs.list()).sort();
+    expect(paths).toEqual([
+      'Base Cabinet 1 - Back.zipt',
+      'Base Cabinet 1 - Bottom.zipt',
+      'Base Cabinet 1 - Left Side.zipt',
+      'Base Cabinet 1 - Right Side.zipt',
+      'Base Cabinet 1 - Shelf 1.zipt',
+      'Base Cabinet 1 - Toekick.zipt',
+      'Base Cabinet 1 - Top.zipt',
+      'Base Cabinet 1.ziasm',
+    ]);
+  });
+
+  it('adds exactly one component to the active assembly referencing the new .ziasm', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    const asm = useAppStore.getState().activeAssembly!;
+    expect(asm.components).toHaveLength(1);
+    expect(asm.components[0].partPath).toBe('Base Cabinet 1.ziasm');
+    expect(asm.components[0].position).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it('shelfCount=0 emits 6 .zipts (no shelf)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'BC noShelves', shelfCount: 0 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths).toHaveLength(6);
+    expect(paths.some((p) => p.includes('Shelf'))).toBe(false);
+  });
+
+  it('toekickHeight=0 emits 6 .zipts (no toekick)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'BC flat', toekickHeight: 0, toekickSetback: 0 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths).toHaveLength(6);
+    expect(paths.some((p) => p.includes('Toekick'))).toBe(false);
+  });
+});
