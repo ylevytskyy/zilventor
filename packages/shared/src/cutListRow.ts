@@ -156,3 +156,23 @@ export function aggregateCutListLocal(
     excluded: { componentCount: nonPanelComponentCount, partCount: nonPanelPaths.size },
   };
 }
+
+export function compareCutListRowsForRenumber(a: CutListRow, b: CutListRow): number {
+  if (a.materialName !== b.materialName) return a.materialName.localeCompare(b.materialName);
+  if (a.length !== b.length) return b.length - a.length;
+  if (a.width !== b.width) return b.width - a.width;
+  if (a.rowKey !== b.rowKey) return a.rowKey < b.rowKey ? -1 : 1;
+  return 0;
+}
+
+export function pruneCutListItemNumbers(
+  liveKeys: readonly string[],
+  stored: Record<string, number>,
+): Record<string, number> {
+  const live = new Set(liveKeys);
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(stored)) {
+    if (live.has(k)) out[k] = v;
+  }
+  return out;
+}

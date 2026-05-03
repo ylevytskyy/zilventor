@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cutListRowKey, normalizeLW, aggregateCutListLocal } from '../cutListRow';
+import { cutListRowKey, normalizeLW, aggregateCutListLocal, compareCutListRowsForRenumber, pruneCutListItemNumbers } from '../cutListRow';
+import type { CutListRow } from '../cutListRow';
 import type { PanelSpec } from '../panel-feature';
 import type { ComponentInstance, AssemblyDocument } from '../types';
 import type { MaterialEntry } from '../material';
@@ -208,5 +209,64 @@ describe('aggregateCutListLocal', () => {
       bandTotals: [],
       excluded: { componentCount: 0, partCount: 0 },
     });
+  });
+});
+
+describe('compareCutListRowsForRenumber', () => {
+  const row = (overrides: Partial<CutListRow>): CutListRow => ({
+    rowKey: 'k',
+    itemNumber: 1,
+    qty: 1,
+    length: 600,
+    width: 400,
+    thickness: 18,
+    materialId: 'm',
+    materialName: 'Birch',
+    grain: 'length',
+    edgeBands: { front: null, back: null, left: null, right: null },
+    partPath: 'p',
+    partName: 'P',
+    componentPathKeys: [],
+    ...overrides,
+  });
+
+  it('sorts by materialName ASC primarily', () => {
+    const a = row({ materialName: 'Birch' });
+    const b = row({ materialName: 'Oak' });
+    expect(compareCutListRowsForRenumber(a, b)).toBeLessThan(0);
+  });
+
+  it('then by length DESC', () => {
+    const a = row({ materialName: 'X', length: 600 });
+    const b = row({ materialName: 'X', length: 800 });
+    expect(compareCutListRowsForRenumber(a, b)).toBeGreaterThan(0);
+  });
+
+  it('then by width DESC', () => {
+    const a = row({ materialName: 'X', length: 600, width: 400 });
+    const b = row({ materialName: 'X', length: 600, width: 500 });
+    expect(compareCutListRowsForRenumber(a, b)).toBeGreaterThan(0);
+  });
+
+  it('then by rowKey ASC for ties', () => {
+    const a = row({ materialName: 'X', length: 600, width: 400, rowKey: 'a' });
+    const b = row({ materialName: 'X', length: 600, width: 400, rowKey: 'b' });
+    expect(compareCutListRowsForRenumber(a, b)).toBeLessThan(0);
+  });
+});
+
+describe('pruneCutListItemNumbers', () => {
+  it('keeps live keys and drops orphans', () => {
+    const stored = { 'k-live': 1, 'k-dead': 5 };
+    expect(pruneCutListItemNumbers(['k-live'], stored)).toEqual({ 'k-live': 1 });
+  });
+
+  it('returns empty object when no live keys', () => {
+    expect(pruneCutListItemNumbers([], { 'k': 1 })).toEqual({});
+  });
+
+  it('preserves all live keys', () => {
+    const stored = { a: 1, b: 2, c: 3 };
+    expect(pruneCutListItemNumbers(['a', 'b', 'c'], stored)).toEqual(stored);
   });
 });
