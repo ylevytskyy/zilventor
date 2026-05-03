@@ -39,3 +39,45 @@ describe('buildBaseCabinet — default params', () => {
     expect(layoutSuffixes).toEqual(panelSuffixes);
   });
 });
+
+describe('buildBaseCabinet — geometry (defaults)', () => {
+  it('places left side at X=0, right side at X = W − Tc', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const left = out.layout.find((c) => c.fileNameSuffix === 'Left Side')!;
+    const right = out.layout.find((c) => c.fileNameSuffix === 'Right Side')!;
+    expect(left.position).toEqual({ x: 0, y: 0, z: 0 });
+    expect(right.position).toEqual({ x: 600 - 18, y: 0, z: 0 });
+  });
+
+  it('places bottom at Z = toekickHeight, inset by Tc on X and Tb on Y', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const bottom = out.layout.find((c) => c.fileNameSuffix === 'Bottom')!;
+    expect(bottom.position).toEqual({ x: 18, y: 6, z: 100 });
+  });
+
+  it('places top at Z = H − Tc', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const top = out.layout.find((c) => c.fileNameSuffix === 'Top')!;
+    expect(top.position).toEqual({ x: 18, y: 6, z: 720 - 18 });
+  });
+
+  it('places back flush against back wall (Y=0) at full W × H × Tb', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const back = out.layout.find((c) => c.fileNameSuffix === 'Back')!;
+    expect(back.position).toEqual({ x: 0, y: 0, z: 0 });
+    const backPanel = out.panels.find((p) => p.role === 'back')!;
+    expect(backPanel.panel.thickness).toEqual({ kind: 'literal', value: 6 });
+    expect(backPanel.panel.length).toEqual({ kind: 'literal', value: 600 });
+    expect(backPanel.panel.width).toEqual({ kind: 'literal', value: 720 });
+  });
+
+  it('places toekick at Y = D − setback − Tc, Z = 0', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const tk = out.layout.find((c) => c.fileNameSuffix === 'Toekick')!;
+    expect(tk.position).toEqual({ x: 18, y: 560 - 50 - 18, z: 0 });
+    const tkPanel = out.panels.find((p) => p.role === 'toekick')!;
+    expect(tkPanel.panel.length).toEqual({ kind: 'literal', value: 600 - 36 });
+    expect(tkPanel.panel.width).toEqual({ kind: 'literal', value: 100 });
+    expect(tkPanel.panel.thickness).toEqual({ kind: 'literal', value: 18 });
+  });
+});
