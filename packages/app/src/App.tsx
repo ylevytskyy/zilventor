@@ -92,7 +92,9 @@ import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/
 import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
+import { mergeAndPruneCutList } from './storage/mergeCutListItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
+import { aggregateCutListRecursive } from './assembly/walkers/aggregateCutListRecursive';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartInfo } from './shell/resolvePartInfo';
@@ -2544,7 +2546,32 @@ export default function App() {
                   : undefined,
             };
             const withBom = mergeAndPruneBom(doc.document, partInfoCacheRef.current, cacheAdapter);
-            const merged = mergeAndPruneColorOverrides(withBom, cacheAdapter);
+            // Collect leaf part paths (non-.ziasm) for cache-completeness check.
+            const leafPartPaths: string[] = [];
+            {
+              const stack = [doc.document];
+              while (stack.length) {
+                const d = stack.pop()!;
+                for (const c of d.components) {
+                  if (c.partPath.endsWith('.ziasm')) {
+                    const entry = cacheAdapter.get(c.partPath);
+                    if (entry && entry.kind === 'ok') stack.push(entry.doc);
+                  } else {
+                    leafPartPaths.push(c.partPath);
+                  }
+                }
+              }
+            }
+            const cacheComplete = leafPartPaths.every((p) => panelSpecCacheRef.current.has(p));
+            const cutListResult = aggregateCutListRecursive(
+              withBom,
+              cacheAdapter,
+              panelSpecCacheRef.current,
+              withBom.materials ?? [],
+              partInfoCacheRef.current,
+            );
+            const withCutList = mergeAndPruneCutList(withBom, cutListResult, { cacheComplete });
+            const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
             const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
           } else {
