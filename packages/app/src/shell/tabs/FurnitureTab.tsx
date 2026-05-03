@@ -5,12 +5,17 @@ import { useAppStore } from '../../store/useAppStore';
 import { OpenPanelDialogCommand } from '../../commands/OpenPanelDialogCommand';
 import { AddPanelFeatureCommand } from '../../commands/AddPanelFeatureCommand';
 import { CreateAndPlacePanelCommand } from '../../commands/CreateAndPlacePanelCommand';
+import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
+import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
+import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
+import { useCutListResult } from '../useCutListResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
   const activePart = useAppStore((s) => s.activePart);
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const disabled = !activePart && !activeAssembly;
+  const cutListResult = useCutListResult();
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -46,6 +51,34 @@ export default function FurnitureTab() {
           Panel
         </button>
       </RibbonPanel>
+      <div aria-label="Cut List panel">
+        <RibbonPanel title="Cut List">
+          <button
+            type="button"
+            className="text-xs hover:text-white"
+            onClick={() => void new OpenCutListTabCommand().apply()}
+          >
+            Cut List
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white"
+            onClick={() => void new RenumberCutListCommand({ result: cutListResult }).apply()}
+          >
+            Renumber
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white"
+            onClick={() => void new ExportCutListCsvCommand({
+              result: cutListResult,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
+            }).apply()}
+          >
+            Export CSV
+          </button>
+        </RibbonPanel>
+      </div>
     </div>
   );
 }
