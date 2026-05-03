@@ -8,7 +8,7 @@ function makeDoc(components: ComponentInstance[]): AssemblyDocument {
   return {
     id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
     components, constraints: [], groundedComponentPaths: [],
-    colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
   };
 }

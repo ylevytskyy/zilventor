@@ -50,7 +50,7 @@ describe('EditComponentDialog — color row (4c)', () => {
       id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
       components: [c],
       constraints: [], groundedComponentPaths: [['C1']],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
       ...overrides,
     };
@@ -129,7 +129,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
       components: [component],
       constraints: [], groundedComponentPaths: [[component.id]],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     useAppStore.setState({
@@ -149,7 +149,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
         { id: 'X3', partPath: 'parts/p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
       constraints: [], groundedComponentPaths: [],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     const subPlacement: ComponentInstance = {
@@ -194,7 +194,7 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
       id: 'SA', name: 'drawer', units: 'mm', parameters: {}, properties: {},
       components: [],
       constraints: [], groundedComponentPaths: [],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     } as AssemblyDocument });
     render(

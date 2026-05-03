@@ -18,7 +18,7 @@ describe('EditComponentCommand', () => {
       constraints: [],
       groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {}, colorOverrides: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });

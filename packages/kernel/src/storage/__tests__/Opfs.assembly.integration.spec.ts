@@ -90,6 +90,7 @@ describe('Opfs — assembly integration', () => {
       groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
     };
@@ -134,6 +135,7 @@ describe('Opfs — assembly integration', () => {
       groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
     };

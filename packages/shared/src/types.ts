@@ -96,6 +96,7 @@ export type AssemblyDocument = {
   groundedComponentPaths: ComponentPath[];
   colors: Record<string, string>;
   bomItemNumbers: Record<string, number>;
+  cutListItemNumbers: Record<string, number>;
   colorOverrides: Record<ComponentPathKey, ComponentColor>;
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];

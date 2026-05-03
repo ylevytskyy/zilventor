@@ -16,6 +16,7 @@ function makeDoc(id: string, name: string, components: AssemblyDocument['compone
     groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {},
+    cutListItemNumbers: {},
     colorOverrides: {},
     properties: {},
     materials: [],

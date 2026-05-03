@@ -15,6 +15,7 @@ function doc(name: string, components: AssemblyDocument['components'] = []): Ass
     groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {},
+    cutListItemNumbers: {},
     colorOverrides: {},
     properties: {},
     materials: [],

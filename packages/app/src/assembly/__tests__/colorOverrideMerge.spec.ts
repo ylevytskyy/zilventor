@@ -6,7 +6,7 @@ import type { SubAssemblyCache } from '../SubAssemblyCache';
 
 function doc(over: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return { id: 'x', name: 'x', units: 'mm', parameters: {}, components: [], constraints: [],
-    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], ...over };
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], ...over };
 }
 function stubCache(map: Map<string, AssemblyDocument>): SubAssemblyCache {
   return { get: (p: string) => map.has(p) ? { kind: 'ok', doc: map.get(p)!, partPath: p } as const : undefined } as unknown as SubAssemblyCache;

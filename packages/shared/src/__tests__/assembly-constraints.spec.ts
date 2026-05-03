@@ -54,6 +54,7 @@ describe('AssemblyDocument 4b extensions', () => {
       groundedComponentPaths: [],
       colors: {},
       bomItemNumbers: {},
+      cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
     };

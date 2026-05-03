@@ -118,7 +118,7 @@ describe('BrowserPane', () => {
       constraints: [],
       groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {}, colorOverrides: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
@@ -139,7 +139,7 @@ describe('BrowserPane', () => {
       constraints: [],
       groundedComponentPaths: [],
       colors: {},
-      bomItemNumbers: {}, colorOverrides: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
@@ -496,7 +496,7 @@ describe('BrowserPane BOM tab strip', () => {
     constraints: [],
     groundedComponentPaths: [],
     colors: {},
-    bomItemNumbers: {}, colorOverrides: {},
+    bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
   };
 
@@ -561,7 +561,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
       { id: 'P3', partPath: 'parts/panel-side.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
     ],
     constraints: [], groundedComponentPaths: [],
-    colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
   };
 
@@ -571,7 +571,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
       { id: 'SUB1', partPath: 'sub/drawer.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, ...subOverrides },
     ],
     constraints: [], groundedComponentPaths: [],
-    colors: {}, bomItemNumbers: {}, colorOverrides: {},
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
   });
 
@@ -675,7 +675,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
         { id: 'INNER', partPath: 'sub/cyclic.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
       constraints: [], groundedComponentPaths: [],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {},
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     useAppStore.setState({

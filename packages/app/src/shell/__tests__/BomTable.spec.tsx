@@ -27,7 +27,7 @@ function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
     constraints: [],
     groundedComponentPaths: [],
     colors: {},
-    bomItemNumbers: {}, colorOverrides: {},
+    bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
     ...overrides,
   };
@@ -172,7 +172,7 @@ describe('BomTable', () => {
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
       constraints: [], groundedComponentPaths: [], colors: {},
-      bomItemNumbers: {}, colorOverrides: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
     };
     const top = makeAsm({

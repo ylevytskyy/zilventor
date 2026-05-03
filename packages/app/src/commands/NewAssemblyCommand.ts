@@ -15,6 +15,7 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     groundedComponentPaths: [],
     colors: {},
     bomItemNumbers: {},
+    cutListItemNumbers: {},
     colorOverrides: {},
     materials: [],
   };

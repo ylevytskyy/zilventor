@@ -7,7 +7,7 @@ import { MaterialRegistryEditor } from '../MaterialRegistryEditor';
 const seed = (mats: MaterialEntry[]): AssemblyDocument => ({
   id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
   components: [], constraints: [], groundedComponentPaths: [],
-  colors: {}, bomItemNumbers: {}, colorOverrides: {},
+  colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: mats,
 });
 

@@ -21,7 +21,7 @@ describe('materials on documents', () => {
       id: 'a1', name: 'Box', units: 'mm',
       parameters: {}, components: [], constraints: [],
       groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
-      colorOverrides: {}, properties: {}, materials: [MAT],
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [MAT],
     };
     expect(asm.materials).toHaveLength(1);
   });

@@ -72,6 +72,7 @@ export function buildAssemblyDocument(args: BuildAssemblyArgs): AssemblyDocument
     groundedComponentPaths: groundedPaths,
     colors: {},
     bomItemNumbers: {},
+    cutListItemNumbers: {},
     colorOverrides,
     properties: { ...asmJson.properties },
     materials: [],

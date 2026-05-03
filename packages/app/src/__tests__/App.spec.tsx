@@ -85,7 +85,7 @@ describe('App 4d dev hooks (T33)', () => {
       id: 'A', name: 'top', units: 'mm', parameters: {},
       components: [],
       constraints: [], groundedComponentPaths: [],
-      colors: {}, bomItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [],
       ...overrides,
     };
   }
