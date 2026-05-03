@@ -115,3 +115,20 @@ describe('buildBaseCabinet — shelves', () => {
     expect(shelves.map((s) => s.fileNameSuffix)).toEqual(['Shelf 1', 'Shelf 2']);
   });
 });
+
+describe('buildBaseCabinet — toekick disabled (toekickHeight=0)', () => {
+  it('emits no toekick panel and bottom sits at Z=0', () => {
+    const out = buildBaseCabinet({ ...DEFAULT_PARAMS, toekickHeight: 0 }, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'toekick')).toHaveLength(0);
+    const bottom = out.layout.find((c) => c.fileNameSuffix === 'Bottom')!;
+    expect(bottom.position.z).toBe(0);
+  });
+
+  it('shelves redistribute over the larger inner span when toekick=0', () => {
+    const params = { ...DEFAULT_PARAMS, toekickHeight: 0, shelfCount: 1 };
+    const out = buildBaseCabinet(params, REGISTRY);
+    const shelf = out.layout.find((c) => c.fileNameSuffix === 'Shelf 1')!;
+    // Inner span = 720 − 0 − 36 = 684; step = 684/2 = 342; z = 18 + 342 = 360.
+    expect(shelf.position.z).toBe(360);
+  });
+});
