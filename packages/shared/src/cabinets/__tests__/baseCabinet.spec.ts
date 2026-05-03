@@ -81,3 +81,37 @@ describe('buildBaseCabinet — geometry (defaults)', () => {
     expect(tkPanel.panel.thickness).toEqual({ kind: 'literal', value: 18 });
   });
 });
+
+describe('buildBaseCabinet — shelves', () => {
+  it('shelfCount=0 emits no shelf panel', () => {
+    const out = buildBaseCabinet({ ...DEFAULT_PARAMS, shelfCount: 0 }, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'shelf')).toHaveLength(0);
+    expect(out.panels).toHaveLength(6);
+  });
+
+  it('shelfCount=3 emits 3 evenly-spaced shelves between bottom and top', () => {
+    const params = { ...DEFAULT_PARAMS, shelfCount: 3 };
+    const out = buildBaseCabinet(params, REGISTRY);
+    const shelves = out.panels.filter((p) => p.role === 'shelf');
+    expect(shelves).toHaveLength(3);
+    expect(shelves.map((s) => s.shelfIndex)).toEqual([1, 2, 3]);
+    // Inner span: H − tkH − 2·Tc = 720 − 100 − 36 = 584; step = 584/4 = 146.
+    // Z values (measured from inner bottom = tkH + Tc = 118):
+    // 118 + 146 = 264, 410, 556.
+    const layout = out.layout.filter((c) => c.fileNameSuffix.startsWith('Shelf '));
+    expect(layout.map((c) => c.position.z)).toEqual([264, 410, 556]);
+  });
+
+  it('shelf width is shrunk by SHELF_DEPTH_SHRINK_MM (20mm) for finger clearance', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    const shelf = out.panels.find((p) => p.role === 'shelf')!;
+    // Bottom width is D − Tb = 560 − 6 = 554; shelf is 554 − 20 = 534.
+    expect(shelf.panel.width).toEqual({ kind: 'literal', value: 534 });
+  });
+
+  it('shelf fileNameSuffix is "Shelf N" with 1-based index', () => {
+    const out = buildBaseCabinet({ ...DEFAULT_PARAMS, shelfCount: 2 }, REGISTRY);
+    const shelves = out.panels.filter((p) => p.role === 'shelf');
+    expect(shelves.map((s) => s.fileNameSuffix)).toEqual(['Shelf 1', 'Shelf 2']);
+  });
+});
