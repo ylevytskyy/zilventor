@@ -181,6 +181,7 @@ type AppState = {
   selectedComponentPaths: ComponentPath[];
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
+  cutListTabActive: boolean;
   showComponentColors: boolean;
   showEdgeBands: boolean;
   // 4d additions (T18)
@@ -194,6 +195,7 @@ type AppState = {
   toggleSubAsmExpanded: (key: string) => void;
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
+  setCutListTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
   setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
@@ -213,6 +215,8 @@ type AppState = {
   removeAssemblyPaletteColor(name: string): void;
   setBomItemNumber(rowKey: string, n: number): void;
   setBomItemNumbers(map: Record<string, number>): void;
+  setCutListItemNumber(rowKey: string, n: number): void;
+  setCutListItemNumbers(map: Record<string, number>): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
   addMaterial(entry: MaterialEntry): void;
   updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>>): void;
@@ -438,6 +442,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedComponentPaths: [],
   componentDiagnostics: [],
   bomTabActive: false,
+  cutListTabActive: false,
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   // 4d additions (T18)
@@ -455,6 +460,7 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   selectComponentPaths: (paths) => set({ selectedComponentPaths: [...paths] }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
+  setCutListTabActive: (v) => set({ cutListTabActive: v }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
   setShowEdgeBands: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));
@@ -644,6 +650,23 @@ export const useAppStore = create<AppState>((set) => ({
   setBomItemNumbers: (map) => set((s) => {
     if (!s.activeAssembly) return s;
     const next: AssemblyDocument = { ...s.activeAssembly, bomItemNumbers: { ...map } };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  setCutListItemNumber: (rowKey, n) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const map = { ...s.activeAssembly.cutListItemNumbers };
+    const collidingKey = Object.entries(map).find(([k, v]) => v === n && k !== rowKey)?.[0];
+    if (collidingKey) {
+      const max = Math.max(0, ...Object.values(map));
+      map[collidingKey] = max + 1;
+    }
+    map[rowKey] = n;
+    const next: AssemblyDocument = { ...s.activeAssembly, cutListItemNumbers: map };
+    return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+  }),
+  setCutListItemNumbers: (map) => set((s) => {
+    if (!s.activeAssembly) return s;
+    const next: AssemblyDocument = { ...s.activeAssembly, cutListItemNumbers: { ...map } };
     return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
   }),
   setComponentDiagnostics: (diags) => set({ componentDiagnostics: diags }),

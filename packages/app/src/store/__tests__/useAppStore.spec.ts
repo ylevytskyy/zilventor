@@ -525,6 +525,59 @@ describe('useAppStore BOM item-number actions (4c)', () => {
   });
 });
 
+describe('cutListTabActive (5d)', () => {
+  it('defaults to false', () => {
+    expect(useAppStore.getState().cutListTabActive).toBe(false);
+  });
+
+  it('setCutListTabActive updates the flag', () => {
+    useAppStore.getState().setCutListTabActive(true);
+    expect(useAppStore.getState().cutListTabActive).toBe(true);
+    useAppStore.getState().setCutListTabActive(false);
+    expect(useAppStore.getState().cutListTabActive).toBe(false);
+  });
+});
+
+describe('cutListItemNumbers (5d)', () => {
+  it('setCutListItemNumber stores a value for a new key', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {},
+      },
+    } as any);
+    useAppStore.getState().setCutListItemNumber('k1', 3);
+    expect(useAppStore.getState().activeAssembly!.cutListItemNumbers).toEqual({ k1: 3 });
+  });
+
+  it('setCutListItemNumber bumps a colliding key to max+1', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: { k1: 1, k2: 2 },
+      },
+    } as any);
+    useAppStore.getState().setCutListItemNumber('k2', 1);
+    const m = useAppStore.getState().activeAssembly!.cutListItemNumbers;
+    expect(m.k2).toBe(1);
+    expect(m.k1).toBe(3);
+  });
+
+  it('setCutListItemNumbers replaces the whole map', () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {},
+      },
+    } as any);
+    useAppStore.getState().setCutListItemNumbers({ a: 1, b: 2, c: 3 });
+    expect(useAppStore.getState().activeAssembly!.cutListItemNumbers).toEqual({ a: 1, b: 2, c: 3 });
+  });
+});
+
 
 
 
