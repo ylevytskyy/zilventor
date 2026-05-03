@@ -1,5 +1,6 @@
 import type { ParamOrLiteral } from './types';
 import type { MaterialId } from './material';
+import type { SketchParameter } from './parameters';
 
 export type PanelEdgeKey = 'front' | 'back' | 'left' | 'right';
 export type GrainDirection = 'length' | 'width' | 'none';
@@ -36,6 +37,47 @@ function isEdgeBandSlot(v: unknown): boolean {
   if (v === null) return true;
   if (!v || typeof v !== 'object') return false;
   return typeof (v as { materialId?: unknown }).materialId === 'string';
+}
+
+export interface PanelSpec {
+  readonly length: number;
+  readonly width: number;
+  readonly thickness: number;
+  readonly materialId: MaterialId;
+  readonly grain: GrainDirection;
+  readonly edgeBands: { readonly [K in PanelEdgeKey]: { readonly materialId: MaterialId } | null };
+}
+
+function resolveDim(v: ParamOrLiteral, parameters: Record<string, SketchParameter>): number | null {
+  if (v.kind === 'literal') {
+    return Number.isFinite(v.value) && v.value > 0 ? v.value : null;
+  }
+  const p = parameters[v.paramName];
+  if (!p) return null;
+  return Number.isFinite(p.value) && p.value > 0 ? p.value : null;
+}
+
+export function resolvePanelSpecFromFeature(
+  feature: PanelFeature,
+  parameters: Record<string, SketchParameter>,
+): PanelSpec | null {
+  const length = resolveDim(feature.length, parameters);
+  const width = resolveDim(feature.width, parameters);
+  const thickness = resolveDim(feature.thickness, parameters);
+  if (length === null || width === null || thickness === null) return null;
+  return {
+    length,
+    width,
+    thickness,
+    materialId: feature.materialId,
+    grain: feature.grain,
+    edgeBands: {
+      front: feature.edgeBands.front ? { materialId: feature.edgeBands.front.materialId } : null,
+      back: feature.edgeBands.back ? { materialId: feature.edgeBands.back.materialId } : null,
+      left: feature.edgeBands.left ? { materialId: feature.edgeBands.left.materialId } : null,
+      right: feature.edgeBands.right ? { materialId: feature.edgeBands.right.materialId } : null,
+    },
+  };
 }
 
 export function isPanelFeature(v: unknown): v is PanelFeature {
