@@ -1,0 +1,64 @@
+// @vitest-environment node
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CreateCabinetCommand } from '../CreateCabinetCommand';
+import type { OpfsLike } from '../../assembly/SubAssemblyCache';
+import { useAppStore } from '../../store/useAppStore';
+import type { AssemblyDocument, MaterialEntry } from '@zilventor/shared';
+
+class MemOpfs implements OpfsLike {
+  files = new Map<string, Uint8Array>();
+  async exists(p: string) { return this.files.has(p); }
+  async read(p: string) { const b = this.files.get(p); if (!b) throw new Error(`no ${p}`); return b; }
+  async write(p: string, b: Uint8Array) { this.files.set(p, b); }
+  async delete(p: string) { this.files.delete(p); }
+  async list(): Promise<string[]> { return Array.from(this.files.keys()); }
+}
+
+const carcass: MaterialEntry = { id: 'm-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' };
+const back: MaterialEntry = { id: 'm-hb-6', name: 'Hardboard 6mm', defaultThickness: 6, color: '#8b6f47' };
+
+function seedAssembly(name = 'Project'): AssemblyDocument {
+  const doc: AssemblyDocument = {
+    id: 'A1', name, units: 'mm',
+    parameters: {}, properties: {},
+    components: [], constraints: [],
+    groundedComponentPaths: [], colors: {},
+    bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+    materials: [carcass, back],
+  };
+  useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
+  return doc;
+}
+
+const DEFAULTS = {
+  name: 'Base Cabinet 1',
+  width: 600, depth: 560, height: 720,
+  toekickHeight: 100, toekickSetback: 50, shelfCount: 1,
+  carcassMaterialId: 'm-birch-18',
+  backMaterialId: 'm-hb-6',
+  bandMaterialId: null,
+} as const;
+
+describe('CreateCabinetCommand — name auto-suffix', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('writes the cabinet at the requested name when nothing collides', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    const paths = await opfs.list();
+    expect(paths).toContain('Base Cabinet 1.ziasm');
+    expect(paths).toContain('Base Cabinet 1 - Left Side.zipt');
+  });
+
+  it('auto-suffixes to "Base Cabinet 2" when "Base Cabinet 1.ziasm" exists', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await opfs.write('Base Cabinet 1.ziasm', new Uint8Array([1]));
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    const paths = await opfs.list();
+    expect(paths).toContain('Base Cabinet 2.ziasm');
+    expect(paths).toContain('Base Cabinet 2 - Left Side.zipt');
+    expect(await opfs.read('Base Cabinet 1.ziasm')).toEqual(new Uint8Array([1]));
+  });
+});
