@@ -1,5 +1,6 @@
 import type { GrainDirection, PanelSpec, PanelEdgeKey } from './panel-feature';
-import type { MaterialId } from './material';
+import type { MaterialId, MaterialRegistry } from './material';
+import type { ComponentInstance } from './types';
 
 export function normalizeLW(spec: PanelSpec): { L: number; W: number } {
   if (spec.grain !== 'none') return { L: spec.length, W: spec.width };
@@ -52,3 +53,106 @@ export type CutListResult = {
   bandTotals: EdgeBandTotal[];
   excluded: CutListExclusion;
 };
+
+type GroupAcc = {
+  spec: PanelSpec;
+  normalized: { L: number; W: number };
+  componentIds: string[];
+  partPath: string;
+};
+
+function resolveMaterialName(id: MaterialId, materials: MaterialRegistry): string {
+  const found = materials.find((m) => m.id === id);
+  return found ? found.name : '(missing material)';
+}
+
+function makeBandCell(
+  band: { materialId: MaterialId } | null,
+  materials: MaterialRegistry,
+): CutListEdgeBandCell {
+  if (!band) return null;
+  return { materialId: band.materialId, materialName: resolveMaterialName(band.materialId, materials) };
+}
+
+export function aggregateCutListLocal(
+  assembly: { components: ComponentInstance[]; cutListItemNumbers: Record<string, number> },
+  panelSpecs: Map<string, PanelSpec | null>,
+  materials: MaterialRegistry,
+  partNames: Map<string, string> = new Map(),
+): CutListResult {
+  const groups = new Map<string, GroupAcc>();
+  let nonPanelComponentCount = 0;
+  const nonPanelPaths = new Set<string>();
+
+  for (const c of assembly.components) {
+    const spec = panelSpecs.get(c.partPath);
+    if (!spec) {
+      nonPanelComponentCount++;
+      nonPanelPaths.add(c.partPath);
+      continue;
+    }
+    const normalized = normalizeLW(spec);
+    const key = cutListRowKey(spec, normalized);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.componentIds.push(c.id);
+    } else {
+      groups.set(key, { spec, normalized, componentIds: [c.id], partPath: c.partPath });
+    }
+  }
+
+  const stored = assembly.cutListItemNumbers;
+  const usedNumbers = new Set(Object.values(stored));
+  let nextNumber = (usedNumbers.size === 0 ? 0 : Math.max(...usedNumbers)) + 1;
+
+  const rows: CutListRow[] = [];
+  for (const [key, g] of groups) {
+    let itemNumber = stored[key];
+    if (itemNumber === undefined) itemNumber = nextNumber++;
+    rows.push({
+      rowKey: key,
+      itemNumber,
+      qty: g.componentIds.length,
+      length: g.normalized.L,
+      width: g.normalized.W,
+      thickness: g.spec.thickness,
+      materialId: g.spec.materialId,
+      materialName: resolveMaterialName(g.spec.materialId, materials),
+      grain: g.spec.grain,
+      edgeBands: {
+        front: makeBandCell(g.spec.edgeBands.front, materials),
+        back: makeBandCell(g.spec.edgeBands.back, materials),
+        left: makeBandCell(g.spec.edgeBands.left, materials),
+        right: makeBandCell(g.spec.edgeBands.right, materials),
+      },
+      partPath: g.partPath,
+      partName: partNames.get(g.partPath) ?? '(missing part)',
+      componentPathKeys: [...g.componentIds],
+    });
+  }
+  rows.sort((a, b) => a.itemNumber - b.itemNumber);
+
+  const bandAcc = new Map<MaterialId, { name: string; total: number }>();
+  for (const r of rows) {
+    for (const edgeKey of ['front', 'back', 'left', 'right'] as const) {
+      const cell = r.edgeBands[edgeKey];
+      if (!cell) continue;
+      const perEdgeLen = edgeKey === 'front' || edgeKey === 'back' ? r.length : r.width;
+      const acc = bandAcc.get(cell.materialId);
+      if (acc) acc.total += perEdgeLen * r.qty;
+      else bandAcc.set(cell.materialId, { name: cell.materialName, total: perEdgeLen * r.qty });
+    }
+  }
+  const bandTotals: EdgeBandTotal[] = Array.from(bandAcc.entries()).map(([materialId, v]) => ({
+    materialId,
+    materialName: v.name,
+    totalLengthMm: v.total,
+  }));
+  bandTotals.sort((a, b) => a.materialName.localeCompare(b.materialName));
+
+  return {
+    rows,
+    bandTotals,
+    excluded: { componentCount: nonPanelComponentCount, partCount: nonPanelPaths.size },
+  };
+}
