@@ -168,3 +168,33 @@ describe('buildBaseCabinet — validation', () => {
       .toThrow(expect.objectContaining({ kind: 'backMaterialMissing' }));
   });
 });
+
+describe('buildBaseCabinet — edge bands', () => {
+  it('with bandMaterialId=null, every panel has all four edge slots null', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    for (const p of out.panels) {
+      expect(p.panel.edgeBands).toEqual({ front: null, back: null, left: null, right: null });
+    }
+  });
+
+  it('with bandMaterialId set, only sides/top/bottom/shelves carry a Front band', () => {
+    const params = { ...DEFAULT_PARAMS, bandMaterialId: 'm-pvc-white' };
+    const REG_WITH_BAND = [
+      ...REGISTRY,
+      { id: 'm-pvc-white', name: 'PVC 1mm white', defaultThickness: 1, color: '#fff' },
+    ];
+    const out = buildBaseCabinet(params, REG_WITH_BAND);
+    const banded = ['leftSide', 'rightSide', 'bottom', 'top', 'shelf'];
+    for (const p of out.panels) {
+      const fr = p.panel.edgeBands.front;
+      if (banded.includes(p.role)) {
+        expect(fr).toEqual({ materialId: 'm-pvc-white' });
+      } else {
+        expect(fr).toBeNull();
+      }
+      expect(p.panel.edgeBands.back).toBeNull();
+      expect(p.panel.edgeBands.left).toBeNull();
+      expect(p.panel.edgeBands.right).toBeNull();
+    }
+  });
+});
