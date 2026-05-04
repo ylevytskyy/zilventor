@@ -1088,13 +1088,36 @@ import { useAppStore } from '../store/useAppStore';
 function makeOpfs(initial: Record<string, Uint8Array> = {}) {
   const store = new Map<string, Uint8Array>(Object.entries(initial));
   return {
-    exists: async (p: string) => store.has(p),
-    read:   async (p: string) => store.get(p) ?? new Uint8Array(),
-    write:  async (p: string, b: Uint8Array) => { store.set(p, b); },
-    delete: async (p: string) => { store.delete(p); },
-    list:   async () => [...store.keys()],
+    exists:  async (p: string) => store.has(p),
+    read:    async (p: string) => store.get(p) ?? new Uint8Array(),
+    write:   async (p: string, b: Uint8Array) => { store.set(p, b); },
+    delete:  async (p: string) => { store.delete(p); },
+    listAll: async () => [...store.keys()],
     store,
   };
+}
+
+// Builds a minimal valid .ziasm tar.gz containing a manifest with the
+// given component partPaths. Used by the cross-assembly refcount test.
+async function makeZiasmBytes(componentPartPaths: string[]): Promise<Uint8Array> {
+  const { writeTarGz } = await import('@zilventor/kernel/src/storage/tarGzipUtil');
+  const manifest = {
+    formatVersion: 12,
+    kind: 'assembly' as const,
+    document: {
+      id: 'sibling', name: 'Sibling', units: 'mm',
+      parameters: {}, constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {},
+      colorOverrides: {}, properties: {}, materials: [], hardware: [],
+      components: componentPartPaths.map((p, i) => ({
+        id: `c${i}`, partPath: p,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { rx: 0, ry: 0, rz: 0 },
+        visible: true,
+      })),
+    },
+  };
+  return writeTarGz([{ name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest)) }]);
 }
 
 function makeActiveAssembly(components: Array<{ id: string; partPath: string }> = []) {
@@ -1160,8 +1183,8 @@ describe('AddHardwareCommand', () => {
     expect(await opfs.exists('hardware/hinge-35mm-cup-full.zipt')).toBe(false);
   });
 
-  it('revert() retains the .zipt file when another component still references it', async () => {
-    // Pre-populate an assembly with an existing reference.
+  it('revert() retains the .zipt file when the active assembly still references it', async () => {
+    // Pre-populate the in-memory active assembly with an existing reference.
     useAppStore.setState({
       activeAssembly: makeActiveAssembly([
         { id: 'pre-existing', partPath: 'hardware/hinge-35mm-cup-full.zipt' },
@@ -1172,7 +1195,21 @@ describe('AddHardwareCommand', () => {
     const cmd = new AddHardwareCommand({ skuId: 'hinge-35mm-cup-full', opfs, store: useAppStore });
     await cmd.apply();
     await cmd.revert();
-    // The pre-existing component still references the file → should not be deleted.
+    // The pre-existing in-memory component still references the file → not deleted.
+    expect(await opfs.exists('hardware/hinge-35mm-cup-full.zipt')).toBe(true);
+  });
+
+  it('revert() retains the .zipt file when a SIBLING .ziasm in OPFS references it (project-wide refcount per spec §5.2)', async () => {
+    // Active assembly is empty, but a sibling .ziasm file in OPFS holds a reference.
+    const opfs = makeOpfs();
+    const siblingBytes = await makeZiasmBytes(['hardware/hinge-35mm-cup-full.zipt']);
+    await opfs.write('Other Project Asm.ziasm', siblingBytes);
+
+    const cmd = new AddHardwareCommand({ skuId: 'hinge-35mm-cup-full', opfs, store: useAppStore });
+    await cmd.apply();   // writes hardware/<sku>.zipt + places into active assembly
+    await cmd.revert();  // removes from active; project-wide scan sees sibling reference
+
+    // Sibling still references it → file must be retained.
     expect(await opfs.exists('hardware/hinge-35mm-cup-full.zipt')).toBe(true);
   });
 });
@@ -1189,8 +1226,9 @@ git add packages/app/src/commands/AddHardwareCommand.test.ts
 git commit -m "$(cat <<'EOF'
 test(app): failing tests for AddHardwareCommand — write/reuse/place/revert/refcount
 
-7 cases covering unknown SKU, first-write, file-reuse, component placement,
-symmetric revert, file deletion, and reference-count retention.
+8 cases: unknown SKU, first-write, file-reuse, component placement, symmetric
+revert, file deletion, in-memory refcount retention, and project-wide refcount
+retention via sibling .ziasm in OPFS (spec §5.2 + §7.2).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1215,15 +1253,18 @@ import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { PlaceComponentCommand } from './PlaceComponentCommand';
 import { useAppStore, type AppStore } from '../store/useAppStore';
 
+// Mirrors the real Opfs surface (`packages/kernel/src/storage/Opfs.ts`). The
+// `listAll()` method is required for the project-wide refcount scan in revert().
 interface OpfsForHardware {
   exists(path: string): Promise<boolean>;
   read(path: string): Promise<Uint8Array>;
   write(path: string, bytes: Uint8Array): Promise<void>;
   delete(path: string): Promise<void>;
-  list(): Promise<string[]>;
+  listAll(): Promise<string[]>;
 }
 
 export class HardwareSkuNotFoundError extends Error {
@@ -1291,10 +1332,30 @@ export class AddHardwareCommand implements Command {
     }
   }
 
+  // Spec §5.2: project-wide reference count. Checks the in-memory active
+  // assembly first (most current state — autosave may not have flushed),
+  // then scans every .ziasm file in OPFS for sibling references.
   private async isFileReferenced(filePath: string): Promise<boolean> {
     const asm = this.store.getState().activeAssembly;
-    if (!asm) return false;
-    return asm.components.some((c) => c.partPath === filePath);
+    if (asm?.components.some((c) => c.partPath === filePath)) return true;
+
+    const allFiles = await this.opts.opfs.listAll();
+    for (const f of allFiles) {
+      if (!f.endsWith('.ziasm')) continue;
+      try {
+        const bytes = await this.opts.opfs.read(f);
+        const project = await unpackProject(bytes);
+        const manifest = project.manifest as {
+          document?: { components?: Array<{ partPath: string }> };
+        } | null;
+        const components = manifest?.document?.components ?? [];
+        if (components.some((c) => c.partPath === filePath)) return true;
+      } catch {
+        // Unreadable / non-manifest .ziasm — skip silently. Conservative: if
+        // we can't read it, we don't claim a reference exists.
+      }
+    }
+    return false;
   }
 
   private async synthesizePart(
@@ -1335,7 +1396,8 @@ git commit -m "$(cat <<'EOF'
 feat(app): AddHardwareCommand — lazy .zipt synthesis + PlaceComponentCommand delegate (spec §5.2)
 
 Checks OPFS before writing (file-reuse). revert() removes placed component;
-deletes .zipt only when no surviving reference exists in active assembly.
+deletes .zipt only when no surviving reference exists project-wide (in-memory
+active assembly + scan of all .ziasm files in OPFS via Opfs.listAll).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
