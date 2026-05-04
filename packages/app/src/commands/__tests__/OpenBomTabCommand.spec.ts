@@ -8,4 +8,10 @@ describe('OpenBomTabCommand', () => {
     await new OpenBomTabCommand().apply();
     expect(useAppStore.getState().bomTabActive).toBe(true);
   });
+
+  it('clears nestingTabActive (4-way mutex)', async () => {
+    useAppStore.getState().setNestingTabActive(true);
+    await new OpenBomTabCommand().apply();
+    expect(useAppStore.getState().nestingTabActive).toBe(false);
+  });
 });

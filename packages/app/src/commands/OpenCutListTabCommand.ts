@@ -5,5 +5,6 @@ export class OpenCutListTabCommand {
     const s = useAppStore.getState();
     s.setCutListTabActive(true);
     s.setBomTabActive(false);
+    s.setNestingTabActive(false);
   }
 }

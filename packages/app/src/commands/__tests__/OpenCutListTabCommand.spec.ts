@@ -5,7 +5,7 @@ import { OpenBomTabCommand } from '../OpenBomTabCommand';
 
 describe('OpenCutListTabCommand', () => {
   beforeEach(() => {
-    useAppStore.setState({ bomTabActive: false, cutListTabActive: false });
+    useAppStore.setState({ bomTabActive: false, cutListTabActive: false, nestingTabActive: false });
   });
 
   it('sets cutListTabActive: true and bomTabActive: false', async () => {
@@ -14,11 +14,17 @@ describe('OpenCutListTabCommand', () => {
     expect(useAppStore.getState().cutListTabActive).toBe(true);
     expect(useAppStore.getState().bomTabActive).toBe(false);
   });
+
+  it('clears nestingTabActive (4-way mutex)', async () => {
+    useAppStore.getState().setNestingTabActive(true);
+    await new OpenCutListTabCommand().apply();
+    expect(useAppStore.getState().nestingTabActive).toBe(false);
+  });
 });
 
 describe('OpenBomTabCommand mutual exclusion', () => {
   beforeEach(() => {
-    useAppStore.setState({ bomTabActive: false, cutListTabActive: false });
+    useAppStore.setState({ bomTabActive: false, cutListTabActive: false, nestingTabActive: false });
   });
 
   it('clears cutListTabActive when opening BOM', async () => {
@@ -26,5 +32,11 @@ describe('OpenBomTabCommand mutual exclusion', () => {
     await new OpenBomTabCommand().apply();
     expect(useAppStore.getState().bomTabActive).toBe(true);
     expect(useAppStore.getState().cutListTabActive).toBe(false);
+  });
+
+  it('clears nestingTabActive (4-way mutex)', async () => {
+    useAppStore.getState().setNestingTabActive(true);
+    await new OpenBomTabCommand().apply();
+    expect(useAppStore.getState().nestingTabActive).toBe(false);
   });
 });

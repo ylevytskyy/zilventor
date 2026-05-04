@@ -5,5 +5,6 @@ export class OpenBomTabCommand {
     const s = useAppStore.getState();
     s.setBomTabActive(true);
     s.setCutListTabActive(false);
+    s.setNestingTabActive(false);
   }
 }
