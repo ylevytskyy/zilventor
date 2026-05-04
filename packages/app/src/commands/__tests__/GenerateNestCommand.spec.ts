@@ -82,5 +82,6 @@ describe('GenerateNestCommand', () => {
     useAppStore.setState({ activeAssembly: null } as never);
     const cmd = new GenerateNestCommand({ kerfMm: 3, result: fakeResult([]), materials: matRegistry() });
     await expect(cmd.apply()).resolves.toBeUndefined();
+    expect(useAppStore.getState().activeAssembly).toBeNull();
   });
 });

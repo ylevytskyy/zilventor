@@ -38,7 +38,11 @@ export class GenerateNestCommand implements Command {
     };
     useAppStore.setState((s) => {
       if (!s.activeAssembly) return s;
-      return { activeAssembly: { ...s.activeAssembly, nest } } as never;
+      const nextDoc = { ...s.activeAssembly, nest };
+      return {
+        activeDocument: { kind: 'assembly' as const, document: nextDoc },
+        activeAssembly: nextDoc,
+      } as never;
     });
   }
 
@@ -47,9 +51,15 @@ export class GenerateNestCommand implements Command {
     useAppStore.setState((s) => {
       if (!s.activeAssembly) return s;
       const next = { ...s.activeAssembly };
-      if (this.prevNest === undefined) delete (next as { nest?: NestState }).nest;
-      else next.nest = this.prevNest;
-      return { activeAssembly: next } as never;
+      if (this.prevNest === undefined) {
+        delete (next as { nest?: NestState }).nest;
+      } else {
+        next.nest = this.prevNest;
+      }
+      return {
+        activeDocument: { kind: 'assembly' as const, document: next },
+        activeAssembly: next,
+      } as never;
     });
   }
 }
