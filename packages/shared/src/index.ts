@@ -21,4 +21,6 @@ export type {
 export { isHardwareFeature } from './hardware-feature';
 export type {
   NestInputRow, PlacedPanel, NestSheet, NestExclusion, NestExclusionReason, NestState,
+  PackResult, PackAllResult,
 } from './nesting';
+export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nesting';
