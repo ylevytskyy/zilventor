@@ -14,10 +14,12 @@ import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorO
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
 import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
+import { OpenNestingTabCommand } from '../commands/OpenNestingTabCommand';
 import { SetCutListItemNumberCommand } from '../commands/SetCutListItemNumberCommand';
 import { ExportCutListCsvCommand } from '../commands/ExportCutListCsvCommand';
 import { useCutListResult } from './useCutListResult';
 import { useCutListCacheContext } from './CutListCacheContext';
+import { NestingTab } from './NestingTab';
 
 type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
 
@@ -208,8 +210,25 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
       >
         Cut List
       </button>
+      <button
+        type="button"
+        aria-label="Nesting tab"
+        onClick={() => void new OpenNestingTabCommand().apply()}
+        className={`px-2 py-0.5 text-xs ${nestingTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+      >
+        Nesting
+      </button>
     </div>
   );
+
+  if (nestingTabActive) {
+    return (
+      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        {tabStrip}
+        <NestingTab />
+      </div>
+    );
+  }
 
   if (cutListTabActive) {
     const hwCache = buildHardwareCache(asm, useAppStore.getState().subAssemblyDocs);
