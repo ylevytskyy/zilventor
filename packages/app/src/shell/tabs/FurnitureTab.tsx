@@ -4,6 +4,8 @@ import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { OpenPanelDialogCommand } from '../../commands/OpenPanelDialogCommand';
 import { OpenCabinetDialogCommand } from '../../commands/OpenCabinetDialogCommand';
+import { OpenHardwareDialogCommand } from '../../commands/OpenHardwareDialogCommand';
+import { AddHardwareCommand } from '../../commands/AddHardwareCommand';
 import { AddPanelFeatureCommand } from '../../commands/AddPanelFeatureCommand';
 import { CreateAndPlacePanelCommand } from '../../commands/CreateAndPlacePanelCommand';
 import { CreateCabinetCommand } from '../../commands/CreateCabinetCommand';
@@ -49,6 +51,18 @@ export default function FurnitureTab() {
     await new OpenCabinetDialogCommand({ template: 'baseCabinet', onSubmit }).apply();
   };
 
+  const handleHardware = async () => {
+    const onSubmit = async (skuId: string, qty: number) => {
+      const opfs = await Opfs.forNavigator();
+      for (let i = 0; i < qty; i++) {
+        await useAppStore.getState().bus.execute(
+          new AddHardwareCommand({ skuId, opfs }),
+        );
+      }
+    };
+    await new OpenHardwareDialogCommand({ onSubmit }).apply();
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title="Create">
@@ -73,6 +87,20 @@ export default function FurnitureTab() {
             title={cabinetDisabled ? 'Open or create an assembly first' : ''}
           >
             Base Cabinet
+          </button>
+        </RibbonPanel>
+      </div>
+      <div aria-label="Hardware panel">
+        <RibbonPanel title="Hardware">
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            onClick={() => { void handleHardware(); }}
+            aria-label="Add Hardware"
+            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+          >
+            Add Hardware
           </button>
         </RibbonPanel>
       </div>
