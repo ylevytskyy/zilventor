@@ -11,3 +11,11 @@ export * from './material';
 export * from './cutListRow';
 export * from './panel-feature';
 export * from './cabinets';
+export type {
+  HardwareCategory,
+  HardwareEntry,
+  HardwareFeature,
+  HardwareRegistry,
+  AttachPoint,
+} from './hardware-feature';
+export { isHardwareFeature } from './hardware-feature';
