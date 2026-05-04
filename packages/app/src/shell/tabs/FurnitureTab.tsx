@@ -13,6 +13,7 @@ import { OpenNestDialogCommand } from '../../commands/OpenNestDialogCommand';
 import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
+import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
 import { useCutListResult } from '../useCutListResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
@@ -124,11 +125,16 @@ export default function FurnitureTab() {
             onClick={() => { void new OpenNestDialogCommand().apply(); }}>
             Generate Nest
           </button>
-          {/* Export PDF: wired in Phase 6 (ExportNestPdfCommand) */}
           <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly?.nest}
             aria-disabled={!activeAssembly?.nest}
-            onClick={() => { console.warn('Export PDF not yet wired (Phase 6)'); }}>
+            onClick={async () => {
+              if (!activeAssembly?.nest) return;
+              await new ExportNestPdfCommand({
+                nest: activeAssembly.nest, materials: activeAssembly.materials,
+                suggestedName: `${activeAssembly.name}-nest.pdf`,
+              }).apply();
+            }}>
             Export PDF
           </button>
         </RibbonPanel>

@@ -15,7 +15,7 @@ export class ExportNestPdfCommand {
   async apply(): Promise<void> {
     const buf = renderNestPdfBytes(this.opts.nest, this.opts.materials);
     (globalThis as { __zilventorNestPdfBytes?: Uint8Array }).__zilventorNestPdfBytes = buf;
-    const blob = new Blob([buf], { type: 'application/pdf' });
+    const blob = new Blob([buf as unknown as BlobPart], { type: 'application/pdf' });
     await triggerDownload(blob, {
       suggestedName: this.opts.suggestedName ?? `nest-${timestamp()}.pdf`,
       mimeType: 'application/pdf', extension: 'pdf', description: 'Nest PDF',
