@@ -74,7 +74,7 @@ dedicated Hardware section below the panel table.
       section is visible with a header row showing columns: **SKU**,
       **Name**, **Category**, **Qty**, **Notes**.
 - [ ] Step 3: Verify one row appears under Hardware with:
-      - SKU: a hinge SKU code (e.g., "HINGE-35MM-CUP-FO")
+      - SKU: `hinge-35mm-cup-full` (lowercase, kebab-case)
       - Name: "35mm Cup Hinge — Full Overlay"
       - Category: "Hinges"
       - Qty: **1**
