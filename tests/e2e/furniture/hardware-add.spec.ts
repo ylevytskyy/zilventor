@@ -49,7 +49,7 @@ test('T-5c-1 — Add Hardware: place 35mm cup hinge, verify OPFS file + cut list
   expect(fileExists).toBe(true);
 
   // 7. Open Cut List tab and verify Hardware section shows 1 row.
-  await page.getByRole('button', { name: /cut list/i }).click();
+  await page.getByRole('button', { name: 'Cut List tab' }).click();
   await page.waitForFunction(() => {
     const w = window as unknown as { __zilventorStore: { getState(): { cutListTabActive: boolean } } };
     return w.__zilventorStore.getState().cutListTabActive;
@@ -85,7 +85,7 @@ test('T-5c-2 — same SKU placed twice → Hardware table shows 1 row with Qty=2
   });
 
   // Open Cut List tab.
-  await page.getByRole('button', { name: /cut list/i }).click();
+  await page.getByRole('button', { name: 'Cut List tab' }).click();
   await page.waitForFunction(() => {
     const w = window as unknown as { __zilventorStore: { getState(): { cutListTabActive: boolean } } };
     return w.__zilventorStore.getState().cutListTabActive;
@@ -153,6 +153,6 @@ test('T-5c-3 — Ctrl+Z round-trips a hardware placement', async ({ page }) => {
   expect(hardwareDirExists).toBe(0);
 
   // Hardware table should show 0 rows.
-  await page.getByRole('button', { name: /cut list/i }).click();
+  await page.getByRole('button', { name: 'Cut List tab' }).click();
   await expect(page.getByText(/no hardware/i)).toBeVisible();
 });
