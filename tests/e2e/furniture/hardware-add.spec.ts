@@ -97,3 +97,62 @@ test('T-5c-2 — same SKU placed twice → Hardware table shows 1 row with Qty=2
   expect(hingeRows).toHaveLength(1);
   await expect(page.getByText('2')).toBeVisible();
 });
+
+test('T-5c-3 — Ctrl+Z round-trips a hardware placement', async ({ page }) => {
+  page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  await page.getByRole('tab', { name: 'File' }).click();
+  await page.getByRole('button', { name: /new assembly/i }).click();
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeDocument?: { kind: string } } } };
+    return w.__zilventorStore?.getState().activeDocument?.kind === 'assembly';
+  });
+
+  await page.getByRole('tab', { name: 'Furniture' }).click();
+  await page.getByRole('button', { name: 'Add Hardware' }).click();
+  await page.getByRole('button', { name: /^ok$/i }).click();
+
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } | null } } };
+    return (w.__zilventorStore.getState().activeAssembly?.components.length ?? 0) === 1;
+  });
+
+  // Verify component count before undo.
+  const beforeUndo = await page.evaluate(async () => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } } } };
+    return { components: w.__zilventorStore.getState().activeAssembly.components.length };
+  });
+  expect(beforeUndo.components).toBe(1);
+
+  // Ctrl+Z.
+  await page.keyboard.press('Control+z');
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } } } };
+    return w.__zilventorStore.getState().activeAssembly.components.length === 0;
+  });
+
+  // Verify file deleted.
+  const hardwareDirExists = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    try {
+      await root.getDirectoryHandle('hardware', { create: false });
+      // If we get here, directory exists; check if it has files.
+      const dir = await root.getDirectoryHandle('hardware');
+      let count = 0;
+      // @ts-expect-error iterator typing
+      for await (const _ of dir.entries()) count++;
+      return count;
+    } catch {
+      return 0;
+    }
+  });
+  expect(hardwareDirExists).toBe(0);
+
+  // Hardware table should show 0 rows.
+  await page.getByRole('button', { name: /cut list/i }).click();
+  await expect(page.getByText(/no hardware/i)).toBeVisible();
+});
