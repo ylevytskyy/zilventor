@@ -209,7 +209,7 @@ const migrations: Record<number, MigrateFn> = {
 
   // v12 → v13: no-op. AssemblyDocument.nest stays absent;
   // MaterialEntry.sheetLengthMm / sheetWidthMm stay absent. Fields appear via writes only.
-  12: (mIn): AnyManifest => {
+  12: (mIn) => {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 13 };
   },
