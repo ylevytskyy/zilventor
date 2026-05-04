@@ -54,8 +54,9 @@ test('T-5c-1 — Add Hardware: place 35mm cup hinge, verify OPFS file + cut list
     const w = window as unknown as { __zilventorStore: { getState(): { cutListTabActive: boolean } } };
     return w.__zilventorStore.getState().cutListTabActive;
   });
-  await expect(page.getByText('35mm Cup Hinge — Full Overlay')).toBeVisible();
-  await expect(page.getByText('1')).toBeVisible();
+  const hingeRow = page.getByRole('row').filter({ hasText: '35mm Cup Hinge — Full Overlay' });
+  await expect(hingeRow).toHaveCount(1);
+  await expect(hingeRow.getByRole('cell').filter({ hasText: /^1$/ })).toBeVisible();
 });
 
 test('T-5c-2 — same SKU placed twice → Hardware table shows 1 row with Qty=2', async ({ page }) => {
@@ -92,10 +93,9 @@ test('T-5c-2 — same SKU placed twice → Hardware table shows 1 row with Qty=2
   });
 
   // Exactly 1 row for the hinge SKU with Qty=2.
-  const rows = await page.getByRole('row').all();
-  const hingeRows = rows.filter(async (r) => (await r.textContent())?.includes('35mm Cup Hinge'));
-  expect(hingeRows).toHaveLength(1);
-  await expect(page.getByText('2')).toBeVisible();
+  const hingeRows = page.getByRole('row').filter({ hasText: '35mm Cup Hinge' });
+  await expect(hingeRows).toHaveCount(1);
+  await expect(hingeRows.getByRole('cell').filter({ hasText: /^2$/ })).toBeVisible();
 });
 
 test('T-5c-3 — Ctrl+Z round-trips a hardware placement', async ({ page }) => {
