@@ -57,3 +57,43 @@ test('T-5c-1 — Add Hardware: place 35mm cup hinge, verify OPFS file + cut list
   await expect(page.getByText('35mm Cup Hinge — Full Overlay')).toBeVisible();
   await expect(page.getByText('1')).toBeVisible();
 });
+
+test('T-5c-2 — same SKU placed twice → Hardware table shows 1 row with Qty=2', async ({ page }) => {
+  page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+  page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  await page.getByRole('tab', { name: 'File' }).click();
+  await page.getByRole('button', { name: /new assembly/i }).click();
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeDocument?: { kind: string } } } };
+    return w.__zilventorStore?.getState().activeDocument?.kind === 'assembly';
+  });
+
+  // Add hinge twice via Qty stepper set to 2.
+  await page.getByRole('tab', { name: 'Furniture' }).click();
+  await page.getByRole('button', { name: 'Add Hardware' }).click();
+  await expect(page.getByRole('dialog', { name: /hardware/i })).toBeVisible();
+  await page.getByRole('button', { name: /increment qty/i }).click();
+  await page.getByRole('button', { name: /^ok$/i }).click();
+
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } | null } } };
+    return (w.__zilventorStore.getState().activeAssembly?.components.length ?? 0) === 2;
+  });
+
+  // Open Cut List tab.
+  await page.getByRole('button', { name: /cut list/i }).click();
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore: { getState(): { cutListTabActive: boolean } } };
+    return w.__zilventorStore.getState().cutListTabActive;
+  });
+
+  // Exactly 1 row for the hinge SKU with Qty=2.
+  const rows = await page.getByRole('row').all();
+  const hingeRows = rows.filter(async (r) => (await r.textContent())?.includes('35mm Cup Hinge'));
+  expect(hingeRows).toHaveLength(1);
+  await expect(page.getByText('2')).toBeVisible();
+});
