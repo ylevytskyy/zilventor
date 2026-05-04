@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 12 as const;
+export const CURRENT_FORMAT_VERSION = 13 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -206,10 +206,17 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 12 };
   },
+
+  // v12 → v13: no-op. AssemblyDocument.nest stays absent;
+  // MaterialEntry.sheetLengthMm / sheetWidthMm stay absent. Fields appear via writes only.
+  12: (mIn): AnyManifest => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 13 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if ((m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12) && (m as any).kind === undefined) {
+  if ((m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 || m.formatVersion === 13) && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;
