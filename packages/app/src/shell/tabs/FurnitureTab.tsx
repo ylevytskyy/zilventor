@@ -9,6 +9,7 @@ import { AddHardwareCommand } from '../../commands/AddHardwareCommand';
 import { AddPanelFeatureCommand } from '../../commands/AddPanelFeatureCommand';
 import { CreateAndPlacePanelCommand } from '../../commands/CreateAndPlacePanelCommand';
 import { CreateCabinetCommand } from '../../commands/CreateCabinetCommand';
+import { OpenNestDialogCommand } from '../../commands/OpenNestDialogCommand';
 import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
@@ -115,6 +116,21 @@ export default function FurnitureTab() {
               result: cutListResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
             }).apply()}>Export CSV</button>
+        </RibbonPanel>
+      </div>
+      <div aria-label="Nesting panel">
+        <RibbonPanel title="Nesting">
+          <button type="button" className="text-xs hover:text-white"
+            onClick={() => { void new OpenNestDialogCommand().apply(); }}>
+            Generate Nest
+          </button>
+          {/* Export PDF: wired in Phase 6 (ExportNestPdfCommand) */}
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly?.nest}
+            aria-disabled={!activeAssembly?.nest}
+            onClick={() => { console.warn('Export PDF not yet wired (Phase 6)'); }}>
+            Export PDF
+          </button>
         </RibbonPanel>
       </div>
     </div>
