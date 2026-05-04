@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AddHardwareCommand } from '../AddHardwareCommand';
 import { useAppStore } from '../../store/useAppStore';
@@ -81,7 +82,7 @@ describe('AddHardwareCommand', () => {
     await cmd.apply();
     const asm = useAppStore.getState().activeAssembly!;
     expect(asm.components.length).toBeGreaterThan(0);
-    expect(asm.components[0].partPath).toBe('hardware/hinge-35mm-cup-full.zipt');
+    expect(asm.components[0]!.partPath).toBe('hardware/hinge-35mm-cup-full.zipt');
   });
 
   it('revert() removes the placed component', async () => {
