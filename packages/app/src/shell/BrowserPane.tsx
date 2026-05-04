@@ -157,6 +157,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   const activeDoc = useAppStore((s) => s.activeDocument);
   const bomTabActive = useAppStore((s) => s.bomTabActive);
   const cutListTabActive = useAppStore((s) => s.cutListTabActive);
+  const nestingTabActive = useAppStore((s) => s.nestingTabActive);
   const cutListResult = useCutListResult();
   const { warmCache } = useCutListCacheContext();
 
@@ -186,8 +187,8 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
       <button
         type="button"
         aria-label="Assembly tab"
-        onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); }}
-        className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+        onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); useAppStore.getState().setNestingTabActive(false); }}
+        className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive && !nestingTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
         Assembly
       </button>
