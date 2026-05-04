@@ -1,5 +1,6 @@
 import { buildCutListCsv } from './buildCutListCsv';
 import type { CutListResult } from '@zilventor/shared/src/cutListRow';
+import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive';
 
 declare global {
   // eslint-disable-next-line vars-on-top, no-var
@@ -12,10 +13,10 @@ interface FsHandle {
 type SaveFilePicker = (opts: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FsHandle>;
 
 export class ExportCutListCsvCommand {
-  constructor(private opts: { result: CutListResult; suggestedName: string }) {}
+  constructor(private opts: { result: CutListResult; hardwareRows?: HardwareRow[]; suggestedName: string }) {}
 
   async apply(): Promise<void> {
-    const csv = buildCutListCsv(this.opts.result);
+    const csv = buildCutListCsv(this.opts.result, this.opts.hardwareRows ?? []);
     const bytes = new TextEncoder().encode(csv);
     globalThis.__zilventorCutListCsvBytes = bytes;
     const picker = (globalThis as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;

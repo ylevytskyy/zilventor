@@ -8,6 +8,8 @@ import { BomTable } from './BomTable';
 import { CutListTable } from './CutListTable';
 import { HardwareTable } from './HardwareTable';
 import { aggregateHardwareRecursive } from '../assembly/walkers/aggregateHardwareRecursive';
+import { buildHardwareCache } from '../assembly/walkers/buildHardwareCache';
+import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
@@ -209,6 +211,8 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   );
 
   if (cutListTabActive) {
+    const hwCache = buildHardwareCache(asm, useAppStore.getState().subAssemblyDocs);
+    const hardwareRows = aggregateHardwareRecursive(asm, hwCache, [...BUILTIN_CATALOG]).rows;
     return (
       <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
         {tabStrip}
@@ -216,17 +220,9 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
           result={cutListResult}
           onSelectRow={(ids) => useAppStore.getState().selectComponents(ids)}
           onEditItemNumber={(k, n) => void new SetCutListItemNumberCommand({ rowKey: k, n }).apply()}
-          onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
+          onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, hardwareRows, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
         />
-        <HardwareTable
-          rows={aggregateHardwareRecursive(
-            asm,
-            new Map(
-              Object.entries(useAppStore.getState().subAssemblyDocs).map(([k, doc]) => [k, { kind: 'ok' as const, doc }]),
-            ),
-            asm.hardware,
-          ).rows}
-        />
+        <HardwareTable rows={hardwareRows} />
       </div>
     );
   }
