@@ -10,6 +10,7 @@ const emptyAssembly = (): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 });
 
 const partWithPanel = (materialId: string, panelId = 'pf-1'): PartDocument => {
@@ -27,6 +28,7 @@ const partWithPanel = (materialId: string, panelId = 'pf-1'): PartDocument => {
     id: 'P1', name: 'P1', units: 'mm', parameters: {}, properties: {},
     featureTree: [panel],
     materials: [],
+    hardware: [],
   };
 };
 

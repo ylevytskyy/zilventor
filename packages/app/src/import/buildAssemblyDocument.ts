@@ -76,5 +76,6 @@ export function buildAssemblyDocument(args: BuildAssemblyArgs): AssemblyDocument
     colorOverrides,
     properties: { ...asmJson.properties },
     materials: [],
+    hardware: [],
   };
 }

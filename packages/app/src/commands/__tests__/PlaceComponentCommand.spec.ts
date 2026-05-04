@@ -22,6 +22,7 @@ function makeDoc(name: string, components: AssemblyDocument['components'] = []):
     components, constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 }
 

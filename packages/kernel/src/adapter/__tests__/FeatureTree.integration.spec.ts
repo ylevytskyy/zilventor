@@ -114,7 +114,10 @@ function makePart(opts: {
     name: 'Part1',
     units: 'mm',
     parameters,
-    featureTree
+    properties: {},
+    featureTree,
+    materials: [],
+    hardware: [],
   } as PartDocument;
 }
 
@@ -131,6 +134,7 @@ describe('FeatureTree.executeTree', () => {
         { kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ],
       materials: [],
+      hardware: [],
     };
     const res = await executeTree(occt, part);
     expect(res.ok).toBe(true);
@@ -163,6 +167,7 @@ describe('FeatureTree.executeTree', () => {
         { kind: 'extrude' as const, id: 'e1', sketchRef: 'missing', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }
       ],
       materials: [],
+      hardware: [],
     };
     const res = await executeTree(occt, part);
     expect(res.ok).toBe(false);
@@ -457,6 +462,7 @@ describe('FeatureTree — hole feature integration', () => {
         } as HoleFeature
       ] as PartDocument['featureTree'],
       materials: [],
+      hardware: [],
     };
 
     const result = await executeTree(occt, part);
@@ -520,6 +526,7 @@ describe('FeatureTree — hole feature integration', () => {
         } as HoleFeature
       ] as PartDocument['featureTree'],
       materials: [],
+      hardware: [],
     };
 
     const result = await executeTree(occt, part);
@@ -584,6 +591,7 @@ describe('FeatureTree — sweep feature integration', () => {
         } as SweepFeature
       ] as PartDocument['featureTree'],
       materials: [],
+      hardware: [],
     };
 
     const result = await executeTree(occt, part);
@@ -645,6 +653,7 @@ describe('FeatureTree — sweep feature integration', () => {
         } as SweepFeature
       ] as PartDocument['featureTree'],
       materials: [],
+      hardware: [],
     };
 
     const result = await executeTree(occt, part);
@@ -710,6 +719,7 @@ describe('executeTree work features', () => {
         } },
       ],
       materials: [],
+      hardware: [],
     };
     const r = await executeTree(occt, part);
     expect(r.ok).toBe(true);

@@ -28,6 +28,7 @@ describe('BrowserPane', () => {
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
       ],
       materials: [],
+      hardware: [],
     };
     render(<BrowserPane part={part} />);
     expect(screen.getByText('Part1')).toBeTruthy();
@@ -45,6 +46,7 @@ describe('BrowserPane', () => {
         { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' }
       ],
       materials: [],
+      hardware: [],
     };
     render(<BrowserPane part={part} />);
     expect(screen.getByText(/Sketch1/i)).toBeTruthy();
@@ -120,6 +122,7 @@ describe('BrowserPane', () => {
       colors: {},
       bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -141,6 +144,7 @@ describe('BrowserPane', () => {
       colors: {},
       bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     render(<BrowserPane part={null} />);
@@ -341,6 +345,7 @@ describe('BrowserPane — panel feature (T28)', () => {
       id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {},
       featureTree: [panel],
       materials: [],
+      hardware: [],
     } as any;
   }
 
@@ -498,6 +503,7 @@ describe('BrowserPane BOM tab strip', () => {
     colors: {},
     bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 
   it('assembly mode renders both Assembly/BOM tab strip and the existing tree', () => {
@@ -534,6 +540,7 @@ describe('BrowserPane BOM tab strip', () => {
       id: 'p1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [],
       materials: [],
+      hardware: [],
     };
     render(<BrowserPane part={part} />);
     expect(screen.queryByRole('button', { name: /^bom$/i })).toBeNull();
@@ -563,6 +570,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
     constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 
   const topDoc = (subOverrides: Partial<any> = {}): AssemblyDocument => ({
@@ -573,6 +581,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
     constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   });
 
   it('renders sub-asm placement as expandable node with (N components) annotation', () => {
@@ -677,6 +686,7 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
       constraints: [], groundedComponentPaths: [],
       colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.setState({
       activeDocument: { kind: 'assembly', document: { ...topDoc(), components: [{ id: 'TOP', partPath: 'sub/cyclic.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true }] } },
@@ -697,6 +707,7 @@ const cutListAsm: AssemblyDocument = {
   colors: {},
   bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 };
 
 function seedAssemblyMode() {

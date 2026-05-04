@@ -10,6 +10,7 @@ function makeDoc(components: ComponentInstance[]): AssemblyDocument {
     components, constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 }
 

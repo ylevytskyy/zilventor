@@ -13,6 +13,7 @@ describe('AddRevolveFeatureCommand', () => {
       properties: {},
       featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }],
       materials: [],
+      hardware: [],
     });
 
     const kernel = {

@@ -19,6 +19,7 @@ describe('OpenProjectFileCommand', () => {
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 
   it('sets activeDocument to the cached sub-asm and returns true', () => {

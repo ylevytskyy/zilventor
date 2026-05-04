@@ -93,6 +93,7 @@ describe('Opfs — assembly integration', () => {
       cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
+      hardware: [],
     };
 
     const bytes = await packAssembly(doc, THUMB);
@@ -138,6 +139,7 @@ describe('Opfs — assembly integration', () => {
       cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     const asmBytes = await packAssembly(asmDoc, THUMB);
     await opfs.write('cabinet.ziasm', asmBytes);

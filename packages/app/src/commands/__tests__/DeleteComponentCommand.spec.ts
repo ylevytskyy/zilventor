@@ -10,7 +10,9 @@ describe('DeleteComponentCommand', () => {
     visible: true,
   };
   beforeEach(() => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [{ ...c }], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [{ ...c }], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] ,
+    hardware: [],
+    };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });
 

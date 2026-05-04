@@ -19,6 +19,7 @@ function doc(name: string, components: AssemblyDocument['components'] = []): Ass
     colorOverrides: {},
     properties: {},
     materials: [],
+    hardware: [],
   };
 }
 

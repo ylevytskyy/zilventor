@@ -12,7 +12,9 @@ import type { KernelClient } from '../../kernel-client/KernelClient';
 // doesn't touch are omitted; the cast through `unknown` is the escape hatch.
 const asKernel = (mock: Partial<KernelClient>): KernelClient => mock as unknown as KernelClient;
 
-const makePart = (): PartDocument => ({ id: 'part-1', name: 'Part1', units: 'mm', parameters: {}, properties: {}, featureTree: [], materials: [] });
+const makePart = (): PartDocument => ({ id: 'part-1', name: 'Part1', units: 'mm', parameters: {}, properties: {}, featureTree: [], materials: [] ,
+hardware: [],
+});
 
 describe('CreatePartCommand', () => {
   it('creates a part on apply; sets activePart to null on revert', async () => {
@@ -109,7 +111,9 @@ describe('AddExtrusionCommand', () => {
 
   it('revert restores the prior parameter when one existed before apply', async () => {
     const priorParam = { name: 'd1', expression: '10', value: 10, unit: 'mm' as const };
-    const prior: PartDocument = { id: 'part-1', name: 'Part1', units: 'mm', parameters: { d1: priorParam }, properties: {}, featureTree: [], materials: [] };
+    const prior: PartDocument = { id: 'part-1', name: 'Part1', units: 'mm', parameters: { d1: priorParam }, properties: {}, featureTree: [], materials: [] ,
+    hardware: [],
+    };
     const next = { ...prior, parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' as const } }, featureTree: [{ kind: 'extrude' as const, id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward' as const, operation: 'new' as const }] };
     const deleteParameter = vi.fn().mockResolvedValue(undefined);
     const setParameter = vi.fn().mockResolvedValue(undefined);
@@ -139,6 +143,7 @@ describe('EditParameterCommand', () => {
       parameters: { d1: { name: 'd1', expression: '18', value: 18, unit: 'mm' } },
       featureTree: [],
       materials: [],
+      hardware: [],
     };
     const afterApply: PartDocument = { ...prior, parameters: { d1: { name: 'd1', expression: '36', value: 36, unit: 'mm' } } };
     const setParameter = vi.fn().mockResolvedValue(undefined);
@@ -167,6 +172,7 @@ describe('AddPrimitiveCommand', () => {
       id: 'part-1', name: 'P', units: 'mm', parameters: {}, properties: {},
       featureTree: [{ kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }],
       materials: [],
+      hardware: [],
     };
     const primitive: SketchPrimitive = { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 10 };
     const next: PartDocument = {
@@ -212,6 +218,7 @@ describe('DeletePrimitiveCommand', () => {
       id: 'part-1', name: 'P', units: 'mm', parameters: {}, properties: {},
       featureTree: [{ kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [primitive], constraints: [] }],
       materials: [],
+      hardware: [],
     };
     const afterDelete: PartDocument = {
       ...prior,
@@ -242,6 +249,7 @@ describe('DeletePrimitiveCommand', () => {
       id: 'part-1', name: 'P', units: 'mm', parameters: {}, properties: {},
       featureTree: [{ kind: 'sketch', id: 's1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }],
       materials: [],
+      hardware: [],
     };
     const kernel = asKernel({});
     const cmd = new DeletePrimitiveCommand({
@@ -258,6 +266,7 @@ describe('DeletePrimitiveCommand', () => {
       id: 'part-1', name: 'P', units: 'mm', parameters: {}, properties: {},
       featureTree: [],
       materials: [],
+      hardware: [],
     };
     const kernel = asKernel({});
     const cmd = new DeletePrimitiveCommand({

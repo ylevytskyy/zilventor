@@ -18,6 +18,7 @@ export function NewAssemblyCommand(opts: NewAssemblyOpts): void {
     cutListItemNumbers: {},
     colorOverrides: {},
     materials: [],
+    hardware: [],
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
 }

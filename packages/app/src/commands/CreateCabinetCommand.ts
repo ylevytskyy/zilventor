@@ -144,6 +144,7 @@ export class CreateCabinetCommand implements Command {
       cutListItemNumbers: {},
       colorOverrides: {},
       materials: [...asm.materials],
+      hardware: [],
     };
   }
 }

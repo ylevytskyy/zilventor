@@ -13,6 +13,7 @@ const seedAsm: AssemblyDocument = {
   colors: {},
   bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 };
 
 function seedAssemblyMode() {

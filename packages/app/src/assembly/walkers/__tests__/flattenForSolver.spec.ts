@@ -6,7 +6,7 @@ import type { SubAssemblyCache } from '../../SubAssemblyCache';
 
 function doc(over: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return { id: 'x', name: 'x', units: 'mm', parameters: {}, components: [], constraints: [],
-    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], ...over };
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [], ...over };
 }
 function cache(): SubAssemblyCache {
   return { get: () => undefined } as unknown as SubAssemblyCache;

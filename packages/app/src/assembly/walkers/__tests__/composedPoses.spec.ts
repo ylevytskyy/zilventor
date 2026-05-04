@@ -6,7 +6,7 @@ import type { Pose } from '../flattenForSolver';
 
 function doc(over: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return { id: 'x', name: 'x', units: 'mm', parameters: {}, components: [], constraints: [],
-    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], ...over };
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [], ...over };
 }
 function tx(x: number): Pose { return { translation: { x, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] }; }
 

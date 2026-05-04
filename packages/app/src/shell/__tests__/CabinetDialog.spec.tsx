@@ -14,6 +14,7 @@ function seedAsm(materials = [carcass, back]): void {
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials,
+    hardware: [],
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
 }

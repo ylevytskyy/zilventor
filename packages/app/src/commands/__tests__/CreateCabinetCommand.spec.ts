@@ -25,6 +25,7 @@ function seedAssembly(name = 'Project'): AssemblyDocument {
     groundedComponentPaths: [], colors: {},
     bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [carcass, back],
+    hardware: [],
   };
   useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
   return doc;

@@ -20,6 +20,7 @@ const emptyAssembly = (): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 });
 
 const PANEL: PanelFeature = {

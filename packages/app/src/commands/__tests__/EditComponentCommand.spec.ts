@@ -20,6 +20,7 @@ describe('EditComponentCommand', () => {
       colors: {},
       bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });

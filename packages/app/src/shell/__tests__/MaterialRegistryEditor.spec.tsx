@@ -9,6 +9,7 @@ const seed = (mats: MaterialEntry[]): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: mats,
+  hardware: [],
 });
 
 const partWithPanel = (materialId: string): PartDocument => {
@@ -26,6 +27,7 @@ const partWithPanel = (materialId: string): PartDocument => {
     id: 'P1', name: 'P1', units: 'mm', parameters: {}, properties: {},
     featureTree: [panel],
     materials: [{ id: materialId, name: 'In-use', defaultThickness: 18, color: '#cccccc' }],
+    hardware: [],
   };
 };
 

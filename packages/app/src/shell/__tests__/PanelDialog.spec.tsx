@@ -9,6 +9,7 @@ const seedAssembly = (mats: MaterialEntry[]): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: mats,
+  hardware: [],
 });
 
 const MATS: MaterialEntry[] = [

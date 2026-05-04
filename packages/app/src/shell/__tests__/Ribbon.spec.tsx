@@ -47,6 +47,7 @@ describe('Ribbon', () => {
         { kind: 'extrude', id: 'E1', sketchRef: 'S1', distanceParam: 'd1', direction: 'forward', operation: 'new' },
       ],
       materials: [],
+      hardware: [],
     });
     useAppStore.getState().resetHoleDialog();
     render(<Ribbon />);
@@ -67,6 +68,7 @@ describe('Ribbon', () => {
         { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] },
       ],
       materials: [],
+      hardware: [],
     });
     useAppStore.getState().resetSweepDialog();
     render(<Ribbon />);

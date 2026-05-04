@@ -58,6 +58,7 @@ export function newPart(name: string): PartDocument {
       { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
     ],
     materials: [],
+    hardware: [],
   };
 }
 

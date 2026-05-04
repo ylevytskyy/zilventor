@@ -9,6 +9,7 @@ const emptyAssembly = (): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 });
 
 describe('OpenPanelDialogCommand', () => {

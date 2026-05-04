@@ -8,6 +8,7 @@ const emptyAssembly = (): AssemblyDocument => ({
   components: [], constraints: [], groundedComponentPaths: [],
   colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
   materials: [],
+  hardware: [],
 });
 
 const mkPart = (): PartDocument => ({
@@ -20,6 +21,7 @@ const mkPart = (): PartDocument => ({
     { kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }
   ],
   materials: [],
+  hardware: [],
 });
 
 describe('useAppStore constraint extensions', () => {
@@ -90,6 +92,7 @@ describe('useAppStore dimension CRUD', () => {
       id: 'P1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
       featureTree: [{ kind: 'sketch', id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' }, primitives: [], constraints: [] }],
       materials: [],
+      hardware: [],
     });
   });
 
@@ -276,7 +279,7 @@ describe('useAppStore activeDocument discriminator', () => {
   });
 
   it('setActiveDocument with kind: assembly clears activePart shim', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [], hardware: [] };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     const s = useAppStore.getState();
     expect(s.activeDocument).toEqual({ kind: 'assembly', document: asm });
@@ -322,7 +325,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
   });
 
   it('addComponent appends to the active assembly', () => {
-    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] };
+    const asm: AssemblyDocument = { id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [], hardware: [] };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().addComponent({
       id: 'C1', partPath: 'leg.zipt',
@@ -349,6 +352,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
       colors: {},
       bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().updateComponent('C1', { position: { x: 50, y: 0, z: 0 } });
@@ -369,6 +373,7 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
       colors: {},
       bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
     useAppStore.getState().removeComponent('C1');
@@ -412,6 +417,7 @@ describe('useAppStore subAssembly slices (4d T18)', () => {
       components: [], constraints: [], groundedComponentPaths: [],
       colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     useAppStore.getState().setSubAssemblyDocs({ 'a.ziasm': doc });
     expect(useAppStore.getState().subAssemblyDocs['a.ziasm']?.id).toBe('a-id');
@@ -623,6 +629,7 @@ describe('useAppStore work-feature dialog slices', () => {
       id: 'P1', name: 'p', units: 'mm', parameters: {}, properties: {},
       featureTree: [wp],
       materials: [],
+      hardware: [],
     });
     useAppStore.getState().openWorkPlaneForEdit('WP1');
     const s = useAppStore.getState();
@@ -639,6 +646,7 @@ describe('useAppStore work-feature dialog slices', () => {
         { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } } as any,
       ],
       materials: [],
+      hardware: [],
     });
     useAppStore.getState().setWorkFeatureVisible('origin.XY', true);
     const tree = useAppStore.getState().activePart!.featureTree;
@@ -709,7 +717,7 @@ describe('useAppStore 4b extensions', () => {
   });
   it('addAssemblyConstraint sets solverDirty', () => {
     useAppStore.setState({
-      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] } },
+      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [], hardware: [] } },
       activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} } as any,
     });
     useAppStore.getState().addAssemblyConstraint({ id: 'k1', kind: 'mate', suppressed: false, refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 } } as any);
@@ -719,7 +727,7 @@ describe('useAppStore 4b extensions', () => {
   it('toggleGrounded adds/removes ids', () => {
     useAppStore.setState({
       activeAssembly: { id: 'A', name: 'a', units: 'mm', parameters: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, colorOverrides: {} } as any,
-      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [] } },
+      activeDocument: { kind: 'assembly', document: { id: 'A', name: 'a', units: 'mm', parameters: {}, properties: {}, components: [], constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {}, materials: [], hardware: [] } },
     });
     useAppStore.getState().toggleGrounded('C1');
     expect(useAppStore.getState().activeAssembly!.groundedComponentPaths.some((p) => p.length === 1 && p[0] === 'C1')).toBe(true);

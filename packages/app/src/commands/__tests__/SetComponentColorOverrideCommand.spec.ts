@@ -11,6 +11,7 @@ function makeDoc(): AssemblyDocument {
     components: [], constraints: [], groundedComponentPaths: [],
     colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
     materials: [],
+    hardware: [],
   };
 }
 

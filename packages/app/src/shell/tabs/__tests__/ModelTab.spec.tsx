@@ -25,6 +25,7 @@ const importedPart: PartDocument = {
   ],
   properties: {},
   materials: [],
+  hardware: [],
 };
 
 const parametricPart: PartDocument = {
@@ -52,6 +53,7 @@ const parametricPart: PartDocument = {
   ],
   properties: {},
   materials: [],
+  hardware: [],
 };
 
 beforeEach(() => {
