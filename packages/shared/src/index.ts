@@ -19,3 +19,7 @@ export type {
   AttachPoint,
 } from './hardware-feature';
 export { isHardwareFeature } from './hardware-feature';
+export type { NestInputRow } from './nesting/types';
+export type {
+  PlacedPanel, NestSheet, NestExclusion, NestExclusionReason, NestState,
+} from './nesting/nestState';
