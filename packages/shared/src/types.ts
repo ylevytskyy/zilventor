@@ -4,6 +4,7 @@ import type { ComponentPath, ComponentPathKey } from './componentPath';
 import type { PanelFeature } from './panel-feature';
 import type { MaterialEntry } from './material';
 import type { HardwareEntry, HardwareFeature } from './hardware-feature';
+import type { NestState } from './nesting/nestState';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -104,6 +105,7 @@ export type AssemblyDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  nest?: NestState;
 };
 
 export type AssemblyConstraintRef =
