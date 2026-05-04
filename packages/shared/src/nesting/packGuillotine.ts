@@ -22,6 +22,7 @@ export function packGuillotine(
   sheetLengthMm: number,
   sheetWidthMm: number,
   kerfMm: number,
+  materialId: MaterialId,
 ): PackResult {
   // 1. Expand qty into a flat list.
   const panels: PanelInstance[] = [];
@@ -86,7 +87,7 @@ export function packGuillotine(
     const totalArea = placed.reduce((sum, p) => sum + p.length * p.width, 0);
     const utilizationPct = Math.round((totalArea / (sheetLengthMm * sheetWidthMm)) * 1000) / 10;
     sheets.push({
-      materialId: '' as MaterialId, // filled in by packAllMaterials
+      materialId,
       sheetIndex,
       sheetLengthMm,
       sheetWidthMm,

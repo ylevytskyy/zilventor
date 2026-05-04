@@ -32,9 +32,9 @@ export function packAllMaterials(
       continue;
     }
     const rows = byMaterial.get(materialId)!;
-    const result = packGuillotine(rows, mat.sheetLengthMm, mat.sheetWidthMm, kerfMm);
+    const result = packGuillotine(rows, mat.sheetLengthMm, mat.sheetWidthMm, kerfMm, materialId);
     for (const sheet of result.sheets) {
-      sheets.push({ ...sheet, materialId });
+      sheets.push(sheet);
     }
     if (result.oversized.length > 0) {
       const itemNumbers = Array.from(new Set(result.oversized.map((o) => o.itemNumber))).sort((a, b) => a - b);
