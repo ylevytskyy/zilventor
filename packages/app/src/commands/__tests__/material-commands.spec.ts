@@ -92,3 +92,41 @@ describe('Material commands', () => {
     expect(useAppStore.getState().activeAssembly!.materials).toHaveLength(0);
   });
 });
+
+describe('AddMaterialCommand — sheet stock fields', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: emptyAssembly() });
+  });
+
+  it('accepts sheetLengthMm + sheetWidthMm and stores them on the entry', async () => {
+    await new AddMaterialCommand({
+      name: 'Birch', defaultThickness: 18, color: '#aabbcc',
+      sheetLengthMm: 2440, sheetWidthMm: 1220,
+    }).apply();
+    const entry = useAppStore.getState().activeAssembly!.materials.at(-1)!;
+    expect(entry.sheetLengthMm).toBe(2440);
+    expect(entry.sheetWidthMm).toBe(1220);
+  });
+
+  it('omits sheet-stock fields when not provided', async () => {
+    await new AddMaterialCommand({ name: 'Plain', defaultThickness: 18, color: '#aabbcc' }).apply();
+    const entry = useAppStore.getState().activeAssembly!.materials.at(-1)!;
+    expect('sheetLengthMm' in entry).toBe(false);
+    expect('sheetWidthMm' in entry).toBe(false);
+  });
+});
+
+describe('EditMaterialCommand — sheet stock fields', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: emptyAssembly() });
+  });
+
+  it('round-trips sheet-stock patch through the registry', async () => {
+    await new AddMaterialCommand({ name: 'X', defaultThickness: 18, color: '#aabbcc' }).apply();
+    const entry = useAppStore.getState().activeAssembly!.materials.at(-1)!;
+    await new EditMaterialCommand(entry.id, { sheetLengthMm: 3000, sheetWidthMm: 1500 }).apply();
+    const updated = useAppStore.getState().activeAssembly!.materials.find((m) => m.id === entry.id)!;
+    expect(updated.sheetLengthMm).toBe(3000);
+    expect(updated.sheetWidthMm).toBe(1500);
+  });
+});

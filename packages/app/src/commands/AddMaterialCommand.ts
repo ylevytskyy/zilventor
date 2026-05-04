@@ -6,6 +6,8 @@ export type AddMaterialOpts = {
   name: string;
   defaultThickness: number;
   color: string;
+  sheetLengthMm?: number;
+  sheetWidthMm?: number;
 };
 
 function activeMaterials(): readonly MaterialEntry[] {
@@ -35,6 +37,8 @@ export class AddMaterialCommand implements Command {
       name: this.opts.name,
       defaultThickness: this.opts.defaultThickness,
       color: this.opts.color,
+      ...(this.opts.sheetLengthMm !== undefined ? { sheetLengthMm: this.opts.sheetLengthMm } : {}),
+      ...(this.opts.sheetWidthMm !== undefined ? { sheetWidthMm: this.opts.sheetWidthMm } : {}),
     };
     useAppStore.getState().addMaterial(entry);
     this.addedId = entry.id;
