@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AddHardwareCommand } from '../AddHardwareCommand';
 import { useAppStore } from '../../store/useAppStore';
+import type { PartDocument, Feature, SketchPrimitive } from '@zilventor/shared';
 
 // Minimal MemOpfs for tests.
 function makeOpfs(initial: Record<string, Uint8Array> = {}) {
@@ -130,5 +131,47 @@ describe('AddHardwareCommand', () => {
 
     // Sibling still references it → file must be retained.
     expect(await opfs.exists('hardware/hinge-35mm-cup-full.zipt')).toBe(true);
+  });
+
+  it('synthesizePart: featureTree has 7 origin features + sketch + extrude + hardware = 10 (spec §1.1/§3.3)', async () => {
+    const { unpackProject } = await import('@zilventor/kernel/src/storage/ProjectPacker');
+
+    const opfs = makeOpfs();
+    const cmd = new AddHardwareCommand({ skuId: 'hinge-35mm-cup-full', opfs, store: useAppStore });
+    await cmd.apply();
+
+    const bytes = opfs.store.get('hardware/hinge-35mm-cup-full.zipt')!;
+    const { manifest } = await unpackProject(bytes);
+    const doc = (manifest as { document: PartDocument }).document;
+    const tree: Feature[] = doc.featureTree;
+
+    // Total length.
+    expect(tree).toHaveLength(10);
+
+    // First 7 are origin features.
+    const originFeatures = tree.slice(0, 7);
+    expect(originFeatures.every((f) => f.id.startsWith('origin.'))).toBe(true);
+
+    // Exactly one sketch with the bbox rectangle (l=48, w=35).
+    const sketches = tree.filter((f) => f.kind === 'sketch');
+    expect(sketches).toHaveLength(1);
+    const sketch = sketches[0] as Extract<Feature, { kind: 'sketch' }>;
+    expect(sketch.primitives).toHaveLength(1);
+    const rect = sketch.primitives[0] as Extract<SketchPrimitive, { kind: 'rectangle' }>;
+    expect(rect.kind).toBe('rectangle');
+    expect(rect.w).toBe(48); // bbox.l
+    expect(rect.h).toBe(35); // bbox.w
+
+    // Exactly one extrude with distanceParam 'hw_h' and the parameter value = bbox.h = 12.
+    const extrudes = tree.filter((f) => f.kind === 'extrude');
+    expect(extrudes).toHaveLength(1);
+    const extrude = extrudes[0] as Extract<Feature, { kind: 'extrude' }>;
+    expect(extrude.distanceParam).toBe('hw_h');
+    expect(doc.parameters['hw_h']?.value).toBe(12); // bbox.h
+
+    // HardwareFeature is present.
+    const hwFeature = tree.find((f) => f.kind === 'hardware');
+    expect(hwFeature).toBeDefined();
+    expect((hwFeature as { hardwareSkuId: string }).hardwareSkuId).toBe('hinge-35mm-cup-full');
   });
 });
