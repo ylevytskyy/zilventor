@@ -32,3 +32,33 @@ describe('isMaterialEntry', () => {
     expect(Array.isArray(reg)).toBe(true);
   });
 });
+
+describe('isMaterialEntry — sheet-stock fields', () => {
+  const base = { id: 'm1', name: 'Birch', defaultThickness: 18, color: '#aabbcc' };
+
+  it('accepts entry without sheet-stock fields (legacy)', () => {
+    expect(isMaterialEntry(base)).toBe(true);
+  });
+
+  it('accepts entry with both sheetLengthMm and sheetWidthMm > 0', () => {
+    expect(isMaterialEntry({ ...base, sheetLengthMm: 2440, sheetWidthMm: 1220 })).toBe(true);
+  });
+
+  it('rejects entry with only sheetLengthMm set', () => {
+    expect(isMaterialEntry({ ...base, sheetLengthMm: 2440 })).toBe(false);
+  });
+
+  it('rejects entry with only sheetWidthMm set', () => {
+    expect(isMaterialEntry({ ...base, sheetWidthMm: 1220 })).toBe(false);
+  });
+
+  it('rejects entry with sheetLengthMm <= 0', () => {
+    expect(isMaterialEntry({ ...base, sheetLengthMm: 0, sheetWidthMm: 1220 })).toBe(false);
+    expect(isMaterialEntry({ ...base, sheetLengthMm: -1, sheetWidthMm: 1220 })).toBe(false);
+  });
+
+  it('rejects entry with non-finite sheet dims', () => {
+    expect(isMaterialEntry({ ...base, sheetLengthMm: NaN, sheetWidthMm: 1220 })).toBe(false);
+    expect(isMaterialEntry({ ...base, sheetLengthMm: Infinity, sheetWidthMm: 1220 })).toBe(false);
+  });
+});
