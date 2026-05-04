@@ -79,6 +79,8 @@ export type HardwareDialogState = {
   onCancel: () => void;
 };
 
+export type NestDialogState = { kind: 'open' };
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -239,6 +241,10 @@ type AppState = {
   setCabinetDialog(s: CabinetDialogState | null): void;
   hardwareDialog: HardwareDialogState | null;
   setHardwareDialog(s: HardwareDialogState | null): void;
+  nestingTabActive: boolean;
+  setNestingTabActive: (v: boolean) => void;
+  nestDialog: NestDialogState | null;
+  setNestDialog: (s: NestDialogState | null) => void;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -638,6 +644,10 @@ export const useAppStore = create<AppState>((set) => ({
   setCabinetDialog: (s) => set({ cabinetDialog: s }),
   hardwareDialog: null,
   setHardwareDialog: (s) => set({ hardwareDialog: s }),
+  nestingTabActive: false,
+  setNestingTabActive: (v) => set({ nestingTabActive: v }),
+  nestDialog: null,
+  setNestDialog: (s) => set({ nestDialog: s }),
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
   selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),
