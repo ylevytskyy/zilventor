@@ -110,6 +110,8 @@ import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
+import { packAllMaterials } from '@zilventor/shared';
+import type { NestInputRow } from '@zilventor/shared';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -2022,6 +2024,28 @@ export default function App() {
         samples.sort((x, y) => x - y);
         const idx = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
         return samples[idx]!;
+      };
+      // T33 (5e) perf hook: run packAllMaterials on a synthetic 200-panel
+      // single-material nest `iterations` times; return p95 ms.
+      w.__zilventorNestPackMs = (iterations: number): number => {
+        const rows: NestInputRow[] = [];
+        for (let i = 0; i < 200; i++) {
+          rows.push({
+            itemNumber: i + 1, rowKey: `r${i}`, qty: 1,
+            length: 300 + (i % 7) * 50, width: 200 + (i % 5) * 30,
+            materialId: 'm1', grain: 'length',
+          });
+        }
+        const materials = [{ id: 'm1', name: 'X', defaultThickness: 18, color: '#aabbcc',
+          sheetLengthMm: 2440, sheetWidthMm: 1220 }];
+        const samples: number[] = [];
+        for (let i = 0; i < iterations; i++) {
+          const t0 = performance.now();
+          packAllMaterials(rows, materials, 3);
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((a, b) => a - b);
+        return samples[Math.floor(samples.length * 0.95)] ?? 0;
       };
     }
   }, []);
