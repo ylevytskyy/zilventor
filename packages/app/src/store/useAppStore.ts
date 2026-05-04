@@ -74,6 +74,11 @@ export type CabinetDialogState = {
   onCancel: () => void;
 };
 
+export type HardwareDialogState = {
+  onSubmit: (skuId: string, qty: number) => void;
+  onCancel: () => void;
+};
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -232,6 +237,8 @@ type AppState = {
   setPanelDialog(s: PanelDialogState | null): void;
   cabinetDialog: CabinetDialogState | null;
   setCabinetDialog(s: CabinetDialogState | null): void;
+  hardwareDialog: HardwareDialogState | null;
+  setHardwareDialog(s: HardwareDialogState | null): void;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -619,6 +626,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPanelDialog: (s) => set({ panelDialog: s }),
   cabinetDialog: null,
   setCabinetDialog: (s) => set({ cabinetDialog: s }),
+  hardwareDialog: null,
+  setHardwareDialog: (s) => set({ hardwareDialog: s }),
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
   selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),
