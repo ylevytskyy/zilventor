@@ -133,7 +133,7 @@ interface AssemblyDocument {
 }
 ```
 
-`hardware` is an optional field in the serialized JSON for backwards compatibility; deserialization defaults it to `[]` when absent.
+`hardware` is **required** on both TypeScript types. The v11→v12 migration (§6) adds `hardware: []` (and seeds the catalog on assemblies) before any document is exposed to consumers, so a v12+ document always satisfies the type. Documents with `formatVersion < 12` pass through the migration chain on load — they never reach consumer code with the field absent.
 
 ---
 
