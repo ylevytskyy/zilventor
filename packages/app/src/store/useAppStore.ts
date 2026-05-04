@@ -232,6 +232,7 @@ type AppState = {
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
   addMaterial(entry: MaterialEntry): void;
   updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>>): void;
+  clearMaterialSheetStock(id: string): void;
   removeMaterial(id: string): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
@@ -598,6 +599,29 @@ export const useAppStore = create<AppState>((set) => ({
       const next: PartDocument = {
         ...s.activePart,
         materials: s.activePart.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  clearMaterialSheetStock: (id) => set((s) => {
+    const clearFields = (m: MaterialEntry): MaterialEntry => {
+      if (m.id !== id) return m;
+      const { sheetLengthMm: _l, sheetWidthMm: _w, ...rest } = m;
+      return rest;
+    };
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        materials: s.activeAssembly.materials.map(clearFields),
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        materials: s.activePart.materials.map(clearFields),
       };
       return { activeDocument: { kind: 'part', document: next }, activePart: next };
     }

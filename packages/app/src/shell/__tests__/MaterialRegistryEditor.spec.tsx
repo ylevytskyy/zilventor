@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import type { AssemblyDocument, MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { MaterialRegistryEditor } from '../MaterialRegistryEditor';
+import { ClearMaterialSheetStockCommand } from '../../commands/ClearMaterialSheetStockCommand';
 
 const seed = (mats: MaterialEntry[]): AssemblyDocument => ({
   id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
@@ -138,5 +139,69 @@ describe('MaterialRegistryEditor', () => {
     });
     expect(screen.getByRole('alert').textContent).toMatch(/already exists/i);
     expect(useAppStore.getState().activeAssembly!.materials).toHaveLength(1);
+  });
+});
+
+describe('MaterialRegistryEditor — sheet stock columns', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+  });
+
+  it('renders Sheet L (mm) and Sheet W (mm) headers', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: seed([]) });
+    render(<MaterialRegistryEditor />);
+    expect(screen.getByText('Sheet L (mm)')).toBeInTheDocument();
+    expect(screen.getByText('Sheet W (mm)')).toBeInTheDocument();
+  });
+
+  it('shows inline error "set both or neither" when only one sheet dim is set', async () => {
+    const mats: MaterialEntry[] = [
+      { id: 'm-a', name: 'Birch 18', defaultThickness: 18, color: '#cfa84b' },
+    ];
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: seed(mats) });
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m-a'));
+    fireEvent.click(screen.getByRole('button', { name: /edit birch 18/i }));
+    fireEvent.change(screen.getByLabelText('Edit sheet length'), { target: { value: '2440' } });
+    expect(screen.getByText(/set both Sheet L and Sheet W/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('persists both sheet dims when both are provided and Save is clicked', async () => {
+    const mats: MaterialEntry[] = [
+      { id: 'm-a', name: 'Birch 18', defaultThickness: 18, color: '#cfa84b' },
+    ];
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: seed(mats) });
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m-a'));
+    fireEvent.click(screen.getByRole('button', { name: /edit birch 18/i }));
+    fireEvent.change(screen.getByLabelText('Edit sheet length'), { target: { value: '2440' } });
+    fireEvent.change(screen.getByLabelText('Edit sheet width'), { target: { value: '1220' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+      await Promise.resolve();
+    });
+    const updated = useAppStore.getState().activeAssembly!.materials.at(0)!;
+    expect(updated.sheetLengthMm).toBe(2440);
+    expect(updated.sheetWidthMm).toBe(1220);
+  });
+
+  it('clearing both sheet dims (both inputs empty) is valid and persists undefined', async () => {
+    const mats: MaterialEntry[] = [
+      { id: 'm-a', name: 'Birch 18', defaultThickness: 18, color: '#cfa84b', sheetLengthMm: 2440, sheetWidthMm: 1220 },
+    ];
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: seed(mats) });
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m-a'));
+    fireEvent.click(screen.getByRole('button', { name: /edit birch 18/i }));
+    fireEvent.change(screen.getByLabelText('Edit sheet length'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Edit sheet width'), { target: { value: '' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+      await Promise.resolve();
+    });
+    const updated = useAppStore.getState().activeAssembly!.materials.at(0)!;
+    expect(updated.sheetLengthMm).toBeUndefined();
+    expect(updated.sheetWidthMm).toBeUndefined();
   });
 });

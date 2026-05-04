@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import { AddMaterialCommand } from '../commands/AddMaterialCommand';
 import { EditMaterialCommand } from '../commands/EditMaterialCommand';
 import { DeleteMaterialCommand } from '../commands/DeleteMaterialCommand';
+import { ClearMaterialSheetStockCommand } from '../commands/ClearMaterialSheetStockCommand';
 
 /**
  * MaterialRegistryEditor (T23) — small flat editor over the active document's
@@ -73,9 +74,19 @@ const errorStyle: React.CSSProperties = {
   borderRadius: 4,
 };
 
+function validateSheetStock(lStr: string, wStr: string): string | null {
+  const lEmpty = lStr.trim() === '';
+  const wEmpty = wStr.trim() === '';
+  if (lEmpty && wEmpty) return null;
+  if (lEmpty || wEmpty) return 'Set both Sheet L and Sheet W, or leave both empty.';
+  const ln = Number(lStr), wn = Number(wStr);
+  if (!Number.isFinite(ln) || ln <= 0 || !Number.isFinite(wn) || wn <= 0) return 'Sheet dims must be positive numbers.';
+  return null;
+}
+
 type RowEditState =
   | { mode: 'idle' }
-  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; error: string | null }
+  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; error: string | null }
   | { mode: 'confirmDelete'; id: string; error: string | null };
 
 export type MaterialRegistryEditorProps = {
@@ -146,12 +157,23 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       setRowState({ ...rowState, error: 'Default thickness must be a positive number' });
       return;
     }
+    const sheetErr = validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm);
+    if (sheetErr) {
+      setRowState({ ...rowState, error: sheetErr });
+      return;
+    }
+    const lEmpty = rowState.sheetLengthMm.trim() === '';
+    const wEmpty = rowState.sheetWidthMm.trim() === '';
     try {
       await bus.execute(new EditMaterialCommand(rowState.id, {
         name,
         defaultThickness: thicknessNum,
         color: rowState.color,
+        ...((!lEmpty && !wEmpty) ? { sheetLengthMm: Number(rowState.sheetLengthMm), sheetWidthMm: Number(rowState.sheetWidthMm) } : {}),
       }));
+      if (lEmpty && wEmpty) {
+        await bus.execute(new ClearMaterialSheetStockCommand(rowState.id));
+      }
       setRowState({ mode: 'idle' });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -182,6 +204,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             <th style={{ ...cellStyle, textAlign: 'left' }}>Name</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Default Thickness (mm)</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Color</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet L (mm)</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet W (mm)</th>
             <th style={{ ...cellStyle, width: 120 }}></th>
           </tr>
         </thead>
@@ -221,8 +245,34 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                     />
                   </td>
                   <td style={cellStyle}>
+                    <input
+                      aria-label="Edit sheet length"
+                      type="text"
+                      inputMode="numeric"
+                      value={rowState.sheetLengthMm}
+                      onChange={(e) => setRowState({
+                        ...rowState, sheetLengthMm: e.target.value,
+                        error: validateSheetStock(e.target.value, rowState.sheetWidthMm),
+                      })}
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <input
+                      aria-label="Edit sheet width"
+                      type="text"
+                      inputMode="numeric"
+                      value={rowState.sheetWidthMm}
+                      onChange={(e) => setRowState({
+                        ...rowState, sheetWidthMm: e.target.value,
+                        error: validateSheetStock(rowState.sheetLengthMm, e.target.value),
+                      })}
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td style={cellStyle}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button type="button" style={okBtnStyle} onClick={onEditSubmit}>Save</button>
+                      <button type="button" style={okBtnStyle} onClick={onEditSubmit} disabled={rowState.error !== null}>Save</button>
                       <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>Cancel</button>
                     </div>
                     {rowState.error && <div role="alert" style={errorStyle}>{rowState.error}</div>}
@@ -234,7 +284,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             if (isConfirmingDelete && rowState.mode === 'confirmDelete') {
               return (
                 <tr key={m.id} data-testid={`material-row-${m.id}`}>
-                  <td colSpan={4} style={cellStyle}>
+                  <td colSpan={6} style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span>Delete "{m.name}"?</span>
                       <button type="button" style={dangerBtnStyle} onClick={onDeleteConfirm}>Confirm delete</button>
@@ -273,6 +323,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                   />
                   <span style={{ marginLeft: 6, fontFamily: 'monospace' }}>{m.color}</span>
                 </td>
+                <td style={cellStyle}>{m.sheetLengthMm ?? ''}</td>
+                <td style={cellStyle}>{m.sheetWidthMm ?? ''}</td>
                 <td style={cellStyle}>
                   {(showActions || hoveredId === m.id) && (
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -286,6 +338,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                           name: m.name,
                           defaultThickness: String(m.defaultThickness),
                           color: m.color,
+                          sheetLengthMm: m.sheetLengthMm !== undefined ? String(m.sheetLengthMm) : '',
+                          sheetWidthMm: m.sheetWidthMm !== undefined ? String(m.sheetWidthMm) : '',
                           error: null,
                         })}
                       >
@@ -307,7 +361,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
           })}
           {materials.length === 0 && (
             <tr>
-              <td colSpan={4} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
+              <td colSpan={6} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
                 No materials defined.
               </td>
             </tr>
