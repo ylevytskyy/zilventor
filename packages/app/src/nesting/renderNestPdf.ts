@@ -2,11 +2,21 @@ import { jsPDF } from 'jspdf';
 import type { NestState, NestSheet } from '@zilventor/shared';
 import type { MaterialEntry, MaterialRegistry } from '@zilventor/shared/src/material';
 
+/** Returns raw PDF bytes (Uint8Array). Used by ExportNestPdfCommand. */
+export function renderNestPdfBytes(nest: NestState, materials: MaterialRegistry): Uint8Array {
+  return new Uint8Array(buildPdf(nest, materials).output('arraybuffer') as ArrayBuffer);
+}
+
+/** Returns a PDF Blob (application/pdf). Convenience wrapper. */
 export function renderNestPdf(nest: NestState, materials: MaterialRegistry): Blob {
+  return buildPdf(nest, materials).output('blob');
+}
+
+function buildPdf(nest: NestState, materials: MaterialRegistry): jsPDF {
   if (nest.sheets.length === 0) {
     const empty = new jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape' });
     empty.text('No sheets', 20, 20);
-    return empty.output('blob');
+    return empty;
   }
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape' });
@@ -28,7 +38,7 @@ export function renderNestPdf(nest: NestState, materials: MaterialRegistry): Blo
     drawSheetPdf(pdf, sheet, material, totalsByMaterial.get(sheet.materialId) ?? 1, { marginMm: 10 });
   });
 
-  return pdf.output('blob');
+  return pdf;
 }
 
 function drawSheetPdf(
