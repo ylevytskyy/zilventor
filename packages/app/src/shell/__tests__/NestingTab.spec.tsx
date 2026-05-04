@@ -25,7 +25,15 @@ vi.mock('../../commands/GenerateNestCommand', () => ({
   })),
 }));
 
+// Stub ExportNestPngCommand so apply() doesn't run canvas/download logic
+vi.mock('../../commands/ExportNestPngCommand', () => ({
+  ExportNestPngCommand: vi.fn().mockImplementation(() => ({
+    apply: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 import { GenerateNestCommand } from '../../commands/GenerateNestCommand';
+import { ExportNestPngCommand } from '../../commands/ExportNestPngCommand';
 
 const BASE_ASM: AssemblyDocument = {
   id: 'A1', name: 'Cabinet', units: 'mm',
@@ -128,6 +136,18 @@ describe('NestingTab', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Nest excluded section')).toBeInTheDocument();
       expect(screen.getByText(/no sheet stock defined/i)).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Export PNG button dispatches ExportNestPngCommand via .apply()', async () => {
+    seedAsm(NEST_WITH_SHEETS);
+    render(<NestingTab />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Export PNG sheet 1')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText('Export PNG sheet 1'));
+    await waitFor(() => {
+      expect(ExportNestPngCommand).toHaveBeenCalledTimes(1);
     });
   });
 });

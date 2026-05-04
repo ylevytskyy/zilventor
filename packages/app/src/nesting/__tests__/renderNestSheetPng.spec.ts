@@ -51,7 +51,7 @@ class MockOffscreenCanvas {
   }
   convertToBlob(_opts?: { type?: string }): Promise<Blob> {
     const bytes = makeFakePng(offscreenWidth, offscreenHeight);
-    return Promise.resolve(new Blob([bytes], { type: 'image/png' }));
+    return Promise.resolve(new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' }));
   }
 }
 

@@ -4,7 +4,7 @@ import { useCutListResult } from './useCutListResult';
 import { computeNestFingerprint } from '@zilventor/shared';
 import type { NestSheet, NestExclusion } from '@zilventor/shared';
 import { GenerateNestCommand } from '../commands/GenerateNestCommand';
-// import { ExportNestPngCommand } from '../commands/ExportNestPngCommand'; // wired in Phase 7
+import { ExportNestPngCommand } from '../commands/ExportNestPngCommand';
 import { SheetSvg } from './SheetSvg';
 
 export function NestingTab() {
@@ -51,8 +51,8 @@ export function NestingTab() {
     void bus.execute(new GenerateNestCommand({ kerfMm: nest.params.kerfMm, result: cutListResult, materials }));
   };
 
-  const handleExportPng = (_sheet: NestSheet) => {
-    console.warn('Export PNG not yet wired (Phase 7)');
+  const handleExportPng = (sheet: NestSheet) => {
+    void new ExportNestPngCommand({ sheet, materials }).apply();
   };
 
   return (
