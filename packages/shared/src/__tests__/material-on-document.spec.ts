@@ -11,7 +11,7 @@ describe('materials on documents', () => {
     const part: PartDocument = {
       id: 'p1', name: 'Side', units: 'mm',
       parameters: {}, featureTree: [],
-      properties: {}, materials: [MAT],
+      properties: {}, materials: [MAT], hardware: [],
     };
     expect(part.materials).toHaveLength(1);
   });
@@ -21,7 +21,7 @@ describe('materials on documents', () => {
       id: 'a1', name: 'Box', units: 'mm',
       parameters: {}, components: [], constraints: [],
       groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
-      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [MAT],
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [MAT], hardware: [],
     };
     expect(asm.materials).toHaveLength(1);
   });

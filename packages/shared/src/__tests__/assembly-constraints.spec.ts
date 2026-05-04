@@ -57,6 +57,7 @@ describe('AssemblyDocument 4b extensions', () => {
       cutListItemNumbers: {},
       colorOverrides: {},
       materials: [],
+      hardware: [],
     };
     expect(doc.constraints).toEqual([]);
     expect(doc.groundedComponentPaths).toEqual([]);

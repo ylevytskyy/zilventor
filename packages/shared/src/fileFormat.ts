@@ -1,6 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
+import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 11 as const;
+export const CURRENT_FORMAT_VERSION = 12 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -8,6 +9,23 @@ type MigrateFn = (m: AnyManifest) => AnyManifest;
 
 function deepClone<T>(v: T): T {
   return structuredClone(v);
+}
+
+function addHardwareField(doc: Record<string, unknown>): void {
+  if (doc.hardware == null) {
+    doc.hardware = [];
+  }
+}
+
+function seedBuiltinHardware(doc: Record<string, unknown>): void {
+  const existing = (doc.hardware as Array<{ id: string }> | undefined) ?? [];
+  const existingIds = new Set(existing.map((e) => e.id));
+  for (const entry of BUILTIN_CATALOG) {
+    if (!existingIds.has(entry.id)) {
+      existing.push({ ...entry });
+    }
+  }
+  doc.hardware = existing;
 }
 
 const migrations: Record<number, MigrateFn> = {
@@ -167,10 +185,25 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 11 };
   },
+
+  // v11 → v12: additive — add `hardware: []` to part- and assembly-kind
+  // documents (sub-project 5c). Seeds the 7 built-in catalog entries into
+  // AssemblyDocument.hardware on first migration (idempotent by id).
+  11: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: Record<string, unknown> };
+    if (anyM.document) {
+      addHardwareField(anyM.document);
+      if (anyM.kind === 'assembly') {
+        seedBuiltinHardware(anyM.document);
+      }
+    }
+    return { ...m, formatVersion: 12 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if ((m.formatVersion === 10 || m.formatVersion === 11) && (m as any).kind === undefined) {
+  if ((m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12) && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;

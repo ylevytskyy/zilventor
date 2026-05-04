@@ -3,6 +3,7 @@ import type { SketchParameter, ParameterUnit } from './parameters';
 import type { ComponentPath, ComponentPathKey } from './componentPath';
 import type { PanelFeature } from './panel-feature';
 import type { MaterialEntry } from './material';
+import type { HardwareEntry } from './hardware-feature';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -69,6 +70,7 @@ export type PartDocument = {
   cachedGeometry?: CachedGeometry;
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
+  hardware: HardwareEntry[];
 };
 
 export type ComponentColor =
@@ -100,6 +102,7 @@ export type AssemblyDocument = {
   colorOverrides: Record<ComponentPathKey, ComponentColor>;
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
+  hardware: HardwareEntry[];
 };
 
 export type AssemblyConstraintRef =
