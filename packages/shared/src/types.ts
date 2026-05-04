@@ -70,7 +70,7 @@ export type PartDocument = {
   cachedGeometry?: CachedGeometry;
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
-  hardware: HardwareEntry[];
+  hardware?: HardwareEntry[];
 };
 
 export type ComponentColor =
@@ -102,7 +102,7 @@ export type AssemblyDocument = {
   colorOverrides: Record<ComponentPathKey, ComponentColor>;
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
-  hardware: HardwareEntry[];
+  hardware?: HardwareEntry[];
 };
 
 export type AssemblyConstraintRef =
