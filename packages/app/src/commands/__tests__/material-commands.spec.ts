@@ -129,4 +129,20 @@ describe('EditMaterialCommand — sheet stock fields', () => {
     expect(updated.sheetLengthMm).toBe(3000);
     expect(updated.sheetWidthMm).toBe(1500);
   });
+
+  it('clearSheetStock: true strips sheetLengthMm + sheetWidthMm atomically', async () => {
+    await new AddMaterialCommand({ name: 'Y', defaultThickness: 18, color: '#aabbcc', sheetLengthMm: 2440, sheetWidthMm: 1220 }).apply();
+    const entry = useAppStore.getState().activeAssembly!.materials.at(-1)!;
+    expect(entry.sheetLengthMm).toBe(2440);
+    const cmd = new EditMaterialCommand(entry.id, { name: 'Y', clearSheetStock: true });
+    await cmd.apply();
+    const after = useAppStore.getState().activeAssembly!.materials.find((m) => m.id === entry.id)!;
+    expect('sheetLengthMm' in after).toBe(false);
+    expect('sheetWidthMm' in after).toBe(false);
+    // revert restores the original entry wholesale
+    await cmd.revert();
+    const reverted = useAppStore.getState().activeAssembly!.materials.find((m) => m.id === entry.id)!;
+    expect(reverted.sheetLengthMm).toBe(2440);
+    expect(reverted.sheetWidthMm).toBe(1220);
+  });
 });

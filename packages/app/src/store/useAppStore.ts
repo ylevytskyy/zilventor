@@ -231,8 +231,7 @@ type AppState = {
   setCutListItemNumbers(map: Record<string, number>): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
   addMaterial(entry: MaterialEntry): void;
-  updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>>): void;
-  clearMaterialSheetStock(id: string): void;
+  updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>> & { clearSheetStock?: true }): void;
   removeMaterial(id: string): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
@@ -588,40 +587,27 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   updateMaterial: (id, patch) => set((s) => {
-    if (s.activeAssembly) {
-      const next: AssemblyDocument = {
-        ...s.activeAssembly,
-        materials: s.activeAssembly.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-      };
-      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
-    }
-    if (s.activePart) {
-      const next: PartDocument = {
-        ...s.activePart,
-        materials: s.activePart.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-      };
-      return { activeDocument: { kind: 'part', document: next }, activePart: next };
-    }
-    return s;
-  }),
-
-  clearMaterialSheetStock: (id) => set((s) => {
-    const clearFields = (m: MaterialEntry): MaterialEntry => {
+    const { clearSheetStock, ...rest } = patch as typeof patch & { clearSheetStock?: true };
+    const applyPatch = (m: MaterialEntry): MaterialEntry => {
       if (m.id !== id) return m;
-      const { sheetLengthMm: _l, sheetWidthMm: _w, ...rest } = m;
-      return rest;
+      const merged: MaterialEntry = { ...m, ...rest };
+      if (clearSheetStock) {
+        const { sheetLengthMm: _l, sheetWidthMm: _w, ...stripped } = merged;
+        return stripped as MaterialEntry;
+      }
+      return merged;
     };
     if (s.activeAssembly) {
       const next: AssemblyDocument = {
         ...s.activeAssembly,
-        materials: s.activeAssembly.materials.map(clearFields),
+        materials: s.activeAssembly.materials.map(applyPatch),
       };
       return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
     }
     if (s.activePart) {
       const next: PartDocument = {
         ...s.activePart,
-        materials: s.activePart.materials.map(clearFields),
+        materials: s.activePart.materials.map(applyPatch),
       };
       return { activeDocument: { kind: 'part', document: next }, activePart: next };
     }

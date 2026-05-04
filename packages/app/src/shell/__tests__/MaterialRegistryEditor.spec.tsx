@@ -3,7 +3,6 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import type { AssemblyDocument, MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { MaterialRegistryEditor } from '../MaterialRegistryEditor';
-import { ClearMaterialSheetStockCommand } from '../../commands/ClearMaterialSheetStockCommand';
 
 const seed = (mats: MaterialEntry[]): AssemblyDocument => ({
   id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},

@@ -2,9 +2,8 @@ import React from 'react';
 import type { MaterialEntry } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { AddMaterialCommand } from '../commands/AddMaterialCommand';
-import { EditMaterialCommand } from '../commands/EditMaterialCommand';
+import { EditMaterialCommand, type EditMaterialPatch } from '../commands/EditMaterialCommand';
 import { DeleteMaterialCommand } from '../commands/DeleteMaterialCommand';
-import { ClearMaterialSheetStockCommand } from '../commands/ClearMaterialSheetStockCommand';
 
 /**
  * MaterialRegistryEditor (T23) — small flat editor over the active document's
@@ -164,16 +163,11 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     }
     const lEmpty = rowState.sheetLengthMm.trim() === '';
     const wEmpty = rowState.sheetWidthMm.trim() === '';
+    const patch: EditMaterialPatch = (!lEmpty && !wEmpty)
+      ? { name, defaultThickness: thicknessNum, color: rowState.color, sheetLengthMm: Number(rowState.sheetLengthMm), sheetWidthMm: Number(rowState.sheetWidthMm) }
+      : { name, defaultThickness: thicknessNum, color: rowState.color, clearSheetStock: true };
     try {
-      await bus.execute(new EditMaterialCommand(rowState.id, {
-        name,
-        defaultThickness: thicknessNum,
-        color: rowState.color,
-        ...((!lEmpty && !wEmpty) ? { sheetLengthMm: Number(rowState.sheetLengthMm), sheetWidthMm: Number(rowState.sheetWidthMm) } : {}),
-      }));
-      if (lEmpty && wEmpty) {
-        await bus.execute(new ClearMaterialSheetStockCommand(rowState.id));
-      }
+      await bus.execute(new EditMaterialCommand(rowState.id, patch));
       setRowState({ mode: 'idle' });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

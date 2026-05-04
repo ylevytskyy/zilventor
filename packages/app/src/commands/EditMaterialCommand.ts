@@ -2,7 +2,10 @@ import type { Command } from './Command';
 import type { MaterialEntry } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
-export type EditMaterialPatch = Partial<Omit<MaterialEntry, 'id'>>;
+export type EditMaterialPatch = Partial<Omit<MaterialEntry, 'id'>> & {
+  /** When true, the reducer removes sheetLengthMm + sheetWidthMm from the entry (atomic with any other patch fields). */
+  clearSheetStock?: true;
+};
 
 function activeMaterials(): readonly MaterialEntry[] {
   const s = useAppStore.getState();
