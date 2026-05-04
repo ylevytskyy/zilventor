@@ -6,6 +6,8 @@ import { useAppStore } from '../store/useAppStore';
 import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
 import { CutListTable } from './CutListTable';
+import { HardwareTable } from './HardwareTable';
+import { aggregateHardwareRecursive } from '../assembly/walkers/aggregateHardwareRecursive';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
@@ -215,6 +217,15 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
           onSelectRow={(ids) => useAppStore.getState().selectComponents(ids)}
           onEditItemNumber={(k, n) => void new SetCutListItemNumberCommand({ rowKey: k, n }).apply()}
           onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
+        />
+        <HardwareTable
+          rows={aggregateHardwareRecursive(
+            asm,
+            new Map(
+              Object.entries(useAppStore.getState().subAssemblyDocs).map(([k, doc]) => [k, { kind: 'ok' as const, doc }]),
+            ),
+            asm.hardware,
+          ).rows}
         />
       </div>
     );
