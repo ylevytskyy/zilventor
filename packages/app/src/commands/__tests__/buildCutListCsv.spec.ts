@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildCutListCsv } from '../buildCutListCsv';
 import type { CutListResult } from '@zilventor/shared/src/cutListRow';
+import type { HardwareRow } from '../../assembly/walkers/aggregateHardwareRecursive';
 
 const empty: CutListResult = { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } };
 
@@ -76,5 +77,53 @@ describe('buildCutListCsv', () => {
       bandTotals: [{ materialId: 'm', materialName: 'X', totalLengthMm: 3600 }],
     };
     expect(buildCutListCsv(result)).toContain('X,3600,3.600');
+  });
+});
+
+const hardwareRows: HardwareRow[] = [
+  { skuId: 'hinge-35mm-cup-full', name: '35mm Cup Hinge — Full Overlay', category: 'hinges',    qty: 2, notes: 'Requires 35mm Forstner bit' },
+  { skuId: 'shelf-pin-5mm-steel', name: '5mm Shelf Pin — Steel',          category: 'shelfPins', qty: 8, notes: 'Press-fit into 5mm shelf-pin hole; steel' },
+];
+
+const emptyResult = { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } };
+
+describe('buildCutListCsv — hardware section', () => {
+  it('produces 4 sections: panel rows, edge-band totals, hardware, excluded summary', () => {
+    const csv = buildCutListCsv(emptyResult, hardwareRows);
+    const sections = csv.split('\n\n');
+    // sections[0] = panel header + rows (possibly just header)
+    // sections[1] = band header + rows
+    // sections[2] = hardware header + rows
+    // sections[3] = excluded line
+    expect(sections.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('hardware section starts with "# Hardware"', () => {
+    const csv = buildCutListCsv(emptyResult, hardwareRows);
+    expect(csv).toContain('# Hardware');
+  });
+
+  it('hardware section header row is SKU,Name,Category,Qty,Notes', () => {
+    const csv = buildCutListCsv(emptyResult, hardwareRows);
+    expect(csv).toContain('SKU,Name,Category,Qty,Notes');
+  });
+
+  it('hardware data rows contain SKU id and qty', () => {
+    const csv = buildCutListCsv(emptyResult, hardwareRows);
+    expect(csv).toContain('hinge-35mm-cup-full');
+    expect(csv).toContain(',2,');
+    expect(csv).toContain('shelf-pin-5mm-steel');
+    expect(csv).toContain(',8,');
+  });
+
+  it('empty hardwareRows produces a hardware section with header but no data rows', () => {
+    const csv = buildCutListCsv(emptyResult, []);
+    expect(csv).toContain('# Hardware');
+    // Only the header row, no data — slice just the hardware section block.
+    const hwIdx = csv.indexOf('# Hardware');
+    const nextBlank = csv.indexOf('\n\n', hwIdx);
+    const hwSection = csv.slice(hwIdx, nextBlank === -1 ? undefined : nextBlank);
+    const lines = hwSection.split('\n').filter((l) => l.trim());
+    expect(lines).toHaveLength(2); // "# Hardware" + column header
   });
 });

@@ -1,4 +1,5 @@
 import type { CutListEdgeBandCell, CutListResult, CutListRow, EdgeBandTotal } from '@zilventor/shared/src/cutListRow';
+import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive';
 
 function csvCell(s: string): string {
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -37,13 +38,30 @@ function bandLine(b: EdgeBandTotal): string {
   return [csvCell(b.materialName), String(b.totalLengthMm), meters].join(',');
 }
 
-export function buildCutListCsv(result: CutListResult): string {
+function hardwareRowLine(r: HardwareRow): string {
+  return [
+    csvCell(r.skuId),
+    csvCell(r.name),
+    r.category,
+    String(r.qty),
+    csvCell(r.notes),
+  ].join(',');
+}
+
+export function buildCutListCsv(
+  result: CutListResult,
+  hardwareRows: HardwareRow[] = [],
+): string {
   const out: string[] = [];
   out.push('Item#,QTY,Material,L (mm),W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
   for (const r of result.rows) out.push(rowLine(r));
   out.push('');
   out.push('Edge Band Material,Total Length (mm),Total Length (m)');
   for (const b of result.bandTotals) out.push(bandLine(b));
+  out.push('');
+  out.push('# Hardware');
+  out.push('SKU,Name,Category,Qty,Notes');
+  for (const r of hardwareRows) out.push(hardwareRowLine(r));
   out.push('');
   out.push(
     `Excluded from cut list,${result.excluded.componentCount} components,${result.excluded.partCount} distinct parts`,
