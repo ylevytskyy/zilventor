@@ -40,6 +40,24 @@ describe('migration v11→v12', () => {
     );
   });
 
+  it('seeded hardware rows contain only the 5 HardwareEntry fields (no bboxMm or attachPoints)', () => {
+    const manifest = {
+      formatVersion: 11,
+      kind: 'assembly',
+      document: {
+        id: 'a3', name: 'Asm3', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {},
+        colorOverrides: {}, properties: {}, materials: [],
+      },
+    };
+    const result = migrateManifest(manifest);
+    const hw = (result.document as { hardware?: unknown[] }).hardware;
+    expect(hw).toBeDefined();
+    expect(hw!.length).toBeGreaterThan(0);
+    expect(Object.keys(hw![0] as object).sort()).toEqual(['category', 'id', 'name', 'notes', 'vendor']);
+  });
+
   it('v12 AssemblyDocument that already has hardware entries is not duplicated', () => {
     const manifest = {
       formatVersion: 11,

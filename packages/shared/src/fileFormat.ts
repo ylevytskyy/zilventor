@@ -18,11 +18,17 @@ function addHardwareField(doc: Record<string, unknown>): void {
 }
 
 function seedBuiltinHardware(doc: Record<string, unknown>): void {
-  const existing = (doc.hardware as Array<{ id: string }> | undefined) ?? [];
-  const existingIds = new Set(existing.map((e) => e.id));
+  const existing = (doc.hardware as Array<Record<string, unknown>> | undefined) ?? [];
+  const existingIds = new Set(existing.map((e) => e.id as string));
   for (const entry of BUILTIN_CATALOG) {
     if (!existingIds.has(entry.id)) {
-      existing.push({ ...entry });
+      existing.push({
+        id: entry.id,
+        name: entry.name,
+        category: entry.category,
+        vendor: entry.vendor,
+        notes: entry.notes,
+      });
     }
   }
   doc.hardware = existing;
