@@ -100,11 +100,17 @@ export type SectionView = {
   sectionLine: { p0: Vec2; p1: Vec2 };      // parent-view SVG space (mm from view origin)
   arrowDirection: -1 | 1;                    // +1 = right of line as drawn; -1 = left
   label: string;                             // 'A', 'B', 'C' … 'Z', 'AA', 'AB' …
-  position: Vec2;                            // sheet-space positionMm, same frame as other views
-  scale: number;                             // ratio numerator/denominator; inherits parent's at create
+  positionMm: Vec2;                          // sheet-space position (consistent with BaseView/ProjectedView)
+  scale: ViewScale;                          // { numerator, denominator }; inherits parent's at create
   showHidden: false;                         // ANSI convention: always false; field is literal false not boolean
   hatchSegments: HatchSegment[];             // populated by projector; empty until first regeneration
   fingerprint: string;                       // SHA-256; see §7
+  projection?: {                             // populated after first cut+project; absent until then
+    visibleEdges: ProjectedEdge[];
+    hiddenEdges: ProjectedEdge[];
+    bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  };
+  inputFingerprint?: string;                 // mirrors BaseView stale-detection pattern
 };
 
 export type HatchSegment = { p0: Vec2; p1: Vec2; materialId: string };
