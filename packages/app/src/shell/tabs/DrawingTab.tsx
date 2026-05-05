@@ -3,11 +3,15 @@ import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../../drawing/toolMode';
 import { AddSheetCommand } from '../../commands/AddSheetCommand';
+import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand';
+import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
+import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
 import { StubTab } from './_stub';
 
 export default function DrawingTab(): JSX.Element {
   const activeDocument = useAppStore((s) => s.activeDocument);
   const bus = useAppStore((s) => s.bus);
+  const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
 
   if (activeDocument?.kind !== 'drawing') {
     return <StubTab subProject={6} what="Drawing generation" />;
@@ -118,8 +122,12 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export PDF"
-          disabled
-          title="Coming in T52-T55"
+          disabled={!source}
+          title={source ? 'Export to PDF' : 'Source document not loaded'}
+          onClick={() => {
+            if (!source) return;
+            void bus.execute(new ExportDrawingPdfCommand({ drawing, source }));
+          }}
         >
           Export PDF
         </button>
@@ -127,8 +135,16 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export SVG"
-          disabled
-          title="Coming in T52-T55"
+          disabled={!source}
+          title={source ? 'Export to SVG' : 'Source document not loaded'}
+          onClick={() => {
+            if (!source) return;
+            void bus.execute(new ExportDrawingSvgCommand({
+              drawing,
+              sheetId: drawing.activeSheetId,
+              source,
+            }));
+          }}
         >
           Export SVG
         </button>
@@ -136,8 +152,16 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export PNG"
-          disabled
-          title="Coming in T52-T55"
+          disabled={!source}
+          title={source ? 'Export to PNG' : 'Source document not loaded'}
+          onClick={() => {
+            if (!source) return;
+            void bus.execute(new ExportDrawingPngCommand({
+              drawing,
+              sheetId: drawing.activeSheetId,
+              source,
+            }));
+          }}
         >
           Export PNG
         </button>

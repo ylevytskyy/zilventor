@@ -1,10 +1,37 @@
-import type { Command } from './Command';
 import type { DrawingDocument } from '@zilventor/shared';
+import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
+import { renderDrawingPngForSheet } from '../drawing/renderDrawingPngForSheet';
+import { triggerDownload } from '../nesting/triggerDownload';
 
-/** Stub — implemented in Phase 9 (T52-T55). */
-export class ExportDrawingPngCommand implements Command {
+export class ExportDrawingPngCommand {
   readonly name = 'ExportDrawingPng';
-  constructor(readonly opts: { drawing: DrawingDocument; sheetId: string }) {}
-  async apply(): Promise<void> { /* Phase 9 */ }
-  async revert(): Promise<void> { /* n/a */ }
+
+  constructor(
+    private readonly opts: {
+      drawing: DrawingDocument;
+      sheetId: string;
+      source: PartDocument | AssemblyDocument;
+      canvasWidthPx?: number;
+      suggestedName?: string;
+    },
+  ) {}
+
+  async apply(): Promise<void> {
+    const sheet = this.opts.drawing.sheets.find((s) => s.id === this.opts.sheetId);
+    if (!sheet) throw new Error(`Sheet ${this.opts.sheetId} not found`);
+    const blob = await renderDrawingPngForSheet(
+      this.opts.drawing,
+      sheet,
+      this.opts.source,
+      { canvasWidthPx: this.opts.canvasWidthPx ?? 1024 },
+    );
+    await triggerDownload(blob, {
+      suggestedName: this.opts.suggestedName ?? `drawing-${this.opts.sheetId}.png`,
+      mimeType: 'image/png',
+      extension: 'png',
+      description: 'Drawing PNG',
+    });
+  }
+
+  async revert(): Promise<void> { /* non-undoable */ }
 }
