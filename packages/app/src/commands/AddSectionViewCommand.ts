@@ -78,9 +78,14 @@ export class AddSectionViewCommand implements Command {
       compound = cached.brep;
       faceTags = cached.faceTags;
     } else {
+      // Use the active kernel part/assembly UUID so namedShapeCache lookup succeeds.
+      // For an assembly, cutAssemblyBySectionPlane iterates all cached parts.
+      const kernelId = source.kind === 'assembly'
+        ? (state.activeAssembly?.id ?? source.id)
+        : (state.activePart?.id ?? source.id);
       const result = source.kind === 'assembly'
-        ? await cutAssemblyBySectionPlane(source.id, plane, this.payload.arrowDirection)
-        : await cutBySectionPlane(source.id, plane, this.payload.arrowDirection);
+        ? await cutAssemblyBySectionPlane(kernelId, plane, this.payload.arrowDirection)
+        : await cutBySectionPlane(kernelId, plane, this.payload.arrowDirection);
 
       if (!result.ok) {
         if (result.reason === 'tangent') {
