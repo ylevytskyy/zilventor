@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v12 → v13 (5e — no-op additive)', () => {
   it('CURRENT_FORMAT_VERSION is 14', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(15);
+    expect(CURRENT_FORMAT_VERSION).toBe(16);
   });
 
   it('passes a v12 assembly through unchanged (nest stays absent)', () => {
@@ -19,7 +19,7 @@ describe('migrateManifest v12 → v13 (5e — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v12Asm) as unknown as { formatVersion: number; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect('nest' in out.document).toBe(false);
   });
 
@@ -30,7 +30,7 @@ describe('migrateManifest v12 → v13 (5e — no-op additive)', () => {
              featureTree: [], parameterRefs: [], properties: {}, materials: [], hardware: [] },
     };
     const out = migrateManifest(v12Part) as { formatVersion: number };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
   });
 
   it('does not add sheet-stock fields to materials on migration', () => {

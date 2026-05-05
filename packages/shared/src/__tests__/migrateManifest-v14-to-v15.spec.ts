@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
-  it('CURRENT_FORMAT_VERSION is 15', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(15);
+  it('CURRENT_FORMAT_VERSION is 16 (advanced by Drawing F2)', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(16);
   });
 
-  it('passes a v14 part through to v15 unchanged', () => {
+  it('passes a v14 part through to v16 unchanged', () => {
     const v14Part = {
       formatVersion: 14, kind: 'part',
       document: {
@@ -16,11 +16,11 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Part) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect(out.kind).toBe('part');
   });
 
-  it('passes a v14 assembly through to v15 unchanged', () => {
+  it('passes a v14 assembly through to v16 unchanged', () => {
     const v14Asm = {
       formatVersion: 14, kind: 'assembly',
       document: {
@@ -33,10 +33,10 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Asm) as { formatVersion: number };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
   });
 
-  it('passes a v14 drawing through to v15 without data loss', () => {
+  it('passes a v14 drawing through to v16 without data loss', () => {
     const v14Drawing = {
       formatVersion: 14, kind: 'drawing',
       document: {
@@ -50,21 +50,21 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       kind: string;
       document: { name: string };
     };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect(out.kind).toBe('drawing');
     expect(out.document.name).toBe('Box — Drawing');
   });
 
-  it('a v15 manifest passes through migrateManifest without re-migration', () => {
-    const v15 = {
-      formatVersion: 15, kind: 'part',
+  it('a v16 manifest passes through migrateManifest without re-migration', () => {
+    const v16 = {
+      formatVersion: 16, kind: 'part',
       document: {
         id: 'p2', name: 'Shelf', units: 'mm',
         parameters: {}, featureTree: [], properties: {},
         materials: [], hardware: [],
       },
     };
-    const out = migrateManifest(v15) as { formatVersion: number };
-    expect(out.formatVersion).toBe(15);
+    const out = migrateManifest(v16) as { formatVersion: number };
+    expect(out.formatVersion).toBe(16);
   });
 });

@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
   it('CURRENT_FORMAT_VERSION is 14', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(15);
+    expect(CURRENT_FORMAT_VERSION).toBe(16);
   });
 
   it('passes a v13 part through to v14 unchanged', () => {
@@ -16,7 +16,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v13Part) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect(out.kind).toBe('part');
   });
 
@@ -33,7 +33,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v13Asm) as { formatVersion: number; kind: string; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect(out.kind).toBe('assembly');
     // nest stays absent — migration is no-op
     expect('nest' in out.document).toBe(false);
@@ -73,7 +73,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Drawing) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(15);
+    expect(out.formatVersion).toBe(16);
     expect(out.kind).toBe('drawing');
   });
 
