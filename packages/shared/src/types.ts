@@ -5,6 +5,7 @@ import type { PanelFeature } from './panel-feature';
 import type { MaterialEntry } from './material';
 import type { HardwareEntry, HardwareFeature } from './hardware-feature';
 import type { NestState } from './nesting/nestState';
+import type { DrawingDocument } from './drawing/types';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -128,8 +129,9 @@ export type AssemblyConstraint =
       offset: ParamOrLiteral; suppressed: boolean };
 
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9 | 10; kind: 'part'; createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9 | 10; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument };
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
+  | { formatVersion: 14;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
 
 export type FaceName = {
   featureId: string;
