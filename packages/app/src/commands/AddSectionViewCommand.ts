@@ -153,7 +153,7 @@ export class AddSectionViewCommand implements Command {
           : s,
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc } });
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
   }
 
   async revert(): Promise<void> {
@@ -177,7 +177,7 @@ export class AddSectionViewCommand implements Command {
           : s,
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc } });
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
     this.newViewId = null;
   }
 }
