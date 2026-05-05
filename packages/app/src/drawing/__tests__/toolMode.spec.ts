@@ -222,3 +222,26 @@ describe('detail tool — initial state + mode discriminant', () => {
     expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
   });
 });
+
+describe('detail tool — stage transitions', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterDetailMode();
+  });
+
+  it('detailPickParent() from idle → pickRegionCenter with parentViewId', () => {
+    useToolModeStore.getState().detailPickParent('v-base-1');
+    const s = useToolModeStore.getState();
+    expect(s.detailState).toEqual({ stage: 'pickRegionCenter', parentViewId: 'v-base-1' });
+  });
+
+  it('detailPickParent() from non-idle stage is a no-op + warns', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    // now stage = pickRegionCenter; calling again should warn and not advance
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().detailPickParent('v2');
+    expect(useToolModeStore.getState().detailState).toMatchObject({ stage: 'pickRegionCenter', parentViewId: 'v1' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

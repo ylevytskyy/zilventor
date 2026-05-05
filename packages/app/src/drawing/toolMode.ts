@@ -84,6 +84,7 @@ interface ToolModeState {
 
   // Detail tool actions
   enterDetailMode(): void;
+  detailPickParent(viewId: string): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -171,5 +172,14 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
 
   enterDetailMode() {
     set({ mode: 'detail', detailState: { stage: 'idle' } });
+  },
+
+  detailPickParent(viewId) {
+    const { detailState } = get();
+    if (detailState.stage !== 'idle') {
+      console.warn('detailPickParent: expected stage=idle, got', detailState.stage);
+      return;
+    }
+    set({ detailState: { stage: 'pickRegionCenter', parentViewId: viewId } });
   },
 }));
