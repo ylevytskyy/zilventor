@@ -88,6 +88,7 @@ interface ToolModeState {
   detailPickCenter(point: { x: number; y: number }): void;
   detailPickRadius(point: { x: number; y: number }): void;
   detailPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
+  detailCancel(): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -228,5 +229,16 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     }
     onDispatch();
     set({ mode: 'idle', detailState: { stage: 'idle' } });
+  },
+
+  detailCancel() {
+    const { detailState, mode } = get();
+    if (detailState.stage === 'idle' && mode === 'detail') {
+      // Second ESC: exit detail mode entirely
+      set({ mode: 'idle', detailState: { stage: 'idle' } });
+    } else {
+      // First ESC at any non-idle stage: back to idle, stay in detail mode
+      set({ detailState: { stage: 'idle' } });
+    }
   },
 }));

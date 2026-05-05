@@ -312,4 +312,35 @@ describe('detail tool — stage transitions', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('detailCancel() from pickRegionCenter → resets detailState to idle; mode stays detail', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailCancel();
+    const s = useToolModeStore.getState();
+    expect(s.detailState).toEqual({ stage: 'idle' });
+    expect(s.mode).toBe('detail');
+  });
+
+  it('detailCancel() from pickRegionRadius → resets to idle; mode stays detail', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 5, y: 5 });
+    useToolModeStore.getState().detailCancel();
+    expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
+    expect(useToolModeStore.getState().mode).toBe('detail');
+  });
+
+  it('detailCancel() from pickDrop → resets to idle; mode stays detail', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 5, y: 5 });
+    useToolModeStore.getState().detailPickRadius({ x: 10, y: 5 });
+    useToolModeStore.getState().detailCancel();
+    expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
+    expect(useToolModeStore.getState().mode).toBe('detail');
+  });
+
+  it('detailCancel() twice — second cancel exits detail mode entirely', () => {
+    useToolModeStore.getState().detailCancel(); // first ESC: stage already idle, mode=detail → stay
+    useToolModeStore.getState().detailCancel(); // second ESC: stage=idle AND mode=detail → exit
+    expect(useToolModeStore.getState().mode).toBe('idle');
+  });
 });
