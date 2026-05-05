@@ -1,9 +1,9 @@
 // packages/shared/src/drawing/fingerprint.ts
+// fingerprintSectionView uses djb2 (browser-safe); async functions use crypto.subtle.
 import type { ProjectorInput, EdgeMesh3D } from './projector';
 import type { ViewOrientation } from './viewMatrix';
 import { fingerprintPlane } from './planeFingerprint';
 import type { SectionView } from './types';
-import { createHash } from 'crypto';
 
 export type ViewSpec = {
   readonly orientation: ViewOrientation;
@@ -77,6 +77,16 @@ export async function computeViewFingerprint(
   return sha256hex(canonical);
 }
 
+/** djb2 hash — browser-safe, synchronous. */
+function djb2(str: string): string {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) ^ str.charCodeAt(i);
+    h = h >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 /**
  * Compute a synchronous fingerprint for a SectionView.
  * Used for stale-cascade detection: incorporates the parent view's source
@@ -98,5 +108,5 @@ export function fingerprintSectionView(
     view.sectionLine.p1.x.toFixed(3),
     view.sectionLine.p1.y.toFixed(3),
   ].join('|');
-  return createHash('sha256').update(payload).digest('hex');
+  return djb2(payload);
 }
