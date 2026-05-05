@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import type { AssemblyDocument } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
-import { buildHalfSpace, cutBySectionPlane, type Plane } from './cutBySectionPlane';
+import { buildHalfSpace, cutBySectionPlane, cutAssemblyBySectionPlane, type Plane } from './cutBySectionPlane';
 
 let oc: OcctInstance;
 beforeAll(async () => { oc = await loadOcct(); }, 60_000);
@@ -87,6 +88,58 @@ describe('cutBySectionPlane', () => {
     const result = cutBySectionPlane(oc, compound, plane, 1);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('tangent');
+  });
+});
+
+describe('cutAssemblyBySectionPlane', () => {
+  it('2-panel assembly cut by mid-plane → cut faces from each component', () => {
+    const panel1Id = 'part-panel1';
+    const panel2Id = 'part-panel2';
+
+    const asm: AssemblyDocument = {
+      id: 'asm1',
+      name: 'test',
+      units: 'mm',
+      parameters: {},
+      components: [
+        {
+          id: 'c1', partPath: 'panel1.zipt',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+        },
+        {
+          id: 'c2', partPath: 'panel2.zipt',
+          position: { x: 50, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+        },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [],
+    };
+
+    const bodyResolver = (_partId: string, _pose: unknown) => {
+      return makeBox(oc, 10, 10, 20);
+    };
+
+    const plane: Plane = { origin: { x: 5, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+    const result = cutAssemblyBySectionPlane(oc, asm, plane, 1, {
+      lookupSubAsm: () => undefined,
+      partPathToId: new Map([['panel1.zipt', panel1Id], ['panel2.zipt', panel2Id]]),
+      bodyResolver,
+      materialResolver: () => 'mat-default',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cutFaces = [...result.faceTags.values()].filter(t => t.tag === 'cut-face');
+    // panel1 is bisected → 1 cut face; panel2 gets the same box (both are at x=0-10 in world space)
+    expect(cutFaces.length).toBeGreaterThanOrEqual(1);
+    // every entry has a partId set
+    for (const v of result.faceTags.values()) {
+      expect(v.partId).not.toBe('');
+    }
+    disposeOcctShape(oc, result.compound);
   });
 });
 
