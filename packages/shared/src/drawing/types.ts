@@ -109,6 +109,7 @@ export type SectionView = {
   readonly positionMm: Vec2;
   readonly scale: ViewScale;
   readonly showHidden: false;        // literal — ANSI convention: never show hidden in section
+  readonly plane?: { readonly origin: { readonly x: number; readonly y: number; readonly z: number }; readonly normal: { readonly x: number; readonly y: number; readonly z: number } };
   readonly hatchSegments: readonly HatchSegment[];
   readonly fingerprint: string;      // SHA-256 of cut-plane + source geometry
   readonly projection?: {            // populated after first cut+project; absent until then

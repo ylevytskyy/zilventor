@@ -1,6 +1,9 @@
 // packages/shared/src/drawing/fingerprint.ts
 import type { ProjectorInput, EdgeMesh3D } from './projector';
 import type { ViewOrientation } from './viewMatrix';
+import { fingerprintPlane } from './planeFingerprint';
+import type { SectionView } from './types';
+import { createHash } from 'crypto';
 
 export type ViewSpec = {
   readonly orientation: ViewOrientation;
@@ -72,4 +75,28 @@ export async function computeViewFingerprint(
     sourceEdgesHash: edgeHash,
   });
   return sha256hex(canonical);
+}
+
+/**
+ * Compute a synchronous fingerprint for a SectionView.
+ * Used for stale-cascade detection: incorporates the parent view's source
+ * fingerprint, the cut plane, and the view parameters.
+ */
+export function fingerprintSectionView(
+  view: SectionView,
+  parentSourceFingerprint: string,
+): string {
+  const planeFp = view.plane ? fingerprintPlane(view.plane) : 'no-plane';
+  const payload = [
+    parentSourceFingerprint,
+    planeFp,
+    view.scale.numerator,
+    view.scale.denominator,
+    view.arrowDirection,
+    view.sectionLine.p0.x.toFixed(3),
+    view.sectionLine.p0.y.toFixed(3),
+    view.sectionLine.p1.x.toFixed(3),
+    view.sectionLine.p1.y.toFixed(3),
+  ].join('|');
+  return createHash('sha256').update(payload).digest('hex');
 }
