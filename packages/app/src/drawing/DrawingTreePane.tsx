@@ -51,6 +51,7 @@ function SheetNode({
                 <li key={v.id} style={{ fontSize: '0.8em', color: '#555' }}>
                   {v.kind === 'base' ? `Base — ${v.orientation}` :
                    v.kind === 'projected' ? `Projected — ${v.direction}` :
+                   v.kind === 'section' ? `Section — ${v.label}` :
                    `Iso — ${v.corner}`} · {v.scale.numerator}:{v.scale.denominator}
                 </li>
               ))}

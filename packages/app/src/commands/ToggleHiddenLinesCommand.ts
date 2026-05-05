@@ -34,7 +34,7 @@ export class ToggleHiddenLinesCommand implements Command {
           ? {
               ...s,
               views: s.views.map(v =>
-                v.id === this.opts.viewId
+                v.id === this.opts.viewId && v.kind !== 'section'
                   ? { ...v, showHidden: this.opts.showHidden }
                   : v
               ),
@@ -58,7 +58,7 @@ export class ToggleHiddenLinesCommand implements Command {
           ? {
               ...s,
               views: s.views.map(v =>
-                v.id === this.opts.viewId
+                v.id === this.opts.viewId && v.kind !== 'section'
                   ? { ...v, showHidden: this.prevShowHidden! }
                   : v
               ),

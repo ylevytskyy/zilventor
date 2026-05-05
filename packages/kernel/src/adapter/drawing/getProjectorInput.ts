@@ -199,3 +199,6 @@ export async function getProjectorInput(
   }
   return getAssemblyProjectorInput(oc, args.components, lookupNamedShape);
 }
+
+// Re-export so kernel callers don't need to import from @zilventor/shared directly.
+export { resolveSectionSource } from '@zilventor/shared';

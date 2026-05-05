@@ -42,3 +42,4 @@ export type { ViewSpec } from './drawing/fingerprint';
 export { computeViewFingerprint, computeSourceGeometryHash } from './drawing/fingerprint';
 export type { ResolvedTitleBlock } from './drawing/titleBlock';
 export { resolveTitleBlock } from './drawing/titleBlock';
+export { resolveSectionSource } from './drawing/resolveSectionSource';
