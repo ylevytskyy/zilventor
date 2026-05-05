@@ -39,11 +39,10 @@ export class AddSectionViewCommand implements Command {
     const sheet = drawing.sheets.find((s) => s.id === this.payload.sheetId);
     if (!sheet) throw new Error(`sheet ${this.payload.sheetId} not found`);
 
-    // 1. Resolve parent view
     const parentView = sheet.views.find((v) => v.id === this.payload.parentViewId);
     if (!parentView) throw new Error('parent view not found');
 
-    // 2. Resolve source body/assembly — build a minimal SectionView for lookup purposes
+    // Build a minimal SectionView for resolveSectionSource lookup purposes.
     const source = resolveSectionSource(
       {
         id: '__pending__',
@@ -61,7 +60,6 @@ export class AddSectionViewCommand implements Command {
       drawing,
     );
 
-    // 3. Derive section plane and view matrix
     const { plane, sectionViewMatrix } = deriveSectionPlane(
       { p0: this.payload.p0, p1: this.payload.p1 },
       ((parentView as { viewMatrix?: number[] }).viewMatrix ?? (new Array(16).fill(0) as number[])) as import('@zilventor/shared/src/drawing/viewMatrix').Mat4,
@@ -69,11 +67,10 @@ export class AddSectionViewCommand implements Command {
       this.payload.arrowDirection,
     );
 
-    // 4. Cache key — source.id is the file path (unique per project)
+    // source.id is the file path (unique per project).
     const key = `${source.id}::${fingerprintPlane(plane)}`;
     this.cacheKey = key;
 
-    // 5. Cache lookup or kernel cut
     let compound: unknown;
     let faceTags: FaceTagMap;
     const cached = await sectionCache.get(key);
@@ -96,7 +93,6 @@ export class AddSectionViewCommand implements Command {
       await sectionCache.put(key, compound, faceTags);
     }
 
-    // 6. Build material-registry hatch callback (wired per Batch 6 requirement)
     const materials =
       state.activePart?.materials ??
       state.activeAssembly?.materials ??
@@ -106,7 +102,7 @@ export class AddSectionViewCommand implements Command {
       return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
     };
 
-    // 7. Project — pass hatchLookup so per-material hatch patterns are applied
+    // Pass hatchLookup so per-material hatch patterns are applied.
     const scale = parentView.scale.numerator / parentView.scale.denominator;
     const { edges, hatchSegments, fingerprint } = projectSectionView(
       compound as Parameters<typeof projectSectionView>[0],
@@ -115,13 +111,11 @@ export class AddSectionViewCommand implements Command {
       hatchLookup,
     );
 
-    // 8. Auto-label
     const existingLabels = sheet.views
       .filter((v) => v.kind === 'section')
       .map((v) => (v as SectionView).label);
     const label = allocateSectionLabel(existingLabels);
 
-    // 9. Build section view
     const newId = crypto.randomUUID();
     this.newViewId = newId;
 
@@ -165,7 +159,6 @@ export class AddSectionViewCommand implements Command {
 
     const drawing = doc.document;
 
-    // Free cache entry
     if (this.cacheKey) {
       await sectionCache.delete(this.cacheKey);
       this.cacheKey = null;
