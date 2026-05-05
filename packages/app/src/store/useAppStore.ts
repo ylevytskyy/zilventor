@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -21,8 +21,9 @@ export type ToolKind =
   | 'dimension';
 
 export type ActiveDocument =
-  | { kind: 'part'; document: PartDocument }
-  | { kind: 'assembly'; document: AssemblyDocument };
+  | { kind: 'part';     document: PartDocument }
+  | { kind: 'assembly'; document: AssemblyDocument }
+  | { kind: 'drawing';  document: DrawingDocument };   // Sub-project 6
 
 /**
  * Coordination types for work-feature picker routing.
@@ -87,6 +88,7 @@ type AppState = {
   activeDocument: ActiveDocument | null;
   activePart: PartDocument | null;
   activeAssembly: AssemblyDocument | null;
+  activeDrawing: DrawingDocument | null;         // Sub-project 6
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -159,6 +161,7 @@ type AppState = {
   setKernel(k: KernelClient): void;
   setActiveDocument(d: ActiveDocument | null): void;
   setActivePart(p: PartDocument | null): void;
+  setActiveDrawing(d: DrawingDocument | null): void;
   setStatus(msg: string): void;
   setSelectedFeature(id: string | null): void;
   setViewport(v: ViewportRef | null): void;
@@ -305,6 +308,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeDocument: null,
   activePart: null,
   activeAssembly: null,
+  activeDrawing: null,
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,
@@ -319,8 +323,15 @@ export const useAppStore = create<AppState>((set) => ({
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
   setActiveDocument: (d) => set({
     activeDocument: d,
-    activePart: d?.kind === 'part' ? d.document : null,
+    activePart:     d?.kind === 'part'     ? d.document : null,
     activeAssembly: d?.kind === 'assembly' ? d.document : null,
+    activeDrawing:  d?.kind === 'drawing'  ? d.document : null,
+  }),
+  setActiveDrawing: (d) => set({
+    activeDocument: d ? { kind: 'drawing', document: d } : null,
+    activePart:     null,
+    activeAssembly: null,
+    activeDrawing:  d,
   }),
   setActivePart: (p) => set({
     activeDocument: p ? { kind: 'part', document: p } : null,
@@ -1000,3 +1011,7 @@ export const useAppStore = create<AppState>((set) => ({
     };
   })
 }));
+
+/** Returns the active DrawingDocument, or null when any other kind is active. */
+export const selectActiveDrawing = (s: ReturnType<typeof useAppStore.getState>) =>
+  s.activeDocument?.kind === 'drawing' ? s.activeDocument.document : null;
