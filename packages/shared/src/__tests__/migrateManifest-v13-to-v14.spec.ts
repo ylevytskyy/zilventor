@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
   it('CURRENT_FORMAT_VERSION is 14', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(14);
+    expect(CURRENT_FORMAT_VERSION).toBe(15);
   });
 
   it('passes a v13 part through to v14 unchanged', () => {
@@ -16,7 +16,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v13Part) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(14);
+    expect(out.formatVersion).toBe(15);
     expect(out.kind).toBe('part');
   });
 
@@ -33,7 +33,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v13Asm) as { formatVersion: number; kind: string; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(14);
+    expect(out.formatVersion).toBe(15);
     expect(out.kind).toBe('assembly');
     // nest stays absent — migration is no-op
     expect('nest' in out.document).toBe(false);
@@ -57,7 +57,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
     expect((out.document.properties as Record<string, unknown>)['designer']).toBe('Alice');
   });
 
-  it('a v14 drawing manifest passes through migrateManifest unchanged', () => {
+  it('a v14 drawing manifest migrates to v15 and preserves kind', () => {
     const v14Drawing = {
       formatVersion: 14, kind: 'drawing',
       createdAt: '2026-05-05T00:00:00.000Z',
@@ -73,8 +73,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Drawing) as { formatVersion: number; kind: string };
-    // Already at current version — no migration runs
-    expect(out.formatVersion).toBe(14);
+    expect(out.formatVersion).toBe(15);
     expect(out.kind).toBe('drawing');
   });
 
