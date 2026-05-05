@@ -7,6 +7,7 @@ import { disposeShape, type OcctShape } from './occt/SolidOps';
 import { writeBRep, readBRep } from './occt/BRepIO';
 import { readStep } from './occt/StepIO';
 import { tessellate } from './occt/Tessellator';
+import { getProjectorInput as getProjectorInputFn } from './adapter/drawing/getProjectorInput';
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocalGeometry } from './assembly/AssemblyConstraintRefs';
@@ -62,6 +63,10 @@ export type KernelApi = {
     boundingBox: BoundingBox;
     faceCount: number;
   }>;
+  /** Returns projection-ready triangles+edges+bbox for a part that has been
+   *  executed (i.e. its NamedShape is in the cache). Returns null if the
+   *  cache is cold — caller should call `execute` first. */
+  getProjectorInput(partId: string): Promise<import('@zilventor/shared').ProjectorInput | null>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -340,6 +345,13 @@ export function createKernelApi(): KernelApi {
       }
       const ex = realExtractorBundle(occt);
       return resolveCircularEdgeRef(edge, ns, ex);
-    }
+    },
+
+    async getProjectorInput(partId) {
+      const ns = namedShapeCache.get(partId);
+      if (!ns) return null;
+      if (!occt) throw new Error('kernel not initialized');
+      return getProjectorInputFn(occt, ns);
+    },
   };
 }
