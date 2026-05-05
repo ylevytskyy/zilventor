@@ -153,3 +153,42 @@ describe('AddSectionViewCommand.apply()', () => {
     await expect(cmd.apply()).rejects.toThrow(/parent view not found/i);
   });
 });
+
+describe('AddSectionViewCommand.revert()', () => {
+  it('apply then revert → state deep-equals pre-apply state', async () => {
+    const snapshot = JSON.parse(
+      JSON.stringify(useAppStore.getState().activeDocument),
+    );
+    const cmd = new AddSectionViewCommand(basePayload);
+    await cmd.apply();
+    await cmd.revert();
+    const after = useAppStore.getState().activeDocument;
+    expect(after).toEqual(snapshot);
+  });
+
+  it('revert frees the cache entry: sectionCache.get returns null after revert', async () => {
+    const cmd = new AddSectionViewCommand(basePayload);
+    await cmd.apply();
+    // Simulate cache populated
+    (sectionCache.delete as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    await cmd.revert();
+    expect(sectionCache.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('apply → revert → re-apply rebuilds cache; final state matches second apply', async () => {
+    const cmd = new AddSectionViewCommand(basePayload);
+    await cmd.apply();
+    await cmd.revert();
+    // cache.get still returns null (deleted), so cut will be called again
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    await cmd.apply();
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sheet = doc.document.sheets.find((s) => s.id === 's1')!;
+    const sv = sheet.views.find((v) => v.kind === 'section') as SectionView;
+    expect(sv).toBeDefined();
+    expect(sv.label).toBe('A');
+    // Kernel was called twice (once on first apply, once on re-apply)
+    expect(cutBySectionPlane).toHaveBeenCalledTimes(2);
+  });
+});
