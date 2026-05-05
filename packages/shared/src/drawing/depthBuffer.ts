@@ -70,10 +70,12 @@ function rasteriseTri(
       const px = originX + col * pitch;
       const py = originY + row * pitch;
 
-      // Edge functions (sign-agnostic: test same sign as area2)
-      const w0 = (x1 - x0) * (py - y0) - (px - x0) * (y1 - y0);
-      const w1 = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
-      const w2 = (x0 - x2) * (py - y2) - (px - x2) * (y0 - y2);
+      // Edge functions in standard [v1→v2, v2→v0, v0→v1] order.
+      // With this convention, w0(v0)=area2, w1(v1)=area2, w2(v2)=area2, so
+      // b0=w0/area2 is the barycentric weight for v0 (and likewise b1↔v1, b2↔v2).
+      const w0 = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
+      const w1 = (x0 - x2) * (py - y2) - (px - x2) * (y0 - y2);
+      const w2 = (x1 - x0) * (py - y0) - (px - x0) * (y1 - y0);
 
       // Point inside (or on edge of) triangle when all weights have the same sign as area2
       const inside =
@@ -83,11 +85,11 @@ function rasteriseTri(
 
       if (!inside) continue;
 
-      // Barycentric interpolation for Z
+      // Barycentric interpolation for Z: b0↔v0, b1↔v1, b2↔v2
       const b0 = w0 / area2;
       const b1 = w1 / area2;
       const b2 = 1 - b0 - b1;
-      const z = b0 * z2 + b1 * z0 + b2 * z1;
+      const z = b0 * z0 + b1 * z1 + b2 * z2;
 
       const idx = row * stride + col;
       const cur = buf[idx];

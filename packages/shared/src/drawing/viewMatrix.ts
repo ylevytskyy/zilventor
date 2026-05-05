@@ -5,7 +5,7 @@ import type { BoundingBox } from '../types';
  * 4×4 row-major homogeneous matrix stored as a flat number[16] array.
  * Row i, column j: M[i*4 + j].
  */
-export type Mat4 = number[];
+export type Mat4 = readonly number[];
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -66,7 +66,7 @@ function rotateY(a: number): Mat4 {
 }
 
 /** Apply 4×4 row-major matrix M to a Vec3 (homogeneous divide) */
-export function apply(M: Mat4 | number[], v: Vec3): Vec3 {
+export function apply(M: Mat4, v: Vec3): Vec3 {
   const { x, y, z } = v;
   /* eslint-disable @typescript-eslint/no-non-null-assertion */
   const w = M[12]! * x + M[13]! * y + M[14]! * z + M[15]!;

@@ -69,6 +69,10 @@ export function classifyEdges(
       }
     }
 
+    // runIndex is per-edge (resets when we move to the next edge). Final Edge2D.id
+    // embeds edgeKey + runIndex; two runs from the SAME edge are guaranteed unique
+    // (separate counters for visible vs hidden classes), but two edges sharing an
+    // edgeKey is the caller's invariant to maintain.
     let visIdx = 0, hidIdx = 0;
     for (const run of runs) {
       if (run.pts.length < 2) continue; // skip degenerate single-point runs
@@ -88,6 +92,24 @@ export function classifyEdges(
   }
 
   return { visibleEdges, hiddenEdges };
+}
+
+/**
+ * Returns the number of samples that would be generated for the given edge at the given pitch.
+ * Exported only for unit-testing the min-8 floor; not part of the public API.
+ */
+export function __test_sampleCount(edge: Edge3D, pixelPitchMm: number): number {
+  const pts = edge.points;
+  if (pts.length <= 1) return pts.length;
+  let arcLen = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    if (p0 === undefined || p1 === undefined) continue;
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2];
+    arcLen += Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+  return Math.max(8, Math.ceil(arcLen / (0.5 * pixelPitchMm)));
 }
 
 /** Sample N evenly-spaced points along the polyline. N = ceil(arc_length / (0.5 * pitch)), min 8. */

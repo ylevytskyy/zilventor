@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/edgeClassifier.spec.ts
 import { describe, it, expect } from 'vitest';
-import { classifyEdges } from '../edgeClassifier';
+import { classifyEdges, __test_sampleCount } from '../edgeClassifier';
 import { buildDepthBuffer } from '../depthBuffer';
 import type { BoundingBox } from '../../types';
 
@@ -48,14 +48,16 @@ describe('classifyEdges', () => {
   });
 
   it('sample count is at least 8 for short edges', () => {
-    // Short edge (3mm long) should still get min 8 samples
+    // arc_length=3mm, pitch=1mm → ceil(3/0.5)=6 without the floor → floor raises it to 8
     const shortEdge = {
       id: 'short',
       points: [[5, 5, 5], [8, 5, 5]] as [number, number, number][],
       adjacentFaces: [],
     };
-    // No error means samples were computed (at least 8)
-    expect(() => classifyEdges([shortEdge], buf, bbox, pitch)).not.toThrow();
+    // Direct assertion via the exported helper: must be exactly 8 (the floor).
+    expect(__test_sampleCount(shortEdge, pitch)).toBe(8);
+    // ceil(3/0.5)=6 without the floor, so without the min-8 guard this would be 6.
+    expect(Math.ceil(3 / (0.5 * pitch))).toBe(6);
   });
 
   it('run-length encoding splits a mixed edge into visible and hidden segments', () => {
