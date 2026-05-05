@@ -1,4 +1,4 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
@@ -11,6 +11,8 @@ import { getProjectorInput as getProjectorInputFn, type GetProjectorInputArgs } 
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocalGeometry } from './assembly/AssemblyConstraintRefs';
+import { cutBySectionPlane as kernelCutBySectionPlane, type Plane, type FaceTagMap as KernelFaceTagMap } from './section/cutBySectionPlane';
+import type { FaceTag } from '@zilventor/shared/src/drawing/projectSectionView';
 
 /**
  * Result of a successful `execute` / `previewFeature` call. The mesh is the
@@ -33,6 +35,18 @@ export type ExecuteResult = {
   featureErrors?: Map<string, KernelError>;
   workFeatures?: WorkFeatureValue[];
 };
+
+/** Serialized entry for one face tag (key + value). */
+export type SerializedFaceTagEntry = [string, FaceTag];
+
+/**
+ * Serializable result of a section cut + in-worker tessellation.
+ * The compound is tessellated on the worker side so no OCCT objects cross
+ * the Comlink boundary.
+ */
+export type CutSectionResult =
+  | { ok: true; projectorInput: ProjectorInput; faceTags: SerializedFaceTagEntry[] }
+  | { ok: false; reason: 'tangent' | 'empty' };
 
 export type KernelApi = {
   init(): Promise<void>;
@@ -72,6 +86,20 @@ export type KernelApi = {
    *  pre-flattened list (suppressed/hidden components already excluded by the
    *  main-thread walker). All referenced partIds must be in the cache. */
   getProjectorInput(args: GetProjectorInputArgs): Promise<import('@zilventor/shared').ProjectorInput | null>;
+
+  /**
+   * Cut a part (by partId) with the given plane, tessellate the result in-worker,
+   * and return a serializable ProjectorInput + face tags.
+   * Returns { ok: false, reason } if the plane is tangent or misses the geometry.
+   */
+  cutBySectionPlane(partId: string, plane: Plane, arrowDirection: -1 | 1): Promise<CutSectionResult>;
+
+  /**
+   * Cut every part in a loaded assembly by the given plane, tessellate, and merge.
+   * `asmId` is the partId that contains an AssemblyDocument (loaded via load/loadFromBytes).
+   * Returns { ok: false, reason } if no part produces a cut result.
+   */
+  cutAssemblyBySectionPlane(asmId: string, plane: Plane, arrowDirection: -1 | 1): Promise<CutSectionResult>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -362,5 +390,100 @@ export function createKernelApi(): KernelApi {
       // assembly: all parts must be cached — getProjectorInputFn throws if any is missing
       return getProjectorInputFn(occt, args, lookup);
     },
+
+    async cutBySectionPlane(partId, plane, arrowDirection) {
+      if (!occt) throw new Error('kernel not initialized');
+      const ns = namedShapeCache.get(partId);
+      if (!ns) return { ok: false, reason: 'empty' as const };
+
+      const srcBuilder = new occt.BRep_Builder();
+      const srcComp = new occt.TopoDS_Compound();
+      srcBuilder.MakeCompound(srcComp);
+      srcBuilder.Add(srcComp, ns.shape.handle as never);
+      srcBuilder.delete();
+
+      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection);
+      srcComp.delete();
+
+      if (!r.ok) return r;
+
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = {
+        triangles,
+        edges: [],
+        bbox: mesh.boundingBox,
+      };
+      const faceTags = serializeFaceTags(r.faceTags);
+      return { ok: true, projectorInput, faceTags };
+    },
+
+    async cutAssemblyBySectionPlane(asmId, plane, arrowDirection) {
+      if (!occt) throw new Error('kernel not initialized');
+
+      const builder = new occt.BRep_Builder();
+      const srcComp = new occt.TopoDS_Compound();
+      builder.MakeCompound(srcComp);
+      let anyAdded = false;
+
+      for (const [, ns] of namedShapeCache) {
+        builder.Add(srcComp, ns.shape.handle as never);
+        anyAdded = true;
+      }
+      builder.delete();
+
+      if (!anyAdded) {
+        srcComp.delete();
+        return { ok: false, reason: 'empty' as const };
+      }
+
+      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection);
+      srcComp.delete();
+
+      if (!r.ok) return r;
+
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = {
+        triangles,
+        edges: [],
+        bbox: mesh.boundingBox,
+      };
+      const faceTags = serializeFaceTags(r.faceTags);
+      // asmId not used for compound building (all cached parts are included)
+      void asmId;
+      return { ok: true, projectorInput, faceTags };
+    },
   };
+}
+
+function buildTriangles(mesh: Mesh): Array<[[number,number,number],[number,number,number],[number,number,number]]> {
+  const triangles: Array<[[number,number,number],[number,number,number],[number,number,number]]> = [];
+  const pos = mesh.positions;
+  const idx = mesh.indices;
+  for (let i = 0; i < idx.length; i += 3) {
+    const a = idx[i]! * 3;
+    const b = idx[i + 1]! * 3;
+    const c = idx[i + 2]! * 3;
+    triangles.push([
+      [pos[a]!, pos[a + 1]!, pos[a + 2]!],
+      [pos[b]!, pos[b + 1]!, pos[b + 2]!],
+      [pos[c]!, pos[c + 1]!, pos[c + 2]!],
+    ]);
+  }
+  return triangles;
+}
+
+function serializeFaceTags(kernelTags: KernelFaceTagMap): SerializedFaceTagEntry[] {
+  const out: SerializedFaceTagEntry[] = [];
+  for (const [key, val] of kernelTags) {
+    out.push([key, { tag: val.tag, partId: val.partId, materialId: val.materialId }]);
+  }
+  return out;
 }

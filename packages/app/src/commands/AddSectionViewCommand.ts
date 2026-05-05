@@ -82,8 +82,8 @@ export class AddSectionViewCommand implements Command {
       faceTags = cached.faceTags;
     } else {
       const result = source.kind === 'assembly'
-        ? await cutAssemblyBySectionPlane(source.id, plane)
-        : await cutBySectionPlane(source.id, plane);
+        ? await cutAssemblyBySectionPlane(source.id, plane, this.payload.arrowDirection)
+        : await cutBySectionPlane(source.id, plane, this.payload.arrowDirection);
 
       if (!result.ok) {
         if (result.reason === 'tangent') {
