@@ -8,7 +8,8 @@ import { DimensionElement } from './DimensionElement';
 import { AnnotationElement } from './AnnotationElement';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
-import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
+import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
+import type { DrawingDocument, DrawingSheet, SectionView } from '@zilventor/shared';
 
 // ISO sheet sizes in mm (landscape orientation)
 const ISO_MM: Record<string, { w: number; h: number }> = {
@@ -28,6 +29,31 @@ function sheetDims(sheet: DrawingSheet): { w: number; h: number } {
 }
 
 type ClickPoint = { x: number; y: number; edgeId: string | undefined; viewId: string | undefined };
+
+// Helper: return view id whose bounding rect contains the given sheet-space point.
+// Falls back to the data-view-id attribute of the click target when available.
+function getViewAtPoint(
+  views: DrawingSheet['views'],
+  sheetPt: { x: number; y: number },
+  targetViewId: string | undefined,
+): string | undefined {
+  if (targetViewId) {
+    const hit = views.find((v) => v.id === targetViewId);
+    if (hit) return hit.id;
+  }
+  // Coarse hit-test: each view occupies a 200×150 mm bounding box by default.
+  // Implementer note: replace with actual view-extent tracking when available.
+  for (const v of views) {
+    const { x, y } = v.positionMm;
+    if (
+      sheetPt.x >= x && sheetPt.x <= x + 200 &&
+      sheetPt.y >= y && sheetPt.y <= y + 150
+    ) {
+      return v.id;
+    }
+  }
+  return undefined;
+}
 
 export function DrawingCanvas() {
   const drawing = useAppStore((s) => s.activeDrawing);
@@ -67,6 +93,17 @@ export function DrawingCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id]);
 
+  // ESC cancels section tool in-progress
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        useToolModeStore.getState().sectionCancel();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Pan/zoom handlers
   const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
@@ -102,9 +139,70 @@ export function DrawingCanvas() {
     // Convert client coords to SVG page-space mm
     const svg = svgRef.current;
     const rect = svg?.getBoundingClientRect();
-    const svgX = rect ? ((e.clientX - rect.left) / (rect.width / sheetW)) : e.clientX;
-    const svgY = rect ? ((e.clientY - rect.top) / (rect.height / sheetH)) : e.clientY;
+    const hasSize = rect && rect.width > 0 && rect.height > 0;
+    const svgX = hasSize ? ((e.clientX - rect.left) / (rect.width / sheetW)) : e.clientX;
+    const svgY = hasSize ? ((e.clientY - rect.top) / (rect.height / sheetH)) : e.clientY;
     const clickPt: ClickPoint = { x: svgX, y: svgY, edgeId, viewId };
+
+    if (toolMode === 'section') {
+      const toolState = useToolModeStore.getState().sectionState;
+      const sheetPt = { x: svgX, y: svgY };
+      const hitViewId = getViewAtPoint(sheet.views, sheetPt, viewId);
+
+      if (toolState.stage === 'idle') {
+        if (hitViewId) {
+          useToolModeStore.getState().sectionPickParent(hitViewId);
+        }
+        return;
+      }
+
+      if (toolState.stage === 'pickP0') {
+        // Must click inside the locked parent view
+        const parentView = sheet.views.find((v) => v.id === toolState.parentViewId);
+        if (!parentView) return;
+        const inParent = getViewAtPoint([parentView], sheetPt, viewId) != null;
+        if (!inParent) return; // click outside parent — ignore
+        // Convert sheet-space → view-space (subtract view origin, divide by scale)
+        const scale = parentView.scale.numerator / parentView.scale.denominator;
+        const viewPt = {
+          x: (sheetPt.x - parentView.positionMm.x) / scale,
+          y: (sheetPt.y - parentView.positionMm.y) / scale,
+        };
+        useToolModeStore.getState().sectionPickP0(viewPt);
+        return;
+      }
+
+      if (toolState.stage === 'pickP1') {
+        const parentView = sheet.views.find((v) => v.id === toolState.parentViewId);
+        if (!parentView) return;
+        const inParent = getViewAtPoint([parentView], sheetPt, viewId) != null;
+        if (!inParent) return;
+        const scale = parentView.scale.numerator / parentView.scale.denominator;
+        const viewPt = {
+          x: (sheetPt.x - parentView.positionMm.x) / scale,
+          y: (sheetPt.y - parentView.positionMm.y) / scale,
+        };
+        useToolModeStore.getState().sectionPickP1(viewPt);
+        return;
+      }
+
+      if (toolState.stage === 'pickDrop') {
+        useToolModeStore.getState().sectionPickDrop(sheetPt, () => {
+          void bus.execute(new AddSectionViewCommand({
+            drawingId: drawing.id,
+            sheetId: sheet.id,
+            parentViewId: toolState.parentViewId,
+            p0: toolState.p0,
+            p1: toolState.p1,
+            arrowDirection: toolState.arrowDirection,
+            dropAt: sheetPt,
+          }));
+        });
+        return;
+      }
+
+      return;
+    }
 
     if (toolMode === 'addLinearH' || toolMode === 'addLinearV' || toolMode === 'addAligned') {
       const next = [...clickAccum, clickPt];
@@ -170,7 +268,7 @@ export function DrawingCanvas() {
 
     // Other modes (addRadial, addDiametric, addLeader, addBalloon, placeBase) → wired in Phase 8 batch 2
     setClickAccum([]);
-  }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH]);
+  }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing]);
 
   const handleRegenerate = useCallback((viewId: string) => {
     setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
