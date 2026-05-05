@@ -25,6 +25,23 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
   });
 });
 
+describe('clipLineToCircle — case 5: tangent (disc ≈ 0)', () => {
+  it('tangent line touching circle at exactly one point → []', () => {
+    // Circle center=(0,0), radius=5. Tangent line: y=5, segment from (-10,5) to (10,5).
+    // Distance from center to line = 5 = radius → tangent.
+    // ax=-10, ay=5. dx=20,dy=0. A=400, B=2*(-10*20+5*0)=-400, C=100+25-25=100.
+    // disc = 160000 - 4*400*100 = 160000-160000 = 0. tEnter=tExit=0.5.
+    // interval = 0 → return [].
+    const result = clipLineToCircle([-10, 5], [10, 5], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('tangent line y=-5 (bottom) → []', () => {
+    const result = clipLineToCircle([-10, -5], [10, -5], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+});
+
 describe('clipLineToCircle — case 4: one endpoint inside, one outside', () => {
   it('p0 inside, p1 outside: (0,0)→(10,0) circle radius=5 → clipped to (0,0)→(5,0)', () => {
     // ax=0, A=100, B=0, C=-25, disc=10000, sqrt=100
