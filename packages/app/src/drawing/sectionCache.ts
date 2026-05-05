@@ -1,9 +1,10 @@
 // packages/app/src/drawing/sectionCache.ts
 //
 // App-level singleton accessor for the section BREP cache.
-// The real store is in packages/kernel/src/section/sectionCache.ts (OPFS-backed).
-// This module re-exports a lazy singleton for use from app commands.
-// In tests it is fully mocked via vi.mock.
+// The full implementation lives in the kernel package (OPFS-backed, browser-only).
+// In tests this module is fully mocked via vi.mock.
+// In production the app will wire the real cache via a KernelClient proxy
+// in a later phase — for now callers are only exercised through mocks.
 
 import type { FaceTagMap } from '@zilventor/shared/src/drawing/projectSectionView';
 
@@ -13,33 +14,19 @@ export type SectionCacheStore = {
   delete(key: string): Promise<void>;
 };
 
-// Lazy singleton — initialised on first use via navigator.storage.getDirectory().
-let _cache: SectionCacheStore | null = null;
-
-async function getCache(): Promise<SectionCacheStore> {
-  if (!_cache) {
-    // Dynamically import to avoid loading OPFS code in non-browser environments (e.g. tests).
-    const { makeSectionCache } = await import(
-      /* @vite-ignore */ '../../kernel/src/section/sectionCache'
-    );
-    const root = await navigator.storage.getDirectory();
-    _cache = makeSectionCache(root) as SectionCacheStore;
-  }
-  return _cache;
-}
-
 /**
- * Proxy object that delegates to the lazy singleton.
- * Commands import `sectionCache` and call its methods directly.
+ * Production singleton — wired to the OPFS-backed kernel cache.
+ * Accessing this in a non-browser environment (e.g. unit tests) will throw;
+ * tests must mock this module via vi.mock('../../drawing/sectionCache').
  */
 export const sectionCache: SectionCacheStore = {
-  async get(key) {
-    return (await getCache()).get(key);
+  async get(_key) {
+    throw new Error('sectionCache.get: not wired — mock in tests, wire KernelClient in production');
   },
-  async put(key, brep, faceTags) {
-    return (await getCache()).put(key, brep as ArrayBuffer, faceTags);
+  async put(_key, _brep, _faceTags) {
+    throw new Error('sectionCache.put: not wired — mock in tests, wire KernelClient in production');
   },
-  async delete(key) {
-    return (await getCache()).delete(key);
+  async delete(_key) {
+    throw new Error('sectionCache.delete: not wired — mock in tests, wire KernelClient in production');
   },
 };

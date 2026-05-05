@@ -64,7 +64,7 @@ export class AddSectionViewCommand implements Command {
     // 3. Derive section plane and view matrix
     const { plane, sectionViewMatrix } = deriveSectionPlane(
       { p0: this.payload.p0, p1: this.payload.p1 },
-      (parentView as { viewMatrix?: Float64Array }).viewMatrix ?? new Float64Array(16),
+      ((parentView as { viewMatrix?: number[] }).viewMatrix ?? (new Array(16).fill(0) as number[])) as import('@zilventor/shared/src/drawing/viewMatrix').Mat4,
       parentView.scale.numerator / parentView.scale.denominator,
       this.payload.arrowDirection,
     );
