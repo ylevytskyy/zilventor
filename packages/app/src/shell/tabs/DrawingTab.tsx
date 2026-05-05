@@ -79,6 +79,14 @@ export default function DrawingTab(): JSX.Element {
         >
           Iso View
         </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Section"
+          onClick={() => useToolModeStore.getState().enterSectionMode()}
+        >
+          Section
+        </button>
       </RibbonPanel>
 
       {/* Dimension panel */}

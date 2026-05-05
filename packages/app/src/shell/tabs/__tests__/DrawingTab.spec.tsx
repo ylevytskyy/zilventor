@@ -108,6 +108,26 @@ describe('DrawingTab — drawing active doc', () => {
   });
 });
 
+describe('DrawingTab ribbon — Section button', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+  });
+
+  it('renders a "Section" button in the Place Views panel', () => {
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^section$/i })).toBeInTheDocument();
+  });
+
+  it('clicking Section button calls enterSectionMode() — mode becomes section and stage idle', () => {
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^section$/i }));
+    const state = useToolModeStore.getState();
+    expect(state.mode).toBe('section');
+    expect(state.sectionState.stage).toBe('idle');
+  });
+});
+
 describe('DrawingTab — non-drawing active doc', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);
