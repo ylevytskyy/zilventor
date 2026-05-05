@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { renderDrawingPdf } from '../renderDrawingPdf';
-import { makeFixtureDrawing, makeFixturePart } from '../../__tests__/fixtures/drawingFixtures';
+import { renderDrawingPdf, renderDrawingPdfBytes } from '../renderDrawingPdf';
+import {
+  makeFixtureDrawing,
+  makeFixturePart,
+  makeFixtureDrawingWithParentAndDetail,
+} from '../../__tests__/fixtures/drawingFixtures';
 
 function readBlobAsUint8Array(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
@@ -39,5 +43,27 @@ describe('renderDrawingPdf', () => {
     const text = new TextDecoder('latin1').decode(bytes);
     const pageMatches = text.match(/\/Type\s*\/Page[^s]/g) ?? [];
     expect(pageMatches.length).toBe(3);
+  });
+});
+
+describe('renderDrawingPdf — detail view', () => {
+  it('magic bytes still %PDF- with detail view present', () => {
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
+  });
+
+  it('PDF page count unchanged (1 page) when sheet has detail view', () => {
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    const text = new TextDecoder('latin1').decode(bytes);
+    const pageMatches = text.match(/\/Type\s*\/Page[^s]/g) ?? [];
+    expect(pageMatches.length).toBe(1);
+  });
+
+  it('magic bytes %PDF- preserved with parent callout circle rendered', () => {
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
   });
 });

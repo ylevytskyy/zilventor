@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { DrawingSheet, DrawingView } from '@zilventor/shared';
+import type { DrawingSheet, DrawingView, DetailView } from '@zilventor/shared';
 import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
@@ -106,6 +106,27 @@ function drawSheetPdf(
     drawViewPdf(pdf, view, MARGIN, MARGIN, scaleX, scaleY);
   }
 
+  // Detail callout circles on parent views.
+  for (const view of sheet.views) {
+    if (view.kind !== 'detail') continue;
+    const dv = view as DetailView;
+    const parent = sheet.views.find((v) => v.id === dv.parentViewId);
+    if (!parent) continue;
+    const parentScale = parent.scale.numerator / parent.scale.denominator;
+    const cx = MARGIN + (parent.positionMm.x + dv.regionParent.center.x * parentScale) * scaleX;
+    const cy = MARGIN + (parent.positionMm.y + dv.regionParent.center.y * parentScale) * scaleY;
+    const r = dv.regionParent.radiusMm * parentScale * scaleX;
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.35);
+    pdf.circle(cx, cy, r, 'S');
+    const COS45 = Math.SQRT1_2;
+    const labelX = cx + (r + 5 * scaleX) * COS45;
+    const labelY = cy - (r + 5 * scaleY) * COS45;
+    pdf.setFontSize(7);
+    pdf.setTextColor(0);
+    pdf.text(dv.label, labelX, labelY);
+  }
+
   for (const dim of sheet.dimensions) {
     const relView = sheet.views.find((v) => v.id === dim.viewId);
     if (!relView) continue;
@@ -198,6 +219,21 @@ function drawViewPdf(
     drawPolylinePdf(pdf, edge.points, vx, vy, vScale * scaleX, vScale * scaleY);
   }
   pdf.setDrawColor(0);
+
+  // Detail-specific: border circle + caption.
+  if (view.kind === 'detail') {
+    const dv = view as DetailView;
+    const borderR = dv.regionParent.radiusMm * vScale * scaleX;
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.35);
+    pdf.circle(vx, vy, borderR, 'S');
+    const captionX = vx + ((projection.bbox.minX + projection.bbox.maxX) / 2) * vScale * scaleX;
+    const captionY = vy + (projection.bbox.maxY + 5) * vScale * scaleY;
+    pdf.setFontSize(7);
+    pdf.setTextColor(0);
+    pdf.text(`DETAIL ${dv.label}`, captionX, captionY, { align: 'center' });
+    pdf.text(`${dv.scale.numerator}:${dv.scale.denominator}`, captionX, captionY + 3.5 * scaleY, { align: 'center' });
+  }
 }
 
 function drawPolylinePdf(
