@@ -46,3 +46,6 @@ export { resolveSectionSource } from './drawing/resolveSectionSource';
 export { deriveSectionPlane } from './drawing/sectionPlane';
 export type { Plane } from './drawing/sectionPlane';
 export { allocateCalloutLabel } from './drawing/sectionLabel';
+export { fingerprintDetailView } from './drawing/fingerprint';
+export { projectDetailView } from './drawing/projectDetailView';
+export type { DetailViewInput, DetailViewOutput } from './drawing/projectDetailView';
