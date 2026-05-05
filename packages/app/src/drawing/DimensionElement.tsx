@@ -1,5 +1,6 @@
 // packages/app/src/drawing/DimensionElement.tsx
-import type { DrawingDimension, DrawingView, PointRef } from '@zilventor/shared';
+import type { DrawingDimension, DrawingView } from '@zilventor/shared';
+import type { PointRef } from '@zilventor/shared/src/drawing/types';
 
 // Resolve a PointRef to sheet-space mm coords within the view's projection.
 function resolvePoint(ref: PointRef, view: DrawingView): { x: number; y: number } | null {
