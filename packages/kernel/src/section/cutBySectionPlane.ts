@@ -1,6 +1,8 @@
+import type { AssemblyDocument } from '@zilventor/shared';
 import type { OcctInstance } from '../occt/occtLoader';
 import type { OcctShape } from '../occt/SolidOps';
 import type { Vec3 } from '@zilventor/shared';
+import { hashFace, classifyFace } from './faceTag';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
 
@@ -69,4 +71,229 @@ export function buildHalfSpace(
   (centredShape as unknown as { delete?(): void }).delete?.();
 
   return { __brand: 'OcctShape', handle: result };
+}
+
+// --- types ---
+
+export type FaceTagMap = Map<string, {
+  tag: 'cut-face' | 'original-face';
+  partId: string;
+  materialId: string;
+}>;
+
+export type Result =
+  | { ok: true;  compound: unknown /* TopoDS_Compound */; faceTags: FaceTagMap }
+  | { ok: false; reason: 'tangent' | 'empty' };
+
+/**
+ * Cut `source` compound by the half-space defined by `plane`/`arrowDirection`.
+ *
+ * 1. Build half-space solid (Task 5).
+ * 2. BRepAlgoAPI_Cut_3 — source minus half-space.
+ * 3. Walk result faces via TopExp_Explorer; classify each via classifyFace.
+ * 4. Tangent detection: if the result volume equals the source volume within
+ *    1e-6 relative tolerance, the plane was coincident with a face → 'tangent'.
+ *    If the result compound has no solids → 'empty'.
+ */
+export function cutBySectionPlane(
+  oc: OcctInstance,
+  source: unknown /* TopoDS_Compound */,
+  plane: Plane,
+  arrowDirection: -1 | 1
+): Result {
+  const halfSpace = buildHalfSpace(oc, plane, arrowDirection);
+  const rangeCtor = new oc.Message_ProgressRange_1();
+  const rangeBuild = new oc.Message_ProgressRange_1();
+
+  let cut: unknown;
+  try {
+    const cutter = new oc.BRepAlgoAPI_Cut_3(
+      source as never,
+      halfSpace.handle as never,
+      rangeCtor
+    );
+    cutter.Build(rangeBuild);
+    const done = cutter.IsDone();
+    if (!done) {
+      cutter.delete();
+      (halfSpace.handle as unknown as { delete(): void }).delete();
+      return { ok: false, reason: 'empty' };
+    }
+    cut = cutter.Shape();
+    cutter.delete();
+  } finally {
+    rangeCtor.delete();
+    rangeBuild.delete();
+    (halfSpace.handle as unknown as { delete(): void }).delete();
+  }
+
+  // --- empty check: any solid in result? ---
+  const solidExplorer = new oc.TopExp_Explorer_2(
+    cut as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+  const hasSolid = solidExplorer.More();
+  solidExplorer.delete();
+  if (!hasSolid) {
+    (cut as unknown as { delete?(): void }).delete?.();
+    return { ok: false, reason: 'empty' };
+  }
+
+  // --- tangent check: volume unchanged from source? ---
+  const volSource = shapeVolume(oc, source);
+  const volResult = shapeVolume(oc, cut);
+  const eps = Math.max(volSource, 1) * 1e-6;
+  if (volSource > 0 && Math.abs(volResult - volSource) < eps) {
+    (cut as unknown as { delete?(): void }).delete?.();
+    return { ok: false, reason: 'tangent' };
+  }
+
+  // --- face classification ---
+  const faceTags: FaceTagMap = new Map();
+  const faceExp = new oc.TopExp_Explorer_2(
+    cut as never,
+    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+  while (faceExp.More()) {
+    const face = faceExp.Current();
+    const key  = hashFace(oc, face);
+    const tag  = classifyFace(oc, face, plane);
+    faceTags.set(key, { tag, partId: '', materialId: '' });
+    faceExp.Next();
+  }
+  faceExp.delete();
+
+  return { ok: true, compound: cut, faceTags };
+}
+
+// --- internal volume helper ---
+function shapeVolume(oc: OcctInstance, shape: unknown): number {
+  const props = new oc.GProp_GProps_1();
+  try {
+    oc.BRepGProp.VolumeProperties_1(
+      shape as never, props,
+      true as never, false as never, false as never
+    );
+    return props.Mass();
+  } finally {
+    props.delete();
+  }
+}
+
+// --- assembly cut ---
+
+export type AssemblyBodyResolver = (partId: string, pose: {
+  translation: { x: number; y: number; z: number };
+  quaternion: readonly [number, number, number, number];
+}) => OcctShape | null;
+
+export type AssemblyCutOptions = {
+  lookupSubAsm: (partPath: string) => AssemblyDocument | undefined;
+  partPathToId: Map<string, string>;
+  bodyResolver: AssemblyBodyResolver;
+  materialResolver: (partId: string) => string;
+};
+
+/**
+ * Cut every leaf part in `asm` by `plane`/`arrowDirection` and compose the
+ * per-component results into a single compound + merged FaceTagMap.
+ *
+ * Components that produce { ok: false, reason: 'empty' } are silently skipped.
+ * Components that produce 'tangent' are also skipped with a console.warn.
+ *
+ * The returned FaceTagMap carries { partId, materialId } on every entry so the
+ * hatch renderer can look up material cross-section fill patterns.
+ */
+export function cutAssemblyBySectionPlane(
+  oc: OcctInstance,
+  asm: AssemblyDocument,
+  plane: Plane,
+  arrowDirection: -1 | 1,
+  opts: AssemblyCutOptions
+): Result {
+  const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
+
+  const builder = new oc.BRep_Builder();
+  const resultCompound = new oc.TopoDS_Compound();
+  builder.MakeCompound(resultCompound);
+
+  const mergedTags: FaceTagMap = new Map();
+  let anyOk = false;
+
+  for (const { partId, pose } of leaves) {
+    const body = opts.bodyResolver(partId, pose);
+    if (!body) continue;
+
+    // Wrap body in compound for cutBySectionPlane
+    const srcBuilder = new oc.BRep_Builder();
+    const srcComp = new oc.TopoDS_Compound();
+    srcBuilder.MakeCompound(srcComp);
+    srcBuilder.Add(srcComp, body.handle as never);
+    srcBuilder.delete();
+
+    const r = cutBySectionPlane(oc, srcComp, plane, arrowDirection);
+    srcComp.delete();
+
+    if (!r.ok) {
+      if (r.reason === 'tangent') {
+        console.warn(`cutAssemblyBySectionPlane: tangent plane on part ${partId}, skipping`);
+      }
+      continue;
+    }
+
+    anyOk = true;
+    builder.Add(resultCompound, r.compound as never);
+    (r.compound as unknown as { delete?(): void }).delete?.();
+
+    const matId = opts.materialResolver(partId);
+    for (const [key, val] of r.faceTags) {
+      mergedTags.set(key, { tag: val.tag, partId, materialId: matId });
+    }
+  }
+
+  builder.delete();
+
+  if (!anyOk) {
+    resultCompound.delete();
+    return { ok: false, reason: 'empty' };
+  }
+
+  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+}
+
+// Minimal inline leaf-walker
+type Leaf = {
+  partId: string;
+  pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] };
+};
+
+function flattenLeaves(
+  asm: AssemblyDocument,
+  lookupSubAsm: (path: string) => AssemblyDocument | undefined,
+  partPathToId: Map<string, string>
+): Leaf[] {
+  const out: Leaf[] = [];
+  function walk(doc: AssemblyDocument, visited: Set<string>): void {
+    for (const c of doc.components) {
+      if (c.visible === false) continue;
+      if ((c as { suppressed?: boolean }).suppressed) continue;
+      const pose = (c as { pose?: Leaf['pose'] }).pose ?? {
+        translation: { x: c.position.x, y: c.position.y, z: c.position.z },
+        quaternion: [0, 0, 0, 1] as const,
+      };
+      if (!c.partPath.endsWith('.ziasm')) {
+        const partId = partPathToId.get(c.partPath);
+        if (partId) out.push({ partId, pose });
+      } else {
+        if (visited.has(c.partPath)) continue;
+        const sub = lookupSubAsm(c.partPath);
+        if (!sub) continue;
+        walk(sub, new Set([...visited, c.partPath]));
+      }
+    }
+  }
+  walk(asm, new Set());
+  return out;
 }
