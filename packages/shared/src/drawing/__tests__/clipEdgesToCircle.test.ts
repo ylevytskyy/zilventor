@@ -25,6 +25,27 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
   });
 });
 
+describe('clipLineToCircle — case 7: axis-aligned through circle center (symmetric split)', () => {
+  it('vertical segment (0,-10)→(0,10) through center at origin radius=5 → (0,-5)→(0,5)', () => {
+    // ax=0, ay=-10, dx=0, dy=20. A=400, B=2*(0*0+(-10)*20)=-400, C=100-25=75.
+    // disc=160000-4*400*75=160000-120000=40000. sqrt=200.
+    // t1=0.25, t2=0.75. tEnter=0.25, tExit=0.75.
+    // cp0=(0,-10+0.25*20)=(0,-5), cp1=(0,-10+0.75*20)=(0,5). Symmetric. ✓
+    const result = clipLineToCircle([0, -10], [0, 10], { x: 0, y: 0 }, 5);
+    expectSegment(result, [0, -5], [0, 5]);
+  });
+
+  it('horizontal segment (-10,0)→(10,0) through center at (3,0) radius=5 → (-2,0)→(8,0)', () => {
+    // Circle center=(3,0). ax=-10-3=-13, ay=0. bx=10-3=7. dx=20,dy=0.
+    // A=400, B=2*(-13*20)=-520, C=169-25=144.
+    // disc=270400-4*400*144=270400-230400=40000. sqrt=200.
+    // t1=(-(-520)-200)/800=320/800=0.4, t2=720/800=0.9.
+    // cp0=(-10+0.4*20,0)=(-2,0), cp1=(-10+0.9*20,0)=(8,0). ✓
+    const result = clipLineToCircle([-10, 0], [10, 0], { x: 3, y: 0 }, 5);
+    expectSegment(result, [-2, 0], [8, 0]);
+  });
+});
+
 describe('clipLineToCircle — case 6: zero-length segment', () => {
   it('p0 === p1 inside circle → [] (zero-length always discarded per spec)', () => {
     // p0=p1=(0,0), center=(0,0), radius=5. A=0 < 1e-10 → return [].
