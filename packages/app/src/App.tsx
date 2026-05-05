@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DrawingCanvas } from './drawing/DrawingCanvas';
-import { DrawingTreePane } from './drawing/__placeholders__';
+import { DrawingTreePane } from './drawing/DrawingTreePane';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';

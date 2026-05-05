@@ -7,7 +7,8 @@ import { useAppStore } from '../../store/useAppStore';
 import type { DrawingDocument, PartDocument, AssemblyDocument } from '@zilventor/shared';
 
 // Re-export the layout slice under test by pulling just the reactive render logic.
-import { DrawingCanvas, DrawingTreePane } from '../../drawing/__placeholders__';
+import { DrawingCanvas } from '../../drawing/DrawingCanvas';
+import { DrawingTreePane } from '../../drawing/DrawingTreePane';
 import Viewport from '../../viewport/Viewport';
 import BrowserPane from '../../shell/BrowserPane';
 
@@ -17,6 +18,12 @@ vi.mock('../../viewport/Viewport', () => ({
 }));
 vi.mock('../../shell/BrowserPane', () => ({
   default: () => <div data-testid="browser-pane" />,
+}));
+vi.mock('../../drawing/DrawingCanvas', () => ({
+  DrawingCanvas: () => <div data-testid="drawing-canvas" />,
+}));
+vi.mock('../../drawing/DrawingTreePane', () => ({
+  DrawingTreePane: () => <div data-testid="drawing-tree-pane" />,
 }));
 
 // Minimal inline surrogate of the App layout branch

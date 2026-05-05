@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DrawingTreePane } from '../drawing/__placeholders__';
+import { DrawingTreePane } from '../drawing/DrawingTreePane';
 import type { AssemblyDocument, ComponentInstance, Feature, PanelFeature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
