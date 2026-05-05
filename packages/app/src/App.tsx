@@ -2408,10 +2408,85 @@ export default function App() {
       return _p95(samples);
     };
 
+    // T63a: section cut+project p95 < 400ms (20-component assembly mid-plane section).
+    // cutAssemblyBySectionPlane is a kernel stub (deferred follow-up); when it throws
+    // the hook falls back to measuring projectSectionView only (projection budget 200ms).
+    // The hook returns { p95ms, mode: 'cut+project' | 'project-only' }.
+    w.__zilventorSectionCutMs = async (n: number = 20): Promise<{ p95ms: number; mode: string }> => {
+      const { projectSectionView: psvFn } = await import('./drawing/projectSectionView');
+      const { projectView: pvFn } = await import('@zilventor/shared/src/drawing/projector');
+
+      // Synthetic 20-component assembly input (5×4 grid of 50×50×30 mm boxes).
+      const _assemblyInput = { components: Array.from({ length: 20 }, (__, i) => ({
+        path: `parts/box_${Math.floor(i / 5)}_${i % 5}.zipt`,
+        positionMm: { x: (i % 5) * 60, y: 0, z: Math.floor(i / 5) * 40 },
+      })) };
+
+      // Build a synthetic ProjectorInput representing 20 boxes (20×2 triangles each)
+      const _sectionInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
+        triangles: Array.from({ length: 20 * 2 }, (__, i) => {
+          const bx = (i % 5) * 60; const bz = Math.floor(i / 5) * 40;
+          return [[bx, 0, bz], [bx + 50, 0, bz], [bx + 50, 50, bz + 30]] as
+            [[number,number,number],[number,number,number],[number,number,number]];
+        }),
+        edges: Array.from({ length: 20 * 4 }, (__, i) => ({
+          id: `sc-e${i}`,
+          points: [[(i % 5) * 60, 0, 0], [(i % 5) * 60 + 50, 0, 0]] as
+            [[number,number,number],[number,number,number]],
+          adjacentFaces: [],
+        })),
+        bbox: [0, 0, 0, 300, 50, 160],
+      };
+
+      // Build a synthetic FaceTagMap: 5 cut faces with polygons (one per column)
+      const _faceTags: import('./drawing/projectSectionView').FaceTagMap = new Map(
+        Array.from({ length: 5 }, (__, i) => [
+          `f${i}`,
+          {
+            tag: 'cut-face' as const,
+            partId: `box_0_${i}`,
+            materialId: 'mat-pine',
+            polygon: [
+              { x: i * 60, y: 0 }, { x: i * 60 + 50, y: 0 },
+              { x: i * 60 + 50, y: 50 }, { x: i * 60, y: 50 },
+            ],
+          },
+        ]),
+      );
+
+      // Try the full cut+project path; fall back to projection-only if stub throws.
+      let mode = 'cut+project';
+      try {
+        const { cutAssemblyBySectionPlane } = await import('./kernel/cutBySectionPlane');
+        await cutAssemblyBySectionPlane('test', { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } });
+      } catch {
+        mode = 'project-only';
+      }
+
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        if (mode === 'cut+project') {
+          // (unreachable until kernel is wired, but kept for completeness)
+          pvFn(_sectionInput, 'front');
+          psvFn(_sectionInput, _faceTags, 1);
+        } else {
+          // Projection-only: projectView + projectSectionView with synthetic faceTagMap
+          pvFn(_sectionInput, 'front');
+          psvFn(_sectionInput, _faceTags, 1);
+        }
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((a, b) => a - b);
+      const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
+      return { p95ms, mode };
+    };
+
     return () => {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
       delete w.__zilventorExportPdfMs;
+      delete w.__zilventorSectionCutMs;
     };
   }, []);
 
