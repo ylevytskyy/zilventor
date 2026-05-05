@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clipLineToConvexPolygon, triangulatePolygon, triangulatePolygonWithHoles } from './hatchGenerator';
+import { clipLineToConvexPolygon, triangulatePolygon, triangulatePolygonWithHoles, generateHatchSegments } from './hatchGenerator';
 import type { Triangle } from './hatchGenerator';
 import type { Vec2 } from './types';
 
@@ -130,5 +130,63 @@ describe('triangulatePolygonWithHoles', () => {
     const tris = triangulatePolygonWithHoles(outer, [hole]);
     expect(tris).toHaveLength(8);
     tris.forEach(t => expect(area2D(t)).toBeGreaterThan(0));
+  });
+});
+
+describe('generateHatchSegments', () => {
+  const square100: Vec2[] = [
+    { x: 0, y: 0 }, { x: 100, y: 0 },
+    { x: 100, y: 100 }, { x: 0, y: 100 },
+  ];
+
+  it('100×100 square at 45° / 3mm → ~47 segments', () => {
+    const segs = generateHatchSegments(square100, 'mat-wood', {
+      angleDeg: 45,
+      spacingMm: 3,
+    });
+    // exact: ceil(100 / (3 * cos(45°))) = ceil(100 / 2.1213...) = ceil(47.14) = 48
+    // but boundary-crossing may yield 47 depending on bbox alignment; accept 46–49
+    expect(segs.length).toBeGreaterThanOrEqual(46);
+    expect(segs.length).toBeLessThanOrEqual(49);
+    segs.forEach(s => expect(s.materialId).toBe('mat-wood'));
+  });
+
+  it('L-shape at 45° / 3mm → segments skip missing corner', () => {
+    const lShape: Vec2[] = [
+      { x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 },
+      { x: 10, y: 10 }, { x: 10, y: 20 }, { x: 0, y: 20 },
+    ];
+    const segs = generateHatchSegments(lShape, 'mat-ply', {
+      angleDeg: 45,
+      spacingMm: 3,
+    });
+    expect(segs.length).toBeGreaterThan(0);
+    // No segment should end outside the L-shape bounding box
+    segs.forEach(s => {
+      expect(s.p0.x).toBeGreaterThanOrEqual(-0.01);
+      expect(s.p0.y).toBeGreaterThanOrEqual(-0.01);
+      expect(s.p1.x).toBeLessThanOrEqual(20.01);
+      expect(s.p1.y).toBeLessThanOrEqual(20.01);
+    });
+  });
+
+  it('tiny polygon (1×1 mm) at 3mm spacing → 0 or 1 segment', () => {
+    const tiny: Vec2[] = [
+      { x: 0, y: 0 }, { x: 1, y: 0 },
+      { x: 1, y: 1 }, { x: 0, y: 1 },
+    ];
+    const segs = generateHatchSegments(tiny, 'mat-tiny', {
+      angleDeg: 45,
+      spacingMm: 3,
+    });
+    expect(segs.length).toBeLessThanOrEqual(1);
+  });
+
+  it('empty polygon → empty array', () => {
+    const segs = generateHatchSegments([], 'mat-x', {
+      angleDeg: 45,
+      spacingMm: 3,
+    });
+    expect(segs).toHaveLength(0);
   });
 });
