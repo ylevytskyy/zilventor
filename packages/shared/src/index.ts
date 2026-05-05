@@ -43,3 +43,5 @@ export { computeViewFingerprint, computeSourceGeometryHash } from './drawing/fin
 export type { ResolvedTitleBlock } from './drawing/titleBlock';
 export { resolveTitleBlock } from './drawing/titleBlock';
 export { resolveSectionSource } from './drawing/resolveSectionSource';
+export { deriveSectionPlane } from './drawing/sectionPlane';
+export type { Plane } from './drawing/sectionPlane';
