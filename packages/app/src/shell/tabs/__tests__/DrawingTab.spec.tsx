@@ -108,6 +108,90 @@ describe('DrawingTab — drawing active doc', () => {
   });
 });
 
+describe('DrawingTab ribbon — Detail button', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+  });
+
+  it('renders a "Detail" button in the Place Views panel', () => {
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^detail$/i })).toBeInTheDocument();
+  });
+
+  it('clicking Detail button calls enterDetailMode() — mode becomes detail', () => {
+    // Need a drawing with a projected view to enable the Detail button
+    const dwgWithProjection: DrawingDocument = {
+      ...seedDrawing(),
+      sheets: [
+        {
+          ...seedDrawing().sheets[0]!,
+          views: [
+            {
+              id: 'bv1', kind: 'base' as const,
+              positionMm: { x: 20, y: 20 },
+              scale: { numerator: 1, denominator: 1 },
+              orientation: 'front' as const,
+              showHidden: false,
+              projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+              inputFingerprint: 'fp1',
+            },
+          ],
+        },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwgWithProjection });
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^detail$/i }));
+    expect(useToolModeStore.getState().mode).toBe('detail');
+    expect(useToolModeStore.getState().detailState.stage).toBe('idle');
+  });
+
+  it('Detail button is disabled when no views have a projection', () => {
+    // seedDrawing() has views: [] (no projection)
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^detail$/i })).toBeDisabled();
+  });
+
+  it('Detail button is enabled when at least one view has a projection', () => {
+    const dwgWithProjection: DrawingDocument = {
+      ...seedDrawing(),
+      sheets: [
+        {
+          ...seedDrawing().sheets[0]!,
+          views: [
+            {
+              id: 'bv1', kind: 'base' as const,
+              positionMm: { x: 20, y: 20 },
+              scale: { numerator: 1, denominator: 1 },
+              orientation: 'front' as const,
+              showHidden: false,
+              projection: {
+                visibleEdges: [],
+                hiddenEdges: [],
+                bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 },
+              },
+              inputFingerprint: 'fp1',
+            },
+          ],
+        },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwgWithProjection });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^detail$/i })).not.toBeDisabled();
+  });
+
+  it('Detail button appears after Section button in DOM order', () => {
+    render(<DrawingTab />);
+    const buttons = Array.from(screen.getAllByRole('button'));
+    const sectionIdx = buttons.findIndex((b) => /^section$/i.test(b.textContent ?? ''));
+    const detailIdx  = buttons.findIndex((b) => /^detail$/i.test(b.textContent ?? ''));
+    expect(sectionIdx).toBeGreaterThan(-1);
+    expect(detailIdx).toBeGreaterThan(sectionIdx);
+  });
+});
+
 describe('DrawingTab ribbon — Section button', () => {
   beforeEach(() => {
     useToolModeStore.getState().reset();

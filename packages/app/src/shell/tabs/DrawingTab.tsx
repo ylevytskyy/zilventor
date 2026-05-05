@@ -20,6 +20,8 @@ export default function DrawingTab(): JSX.Element {
   const drawing = activeDocument.document;
   const isAssembly = drawing.source?.sourceKind === 'assembly';
   const setMode = useToolModeStore.getState().setMode;
+  const activeSheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
+  const hasProjectedView = activeSheet?.views.some((v) => v.projection != null) ?? false;
 
   return (
     <div className="flex gap-2 px-3 py-2">
@@ -86,6 +88,16 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => useToolModeStore.getState().enterSectionMode()}
         >
           Section
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Detail"
+          disabled={!hasProjectedView}
+          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          onClick={() => useToolModeStore.getState().enterDetailMode()}
+        >
+          Detail
         </button>
       </RibbonPanel>
 
