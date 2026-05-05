@@ -24,3 +24,18 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
     expectSegment(result, [0, 0], [2, 0]);
   });
 });
+
+describe('clipLineToCircle — case 2: both endpoints outside, no chord', () => {
+  it('segment (10,0)→(15,0) entirely outside circle radius=5 at origin → []', () => {
+    // Both points outside; segment never enters circle.
+    // t1=-3, t2=-1 after quadratic; intersection interval (-3,-1) is entirely before t=0.
+    const result = clipLineToCircle([10, 0], [15, 0], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('segment (-20,10)→(20,10) entirely outside circle radius=5 at origin → []', () => {
+    // Horizontal line y=10 is above circle of radius 5; no intersection.
+    const result = clipLineToCircle([-20, 10], [20, 10], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+});
