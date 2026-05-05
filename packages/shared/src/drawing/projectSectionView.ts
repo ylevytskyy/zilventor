@@ -12,6 +12,7 @@ import { projectView } from './projector';
 import type { ProjectorInput } from './projector';
 import type { ProjectedGeometry, Edge2D } from './projectedGeometry';
 import type { HatchSegment, Vec2 } from './types';
+import type { Mat4, Vec3 } from './viewMatrix';
 import { generateHatchSegments } from './hatchGenerator';
 
 // ---------------------------------------------------------------------------
@@ -22,8 +23,8 @@ import { generateHatchSegments } from './hatchGenerator';
 // ---------------------------------------------------------------------------
 
 export type FaceTag =
-  | { tag: 'cut-face'; partId: string; materialId: string; polygon?: Vec2[] }
-  | { tag: 'original-face'; partId: string; materialId: string; polygon?: Vec2[] };
+  | { tag: 'cut-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[] }
+  | { tag: 'original-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[] };
 
 export type FaceTagMap = Map<string, FaceTag>;
 
@@ -65,6 +66,22 @@ function fingerprintResult(
 }
 
 // ---------------------------------------------------------------------------
+// Helper: project a 3D polygon into 2D view space via a row-major Mat4
+// ---------------------------------------------------------------------------
+
+function projectPolygon3D(pts: Vec3[], m: Mat4): Vec2[] {
+  // Row-major 4×4: row r at m[r*4 .. r*4+3]
+  return pts.map((v) => {
+    /* eslint-disable @typescript-eslint/no-non-null-assertion */
+    const w = m[12]! * v.x + m[13]! * v.y + m[14]! * v.z + m[15]!;
+    const x = (m[0]! * v.x + m[1]! * v.y + m[2]!  * v.z + m[3]!)  / w;
+    const y = (m[4]! * v.x + m[5]! * v.y + m[6]!  * v.z + m[7]!)  / w;
+    /* eslint-enable @typescript-eslint/no-non-null-assertion */
+    return { x, y };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Main entry
 // ---------------------------------------------------------------------------
 
@@ -73,6 +90,7 @@ export function projectSectionView(
   faceTags: FaceTagMap,
   scale: number,
   getHatchSpec?: (materialId: string) => { angleDeg: number; spacingMm: number },
+  sectionViewMatrix?: Mat4,
 ): {
   edges: Edge2D[];
   hatchSegments: HatchSegment[];
@@ -93,7 +111,11 @@ export function projectSectionView(
   for (const [, faceInfo] of faceTags.entries()) {
     if (faceInfo.tag !== 'cut-face') continue;
 
-    const polygon = faceInfo.polygon;
+    // Prefer pre-projected 2D polygon; fall back to projecting polygon3D via sectionViewMatrix.
+    let polygon = faceInfo.polygon;
+    if ((!polygon || polygon.length < 3) && faceInfo.polygon3D && faceInfo.polygon3D.length >= 3 && sectionViewMatrix) {
+      polygon = projectPolygon3D(faceInfo.polygon3D, sectionViewMatrix);
+    }
     if (!polygon || polygon.length < 3) continue;
 
     const hatchSpec = getHatchSpec ? getHatchSpec(faceInfo.materialId) : DEFAULT_HATCH_SPEC;

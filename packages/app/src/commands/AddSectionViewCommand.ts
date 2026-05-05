@@ -114,6 +114,7 @@ export class AddSectionViewCommand implements Command {
       faceTags,
       scale,
       hatchLookup,
+      sectionViewMatrix,
     );
 
     const existingLabels = sheet.views

@@ -94,4 +94,34 @@ describe('projectSectionView', () => {
 
     expect(result.hatchSegments).toHaveLength(0);
   });
+
+  it('polygon3D projected via sectionViewMatrix produces hatch segments', () => {
+    // Identity matrix: projects 3D points to their XY coordinates unchanged
+    const identity: number[] = [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
+    ];
+    const polygon3D = [
+      { x: 0, y: 0, z: 0 },
+      { x: 10, y: 0, z: 0 },
+      { x: 10, y: 10, z: 0 },
+      { x: 0, y: 10, z: 0 },
+    ];
+    const faceTags = new Map([
+      ['face-cut', { tag: 'cut-face' as const, partId: 'p1', materialId: 'mat-wood', polygon3D }],
+    ]);
+
+    const result = projectSectionView(
+      { triangles: [], edges: [], bbox: [0, 0, 0, 10, 10, 10] },
+      faceTags,
+      1,
+      undefined,
+      identity,
+    );
+
+    // With a 10×10 polygon and default hatch (45deg, 3mm spacing), expect non-zero segments
+    expect(result.hatchSegments.length).toBeGreaterThan(0);
+  });
 });
