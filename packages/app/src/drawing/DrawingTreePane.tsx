@@ -13,7 +13,6 @@ function parentViewLabel(view: DrawingSheet['views'][number]): string {
     case 'iso':       return `Iso — ${view.corner}`;
     case 'section':   return `Section — ${view.label}`;
     case 'detail':    return `Detail — ${view.label}`;
-    default:          return view.kind;
   }
 }
 
