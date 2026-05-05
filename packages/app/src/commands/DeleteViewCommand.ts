@@ -1,6 +1,7 @@
 import type { Command } from './Command';
-import type { DrawingDocument, DrawingView, DrawingDimension, DrawingAnnotation } from '@zilventor/shared';
+import type { DrawingDocument, DrawingView, DrawingDimension, DrawingAnnotation, SectionView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { sectionCache } from '../drawing/sectionCache';
 
 type Snapshot = {
   views: DrawingView[];
@@ -9,6 +10,8 @@ type Snapshot = {
   dimIndices: number[];
   annotations: DrawingAnnotation[];
   annIndices: number[];
+  /** Cache keys for removed section views, evicted during apply. Not restored on revert — caller re-cuts on next use. */
+  sectionCacheKeys: string[];
 };
 
 export class DeleteViewCommand implements Command {
@@ -28,11 +31,14 @@ export class DeleteViewCommand implements Command {
     const targetView = sheet.views.find(v => v.id === this.opts.viewId);
     if (!targetView) return;
 
-    // Determine which view ids to remove (target + projected children if base)
+    // Determine which view ids to remove (target + projected/section children if base)
     const viewIdsToRemove = new Set<string>([this.opts.viewId]);
     if (targetView.kind === 'base') {
       for (const v of sheet.views) {
         if (v.kind === 'projected' && v.baseViewId === this.opts.viewId) {
+          viewIdsToRemove.add(v.id);
+        }
+        if (v.kind === 'section' && (v as SectionView).parentViewId === this.opts.viewId) {
           viewIdsToRemove.add(v.id);
         }
       }
@@ -65,6 +71,15 @@ export class DeleteViewCommand implements Command {
       }
     });
 
+    // Collect cache keys for removed section views so they can be evicted.
+    const sectionCacheKeys: string[] = [];
+    for (const v of removedViews) {
+      if (v.kind === 'section') {
+        const sv = v as SectionView;
+        if (sv.fingerprint) sectionCacheKeys.push(sv.fingerprint);
+      }
+    }
+
     this.snapshot = {
       views: removedViews,
       viewIndices: removedViewIndices,
@@ -72,7 +87,13 @@ export class DeleteViewCommand implements Command {
       dimIndices: removedDimIndices,
       annotations: removedAnns,
       annIndices: removedAnnIndices,
+      sectionCacheKeys,
     };
+
+    // Evict section cache entries for removed views (best-effort).
+    for (const key of sectionCacheKeys) {
+      await sectionCache.delete(key).catch(() => undefined);
+    }
 
     const next: DrawingDocument = {
       ...doc.document,
