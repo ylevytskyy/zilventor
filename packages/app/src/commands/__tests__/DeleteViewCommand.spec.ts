@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { DeleteViewCommand } from '../DeleteViewCommand';
-import type { DrawingDocument, BaseView, ProjectedView, DrawingDimension, SectionView, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, BaseView, ProjectedView, IsoView, DrawingDimension, SectionView, DetailView } from '@zilventor/shared';
 
 vi.mock('../../drawing/sectionCache', () => ({
   sectionCache: {
@@ -428,5 +428,104 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
     expect(sheet.views[1]!.id).toBe('detail-a');
     expect(sheet.views[2]!.id).toBe('detail-b');
     expect(sheet.views[3]!.id).toBe('sect-c');
+  });
+
+  it('cascades when deleting a projected view that has a detail child', async () => {
+    const projParent: ProjectedView = {
+      id: 'proj-p1', kind: 'projected',
+      positionMm: { x: 200, y: 50 },
+      baseViewId: 'base-d1',
+      direction: 'right',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      projection: {
+        visibleEdges: [{ id: 'p1', kind: 'outline' as const, points: [[0, 0], [50, 0]] as [number, number][], sourceFaceIds: [] }],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 50, maxY: 30 },
+      },
+      inputFingerprint: 'proj-fp',
+    };
+    const detailFromProj: DetailView = {
+      ...DETAIL_A,
+      id: 'detail-from-proj',
+      parentViewId: 'proj-p1',
+      label: 'P',
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-proj', name: 'D-Proj', units: 'mm',
+          source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-p', name: 'Sheet P',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [BASE_FOR_DETAIL, projParent, detailFromProj],
+            dimensions: [],
+            annotations: [],
+            titleBlock: {},
+          }],
+          activeSheetId: 'sheet-p',
+        },
+      },
+    });
+
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-p', viewId: 'proj-p1' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views.map(v => v.id)).toEqual(['base-d1']);
+  });
+
+  it('cascades when deleting an iso view that has a detail child', async () => {
+    const isoParent: IsoView = {
+      id: 'iso-i1', kind: 'iso',
+      positionMm: { x: 350, y: 50 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      projection: {
+        visibleEdges: [{ id: 'i1', kind: 'outline' as const, points: [[0, 0], [40, 30]] as [number, number][], sourceFaceIds: [] }],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 40, maxY: 30 },
+      },
+      inputFingerprint: 'iso-fp',
+    };
+    const detailFromIso: DetailView = {
+      ...DETAIL_A,
+      id: 'detail-from-iso',
+      parentViewId: 'iso-i1',
+      label: 'I',
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-iso', name: 'D-Iso', units: 'mm',
+          source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-i', name: 'Sheet I',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [BASE_FOR_DETAIL, isoParent, detailFromIso],
+            dimensions: [],
+            annotations: [],
+            titleBlock: {},
+          }],
+          activeSheetId: 'sheet-i',
+        },
+      },
+    });
+
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-i', viewId: 'iso-i1' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views.map(v => v.id)).toEqual(['base-d1']);
   });
 });
