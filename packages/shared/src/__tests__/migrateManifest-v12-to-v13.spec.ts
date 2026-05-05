@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v12 → v13 (5e — no-op additive)', () => {
-  it('CURRENT_FORMAT_VERSION is 13', () => {
+  it('CURRENT_FORMAT_VERSION is 14', () => {
     expect(CURRENT_FORMAT_VERSION).toBe(14);
   });
 

@@ -128,6 +128,8 @@ export type AssemblyConstraint =
       refB: { componentPath: ComponentPath; circularEdge: EdgeName };
       offset: ParamOrLiteral; suppressed: boolean };
 
+// Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
+// bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.
 export type ProjectFile =
   | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
   | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
