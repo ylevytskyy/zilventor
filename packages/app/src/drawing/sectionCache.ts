@@ -1,10 +1,13 @@
 // packages/app/src/drawing/sectionCache.ts
 //
-// App-level singleton accessor for the section BREP cache.
-// The full implementation lives in the kernel package (OPFS-backed, browser-only).
+// Session-level in-memory cache for section cut results (ProjectorInput +
+// FaceTagMap). Keyed by plane fingerprint; evicted when the user closes the tab.
+//
+// The kernel-side OPFS cache stores raw BREP bytes for in-worker reuse.
+// The app side stores the already-tessellated ProjectorInput so that
+// AddSectionViewCommand can skip re-cutting on redo without a round-trip.
+//
 // In tests this module is fully mocked via vi.mock.
-// In production the app will wire the real cache via a KernelClient proxy
-// in a later phase — for now callers are only exercised through mocks.
 
 import type { FaceTagMap } from '@zilventor/shared/src/drawing/projectSectionView';
 
@@ -14,19 +17,16 @@ export type SectionCacheStore = {
   delete(key: string): Promise<void>;
 };
 
-/**
- * Production singleton — wired to the OPFS-backed kernel cache.
- * Accessing this in a non-browser environment (e.g. unit tests) will throw;
- * tests must mock this module via vi.mock('../../drawing/sectionCache').
- */
+const _store = new Map<string, { brep: unknown; faceTags: FaceTagMap }>();
+
 export const sectionCache: SectionCacheStore = {
-  async get(_key) {
-    throw new Error('sectionCache.get: not wired — mock in tests, wire KernelClient in production');
+  async get(key) {
+    return _store.get(key) ?? null;
   },
-  async put(_key, _brep, _faceTags) {
-    throw new Error('sectionCache.put: not wired — mock in tests, wire KernelClient in production');
+  async put(key, brep, faceTags) {
+    _store.set(key, { brep, faceTags });
   },
-  async delete(_key) {
-    throw new Error('sectionCache.delete: not wired — mock in tests, wire KernelClient in production');
+  async delete(key) {
+    _store.delete(key);
   },
 };
