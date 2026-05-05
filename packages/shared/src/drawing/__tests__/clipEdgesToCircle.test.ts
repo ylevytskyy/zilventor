@@ -1,7 +1,8 @@
 // packages/shared/src/drawing/__tests__/clipEdgesToCircle.test.ts
 import { describe, it, expect } from 'vitest';
-import { clipLineToCircle, clipPolylineToCircle } from '../clipEdgesToCircle';
+import { clipLineToCircle, clipPolylineToCircle, clipEdgesToCircle } from '../clipEdgesToCircle';
 import type { Segment } from '../clipEdgesToCircle';
+import type { Edge2D } from '../projectedGeometry';
 
 // helper: check that a Segment[] has one element and its coords match expected
 function expectSegment(
@@ -209,5 +210,71 @@ describe('clipPolylineToCircle', () => {
   it('single-point polyline → []', () => {
     const result = clipPolylineToCircle([[0, 0]], { x: 0, y: 0 }, 5);
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('clipEdgesToCircle', () => {
+  it('clips edge array and preserves kind + sourceFaceIds, appending _clip0, _clip1 etc to id', () => {
+    const edges: Edge2D[] = [
+      {
+        id: 'e1',
+        kind: 'outline',
+        points: [[-10, 0], [10, 0]],         // chord through circle radius=5
+        sourceFaceIds: ['face-a'],
+      },
+      {
+        id: 'e2',
+        kind: 'feature',
+        points: [[0, 0], [2, 0]],            // fully inside
+        sourceFaceIds: ['face-b'],
+      },
+    ];
+    const result = clipEdgesToCircle(edges, { x: 0, y: 0 }, 5);
+    // e1: one clipped segment
+    expect(result[0]!.id).toBe('e1_clip0');
+    expect(result[0]!.kind).toBe('outline');
+    expect(result[0]!.sourceFaceIds).toEqual(['face-a']);
+    expect(result[0]!.points[0]![0]).toBeCloseTo(-5, 4);
+    expect(result[0]!.points[1]![0]).toBeCloseTo(5, 4);
+    // e2: one preserved segment
+    expect(result[1]!.id).toBe('e2_clip0');
+    expect(result[1]!.kind).toBe('feature');
+    expect(result[1]!.sourceFaceIds).toEqual(['face-b']);
+    expect(result[1]!.points[0]).toEqual([0, 0]);
+    expect(result[1]!.points[1]).toEqual([2, 0]);
+  });
+
+  it('edge entirely outside circle → clipped away (not in result)', () => {
+    const edges: Edge2D[] = [
+      { id: 'e3', kind: 'silhouette', points: [[20, 0], [30, 0]] },
+    ];
+    const result = clipEdgesToCircle(edges, { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('edge with multiple segments (polyline crossing circle) → multiple output edges', () => {
+    // Polyline: (-10,0)→(-3,0)→(3,0)→(10,0)
+    // Segment (-10,0)→(-3,0): enters at (-5,0), ends at (-3,0) [inside]. 1 segment.
+    // Segment (-3,0)→(3,0): fully inside. 1 segment.
+    // Segment (3,0)→(10,0): exits at (5,0). 1 segment.
+    const edges: Edge2D[] = [
+      {
+        id: 'e4',
+        kind: 'outline',
+        points: [[-10, 0], [-3, 0], [3, 0], [10, 0]],
+      },
+    ];
+    const result = clipEdgesToCircle(edges, { x: 0, y: 0 }, 5);
+    // 3 polyline segments clipped → 3 output Edge2D entries
+    expect(result).toHaveLength(3);
+    expect(result[0]!.id).toBe('e4_clip0');
+    expect(result[1]!.id).toBe('e4_clip1');
+    expect(result[2]!.id).toBe('e4_clip2');
+    // All preserve kind
+    result.forEach(e => expect(e.kind).toBe('outline'));
+  });
+
+  it('empty edge array → empty result', () => {
+    expect(clipEdgesToCircle([], { x: 0, y: 0 }, 5)).toHaveLength(0);
   });
 });

@@ -1,5 +1,7 @@
 // packages/shared/src/drawing/clipEdgesToCircle.ts
 
+import type { Edge2D } from './projectedGeometry';
+
 export type Segment = {
   readonly p0: [number, number];
   readonly p1: [number, number];
@@ -90,6 +92,33 @@ export function clipPolylineToCircle(
   for (let i = 0; i < points.length - 1; i++) {
     const segs = clipLineToCircle(points[i]!, points[i + 1]!, center, radius);
     result.push(...segs);
+  }
+  return result;
+}
+
+/**
+ * Clip an array of Edge2D against a circle in parent-local mm space.
+ * Returns a new array of Edge2D with clipped points.
+ * Each surviving clip segment becomes its own Edge2D, with id suffixed `_clip<i>`.
+ * kind and sourceFaceIds are preserved from the source edge.
+ */
+export function clipEdgesToCircle(
+  edges: readonly Edge2D[],
+  center: { x: number; y: number },
+  radius: number,
+): Edge2D[] {
+  const result: Edge2D[] = [];
+  for (const edge of edges) {
+    const segments = clipPolylineToCircle(edge.points, center, radius);
+    for (let i = 0; i < segments.length; i++) {
+      const clipped: Edge2D = {
+        id: `${edge.id}_clip${i}`,
+        kind: edge.kind,
+        points: [segments[i]!.p0, segments[i]!.p1],
+        ...(edge.sourceFaceIds !== undefined && { sourceFaceIds: edge.sourceFaceIds }),
+      };
+      result.push(clipped);
+    }
   }
   return result;
 }
