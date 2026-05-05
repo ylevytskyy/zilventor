@@ -38,7 +38,7 @@ describe('AddLeaderTextDialog', () => {
     expect(screen.getByRole('textbox', { name: /text/i })).toBeInTheDocument();
   });
 
-  it('OK dispatches AddAnnotationCommand with the typed text and closes', async () => {
+  it('OK dispatches AddDrawingAnnotationCommand with the typed text and closes', async () => {
     useAppStore.setState({ addLeaderTextDialogState: pendingLeader } as any);
     render(<AddLeaderTextDialog />);
     fireEvent.change(screen.getByRole('textbox', { name: /text/i }), { target: { value: 'Chamfer here' } });
@@ -46,7 +46,7 @@ describe('AddLeaderTextDialog', () => {
     await Promise.resolve();
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [cmd] = mockExecute.mock.calls[0]!;
-    expect((cmd as any).constructor.name).toBe('AddAnnotationCommand');
+    expect((cmd as any).constructor.name).toBe('AddDrawingAnnotationCommand');
     expect((cmd as any).opts.sheetId).toBe('sh1');
     expect((cmd as any).opts.ann.text).toBe('Chamfer here');
     expect((cmd as any).opts.ann.kind).toBe('leader');

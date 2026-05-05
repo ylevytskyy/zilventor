@@ -92,7 +92,6 @@ type AppState = {
   activePart: PartDocument | null;
   activeAssembly: AssemblyDocument | null;
   activeDrawing: DrawingDocument | null;         // Sub-project 6
-  drawingToolMode: string;                        // Sub-project 6 Phase 8
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -323,7 +322,6 @@ export const useAppStore = create<AppState>((set) => ({
   activePart: null,
   activeAssembly: null,
   activeDrawing: null,
-  drawingToolMode: 'idle',
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,

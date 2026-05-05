@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { AddAnnotationCommand } from '../commands/AddAnnotationCommand';
+import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import type { DrawingAnnotation } from '@zilventor/shared';
 
 const overlayStyle: React.CSSProperties = {
@@ -38,7 +38,7 @@ export function AddLeaderTextDialog(): JSX.Element | null {
   const handleOk = async (): Promise<void> => {
     if (!text.trim()) return;
     const ann: DrawingAnnotation = { ...state.ann, text: text.trim() };
-    await bus.execute(new AddAnnotationCommand({ sheetId: state.sheetId, ann }));
+    await bus.execute(new AddDrawingAnnotationCommand({ sheetId: state.sheetId, ann }));
     close();
   };
 

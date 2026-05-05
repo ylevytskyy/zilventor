@@ -1,6 +1,7 @@
 // packages/app/src/drawing/DrawingCanvas.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { useToolModeStore } from './toolMode';
 import { TitleBlock } from './TitleBlock';
 import { ViewElement } from './ViewElement';
 import { DimensionElement } from './DimensionElement';
@@ -31,7 +32,7 @@ type ClickPoint = { x: number; y: number; edgeId: string | undefined; viewId: st
 export function DrawingCanvas() {
   const drawing = useAppStore((s) => s.activeDrawing);
   const bus = useAppStore((s) => s.bus);
-  const toolMode = useAppStore((s) => s.drawingToolMode ?? 'idle');
+  const toolMode = useToolModeStore((s) => s.mode);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });

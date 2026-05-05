@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { DrawingCanvas } from '../DrawingCanvas';
 import { useAppStore } from '../../store/useAppStore';
+import { useToolModeStore } from '../toolMode';
 import { AddDrawingDimensionCommand } from '../../commands/AddDrawingDimensionCommand';
 import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
 
@@ -37,9 +38,9 @@ vi.mock('../../commands/AddDrawingDimensionCommand', () => ({
 
 describe('DrawingCanvas', () => {
   beforeEach(() => {
+    useToolModeStore.setState({ mode: 'idle' });
     useAppStore.setState({
       activeDrawing: makeDrawing(),
-      drawingToolMode: 'idle',
       bus: { execute: vi.fn().mockResolvedValue(undefined) },
     } as never);
   });
@@ -58,7 +59,7 @@ describe('DrawingCanvas', () => {
   });
 
   it('tool-mode addLinearH + 2 click events → calls bus.execute with AddDrawingDimensionCommand', async () => {
-    useAppStore.setState({ drawingToolMode: 'addLinearH' } as never);
+    useToolModeStore.setState({ mode: 'addLinearH' });
     render(<DrawingCanvas />);
     const svg = document.querySelector('svg')!;
 
