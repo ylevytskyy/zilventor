@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { ViewElement } from '../ViewElement';
-import type { DrawingView, ProjectedGeometry, SectionView } from '@zilventor/shared';
+import type { DrawingView, ProjectedGeometry, SectionView, DetailView } from '@zilventor/shared';
 
 const proj = (): ProjectedGeometry => ({
   visibleEdges: [
@@ -161,5 +161,108 @@ describe('ViewElement — section view', () => {
     );
     const hatchLine = container.querySelector('line[data-role="hatch"]')!;
     expect(parseFloat(hatchLine.getAttribute('stroke-width')!)).toBeCloseTo(0.25);
+  });
+});
+
+const DETAIL_VIEW_FIXTURE: DetailView = {
+  id: 'dv1',
+  kind: 'detail',
+  parentViewId: 'pv1',
+  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  label: 'A',
+  positionMm: { x: 200, y: 100 },
+  scale: { numerator: 2, denominator: 1 },
+  showHidden: false,
+  projection: {
+    visibleEdges: [
+      { id: 'dve1', kind: 'outline', points: [[0, 0], [8, 0], [8, 6], [0, 6], [0, 0]] },
+    ],
+    hiddenEdges: [],
+    bbox: { minX: -8, minY: -6, maxX: 8, maxY: 6 },
+  },
+  inputFingerprint: 'fp-detail',
+};
+
+describe('ViewElement — detail view', () => {
+  it('renders <circle data-role="detail-border"> with r = regionParent.radiusMm', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const circle = container.querySelector('circle[data-role="detail-border"]');
+    expect(circle).not.toBeNull();
+    // r in detail-local mm equals regionParent.radiusMm (the scale() transform on the <g> handles sheet-mm sizing)
+    expect(parseFloat(circle!.getAttribute('r')!)).toBeCloseTo(5, 3);
+  });
+
+  it('renders visible edge polylines from projection.visibleEdges', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const polylines = container.querySelectorAll('polyline[data-edge-id="dve1"]');
+    expect(polylines).toHaveLength(1);
+  });
+
+  it('renders <text data-role="detail-caption"> with "DETAIL A" text', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const caption = container.querySelector('text[data-role="detail-caption"]');
+    expect(caption).not.toBeNull();
+    expect(caption!.textContent).toContain('DETAIL A');
+  });
+
+  it('caption <tspan> contains the scale ratio "2:1"', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const caption = container.querySelector('text[data-role="detail-caption"]');
+    expect(caption!.textContent).toContain('2:1');
+  });
+
+  it('stale banner renders for detail view when isStale=true', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={true} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelector('[data-stale-marker]')).not.toBeNull();
+  });
+
+  it('clicking stale marker on detail view calls onRegenerate with view id', () => {
+    const onRegen = vi.fn();
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={true} onRegenerate={onRegen} />
+      </svg>,
+    );
+    const marker = container.querySelector('[data-stale-marker]') as SVGElement;
+    fireEvent.click(marker);
+    expect(onRegen).toHaveBeenCalledWith('dv1');
+  });
+
+  it('detail view with showHidden=false renders no hidden polylines', () => {
+    const withHidden: DetailView = {
+      ...DETAIL_VIEW_FIXTURE,
+      showHidden: false,
+      projection: {
+        visibleEdges: DETAIL_VIEW_FIXTURE.projection!.visibleEdges,
+        hiddenEdges: [{ id: 'dhe1', kind: 'outline', points: [[0, 0], [4, 0]] }],
+        bbox: DETAIL_VIEW_FIXTURE.projection!.bbox,
+      },
+    };
+    const { container } = render(
+      <svg>
+        <ViewElement view={withHidden} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelectorAll('polyline[data-edge-kind="hidden"]')).toHaveLength(0);
   });
 });

@@ -1,5 +1,5 @@
 // packages/app/src/drawing/ViewElement.tsx
-import type { DrawingView, SectionView } from '@zilventor/shared';
+import type { DrawingView, SectionView, DetailView } from '@zilventor/shared';
 
 export type ViewElementProps = {
   view: DrawingView;
@@ -83,6 +83,42 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
               fontFamily="sans-serif"
             >
               {`SECTION ${(view as SectionView).label}-${(view as SectionView).label}`}
+            </text>
+          )}
+        </>
+      )}
+
+      {/* Detail view border + caption */}
+      {view.kind === 'detail' && (
+        <>
+          {/* Circle border in detail-local mm (ViewElement's scale() maps to sheet mm) */}
+          <circle
+            cx={0}
+            cy={0}
+            r={(view as DetailView).regionParent.radiusMm}
+            fill="none"
+            stroke="black"
+            strokeWidth={0.35}
+            data-role="detail-border"
+          />
+          {/* Caption: "DETAIL A" + scale ratio on second line */}
+          {proj && (
+            <text
+              x={(proj.bbox.minX + proj.bbox.maxX) / 2}
+              y={proj.bbox.maxY + 5 / sheetZoom}
+              textAnchor="middle"
+              fontSize={4 / sheetZoom}
+              fontFamily="sans-serif"
+              data-role="detail-caption"
+            >
+              {`DETAIL ${(view as DetailView).label}`}
+              <tspan
+                x={(proj.bbox.minX + proj.bbox.maxX) / 2}
+                dy={5 / sheetZoom}
+                fontSize={3.5 / sheetZoom}
+              >
+                {`${view.scale.numerator}:${view.scale.denominator}`}
+              </tspan>
             </text>
           )}
         </>
