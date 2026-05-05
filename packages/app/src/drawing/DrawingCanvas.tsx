@@ -4,12 +4,14 @@ import { useAppStore } from '../store/useAppStore';
 import { useToolModeStore } from './toolMode';
 import { TitleBlock } from './TitleBlock';
 import { ViewElement } from './ViewElement';
+import { SectionLineOverlay } from './SectionLineOverlay';
 import { DimensionElement } from './DimensionElement';
 import { AnnotationElement } from './AnnotationElement';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
-import type { DrawingDocument, DrawingSheet, SectionView } from '@zilventor/shared';
+import { allocateSectionLabel } from '@zilventor/shared/src/drawing/sectionLabel';
+import type { DrawingDocument, DrawingSheet, SectionView, BaseView, ProjectedView } from '@zilventor/shared';
 
 // ISO sheet sizes in mm (landscape orientation)
 const ISO_MM: Record<string, { w: number; h: number }> = {
@@ -59,6 +61,7 @@ export function DrawingCanvas() {
   const drawing = useAppStore((s) => s.activeDrawing);
   const bus = useAppStore((s) => s.bus);
   const toolMode = useToolModeStore((s) => s.mode);
+  const sectionState = useToolModeStore((s) => s.sectionState);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -308,6 +311,55 @@ export function DrawingCanvas() {
           onRegenerate={handleRegenerate}
         />
       ))}
+
+      {/* Section line overlays — one per section view over its parent */}
+      {sheet.views
+        .filter((v): v is SectionView => v.kind === 'section')
+        .map((sv) => {
+          const parent = sheet.views.find((v) => v.id === sv.parentViewId);
+          if (!parent || (parent.kind !== 'base' && parent.kind !== 'projected')) return null;
+          return (
+            <SectionLineOverlay
+              key={`overlay-${sv.id}`}
+              parentView={parent as BaseView | ProjectedView}
+              sectionView={sv}
+              zoom={zoom}
+            />
+          );
+        })}
+
+      {/* Live preview overlay during section tool pickDrop stage */}
+      {toolMode === 'section' && sectionState.stage === 'pickDrop' && (() => {
+        const ds = sectionState;
+        const parent = sheet.views.find((v) => v.id === ds.parentViewId);
+        if (!parent || (parent.kind !== 'base' && parent.kind !== 'projected')) return null;
+        const existingLabels = sheet.views
+          .filter((v) => v.kind === 'section')
+          .map((v) => (v as SectionView).label);
+        const previewLabel = allocateSectionLabel(existingLabels);
+        const previewView: SectionView = {
+          id: 'preview',
+          kind: 'section',
+          label: previewLabel,
+          parentViewId: ds.parentViewId,
+          sectionLine: { p0: ds.p0, p1: ds.p1 },
+          arrowDirection: ds.arrowDirection,
+          positionMm: { x: 0, y: 0 },
+          scale: { numerator: 1, denominator: 1 },
+          showHidden: false,
+          hatchSegments: [],
+          fingerprint: '',
+          projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+        };
+        return (
+          <SectionLineOverlay
+            key="overlay-preview"
+            parentView={parent as BaseView | ProjectedView}
+            sectionView={previewView}
+            zoom={zoom}
+          />
+        );
+      })()}
 
       {/* Dimensions */}
       {sheet.dimensions.map((dim) => {

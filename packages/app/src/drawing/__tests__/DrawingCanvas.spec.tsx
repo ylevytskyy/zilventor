@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../toolMode';
 import { AddDrawingDimensionCommand } from '../../commands/AddDrawingDimensionCommand';
 import { AddSectionViewCommand } from '../../commands/AddSectionViewCommand';
-import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, BaseView, SectionView } from '@zilventor/shared';
 
 // Minimal drawing fixture
 const makeSheet = (): DrawingSheet => ({
@@ -176,5 +176,112 @@ describe('DrawingCanvas — section tool mode', () => {
     // Click at coords far outside v1 bounds (v1 is at x=20,y=20; click at x=400,y=280)
     fireEvent.click(svg, { clientX: 400, clientY: 280 });
     expect(pickP0).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 24 — SectionLineOverlay rendering
+// ---------------------------------------------------------------------------
+
+const BASE_VIEW_T24: BaseView = {
+  id: 'bv1',
+  kind: 'base',
+  positionMm: { x: 50, y: 50 },
+  scale: { numerator: 1, denominator: 1 },
+  orientation: 'front',
+  showHidden: false,
+};
+
+const SECTION_VIEW_T24: SectionView = {
+  id: 'sv1',
+  kind: 'section',
+  label: 'A',
+  parentViewId: 'bv1',
+  sectionLine: { p0: { x: 5, y: 25 }, p1: { x: 45, y: 25 } },
+  arrowDirection: 1,
+  positionMm: { x: 200, y: 100 },
+  scale: { numerator: 1, denominator: 1 },
+  showHidden: false,
+  hatchSegments: [],
+  fingerprint: '',
+  projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 50, maxY: 50 } },
+};
+
+function makeSheetWithViews(views: DrawingSheet['views']): DrawingSheet {
+  return {
+    id: 's1', name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views,
+    dimensions: [],
+    annotations: [],
+    titleBlock: {},
+  };
+}
+
+describe('DrawingCanvas — SectionLineOverlay rendering', () => {
+  beforeEach(() => {
+    useToolModeStore.setState({ mode: 'idle', sectionState: { stage: 'idle' } } as never);
+  });
+
+  it('renders SectionLineOverlay for each section view in the active sheet', () => {
+    useAppStore.setState({
+      activeDrawing: {
+        ...makeDrawing(),
+        sheets: [makeSheetWithViews([BASE_VIEW_T24, SECTION_VIEW_T24])],
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelectorAll('[data-section-overlay]')).toHaveLength(1);
+  });
+
+  it('renders no overlays when sheet has no section views', () => {
+    useAppStore.setState({
+      activeDrawing: {
+        ...makeDrawing(),
+        sheets: [makeSheetWithViews([BASE_VIEW_T24])],
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelectorAll('[data-section-overlay]')).toHaveLength(0);
+  });
+
+  it('renders live-preview overlay when tool mode is section at pickDrop stage', () => {
+    useAppStore.setState({
+      activeDrawing: {
+        ...makeDrawing(),
+        sheets: [makeSheetWithViews([BASE_VIEW_T24])],
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    useToolModeStore.setState({
+      mode: 'section',
+      sectionState: {
+        stage: 'pickDrop',
+        parentViewId: 'bv1',
+        p0: { x: 5, y: 25 },
+        p1: { x: 45, y: 25 },
+        arrowDirection: 1,
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-section-overlay="preview"]')).not.toBeNull();
+    useToolModeStore.getState().sectionCancel();
+  });
+
+  it('renders no preview overlay when tool mode is section at idle stage', () => {
+    useAppStore.setState({
+      activeDrawing: {
+        ...makeDrawing(),
+        sheets: [makeSheetWithViews([])],
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    useToolModeStore.setState({ mode: 'section', sectionState: { stage: 'idle' } } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-section-overlay="preview"]')).toBeNull();
+    useToolModeStore.getState().sectionCancel();
   });
 });
