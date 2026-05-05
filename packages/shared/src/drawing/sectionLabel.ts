@@ -36,17 +36,12 @@ function* labelSequence(): Generator<string> {
 }
 
 /**
- * Return the lowest label not already in `existingLabels`.
- * Fills gaps: if ['A','C'] is given, returns 'B'.
- * Skips I and O at every position per ANSI convention.
- *
- * When `existingLabels` contains any multi-character label (e.g. 'AA'),
- * all shorter labels are treated as implicitly exhausted — the allocator
- * searches only among labels of length >= the maximum length in the set.
- * This matches the expected behaviour when a drawing already has labels
- * that span into the two-character range.
+ * Return the lowest label not in `existingLabels`.
+ * Skips I and O per ANSI Y14.3. Fills gaps.
+ * `existingLabels` must include labels from BOTH SectionView and DetailView
+ * arrays on the same sheet so the two view types share one callout pool.
  */
-export function allocateSectionLabel(existingLabels: string[]): string {
+export function allocateCalloutLabel(existingLabels: string[]): string {
   const used = new Set(existingLabels);
   const maxLen = existingLabels.reduce((m, l) => Math.max(m, l.length), 0);
   for (const label of labelSequence()) {
@@ -54,5 +49,5 @@ export function allocateSectionLabel(existingLabels: string[]): string {
     if (!used.has(label)) return label;
   }
   // Unreachable in any practical drawing
-  throw new Error('allocateSectionLabel: label space exhausted');
+  throw new Error('allocateCalloutLabel: label space exhausted');
 }

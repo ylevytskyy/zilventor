@@ -45,3 +45,4 @@ export { resolveTitleBlock } from './drawing/titleBlock';
 export { resolveSectionSource } from './drawing/resolveSectionSource';
 export { deriveSectionPlane } from './drawing/sectionPlane';
 export type { Plane } from './drawing/sectionPlane';
+export { allocateCalloutLabel } from './drawing/sectionLabel';
