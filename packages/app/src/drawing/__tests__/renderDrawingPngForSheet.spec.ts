@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { makeFixtureDrawing, makeFixturePart } from '../../__tests__/fixtures/drawingFixtures';
+import {
+  makeFixtureDrawing,
+  makeFixturePart,
+  makeFixtureDrawingWithParentAndDetail,
+} from '../../__tests__/fixtures/drawingFixtures';
 
 /**
  * Builds a minimal valid PNG Uint8Array (signature + IHDR chunk).
@@ -84,5 +88,35 @@ describe('renderDrawingPngForSheet', () => {
     });
     // PNG magic: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
     expect(Array.from(bytes.slice(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  });
+});
+
+describe('renderDrawingPngForSheet — detail view', () => {
+  beforeEach(() => {
+    mockCanvasWidth = 0;
+    mockCanvasHeight = 0;
+    vi.clearAllMocks();
+    (globalThis as unknown as Record<string, unknown>).OffscreenCanvas = MockOffscreenCanvas;
+  });
+
+  afterEach(() => {
+    delete (globalThis as unknown as Record<string, unknown>).OffscreenCanvas;
+  });
+
+  it('returns a Blob (type image/png) for a drawing that contains a detail view', async () => {
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const sheet = drawing.sheets[0]!;
+    const blob = await renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 });
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('image/png');
+  });
+
+  it('PNG blob has non-zero size with detail view present', async () => {
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const sheet = drawing.sheets[0]!;
+    const blob = await renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 });
+    expect(blob.size).toBeGreaterThan(0);
   });
 });
