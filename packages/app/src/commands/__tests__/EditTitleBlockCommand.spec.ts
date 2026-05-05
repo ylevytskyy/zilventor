@@ -4,6 +4,8 @@ import { EditTitleBlockCommand } from '../EditTitleBlockCommand';
 import { useAppStore } from '../../store/useAppStore';
 import type { DrawingDocument, TitleBlockOverrides } from '@zilventor/shared';
 
+type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
+
 function makeDrawingDoc(titleBlock: TitleBlockOverrides = {}): DrawingDocument {
   return {
     id: 'dw1', name: 'Test Drawing', units: 'mm',
@@ -33,7 +35,7 @@ describe('EditTitleBlockCommand', () => {
       overrides: { drawingName: 'New Name', revision: 'A' },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const tb = doc.sheets[0]!.titleBlock;
     expect(tb.drawingName).toBe('New Name');
     expect(tb.revision).toBe('A');
@@ -47,7 +49,7 @@ describe('EditTitleBlockCommand', () => {
       overrides: { drawingName: 'New Name' },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const tb = doc.sheets[0]!.titleBlock;
     // drawnBy was in original but not in the new overrides — should be absent
     expect(tb.drawnBy).toBeUndefined();
@@ -61,7 +63,7 @@ describe('EditTitleBlockCommand', () => {
     });
     await cmd.apply();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const tb = doc.sheets[0]!.titleBlock;
     expect(tb.drawingName).toBe('Original Name');
     expect(tb.drawnBy).toBe('Alice');
@@ -76,7 +78,7 @@ describe('EditTitleBlockCommand', () => {
     await cmd.apply();
     await cmd.revert();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.sheets[0]!.titleBlock.drawingName).toBe('Original Name');
   });
 });

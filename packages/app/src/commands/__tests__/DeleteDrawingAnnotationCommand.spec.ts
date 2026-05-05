@@ -4,6 +4,8 @@ import { DeleteDrawingAnnotationCommand } from '../DeleteDrawingAnnotationComman
 import { useAppStore } from '../../store/useAppStore';
 import type { DrawingDocument, DrawingAnnotation } from '@zilventor/shared';
 
+type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
+
 const annA: DrawingAnnotation = {
   id: 'annA', kind: 'leader', viewId: 'v1',
   targetMm: { x: 50, y: 50 }, textPosMm: { x: 80, y: 30 }, text: 'Note A',
@@ -35,7 +37,7 @@ describe('DeleteDrawingAnnotationCommand', () => {
   it('(a) apply removes the annotation by id', async () => {
     const cmd = new DeleteDrawingAnnotationCommand({ sheetId: 'sh1', annId: 'annA' });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const anns = doc.sheets[0]!.annotations;
     expect(anns).toHaveLength(1);
     expect(anns[0]!.id).toBe('annB');
@@ -45,7 +47,7 @@ describe('DeleteDrawingAnnotationCommand', () => {
     const cmd = new DeleteDrawingAnnotationCommand({ sheetId: 'sh1', annId: 'annA' });
     await cmd.apply();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const anns = doc.sheets[0]!.annotations;
     expect(anns).toHaveLength(2);
     expect(anns[0]!.id).toBe('annA');
@@ -57,7 +59,7 @@ describe('DeleteDrawingAnnotationCommand', () => {
     await cmd.apply();
     await cmd.revert();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.sheets[0]!.annotations).toHaveLength(2);
   });
 });

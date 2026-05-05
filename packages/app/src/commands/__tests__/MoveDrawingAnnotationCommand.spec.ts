@@ -4,6 +4,8 @@ import { MoveDrawingAnnotationCommand } from '../MoveDrawingAnnotationCommand';
 import { useAppStore } from '../../store/useAppStore';
 import type { DrawingDocument, DrawingAnnotation } from '@zilventor/shared';
 
+type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
+
 const leaderAnn: DrawingAnnotation = {
   id: 'ann1', kind: 'leader', viewId: 'v1',
   targetMm: { x: 50, y: 50 }, textPosMm: { x: 80, y: 30 }, text: 'Note A',
@@ -35,7 +37,7 @@ describe('MoveDrawingAnnotationCommand', () => {
       textPosMm: { x: 120, y: 60 },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const ann = doc.sheets[0]!.annotations[0]! as Extract<DrawingAnnotation, { kind: 'leader' }>;
     expect(ann.textPosMm).toEqual({ x: 120, y: 60 });
     // targetMm should be unchanged
@@ -48,7 +50,7 @@ describe('MoveDrawingAnnotationCommand', () => {
       targetMm: { x: 200, y: 150 },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const ann = doc.sheets[0]!.annotations[0]! as Extract<DrawingAnnotation, { kind: 'leader' }>;
     expect(ann.targetMm).toEqual({ x: 200, y: 150 });
   });
@@ -61,7 +63,7 @@ describe('MoveDrawingAnnotationCommand', () => {
     });
     await cmd.apply();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const ann = doc.sheets[0]!.annotations[0]! as Extract<DrawingAnnotation, { kind: 'leader' }>;
     expect(ann.textPosMm).toEqual({ x: 80, y: 30 });
     expect(ann.targetMm).toEqual({ x: 50, y: 50 });
@@ -75,7 +77,7 @@ describe('MoveDrawingAnnotationCommand', () => {
     await cmd.apply();
     await cmd.revert();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     const ann = doc.sheets[0]!.annotations[0]! as Extract<DrawingAnnotation, { kind: 'leader' }>;
     expect(ann.textPosMm).toEqual({ x: 80, y: 30 });
   });

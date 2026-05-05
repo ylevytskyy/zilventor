@@ -4,6 +4,8 @@ import { EditDrawingPropertiesCommand } from '../EditDrawingPropertiesCommand';
 import { useAppStore } from '../../store/useAppStore';
 import type { DrawingDocument } from '@zilventor/shared';
 
+type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
+
 function makeDrawingDoc(properties: Record<string, string | number | boolean> = {}): DrawingDocument {
   return {
     id: 'dw1', name: 'Test Drawing', units: 'mm',
@@ -32,7 +34,7 @@ describe('EditDrawingPropertiesCommand', () => {
       properties: { author: 'Bob', version: 2, approved: true, notes: 'Rev B' },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.properties['author']).toBe('Bob');
     expect(doc.properties['version']).toBe(2);
     expect(doc.properties['approved']).toBe(true);
@@ -44,7 +46,7 @@ describe('EditDrawingPropertiesCommand', () => {
       properties: { author: 'Bob' },
     });
     await cmd.apply();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.properties['author']).toBe('Bob');
     expect(doc.properties['version']).toBeUndefined();
     expect(doc.properties['approved']).toBeUndefined();
@@ -56,7 +58,7 @@ describe('EditDrawingPropertiesCommand', () => {
     });
     await cmd.apply();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.properties['author']).toBe('Alice');
     expect(doc.properties['version']).toBe(1);
     expect(doc.properties['approved']).toBe(false);
@@ -69,7 +71,7 @@ describe('EditDrawingPropertiesCommand', () => {
     await cmd.apply();
     await cmd.revert();
     await cmd.revert();
-    const doc = (useAppStore.getState().activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.properties['author']).toBe('Alice');
     expect(doc.properties['version']).toBe(1);
   });
