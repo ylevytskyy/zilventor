@@ -25,6 +25,24 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
   });
 });
 
+describe('clipLineToCircle — case 3: both outside, chord through circle', () => {
+  it('segment (-10,0)→(10,0) cuts circle radius=5 at origin → clipped to (-5,0)→(5,0)', () => {
+    // ax=-10, bx=10, A=400, B=-400, C=75, disc=40000, sqrt=200
+    // t1=0.25, t2=0.75 → p0=(-10+0.25*20,0)=(-5,0), p1=(-10+0.75*20,0)=(5,0)
+    const result = clipLineToCircle([-10, 0], [10, 0], { x: 0, y: 0 }, 5);
+    expectSegment(result, [-5, 0], [5, 0]);
+  });
+
+  it('segment (-8,-8)→(8,8) diagonal chord through circle radius=5 → clipped segment inside', () => {
+    // Distance from origin to line y=x is 0 (line passes through origin).
+    // Half-chord length along diagonal = 5 mm.
+    // p0=(-8,-8) outside, p1=(8,8) outside. Intersection at ±(5/sqrt(2), 5/sqrt(2)).
+    const result = clipLineToCircle([-8, -8], [8, 8], { x: 0, y: 0 }, 5);
+    const half = 5 / Math.sqrt(2);
+    expectSegment(result, [-half, -half], [half, half]);
+  });
+});
+
 describe('clipLineToCircle — case 2: both endpoints outside, no chord', () => {
   it('segment (10,0)→(15,0) entirely outside circle radius=5 at origin → []', () => {
     // Both points outside; segment never enters circle.
