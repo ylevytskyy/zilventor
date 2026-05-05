@@ -162,11 +162,15 @@ describe('generateHatchSegments', () => {
     });
     expect(segs.length).toBeGreaterThan(0);
     // No segment should end outside the L-shape bounding box
+    const eps = 1e-6;
     segs.forEach(s => {
       expect(s.p0.x).toBeGreaterThanOrEqual(-0.01);
       expect(s.p0.y).toBeGreaterThanOrEqual(-0.01);
       expect(s.p1.x).toBeLessThanOrEqual(20.01);
       expect(s.p1.y).toBeLessThanOrEqual(20.01);
+      // Neither endpoint may land in the missing top-right corner (x>10 AND y>10)
+      expect(s.p0.x > 10 + eps && s.p0.y > 10 + eps).toBe(false);
+      expect(s.p1.x > 10 + eps && s.p1.y > 10 + eps).toBe(false);
     });
   });
 

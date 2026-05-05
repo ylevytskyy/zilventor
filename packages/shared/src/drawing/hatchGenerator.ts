@@ -79,11 +79,6 @@ export function clipLineToConvexPolygon(
 
 export type Triangle = [Vec2, Vec2, Vec2];
 
-/** Signed area of triangle (positive = CCW). */
-function signedArea(a: Vec2, b: Vec2, c: Vec2): number {
-  return 0.5 * ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
-}
-
 /** Check if point P is inside triangle ABC (CCW). */
 function pointInTriangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2): boolean {
   const d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
