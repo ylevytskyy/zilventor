@@ -13,6 +13,7 @@ export class CreateDrawingCommand implements Command {
       sourcePath: string;
       sourceKind: 'part' | 'assembly';
       sheetSize?: SheetSize;
+      orientation?: 'landscape' | 'portrait';
     }
   ) {}
 
@@ -29,7 +30,7 @@ export class CreateDrawingCommand implements Command {
       id: sheetId,
       name: 'Sheet 1',
       size,
-      orientation: 'landscape',
+      orientation: this.opts.orientation ?? 'landscape',
       views: [],
       dimensions: [],
       annotations: [],
