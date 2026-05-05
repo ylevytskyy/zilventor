@@ -13,6 +13,8 @@ import type {
   PointRef,
   DrawingAnnotation,
   TitleBlockOverrides,
+  SectionView,
+  HatchSegment,
 } from '../types';
 import { ISO_SIZES_MM } from '../types';
 
@@ -136,5 +138,64 @@ describe('drawing/types — discriminator round-trips', () => {
     };
     expect(doc.units).toBe('mm');
     expect(doc.sheets).toHaveLength(1);
+  });
+
+  // --- Section-view additions (Drawing F1) ---
+
+  it('SectionView kind discriminator survives JSON round-trip', () => {
+    const sv: SectionView = {
+      id: 'sv1',
+      kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 10, y: 50 }, p1: { x: 190, y: 50 } },
+      arrowDirection: 1,
+      label: 'A',
+      positionMm: { x: 10, y: 120 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      hatchSegments: [],
+      fingerprint: '',
+    };
+    const parsed = JSON.parse(JSON.stringify(sv)) as SectionView;
+    expect(parsed.kind).toBe('section');
+    expect(parsed.parentViewId).toBe('v1');
+    expect(parsed.arrowDirection).toBe(1);
+  });
+
+  it('HatchSegment carries p0, p1, materialId', () => {
+    const seg: HatchSegment = {
+      p0: { x: 0, y: 0 },
+      p1: { x: 10, y: 0 },
+      materialId: 'm1',
+    };
+    expect(seg.materialId).toBe('m1');
+  });
+
+  it('DrawingView union exhaustiveness — section variant reachable', () => {
+    // Compile-time check: this switch must handle all DrawingView kinds.
+    // If 'section' is missing from the union the branch is dead-code and TS
+    // will warn; if SectionView is absent from DrawingView it is a type error.
+    function label(v: DrawingView): string {
+      switch (v.kind) {
+        case 'base':      return 'base';
+        case 'projected': return 'projected';
+        case 'iso':       return 'iso';
+        case 'section':   return 'section';
+        default: {
+          const _: never = v;
+          return _;
+        }
+      }
+    }
+    const sv: DrawingView = {
+      id: 'sv2', kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 0, y: 0 }, p1: { x: 1, y: 0 } },
+      arrowDirection: -1, label: 'B',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 1, denominator: 2 },
+      showHidden: false, hatchSegments: [], fingerprint: '',
+    };
+    expect(label(sv)).toBe('section');
   });
 });

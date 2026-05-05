@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/types.ts
 
-import type { ProjectedGeometry } from './projectedGeometry';
+import type { ProjectedGeometry, Edge2D } from './projectedGeometry';
 
 // ---------------------------------------------------------------------------
 // ISO sheet sizes (mm) — landscape orientation as listed; orientation field
@@ -14,6 +14,12 @@ export const ISO_SIZES_MM = {
   A3: { w:  420, h: 297 },
   A4: { w:  297, h: 210 },
 } as const;
+
+// ---------------------------------------------------------------------------
+// Vec2 — reusable 2-D point in mm
+// ---------------------------------------------------------------------------
+
+export type Vec2 = { readonly x: number; readonly y: number };
 
 // ---------------------------------------------------------------------------
 // SheetSize
@@ -79,10 +85,45 @@ export type IsoView = {
   readonly inputFingerprint?: string;
 };
 
+// ---------------------------------------------------------------------------
+// HatchSegment — one hatch line in mm space (pre-scale), tagged by material
+// ---------------------------------------------------------------------------
+
+export type HatchSegment = {
+  readonly p0: Vec2;
+  readonly p1: Vec2;
+  readonly materialId: string;
+};
+
+// ---------------------------------------------------------------------------
+// SectionView — ANSI-style cut view derived from a parent BaseView
+// ---------------------------------------------------------------------------
+
+export type SectionView = {
+  readonly id: string;
+  readonly kind: 'section';
+  readonly parentViewId: string;
+  readonly sectionLine: { readonly p0: Vec2; readonly p1: Vec2 };
+  readonly arrowDirection: -1 | 1;   // +1 = arrows point toward increasing Y
+  readonly label: string;            // auto-allocated: 'A', 'B', …, 'AA', …
+  readonly positionMm: Vec2;
+  readonly scale: ViewScale;
+  readonly showHidden: false;        // literal — ANSI convention: never show hidden in section
+  readonly hatchSegments: readonly HatchSegment[];
+  readonly fingerprint: string;      // SHA-256 of cut-plane + source geometry
+  readonly projection?: {            // populated after first cut+project; absent until then
+    readonly visibleEdges: readonly Edge2D[];
+    readonly hiddenEdges: readonly Edge2D[];
+    readonly bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  };
+  readonly inputFingerprint?: string; // mirrors BaseView/ProjectedView stale-banner pattern
+};
+
 export type DrawingView =
   | BaseView
   | ProjectedView
-  | IsoView;
+  | IsoView
+  | SectionView;
 
 // ---------------------------------------------------------------------------
 // PointRef — used by dimensions to reference edge geometry
