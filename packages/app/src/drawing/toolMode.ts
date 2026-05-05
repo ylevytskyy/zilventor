@@ -15,7 +15,8 @@ export type ToolMode =
   | 'addCenterMark'
   | 'addLeader'
   | 'addBalloon'
-  | 'section';
+  | 'section'
+  | 'detail';    // NEW — Drawing F2
 
 export type PendingViewParams =
   | {
@@ -32,6 +33,20 @@ export type PendingViewParams =
       kind: 'iso';
       corner: 'NE' | 'NW' | 'SE' | 'SW';
       scale: { n: number; d: number };
+    };
+
+// ---------------------------------------------------------------------------
+// Detail tool sub-state
+// ---------------------------------------------------------------------------
+export type DetailToolState =
+  | { stage: 'idle' }
+  | { stage: 'pickRegionCenter'; parentViewId: string }
+  | { stage: 'pickRegionRadius'; parentViewId: string; center: { x: number; y: number } }
+  | {
+      stage: 'pickDrop';
+      parentViewId: string;
+      center: { x: number; y: number };
+      radiusMm: number;
     };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +68,7 @@ interface ToolModeState {
   mode: ToolMode;
   pendingViewParams: PendingViewParams | null;
   sectionState: SectionToolState;
+  detailState: DetailToolState;
 
   setMode(mode: ToolMode): void;
   setPendingViewParams(p: PendingViewParams | null): void;
@@ -65,12 +81,16 @@ interface ToolModeState {
   sectionPickP1(point: { x: number; y: number }): void;
   sectionPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
   sectionCancel(): void;
+
+  // Detail tool actions
+  enterDetailMode(): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
   mode: 'idle',
   pendingViewParams: null,
   sectionState: { stage: 'idle' },
+  detailState: { stage: 'idle' },
 
   setMode(mode) {
     set({ mode });
@@ -81,7 +101,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   },
 
   reset() {
-    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' } });
+    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' } });
   },
 
   enterSectionMode() {
@@ -147,5 +167,9 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     } else {
       set({ sectionState: { stage: 'idle' } });
     }
+  },
+
+  enterDetailMode() {
+    set({ mode: 'detail', detailState: { stage: 'idle' } });
   },
 }));

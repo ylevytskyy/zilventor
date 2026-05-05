@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { ToolMode, PendingViewParams, SectionToolState } from '../toolMode';
+import type { ToolMode, PendingViewParams, SectionToolState, DetailToolState } from '../toolMode';
 
 describe('useToolModeStore', () => {
   beforeEach(() => {
@@ -183,5 +183,42 @@ describe('section tool state machine', () => {
   it('setMode round-trip includes section', () => {
     useToolModeStore.getState().setMode('section');
     expect(useToolModeStore.getState().mode).toBe('section');
+  });
+});
+
+describe('detail tool — initial state + mode discriminant', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+  });
+
+  it('reset() initialises detailState to { stage: "idle" }', () => {
+    const s = useToolModeStore.getState();
+    expect(s.detailState).toEqual({ stage: 'idle' });
+  });
+
+  it('setMode("detail") sets mode=detail without touching detailState', () => {
+    useToolModeStore.getState().setMode('detail');
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('detail');
+    expect(s.detailState).toEqual({ stage: 'idle' });
+  });
+
+  it('enterDetailMode() sets mode=detail, stage=idle', () => {
+    useToolModeStore.getState().enterDetailMode();
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('detail');
+    expect(s.detailState).toEqual({ stage: 'idle' });
+  });
+
+  it('setMode round-trip list now includes detail', () => {
+    useToolModeStore.getState().setMode('detail');
+    expect(useToolModeStore.getState().mode).toBe('detail');
+  });
+
+  it('reset() from detail mode returns to idle and clears detailState', () => {
+    useToolModeStore.getState().enterDetailMode();
+    useToolModeStore.getState().reset();
+    expect(useToolModeStore.getState().mode).toBe('idle');
+    expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
   });
 });
