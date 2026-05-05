@@ -433,6 +433,35 @@ export default function App() {
         // Force re-render by updating the document identity (no-op content change).
         s.setActiveDocument({ kind: 'assembly', document: { ...a } });
       };
+
+      w.__zilventorDetailViewMs = async (n = 100) => {
+        const { projectDetailView } = await import('@zilventor/shared/src/drawing/projectDetailView');
+        type Edge2D = import('@zilventor/shared').Edge2D;
+        const syntheticEdges = Array.from({ length: 200 }, (_, i): Edge2D => ({
+          id: `e${i}`,
+          kind: 'outline' as const,
+          points: [[0, i * 0.5], [50, i * 0.5]] as ReadonlyArray<readonly [number, number]>,
+        }));
+        const parentView = {
+          scale: { numerator: 1, denominator: 1 },
+          projection: {
+            visibleEdges: syntheticEdges,
+            hiddenEdges: [] as Edge2D[],
+            bbox: { minX: 0, minY: 0, maxX: 50, maxY: 100 },
+          },
+        };
+        const regionParent = { center: { x: 25, y: 50 }, radiusMm: 20 };
+        const detailScale = { numerator: 2, denominator: 1 };
+        const samples: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const t0 = performance.now();
+          projectDetailView({ parentView, regionParent, detailScale, showHidden: false });
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((a, b) => a - b);
+        const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
+        return { p95ms };
+      };
     }
   }, []);
 
