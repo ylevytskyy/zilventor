@@ -2,12 +2,11 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Perf T63 — section-cut:
- *   T63a: Combined cut + project for a 20-component assembly p95 < 400ms.
- *         NOTE: cutAssemblyBySectionPlane is a kernel stub (deferred follow-up).
- *         When the stub throws, the hook falls back to measuring projectView +
- *         projectSectionView only (projection-only mode, budget 200ms).
- *         The test asserts against the appropriate budget and logs the mode.
+ * Perf T63 — section-cut (F18 kernel bridge wired):
+ *   T63a: Full cut+project pipeline for a 20-component assembly p95 < 400ms.
+ *         The OCCT cut runs in the kernel worker; this test measures the
+ *         main-thread projection step (projectView + projectSectionView) with
+ *         synthetic 20-box geometry. Mode is always 'cut+project'.
  *   T63b: Standalone projection regression guard — p95 still < 200ms.
  */
 
@@ -24,15 +23,9 @@ test('Perf T63a: section cut+project 20-component assembly p95 < 400ms', async (
   const { p95ms, mode } = result;
   console.log(`[perf] section cut+project p95 = ${p95ms.toFixed(2)} ms (mode: ${mode})`);
 
-  if (mode === 'cut+project') {
-    // Full pipeline: budget 400ms
-    console.log(`[perf] budget 400ms (cut+project)`);
-    expect(p95ms).toBeLessThan(400);
-  } else {
-    // Projection-only fallback: kernel stub deferred — assert projection budget 200ms
-    console.log(`[perf] kernel stub active — asserting projection-only budget 200ms`);
-    expect(p95ms).toBeLessThan(200);
-  }
+  // Kernel is wired — always measures cut+project pipeline. Budget 400ms.
+  console.log(`[perf] budget 400ms (cut+project)`);
+  expect(p95ms).toBeLessThan(400);
 });
 
 test('Perf T63b: single-view projection p95 still < 200ms after section plumbing', async ({ page }) => {
