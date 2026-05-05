@@ -85,6 +85,7 @@ interface ToolModeState {
   // Detail tool actions
   enterDetailMode(): void;
   detailPickParent(viewId: string): void;
+  detailPickCenter(point: { x: number; y: number }): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -181,5 +182,20 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       return;
     }
     set({ detailState: { stage: 'pickRegionCenter', parentViewId: viewId } });
+  },
+
+  detailPickCenter(point) {
+    const { detailState } = get();
+    if (detailState.stage !== 'pickRegionCenter') {
+      console.warn('detailPickCenter: expected stage=pickRegionCenter, got', detailState.stage);
+      return;
+    }
+    set({
+      detailState: {
+        stage: 'pickRegionRadius',
+        parentViewId: detailState.parentViewId,
+        center: point,
+      },
+    });
   },
 }));

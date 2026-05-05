@@ -244,4 +244,26 @@ describe('detail tool — stage transitions', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('detailPickCenter() from pickRegionCenter → pickRegionRadius with center', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 10, y: 8 });
+    const s = useToolModeStore.getState();
+    expect(s.detailState).toEqual({
+      stage: 'pickRegionRadius',
+      parentViewId: 'v1',
+      center: { x: 10, y: 8 },
+    });
+  });
+
+  it('detailPickCenter() from wrong stage is a no-op + warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // stage is still idle (no prior detailPickParent in this sub-test)
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterDetailMode();
+    useToolModeStore.getState().detailPickCenter({ x: 5, y: 5 });
+    expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
