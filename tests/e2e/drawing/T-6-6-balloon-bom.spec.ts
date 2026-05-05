@@ -23,25 +23,23 @@ test('T-6-6: Balloon on assembly drawing shows BOM item number', async ({ page }
   // 1. Seed an assembly drawing with one view and a balloon annotation.
   await page.evaluate(() => {
     const w = window as unknown as {
-      __zilventorStore: { getState(): {
-        setActiveDocument(d: unknown): void;
-        setActivePart(p: unknown): void;
-      } };
+      __zilventorStore: {
+        getState(): unknown;
+        setState(partial: unknown): void;
+      };
     };
-    const s = w.__zilventorStore.getState();
 
-    // Seed a stub assembly (drawing source)
-    s.setActivePart({
+    const stubPart = {
       id: 'asm-T66', name: 'TestAsm', units: 'mm',
       parameters: {}, featureTree: [], properties: {},
       materials: [], hardware: [],
-    });
+    };
 
     const sheetId = 'sheet-T66';
     const viewId = 'view-T66';
     const annId = 'ann-balloon-T66';
 
-    s.setActiveDocument({ kind: 'drawing', document: {
+    const drawing = {
       id: 'drawing-T66', name: 'TestAsm — Drawing', units: 'mm',
       source: { partPath: 'TestAsm.ziasm', sourceKind: 'assembly' },
       properties: {},
@@ -71,7 +69,15 @@ test('T-6-6: Balloon on assembly drawing shows BOM item number', async ({ page }
         titleBlock: {},
       }],
       activeSheetId: sheetId,
-    }});
+    };
+
+    // Set drawing + stub part so DrawingCanvas has a source for the title block.
+    w.__zilventorStore.setState({
+      activeDocument: { kind: 'drawing', document: drawing },
+      activeDrawing: drawing,
+      activePart: stubPart,
+      activeAssembly: null,
+    });
   });
 
   // 2. Wait for drawing to be active.

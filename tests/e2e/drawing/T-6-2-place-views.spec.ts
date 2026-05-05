@@ -31,27 +31,27 @@ test('T-6-2: Place base + right-projected view — 2 view groups in SVG', async 
     sheetSize: 'A3', orientation: 'landscape',
   });
 
-  // 2. Inject two views via the store bus.
+  // 2. Inject two views via the store.
   await page.evaluate((sheetId: string) => {
     const w = window as unknown as {
-      __zilventorStore: { getState(): {
-        bus: { execute(cmd: unknown): Promise<void> };
-        activeDocument?: { kind: string; document: { sheets: Array<{ id: string; views: unknown[] }> } };
-      } };
+      __zilventorStore: {
+        getState(): {
+          activeDocument?: { kind: string; document: { sheets: Array<{ id: string; views: unknown[] }> } };
+          activePart: unknown;
+        };
+        setState(partial: unknown): void;
+      };
     };
     const s = w.__zilventorStore.getState();
     const drawing = s.activeDocument?.kind === 'drawing' ? s.activeDocument.document : null;
     if (!drawing) return;
-    const sheet = drawing.sheets.find((sh) => sh.id === sheetId);
-    if (!sheet) return;
 
-    // Inject two views directly into the drawing document via setActiveDocument.
     const viewBase = {
       id: `v-base-${Date.now()}`,
-      kind: 'base' as const,
+      kind: 'base',
       positionMm: { x: 80, y: 80 },
       scale: { numerator: 1, denominator: 1 },
-      orientation: 'front' as const,
+      orientation: 'front',
       showHidden: false,
       projection: {
         visibleEdges: [{ id: 'e0', kind: 'outline', points: [[0,0],[100,0],[100,60],[0,60],[0,0]] }],
@@ -61,11 +61,11 @@ test('T-6-2: Place base + right-projected view — 2 view groups in SVG', async 
       inputFingerprint: 'fp-base',
     };
     const viewRight = {
-      id: `v-right-${Date.now()}`,
-      kind: 'projected' as const,
+      id: `v-right-${Date.now() + 1}`,
+      kind: 'projected',
       positionMm: { x: 220, y: 80 },
       scale: { numerator: 1, denominator: 1 },
-      orientation: 'right' as const,
+      orientation: 'right',
       showHidden: false,
       projection: {
         visibleEdges: [{ id: 'e1', kind: 'outline', points: [[0,0],[40,0],[40,60],[0,60],[0,0]] }],
@@ -75,16 +75,18 @@ test('T-6-2: Place base + right-projected view — 2 view groups in SVG', async 
       inputFingerprint: 'fp-right',
     };
 
-    (s as unknown as {
-      setActiveDocument(d: unknown): void;
-    }).setActiveDocument({
-      kind: 'drawing',
-      document: {
-        ...drawing,
-        sheets: drawing.sheets.map((sh) =>
-          sh.id === sheetId ? { ...sh, views: [viewBase, viewRight] } : sh,
-        ),
-      },
+    const updatedDrawing = {
+      ...drawing,
+      sheets: drawing.sheets.map((sh) =>
+        sh.id === sheetId ? { ...sh, views: [viewBase, viewRight] } : sh,
+      ),
+    };
+
+    // Preserve activePart so DrawingCanvas keeps its source for TitleBlock.
+    w.__zilventorStore.setState({
+      activeDocument: { kind: 'drawing', document: updatedDrawing },
+      activeDrawing: updatedDrawing,
+      activePart: s.activePart,
     });
   }, sheetId);
 
@@ -101,8 +103,10 @@ test('T-6-2: Place base + right-projected view — 2 view groups in SVG', async 
     return doc.document.sheets[0]?.views.length === 2;
   }, undefined, { timeout: 10_000 });
 
-  // 4. Assert: 2 view groups in the SVG.
-  const viewGroups = page.locator('[data-view-id]');
+  // 4. Assert: 2 top-level view <g> groups in the SVG.
+  //    Each view renders multiple [data-view-id] elements (group + polylines),
+  //    so we target the outer <g> specifically.
+  const viewGroups = page.locator('g[data-view-id]');
   await expect(viewGroups).toHaveCount(2, { timeout: 5_000 });
 
   // 5. Assert: second view is to the right of the first.

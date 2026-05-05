@@ -23,26 +23,27 @@ test('T-6-1: Create new drawing from part — A3 sheet + title block populated',
   await page.goto('/');
   await waitForKernelReady(page);
 
-  // 1. Seed a part then a drawing document via the store.
+  // 1. Seed a part + drawing document simultaneously via the store state setter.
+  //    We use setState (not setActiveDocument) to preserve activePart alongside
+  //    the active drawing — DrawingCanvas reads activePart for TitleBlock rendering.
   await page.evaluate(() => {
     const w = window as unknown as {
-      __zilventorStore: { getState(): {
-        setActivePart(p: unknown): void;
-        setActiveDocument(d: unknown): void;
-      } };
+      __zilventorStore: {
+        getState(): unknown;
+        setState(partial: unknown): void;
+      };
     };
-    const s = w.__zilventorStore.getState();
 
     const partId = 'T61-part';
-    s.setActivePart({
+    const part = {
       id: partId, name: 'BoxPart', units: 'mm',
       parameters: {}, featureTree: [], properties: {},
       materials: [], hardware: [],
-    });
+    };
 
     const sheetId = 'T61-sheet';
     const drawingId = 'T61-drawing';
-    s.setActiveDocument({ kind: 'drawing', document: {
+    const drawing = {
       id: drawingId, name: 'BoxPart — Drawing', units: 'mm',
       source: { partPath: 'parts/T61-part.zipt', sourceKind: 'part' },
       properties: {},
@@ -53,7 +54,16 @@ test('T-6-1: Create new drawing from part — A3 sheet + title block populated',
         views: [], dimensions: [], annotations: [], titleBlock: {},
       }],
       activeSheetId: sheetId,
-    }});
+    };
+
+    // Set both activeDocument (drawing) and activePart simultaneously so
+    // DrawingCanvas gets a non-null source for the TitleBlock.
+    w.__zilventorStore.setState({
+      activeDocument: { kind: 'drawing', document: drawing },
+      activeDrawing: drawing,
+      activePart: part,
+      activeAssembly: null,
+    });
   });
 
   // 2. Assert: drawing kind is active.

@@ -26,6 +26,8 @@ export interface SeedDrawingResult {
 
 /**
  * Seeds the store with a minimal DrawingDocument (no views) backed by a stub PartDocument.
+ * Uses setState directly to preserve activePart alongside activeDrawing — DrawingCanvas
+ * reads activePart for TitleBlock rendering.
  * Returns the document IDs for further test assertions.
  */
 export async function seedDrawingWithBoxPart(
@@ -40,12 +42,11 @@ export async function seedDrawingWithBoxPart(
   const result = await page.evaluate(
     ({ boxLength, boxWidth, boxHeight, sheetSize, orientation }) => {
       const w = window as unknown as {
-        __zilventorStore: { getState(): {
-          setActiveDocument(d: unknown): void;
-          setActivePart(p: unknown): void;
-        } };
+        __zilventorStore: {
+          getState(): unknown;
+          setState(partial: unknown): void;
+        };
       };
-      const s = w.__zilventorStore.getState();
 
       const partId = `seed-part-${Date.now()}`;
       const part = {
@@ -58,7 +59,6 @@ export async function seedDrawingWithBoxPart(
         materials: [{ id: 'm1', name: 'Birch', defaultThickness: 18, color: '#c8a96e' }],
         hardware: [],
       };
-      s.setActivePart(part);
 
       const sheetId = `sheet-seed-${Date.now()}`;
       const drawingId = `drawing-seed-${Date.now()}`;
@@ -80,7 +80,14 @@ export async function seedDrawingWithBoxPart(
         }],
         activeSheetId: sheetId,
       };
-      s.setActiveDocument({ kind: 'drawing', document: drawing });
+
+      // Set drawing + keep activePart so DrawingCanvas has a source for the title block.
+      w.__zilventorStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+        activeDrawing: drawing,
+        activePart: part,
+        activeAssembly: null,
+      });
 
       return { partDocId: partId, drawingDocId: drawingId, sheetId };
     },
@@ -92,6 +99,7 @@ export async function seedDrawingWithBoxPart(
 
 /**
  * Seeds the store with a DrawingDocument that already has one projected base view.
+ * Uses setState directly to preserve activePart alongside activeDrawing.
  * Returns document IDs.
  */
 export async function seedDrawingWithView(
@@ -107,12 +115,11 @@ export async function seedDrawingWithView(
   const result = await page.evaluate(
     ({ boxLength, boxWidth, boxHeight, orientation, scale }) => {
       const w = window as unknown as {
-        __zilventorStore: { getState(): {
-          setActiveDocument(d: unknown): void;
-          setActivePart(p: unknown): void;
-        } };
+        __zilventorStore: {
+          getState(): unknown;
+          setState(partial: unknown): void;
+        };
       };
-      const s = w.__zilventorStore.getState();
 
       const partId = `seed-part-view-${Date.now()}`;
       const part = {
@@ -125,7 +132,6 @@ export async function seedDrawingWithView(
         materials: [{ id: 'm1', name: 'Birch', defaultThickness: 18, color: '#c8a96e' }],
         hardware: [],
       };
-      s.setActivePart(part);
 
       const sheetId = `sheet-sv-${Date.now()}`;
       const viewId = `view-sv-${Date.now()}`;
@@ -171,7 +177,14 @@ export async function seedDrawingWithView(
         }],
         activeSheetId: sheetId,
       };
-      s.setActiveDocument({ kind: 'drawing', document: drawing });
+
+      // Set drawing + keep activePart so DrawingCanvas has a source for the title block.
+      w.__zilventorStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+        activeDrawing: drawing,
+        activePart: part,
+        activeAssembly: null,
+      });
 
       return { partDocId: partId, drawingDocId: drawingId, sheetId, viewId };
     },
