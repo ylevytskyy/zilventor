@@ -72,6 +72,7 @@ export function projectSectionView(
   source: ProjectorInput,
   faceTags: FaceTagMap,
   scale: number,
+  getHatchSpec?: (materialId: string) => { angleDeg: number; spacingMm: number },
 ): {
   edges: Edge2D[];
   hatchSegments: HatchSegment[];
@@ -95,7 +96,8 @@ export function projectSectionView(
     const polygon = faceInfo.polygon;
     if (!polygon || polygon.length < 3) continue;
 
-    const segments = generateHatchSegments(polygon, faceInfo.materialId, DEFAULT_HATCH_SPEC);
+    const hatchSpec = getHatchSpec ? getHatchSpec(faceInfo.materialId) : DEFAULT_HATCH_SPEC;
+    const segments = generateHatchSegments(polygon, faceInfo.materialId, hatchSpec);
     hatchSegments.push(...segments);
   }
 

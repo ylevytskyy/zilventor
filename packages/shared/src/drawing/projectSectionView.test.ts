@@ -55,6 +55,32 @@ describe('projectSectionView', () => {
     });
   });
 
+  it('calls getHatchSpec with each cut-face materialId when provided', () => {
+    const polygon = [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+    ];
+    const faceTags = new Map([
+      ['face-a', { tag: 'cut-face' as const, partId: 'p1', materialId: 'mat-a', polygon }],
+      ['face-b', { tag: 'cut-face' as const, partId: 'p2', materialId: 'mat-b', polygon }],
+    ]);
+    const getHatchSpec = vi.fn((materialId: string) =>
+      materialId === 'mat-a'
+        ? { angleDeg: 30, spacingMm: 5 }
+        : { angleDeg: 60, spacingMm: 2 },
+    );
+
+    projectSectionView(
+      { triangles: [], edges: [], bbox: [0, 0, 0, 10, 10, 10] },
+      faceTags,
+      1,
+      getHatchSpec,
+    );
+
+    expect(getHatchSpec).toHaveBeenCalledWith('mat-a');
+    expect(getHatchSpec).toHaveBeenCalledWith('mat-b');
+    expect(getHatchSpec).toHaveBeenCalledTimes(2);
+  });
+
   it('no hatch segments when all FaceTag entries are original-face (no cut faces)', () => {
     const faceTags = new Map([
       ['face-side', { tag: 'original-face' as const, partId: 'p1', materialId: 'mat-wood' }],
