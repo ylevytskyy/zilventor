@@ -3,6 +3,7 @@ import type { OcctInstance } from '../occt/occtLoader';
 import type { OcctShape } from '../occt/SolidOps';
 import type { Vec3 } from '@zilventor/shared';
 import { hashFace, classifyFace } from './faceTag';
+import { quatMultiply, quatRotateVec } from '../assembly/quat';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
 
@@ -271,31 +272,53 @@ type Leaf = {
   pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] };
 };
 
+type LocalPose = Leaf['pose'];
+
+const IDENTITY_POSE: LocalPose = { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] };
+
+/** Compose parent and child poses: world = parent ∘ child. */
+function composePoses(parent: LocalPose, child: LocalPose): LocalPose {
+  const q = quatMultiply(
+    parent.quaternion as [number, number, number, number],
+    child.quaternion as [number, number, number, number],
+  );
+  const r = quatRotateVec(parent.quaternion as [number, number, number, number], child.translation);
+  return {
+    translation: {
+      x: parent.translation.x + r.x,
+      y: parent.translation.y + r.y,
+      z: parent.translation.z + r.z,
+    },
+    quaternion: q,
+  };
+}
+
 function flattenLeaves(
   asm: AssemblyDocument,
   lookupSubAsm: (path: string) => AssemblyDocument | undefined,
   partPathToId: Map<string, string>
 ): Leaf[] {
   const out: Leaf[] = [];
-  function walk(doc: AssemblyDocument, visited: Set<string>): void {
+  function walk(doc: AssemblyDocument, parentPose: LocalPose, visited: Set<string>): void {
     for (const c of doc.components) {
       if (c.visible === false) continue;
       if ((c as { suppressed?: boolean }).suppressed) continue;
-      const pose = (c as { pose?: Leaf['pose'] }).pose ?? {
+      const localPose: LocalPose = (c as { pose?: LocalPose }).pose ?? {
         translation: { x: c.position.x, y: c.position.y, z: c.position.z },
         quaternion: [0, 0, 0, 1] as const,
       };
+      const worldPose = composePoses(parentPose, localPose);
       if (!c.partPath.endsWith('.ziasm')) {
         const partId = partPathToId.get(c.partPath);
-        if (partId) out.push({ partId, pose });
+        if (partId) out.push({ partId, pose: worldPose });
       } else {
         if (visited.has(c.partPath)) continue;
         const sub = lookupSubAsm(c.partPath);
         if (!sub) continue;
-        walk(sub, new Set([...visited, c.partPath]));
+        walk(sub, worldPose, new Set([...visited, c.partPath]));
       }
     }
   }
-  walk(asm, new Set());
+  walk(asm, IDENTITY_POSE, new Set());
   return out;
 }

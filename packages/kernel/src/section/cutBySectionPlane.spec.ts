@@ -141,6 +141,83 @@ describe('cutAssemblyBySectionPlane', () => {
     }
     disposeOcctShape(oc, result.compound);
   });
+
+  it('nested sub-assembly: panel world pose is outer(100,0,0) + inner(0,50,0) = (100,50,0)', () => {
+    // Outer assembly has a sub-assembly component at x=100; sub-assembly has a panel at y=50.
+    // Expected world position of panel: (100, 50, 0).
+    // Without the fix, flattenLeaves ignores the outer pose, placing the panel at (0, 50, 0).
+    const panelId = 'part-nested-panel';
+
+    const innerAsm: AssemblyDocument = {
+      id: 'inner-asm',
+      name: 'inner',
+      units: 'mm',
+      parameters: {},
+      components: [
+        {
+          id: 'ci1',
+          partPath: 'panel.zipt',
+          position: { x: 0, y: 50, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+          pose: { translation: { x: 0, y: 50, z: 0 }, quaternion: [0, 0, 0, 1] as const },
+        },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [],
+    };
+
+    const outerAsm: AssemblyDocument = {
+      id: 'outer-asm',
+      name: 'outer',
+      units: 'mm',
+      parameters: {},
+      components: [
+        {
+          id: 'co1',
+          partPath: 'inner.ziasm',
+          position: { x: 100, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+          pose: { translation: { x: 100, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as const },
+        },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [],
+    };
+
+    // The panel is a 10×10×10 box. The body resolver positions it using the world pose from flattenLeaves.
+    // World pose should be (100, 50, 0). We use a section plane at x=105 to bisect it.
+    // Without the fix: panel placed at (0,50,0) → plane at x=105 misses it → result ok:false.
+    // With the fix:    panel placed at (100,50,0) → plane at x=105 bisects it → result ok:true.
+    const bodyResolver = (_partId: string, pose: { translation: { x: number; y: number; z: number } }) => {
+      // Translate a 10×10×10 box to the given world position
+      const mk = new oc.BRepPrimAPI_MakeBox_2(10, 10, 10);
+      const raw = mk.Shape();
+      mk.delete();
+      const tx = new oc.gp_Trsf_1();
+      const tv = new oc.gp_Vec_4(pose.translation.x, pose.translation.y, pose.translation.z);
+      (tx as unknown as { SetTranslation_1(v: unknown): void }).SetTranslation_1(tv as never);
+      const transformed = new oc.BRepBuilderAPI_Transform_2(raw as never, tx as never, true as never);
+      const shape = (transformed as unknown as { Shape(): unknown }).Shape();
+      (transformed as unknown as { delete(): void }).delete();
+      (tx as unknown as { delete(): void }).delete();
+      (tv as unknown as { delete(): void }).delete();
+      return { __brand: 'OcctShape' as const, handle: shape };
+    };
+
+    const plane: Plane = { origin: { x: 105, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+    const result = cutAssemblyBySectionPlane(oc, outerAsm, plane, 1, {
+      lookupSubAsm: (path) => path === 'inner.ziasm' ? innerAsm : undefined,
+      partPathToId: new Map([['panel.zipt', panelId]]),
+      bodyResolver,
+      materialResolver: () => 'mat-default',
+    });
+
+    // With correct pose composition the panel is at x∈[100,110], plane at x=105 bisects it → ok:true
+    expect(result.ok).toBe(true);
+    if (result.ok) disposeOcctShape(oc, result.compound);
+  });
 });
 
 // --- test helpers ---
