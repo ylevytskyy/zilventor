@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/titleBlock.ts
 import type { PartDocument, AssemblyDocument } from '../types';
-import type { DrawingDocument, DrawingSheet, BaseView } from './drawingTypes';
+import type { DrawingDocument, DrawingSheet, BaseView } from './types';
 
 export type ResolvedTitleBlock = {
   readonly drawingName: string;
@@ -19,16 +19,20 @@ export type ResolvedTitleBlock = {
  * Merge per-sheet TitleBlockOverrides with auto-derived values.
  * Override fields take precedence field-by-field; missing overrides fall back to auto.
  *
- * @param drawing      The DrawingDocument (name, createdAt, source).
+ * @param drawing      The DrawingDocument (name, source).
  * @param sheet        The specific sheet being rendered.
- * @param allSheets    All sheets in the drawing (for n/N computation).
  * @param source       The resolved PartDocument or AssemblyDocument.
+ * @param sheetIndex   0-based index of this sheet in the drawing.
+ * @param sheetCount   Total number of sheets in the drawing.
+ * @param createdAt    ISO 8601 string from ProjectFile envelope.
  */
 export function resolveTitleBlock(
   drawing: DrawingDocument,
   sheet: DrawingSheet,
-  allSheets: readonly DrawingSheet[],
   source: PartDocument | AssemblyDocument,
+  sheetIndex: number,
+  sheetCount: number,
+  createdAt: string,
 ): ResolvedTitleBlock {
   const ov = sheet.titleBlock;
 
@@ -42,14 +46,13 @@ export function resolveTitleBlock(
   const firstMaterial = 'materials' in source ? source.materials[0] : undefined;
   const autoMaterial = firstMaterial ? firstMaterial.name : '';
 
-  // Auto-derive date from drawing.createdAt (ISO yyyy-mm-dd prefix)
-  const autoDate = drawing.createdAt ? drawing.createdAt.slice(0, 10) : '';
+  // Auto-derive date from createdAt (ISO yyyy-mm-dd prefix)
+  const autoDate = createdAt ? createdAt.slice(0, 10) : '';
 
   // Sheet n/N
-  const sheetIndex = allSheets.findIndex(s => s.id === sheet.id);
   const sheetNumber = {
-    current: sheetIndex >= 0 ? sheetIndex + 1 : 1,
-    total: allSheets.length,
+    current: sheetIndex + 1,
+    total: sheetCount,
   };
 
   return {
