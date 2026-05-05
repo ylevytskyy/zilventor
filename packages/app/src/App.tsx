@@ -114,6 +114,9 @@ import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometr
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
 import type { NestInputRow } from '@zilventor/shared';
+import { projectView } from '@zilventor/shared/src/drawing/projector';
+import { renderDrawingSvg } from './drawing/renderDrawingSvg';
+import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -2301,6 +2304,114 @@ export default function App() {
       delete w.__zilventorLoadSubAsmTree;
       delete w.__zilventorBomAggregateRecursiveMs;
       delete w.__zilventorFlattenAndSolveMs;
+    };
+  }, []);
+
+  // Sub-project 6 perf hooks (T62): drawing projection, sheet render, PDF export.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as unknown as Record<string, unknown>;
+
+    function _p95(samples: number[]): number {
+      const s = [...samples].sort((a, b) => a - b);
+      return s[Math.ceil(s.length * 0.95) - 1] ?? 0;
+    }
+
+    // Shared fixture: a 50-edge ProjectorInput (simulates a 50-feature part)
+    const _projInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
+      triangles: Array.from({ length: 50 * 4 }, (_, i) => {
+        const x = (i % 10) * 20; const y = Math.floor(i / 10) * 20;
+        return [[x, y, 0], [x + 20, y, 0], [x + 10, y + 20, 0]] as
+          [[number,number,number],[number,number,number],[number,number,number]];
+      }),
+      edges: Array.from({ length: 50 * 4 }, (_, i) => ({
+        id: `pe${i}`,
+        points: [[
+          (i % 10) * 20, Math.floor(i / 10) * 20, 0,
+        ], [
+          (i % 10) * 20 + 20, Math.floor(i / 10) * 20, 0,
+        ]] as [[number,number,number],[number,number,number]],
+        adjacentFaces: [],
+      })),
+      bbox: [0, 0, -1, 200, 100, 1],
+    };
+
+    // T62a: single-view projection p95 < 200ms
+    w.__zilventorProjectViewMs = (n: number): number => {
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        projectView(_projInput, 'front');
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
+    // Shared fixtures for sheet render + PDF export
+    const _drawingSheets = (() => {
+      const makeSheet = (id: string): import('@zilventor/shared').DrawingSheet => ({
+        id, name: id,
+        size: { kind: 'iso' as const, size: 'A3' as const },
+        orientation: 'landscape' as const,
+        views: Array.from({ length: 4 }, (__, vi) => ({
+          id: `v${id}-${vi}`,
+          kind: 'base' as const,
+          positionMm: { x: 20 + vi * 90, y: 40 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [{ id: `e${id}-${vi}`, kind: 'outline' as const,
+              points: [[0,0],[100,0],[100,60],[0,60],[0,0]] as ReadonlyArray<readonly [number,number]> }],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
+          },
+        })),
+        dimensions: [], annotations: [], titleBlock: {},
+      });
+      return Array.from({ length: 4 }, (_, i) => makeSheet(`s${i}`));
+    })();
+    const _drawing4Sheet: import('@zilventor/shared').DrawingDocument = {
+      id: 'perf-drawing', name: 'Perf Drawing', units: 'mm',
+      source: { partPath: 'parts/perf.zipt', sourceKind: 'part' },
+      properties: {},
+      sheets: _drawingSheets,
+      activeSheetId: _drawingSheets[0]!.id,
+    };
+    const _perfPart: import('@zilventor/shared').PartDocument = {
+      id: 'perf-part', name: 'Perf Part', units: 'mm',
+      parameters: {}, featureTree: [], properties: {},
+      materials: [{ id: 'm1', name: 'Birch', defaultThickness: 18, color: '#c8a96e' }],
+      hardware: [],
+    };
+
+    // T62b: 4-view sheet render p95 < 100ms
+    w.__zilventorRenderSheetMs = (n: number): number => {
+      const sheet = _drawing4Sheet.sheets[0]!;
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        renderDrawingSvg(_drawing4Sheet, sheet, _perfPart);
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
+    // T62c: PDF export of 4-sheet drawing p95 < 500ms
+    w.__zilventorExportPdfMs = (n: number): number => {
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        renderDrawingPdfBytes(_drawing4Sheet, _perfPart);
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
+    return () => {
+      delete w.__zilventorProjectViewMs;
+      delete w.__zilventorRenderSheetMs;
+      delete w.__zilventorExportPdfMs;
     };
   }, []);
 
