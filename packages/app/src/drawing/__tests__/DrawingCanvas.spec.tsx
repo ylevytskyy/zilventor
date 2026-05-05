@@ -395,6 +395,58 @@ describe('DrawingCanvas — detail tool mode', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(cancel).toHaveBeenCalled();
   });
+
+  it('renders rubber-band preview circle when stage=pickRegionRadius and cursor moves', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: {
+        stage: 'pickRegionRadius',
+        parentViewId: 'bv1',
+        center: { x: 30, y: 30 },
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    // Simulate mouse move to set cursor position
+    fireEvent.mouseMove(svg, { clientX: 80, clientY: 60 });
+    const preview = document.querySelector('[data-role="detail-preview-circle"]');
+    expect(preview).not.toBeNull();
+  });
+
+  it('renders no preview circle when stage is not pickRegionRadius', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: { stage: 'pickRegionCenter', parentViewId: 'bv1' },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-role="detail-preview-circle"]')).toBeNull();
+  });
+
+  it('renders ghost bbox rect when stage=pickDrop and cursor moves', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: {
+        stage: 'pickDrop',
+        parentViewId: 'bv1',
+        center: { x: 30, y: 30 },
+        radiusMm: 10,
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.mouseMove(svg, { clientX: 150, clientY: 120 });
+    const ghost = document.querySelector('[data-role="detail-drop-ghost"]');
+    expect(ghost).not.toBeNull();
+  });
+
+  it('renders no ghost rect when stage is not pickDrop', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: { stage: 'pickRegionCenter', parentViewId: 'bv1' },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-role="detail-drop-ghost"]')).toBeNull();
+  });
 });
 
 describe('DrawingCanvas — DetailRegionOverlay rendering', () => {

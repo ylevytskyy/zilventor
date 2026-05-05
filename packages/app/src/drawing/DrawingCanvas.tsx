@@ -80,6 +80,7 @@ export function DrawingCanvas() {
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [cursorMm, setCursorMm] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const middleDragRef = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null);
 
@@ -136,11 +137,25 @@ export function DrawingCanvas() {
   }, [pan]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!middleDragRef.current) return;
-    const dx = e.clientX - middleDragRef.current.startX;
-    const dy = e.clientY - middleDragRef.current.startY;
-    setPan({ x: middleDragRef.current.startPan.x + dx, y: middleDragRef.current.startPan.y + dy });
-  }, []);
+    if (middleDragRef.current) {
+      const dx = e.clientX - middleDragRef.current.startX;
+      const dy = e.clientY - middleDragRef.current.startY;
+      setPan({ x: middleDragRef.current.startPan.x + dx, y: middleDragRef.current.startPan.y + dy });
+    }
+    // Track cursor for live preview
+    const svg = svgRef.current;
+    const rect = svg?.getBoundingClientRect();
+    const hasSize = rect && rect.width > 0 && rect.height > 0;
+    if (hasSize) {
+      setCursorMm({
+        x: (e.clientX - rect.left) / (rect.width / sheetW),
+        y: (e.clientY - rect.top) / (rect.height / sheetH),
+      });
+    } else {
+      // In test environment, use client coords directly as mm
+      setCursorMm({ x: e.clientX, y: e.clientY });
+    }
+  }, [pan, sheetW, sheetH]);
 
   const handleMouseUp = useCallback(() => {
     middleDragRef.current = null;
@@ -403,6 +418,57 @@ export function DrawingCanvas() {
             />
           );
         })}
+
+      {/* Rubber-band circle preview during pickRegionRadius */}
+      {toolMode === 'detail' && detailState.stage === 'pickRegionRadius' && cursorMm && (() => {
+        const ds = detailState;
+        const parentView = sheet.views.find((v) => v.id === ds.parentViewId);
+        if (!parentView) return null;
+        const parentScale = parentView.scale.numerator / parentView.scale.denominator;
+        // Center in sheet space
+        const cx = parentView.positionMm.x + ds.center.x * parentScale;
+        const cy = parentView.positionMm.y + ds.center.y * parentScale;
+        // Radius = distance from sheet-space center to cursor
+        const dx = cursorMm.x - cx;
+        const dy = cursorMm.y - cy;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        return (
+          <circle
+            key="detail-preview-circle"
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill="none"
+            stroke="black"
+            strokeWidth={0.35}
+            strokeDasharray="2 1"
+            data-role="detail-preview-circle"
+          />
+        );
+      })()}
+
+      {/* Ghost bbox rect preview during pickDrop */}
+      {toolMode === 'detail' && detailState.stage === 'pickDrop' && cursorMm && (() => {
+        const ds = detailState;
+        // Default detail scale 2:1 (the command uses this at apply time)
+        const detailScale = 2;
+        const side = 2 * ds.radiusMm * detailScale;
+        return (
+          <rect
+            key="detail-drop-ghost"
+            x={cursorMm.x - side / 2}
+            y={cursorMm.y - side / 2}
+            width={side}
+            height={side}
+            fill="none"
+            stroke="black"
+            strokeWidth={0.35}
+            strokeDasharray="3 1.5"
+            opacity={0.5}
+            data-role="detail-drop-ghost"
+          />
+        );
+      })()}
 
       {/* Live preview overlay during section tool pickDrop stage */}
       {toolMode === 'section' && sectionState.stage === 'pickDrop' && (() => {
