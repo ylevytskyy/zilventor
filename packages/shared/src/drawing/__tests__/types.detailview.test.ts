@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { RegionParent, DetailView, Vec2, ViewScale } from '../types';
+import type { RegionParent, DetailView, Vec2, ViewScale, DrawingView } from '../types';
 
 describe('RegionParent shape', () => {
   it('has center (Vec2) and radiusMm (number)', () => {
@@ -91,5 +91,35 @@ describe('DetailView shape', () => {
     };
     expect(dv.projection!.bbox.minX).toBe(-5);
     expect(dv.inputFingerprint).toBe('abc123');
+  });
+});
+
+describe('DrawingView union exhaustiveness — detail variant', () => {
+  it('detail kind is reachable in a switch over DrawingView', () => {
+    function label(v: DrawingView): string {
+      switch (v.kind) {
+        case 'base':      return 'base';
+        case 'projected': return 'projected';
+        case 'iso':       return 'iso';
+        case 'section':   return 'section';
+        case 'detail':    return 'detail';
+        default: {
+          const _exhaustive: never = v;
+          return _exhaustive;
+        }
+      }
+    }
+
+    const dv: DrawingView = {
+      id: 'dv-union-test',
+      kind: 'detail',
+      parentViewId: 'pv1',
+      regionParent: { center: { x: 0, y: 0 }, radiusMm: 5 },
+      label: 'A',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 2, denominator: 1 },
+      showHidden: false,
+    };
+    expect(label(dv)).toBe('detail');
   });
 });

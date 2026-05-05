@@ -181,6 +181,7 @@ describe('drawing/types — discriminator round-trips', () => {
         case 'projected': return 'projected';
         case 'iso':       return 'iso';
         case 'section':   return 'section';
+        case 'detail':    return 'detail';
         default: {
           const _: never = v;
           return _;

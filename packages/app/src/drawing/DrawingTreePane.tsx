@@ -52,6 +52,7 @@ function SheetNode({
                   {v.kind === 'base' ? `Base — ${v.orientation}` :
                    v.kind === 'projected' ? `Projected — ${v.direction}` :
                    v.kind === 'section' ? `Section — ${v.label}` :
+                   v.kind === 'detail' ? `Detail — ${v.label}` :
                    `Iso — ${v.corner}`} · {v.scale.numerator}:{v.scale.denominator}
                 </li>
               ))}

@@ -154,7 +154,8 @@ export type DrawingView =
   | BaseView
   | ProjectedView
   | IsoView
-  | SectionView;
+  | SectionView
+  | DetailView;
 
 // ---------------------------------------------------------------------------
 // PointRef — used by dimensions to reference edge geometry
