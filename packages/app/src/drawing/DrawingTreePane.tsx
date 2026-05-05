@@ -4,7 +4,18 @@ import { useAppStore } from '../store/useAppStore';
 import { SetActiveSheetCommand } from '../commands/SetActiveSheetCommand';
 import { RenameSheetCommand } from '../commands/RenameSheetCommand';
 import { DeleteSheetCommand } from '../commands/DeleteSheetCommand';
-import type { DrawingSheet } from '@zilventor/shared';
+import type { DrawingSheet, DetailView } from '@zilventor/shared';
+
+function parentViewLabel(view: DrawingSheet['views'][number]): string {
+  switch (view.kind) {
+    case 'base':      return `Base — ${view.orientation}`;
+    case 'projected': return `Projected — ${view.direction}`;
+    case 'iso':       return `Iso — ${view.corner}`;
+    case 'section':   return `Section — ${view.label}`;
+    case 'detail':    return `Detail — ${view.label}`;
+    default:          return view.kind;
+  }
+}
 
 type ContextMenu = {
   kind: 'sheet';
@@ -47,15 +58,27 @@ function SheetNode({
           <li>
             <div style={{ paddingLeft: 16 }}>Views</div>
             <ul style={{ paddingLeft: 24, listStyle: 'none', margin: 0 }}>
-              {sheet.views.map((v) => (
-                <li key={v.id} style={{ fontSize: '0.8em', color: '#555' }}>
-                  {v.kind === 'base' ? `Base — ${v.orientation}` :
-                   v.kind === 'projected' ? `Projected — ${v.direction}` :
-                   v.kind === 'section' ? `Section — ${v.label}` :
-                   v.kind === 'detail' ? `Detail — ${v.label}` :
-                   `Iso — ${v.corner}`} · {v.scale.numerator}:{v.scale.denominator}
-                </li>
-              ))}
+              {sheet.views.map((v) => {
+                let label: string;
+                if (v.kind === 'base') {
+                  label = `Base — ${v.orientation}`;
+                } else if (v.kind === 'projected') {
+                  label = `Projected — ${v.direction}`;
+                } else if (v.kind === 'section') {
+                  label = `Section — ${v.label}`;
+                } else if (v.kind === 'detail') {
+                  const parent = sheet.views.find((pv) => pv.id === (v as DetailView).parentViewId);
+                  const fromLabel = parent ? parentViewLabel(parent) : 'unknown';
+                  label = `Detail ${(v as DetailView).label} (from ${fromLabel})`;
+                } else {
+                  label = `Iso — ${v.corner}`;
+                }
+                return (
+                  <li key={v.id} style={{ fontSize: '0.8em', color: '#555' }}>
+                    {label} · {v.scale.numerator}:{v.scale.denominator}
+                  </li>
+                );
+              })}
             </ul>
           </li>
           <li style={{ paddingLeft: 16, fontSize: '0.8em', color: '#555' }}>
