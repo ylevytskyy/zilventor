@@ -11,14 +11,18 @@ import { AssemblyTab } from './tabs/AssemblyTab';
 import { useAppStore } from '../store/useAppStore';
 import type { PartInfo } from '@zilventor/shared';
 
-const PART_TABS = ['File', 'Model', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
+const PART_TABS     = ['File', 'Model',    'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 const ASSEMBLY_TABS = ['File', 'Assembly', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
+const DRAWING_TABS  = ['File', 'Drawing',  'View'] as const;
 
 type Props = { partInfo?: Map<string, PartInfo> };
 
 export default function Ribbon({ partInfo }: Props = {}) {
-  const isAssembly = useAppStore((s) => s.activeDocument?.kind === 'assembly');
-  const TABS: string[] = isAssembly ? [...ASSEMBLY_TABS] : [...PART_TABS];
+  const kind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
+  const TABS: string[] =
+    kind === 'drawing'  ? [...DRAWING_TABS]  :
+    kind === 'assembly' ? [...ASSEMBLY_TABS] :
+    [...PART_TABS];
 
   const partPanels: Record<string, ReactElement> = {
     File: <FileTab />,
@@ -40,8 +44,20 @@ export default function Ribbon({ partInfo }: Props = {}) {
     View: <ViewTab />,
   };
 
-  const panels = isAssembly ? assemblyPanels : partPanels;
-  const defaultTab = isAssembly ? 'Assembly' : 'Model';
+  const drawingPanels: Record<string, ReactElement> = {
+    File:    <FileTab />,
+    Drawing: <DrawingTab />,
+    View:    <ViewTab />,
+  };
+
+  const panels =
+    kind === 'drawing'  ? drawingPanels  :
+    kind === 'assembly' ? assemblyPanels :
+    partPanels;
+  const defaultTab =
+    kind === 'drawing'  ? 'Drawing'  :
+    kind === 'assembly' ? 'Assembly' :
+    'Model';
 
   const [active, setActive] = useState<string>(defaultTab);
 
