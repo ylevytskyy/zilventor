@@ -10,8 +10,10 @@ import { AnnotationElement } from './AnnotationElement';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
+import { AddDetailViewCommand } from '../commands/AddDetailViewCommand';
+import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
-import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
 
 // ISO sheet sizes in mm (landscape orientation)
 const ISO_MM: Record<string, { w: number; h: number }> = {
@@ -57,11 +59,23 @@ function getViewAtPoint(
   return undefined;
 }
 
+function sheetToParentLocal(
+  sheetPt: { x: number; y: number },
+  parentView: DrawingSheet['views'][number],
+): { x: number; y: number } {
+  const scale = parentView.scale.numerator / parentView.scale.denominator;
+  return {
+    x: (sheetPt.x - parentView.positionMm.x) / scale,
+    y: (sheetPt.y - parentView.positionMm.y) / scale,
+  };
+}
+
 export function DrawingCanvas() {
   const drawing = useAppStore((s) => s.activeDrawing);
   const bus = useAppStore((s) => s.bus);
   const toolMode = useToolModeStore((s) => s.mode);
   const sectionState = useToolModeStore((s) => s.sectionState);
+  const detailState = useToolModeStore((s) => s.detailState);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -96,11 +110,12 @@ export function DrawingCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id]);
 
-  // ESC cancels section tool in-progress
+  // ESC cancels section/detail tool in-progress
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         useToolModeStore.getState().sectionCancel();
+        useToolModeStore.getState().detailCancel();
       }
     }
     document.addEventListener('keydown', onKeyDown);
@@ -198,6 +213,51 @@ export function DrawingCanvas() {
             p0: toolState.p0,
             p1: toolState.p1,
             arrowDirection: toolState.arrowDirection,
+            dropAt: sheetPt,
+          }));
+        });
+        return;
+      }
+
+      return;
+    }
+
+    if (toolMode === 'detail') {
+      const ds = useToolModeStore.getState().detailState;
+      const sheetPt = { x: svgX, y: svgY };
+      const hitViewId = getViewAtPoint(sheet.views, sheetPt, viewId);
+
+      if (ds.stage === 'idle') {
+        if (hitViewId) {
+          useToolModeStore.getState().detailPickParent(hitViewId);
+        }
+        return;
+      }
+
+      if (ds.stage === 'pickRegionCenter') {
+        const parentView = sheet.views.find((v) => v.id === ds.parentViewId);
+        if (!parentView) return;
+        const parentLocalPt = sheetToParentLocal(sheetPt, parentView);
+        useToolModeStore.getState().detailPickCenter(parentLocalPt);
+        return;
+      }
+
+      if (ds.stage === 'pickRegionRadius') {
+        const parentView = sheet.views.find((v) => v.id === ds.parentViewId);
+        if (!parentView) return;
+        const parentLocalPt = sheetToParentLocal(sheetPt, parentView);
+        useToolModeStore.getState().detailPickRadius(parentLocalPt);
+        return;
+      }
+
+      if (ds.stage === 'pickDrop') {
+        useToolModeStore.getState().detailPickDrop(sheetPt, () => {
+          void bus.execute(new AddDetailViewCommand({
+            drawingId: drawing.id,
+            sheetId: sheet.id,
+            parentViewId: ds.parentViewId,
+            regionCenter: ds.center,
+            regionRadiusMm: ds.radiusMm,
             dropAt: sheetPt,
           }));
         });
@@ -323,6 +383,22 @@ export function DrawingCanvas() {
               key={`overlay-${sv.id}`}
               parentView={parent as BaseView | ProjectedView}
               sectionView={sv}
+              zoom={zoom}
+            />
+          );
+        })}
+
+      {/* Detail callout overlays — circle + letter on parent view for each detail view */}
+      {sheet.views
+        .filter((v): v is DetailView => v.kind === 'detail')
+        .map((dv) => {
+          const parent = sheet.views.find((v) => v.id === dv.parentViewId);
+          if (!parent) return null;
+          return (
+            <DetailRegionOverlay
+              key={`detail-overlay-${dv.id}`}
+              parentView={parent as BaseView | ProjectedView | IsoView | SectionView}
+              detailView={dv}
               zoom={zoom}
             />
           );

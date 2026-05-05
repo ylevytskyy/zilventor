@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../toolMode';
 import { AddDrawingDimensionCommand } from '../../commands/AddDrawingDimensionCommand';
 import { AddSectionViewCommand } from '../../commands/AddSectionViewCommand';
-import type { DrawingDocument, DrawingSheet, BaseView, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, BaseView, SectionView, DetailView } from '@zilventor/shared';
 
 // Minimal drawing fixture
 const makeSheet = (): DrawingSheet => ({
@@ -283,5 +283,145 @@ describe('DrawingCanvas — SectionLineOverlay rendering', () => {
     render(<DrawingCanvas />);
     expect(document.querySelector('[data-section-overlay="preview"]')).toBeNull();
     useToolModeStore.getState().sectionCancel();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 4.8 — DrawingCanvas detail tool mode
+// ---------------------------------------------------------------------------
+
+vi.mock('../../commands/AddDetailViewCommand', () => ({
+  AddDetailViewCommand: vi.fn().mockImplementation((payload) => ({
+    name: 'AddDetailView',
+    payload,
+  })),
+}));
+
+const makeDetailViewSheet = (): DrawingSheet => ({
+  id: 's1', name: 'Sheet 1',
+  size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+  views: [
+    {
+      id: 'bv1', kind: 'base' as const,
+      positionMm: { x: 20, y: 20 },
+      scale: { numerator: 1, denominator: 1 },
+      orientation: 'front' as const,
+      showHidden: false,
+      projection: {
+        visibleEdges: [],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 },
+      },
+      inputFingerprint: 'fp-base',
+    },
+  ],
+  dimensions: [], annotations: [], titleBlock: {},
+});
+
+describe('DrawingCanvas — detail tool mode', () => {
+  beforeEach(() => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: { stage: 'idle' },
+      sectionState: { stage: 'idle' },
+      pendingViewParams: null,
+    } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [makeDetailViewSheet()] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+  });
+
+  it('click on a view element in idle stage → calls detailPickParent with viewId', () => {
+    const pickParent = vi.spyOn(useToolModeStore.getState(), 'detailPickParent');
+    const { container } = render(<DrawingCanvas />);
+    const viewGroup = container.querySelector('[data-view-id="bv1"]') as Element;
+    if (viewGroup) {
+      fireEvent.click(viewGroup);
+      expect(pickParent).toHaveBeenCalledWith('bv1');
+    }
+  });
+
+  it('stage=pickRegionCenter + click → detailPickCenter called with parent-local coords', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: { stage: 'pickRegionCenter', parentViewId: 'bv1' },
+    } as never);
+    const pickCenter = vi.spyOn(useToolModeStore.getState(), 'detailPickCenter');
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.click(svg, { clientX: 50, clientY: 50 });
+    expect(pickCenter).toHaveBeenCalled();
+  });
+
+  it('stage=pickRegionRadius + click → detailPickRadius called', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: {
+        stage: 'pickRegionRadius',
+        parentViewId: 'bv1',
+        center: { x: 30, y: 30 },
+      },
+    } as never);
+    const pickRadius = vi.spyOn(useToolModeStore.getState(), 'detailPickRadius');
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.click(svg, { clientX: 60, clientY: 60 });
+    expect(pickRadius).toHaveBeenCalled();
+  });
+
+  it('stage=pickDrop + click → bus.execute called with AddDetailViewCommand once', () => {
+    useToolModeStore.setState({
+      mode: 'detail',
+      detailState: {
+        stage: 'pickDrop',
+        parentViewId: 'bv1',
+        center: { x: 30, y: 30 },
+        radiusMm: 10,
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.click(svg, { clientX: 200, clientY: 200 });
+    const bus = useAppStore.getState().bus;
+    expect(bus.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'AddDetailView' }),
+    );
+  });
+
+  it('ESC key calls detailCancel()', () => {
+    const cancel = vi.spyOn(useToolModeStore.getState(), 'detailCancel');
+    render(<DrawingCanvas />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe('DrawingCanvas — DetailRegionOverlay rendering', () => {
+  it('renders a detail-callout-overlay for each detail view in the sheet', () => {
+    const sheetWithDetail: DrawingSheet = {
+      ...makeDetailViewSheet(),
+      views: [
+        ...(makeDetailViewSheet().views),
+        {
+          id: 'dv1', kind: 'detail' as const,
+          parentViewId: 'bv1',
+          regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+          label: 'A',
+          positionMm: { x: 200, y: 150 },
+          scale: { numerator: 2, denominator: 1 },
+          showHidden: false,
+          projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 10, maxY: 10 } },
+          inputFingerprint: 'fp-dv1',
+        } as DetailView,
+      ],
+    };
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [sheetWithDetail] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    useToolModeStore.setState({ mode: 'idle' } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelectorAll('[data-detail-callout-overlay]')).toHaveLength(1);
   });
 });
