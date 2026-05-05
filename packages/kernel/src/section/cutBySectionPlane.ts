@@ -106,6 +106,7 @@ export function cutBySectionPlane(
   const rangeBuild = new oc.Message_ProgressRange_1();
 
   let cut: unknown;
+  let cutOk = false;
   try {
     const cutter = new oc.BRepAlgoAPI_Cut_3(
       source as never,
@@ -114,17 +115,18 @@ export function cutBySectionPlane(
     );
     cutter.Build(rangeBuild);
     const done = cutter.IsDone();
-    if (!done) {
-      cutter.delete();
-      (halfSpace.handle as unknown as { delete(): void }).delete();
-      return { ok: false, reason: 'empty' };
+    if (done) {
+      cut = cutter.Shape();
+      cutOk = true;
     }
-    cut = cutter.Shape();
     cutter.delete();
   } finally {
     rangeCtor.delete();
     rangeBuild.delete();
     (halfSpace.handle as unknown as { delete(): void }).delete();
+  }
+  if (!cutOk) {
+    return { ok: false, reason: 'empty' };
   }
 
   // --- empty check: any solid in result? ---
