@@ -25,6 +25,25 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
   });
 });
 
+describe('clipLineToCircle — case 6: zero-length segment', () => {
+  it('p0 === p1 inside circle → [] (zero-length always discarded per spec)', () => {
+    // p0=p1=(0,0), center=(0,0), radius=5. A=0 < 1e-10 → return [].
+    const result = clipLineToCircle([0, 0], [0, 0], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('p0 === p1 outside circle → []', () => {
+    const result = clipLineToCircle([10, 0], [10, 0], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('nearly-zero-length segment (1e-6 mm) → []', () => {
+    // A = (1e-6)^2 = 1e-12 < 1e-10 → return []
+    const result = clipLineToCircle([0, 0], [1e-6, 0], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+});
+
 describe('clipLineToCircle — case 5: tangent (disc ≈ 0)', () => {
   it('tangent line touching circle at exactly one point → []', () => {
     // Circle center=(0,0), radius=5. Tangent line: y=5, segment from (-10,5) to (10,5).
