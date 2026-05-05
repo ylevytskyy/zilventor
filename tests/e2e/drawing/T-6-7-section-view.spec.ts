@@ -218,10 +218,7 @@ test('T-6-7: Section view — real command flow, hatch + overlay + caption + und
   // 5. Assert: section view visible with correct data-view-id.
   await expect(page.locator(`g[data-view-id="${sectionViewId}"]`)).toBeVisible({ timeout: 10_000 });
 
-  // 6. Assert: hatch lines present in DOM when the section view has hatch segments.
-  // The real pipeline may not produce polygon data (and hence no hatch segments)
-  // when the kernel cut doesn't tessellate cut-face polygons; in that case we skip
-  // the hatch-line DOM assertion and rely on the fallback-injected path.
+  // 6. Assert: hatch lines present in DOM — required when real kernel cut succeeded.
   // We use toBeAttached instead of toBeVisible because SVG <line> elements with
   // equal y-coordinates have zero bounding-box height, which Playwright treats
   // as "hidden" even when the line is correctly rendered.
@@ -242,6 +239,11 @@ test('T-6-7: Section view — real command flow, hatch + overlay + caption + und
     },
     { sid: sectionViewId, sheetId },
   );
+  console.log(`[T-6-7] hatch segment count: ${hatchSegmentCount}`);
+  // When the real kernel cut path was taken, hatch MUST be non-zero.
+  if (result.ok && result.sectionViewId) {
+    expect(hatchSegmentCount).toBeGreaterThan(0);
+  }
   if (hatchSegmentCount > 0) {
     const hatchLines = page.locator(`[data-view-id="${sectionViewId}"] line[data-role="hatch"]`);
     await expect(hatchLines.first()).toBeAttached({ timeout: 5_000 });
