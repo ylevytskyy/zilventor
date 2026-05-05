@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/clipEdgesToCircle.test.ts
 import { describe, it, expect } from 'vitest';
-import { clipLineToCircle } from '../clipEdgesToCircle';
+import { clipLineToCircle, clipPolylineToCircle } from '../clipEdgesToCircle';
 import type { Segment } from '../clipEdgesToCircle';
 
 // helper: check that a Segment[] has one element and its coords match expected
@@ -164,6 +164,50 @@ describe('clipLineToCircle — case 2: both endpoints outside, no chord', () => 
   it('segment (-20,10)→(20,10) entirely outside circle radius=5 at origin → []', () => {
     // Horizontal line y=10 is above circle of radius 5; no intersection.
     const result = clipLineToCircle([-20, 10], [20, 10], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('clipPolylineToCircle', () => {
+  it('5-point polyline crossing circle → multiple surviving segments', () => {
+    // Polyline: (-10,0)→(-3,0)→(0,3)→(3,0)→(10,0) in circle radius=5 at origin.
+    // Segment 0: (-10,0)→(-3,0): |(-10,0)|=10>5, |(-3,0)|=3<5. One inside.
+    //   t for entry: ax=-10,dx=7,dy=0. A=49, B=2*(-10*7)=-140, C=75.
+    //   disc=19600-4*49*75=19600-14700=4900. sqrt=70. t1=(140-70)/98=0.714, t2=210/98=2.14
+    //   tEnter=0.714, tExit=min(2.14,1)=1. cp0=(-10+0.714*7,0)=(-5,0). cp1=(-3,0). 1 segment.
+    // Segment 1: (-3,0)→(0,3): both inside (|(-3,0)|=3<5, |(0,3)|=3<5). 1 segment.
+    // Segment 2: (0,3)→(3,0): both inside. 1 segment.
+    // Segment 3: (3,0)→(10,0): one inside, one outside.
+    //   ax=3,dx=7,dy=0. A=49, B=2*(3*7)=42, C=9-25=-16.
+    //   disc=1764+4*49*16=1764+3136=4900. sqrt=70.
+    //   t1=(-42-70)/98=-1.14, t2=(-42+70)/98=0.286.
+    //   tEnter=0, tExit=0.286. cp0=(3,0), cp1=(3+0.286*7,0)=(5,0). 1 segment.
+    // Total: 4 segments.
+    const polyline: ReadonlyArray<readonly [number, number]> = [
+      [-10, 0], [-3, 0], [0, 3], [3, 0], [10, 0],
+    ];
+    const result = clipPolylineToCircle(polyline, { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(4);
+    // First segment starts at the circle boundary (-5,0) (approximately)
+    expect(result[0]!.p0[0]).toBeCloseTo(-5, 4);
+    expect(result[0]!.p0[1]).toBeCloseTo(0, 4);
+    // Last segment ends at circle boundary (5,0) (approximately)
+    expect(result[3]!.p1[0]).toBeCloseTo(5, 4);
+    expect(result[3]!.p1[1]).toBeCloseTo(0, 4);
+  });
+
+  it('2-point polyline (single segment) fully outside → []', () => {
+    const result = clipPolylineToCircle([[-10, 0], [-6, 0]], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('empty polyline → []', () => {
+    const result = clipPolylineToCircle([], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('single-point polyline → []', () => {
+    const result = clipPolylineToCircle([[0, 0]], { x: 0, y: 0 }, 5);
     expect(result).toHaveLength(0);
   });
 });

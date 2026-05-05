@@ -74,3 +74,22 @@ export function clipLineToCircle(
   const cp1: [number, number] = [p0[0] + tExit  * dx, p0[1] + tExit  * dy];
   return [{ p0: cp0, p1: cp1 }];
 }
+
+/**
+ * Clip a polyline (array of [x,y] points) against a circle centered at `center`
+ * with radius `radius`. Returns an array of Segments — zero or more surviving
+ * sub-segments. Consecutive point pairs are each clipped independently via clipLineToCircle.
+ */
+export function clipPolylineToCircle(
+  points: ReadonlyArray<readonly [number, number]>,
+  center: { x: number; y: number },
+  radius: number,
+): Segment[] {
+  if (points.length < 2) return [];
+  const result: Segment[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const segs = clipLineToCircle(points[i]!, points[i + 1]!, center, radius);
+    result.push(...segs);
+  }
+  return result;
+}
