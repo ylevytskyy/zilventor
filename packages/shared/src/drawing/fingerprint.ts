@@ -88,6 +88,28 @@ function djb2(str: string): string {
 }
 
 /**
+ * Synchronous djb2 fingerprint for a DetailView.
+ * Incorporates the parent view's source fingerprint, the region definition, and the scale.
+ * Matches the fingerprintSectionView pattern in this file.
+ * Floats rounded to 1e-3 mm via .toFixed(3) for determinism.
+ */
+export function fingerprintDetailView(
+  parentInputFingerprint: string,
+  regionParent: { center: { x: number; y: number }; radiusMm: number },
+  scale: { numerator: number; denominator: number },
+): string {
+  const payload = [
+    parentInputFingerprint,
+    regionParent.center.x.toFixed(3),
+    regionParent.center.y.toFixed(3),
+    regionParent.radiusMm.toFixed(3),
+    scale.numerator,
+    scale.denominator,
+  ].join('|');
+  return djb2(payload);
+}
+
+/**
  * Compute a synchronous fingerprint for a SectionView.
  * Used for stale-cascade detection: incorporates the parent view's source
  * fingerprint, the cut plane, and the view parameters.
