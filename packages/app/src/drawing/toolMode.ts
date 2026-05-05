@@ -86,6 +86,8 @@ interface ToolModeState {
   enterDetailMode(): void;
   detailPickParent(viewId: string): void;
   detailPickCenter(point: { x: number; y: number }): void;
+  detailPickRadius(point: { x: number; y: number }): void;
+  detailPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -197,5 +199,34 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
         center: point,
       },
     });
+  },
+
+  detailPickRadius(point) {
+    const { detailState } = get();
+    if (detailState.stage !== 'pickRegionRadius') {
+      console.warn('detailPickRadius: expected stage=pickRegionRadius, got', detailState.stage);
+      return;
+    }
+    const dx = point.x - detailState.center.x;
+    const dy = point.y - detailState.center.y;
+    const radiusMm = Math.sqrt(dx * dx + dy * dy);
+    set({
+      detailState: {
+        stage: 'pickDrop',
+        parentViewId: detailState.parentViewId,
+        center: detailState.center,
+        radiusMm,
+      },
+    });
+  },
+
+  detailPickDrop(_point, onDispatch) {
+    const { detailState } = get();
+    if (detailState.stage !== 'pickDrop') {
+      console.warn('detailPickDrop: expected stage=pickDrop, got', detailState.stage);
+      return;
+    }
+    onDispatch();
+    set({ mode: 'idle', detailState: { stage: 'idle' } });
   },
 }));

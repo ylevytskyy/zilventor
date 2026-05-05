@@ -266,4 +266,50 @@ describe('detail tool — stage transitions', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('detailPickRadius() from pickRegionRadius → pickDrop with radiusMm = distance to center', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 10, y: 8 });
+    // Click at (25, 8): distance from (10,8) = 15mm
+    useToolModeStore.getState().detailPickRadius({ x: 25, y: 8 });
+    const s = useToolModeStore.getState();
+    expect(s.detailState).toMatchObject({
+      stage: 'pickDrop',
+      parentViewId: 'v1',
+      center: { x: 10, y: 8 },
+    });
+    const ds = s.detailState as { stage: 'pickDrop'; radiusMm: number };
+    expect(ds.radiusMm).toBeCloseTo(15, 3);
+  });
+
+  it('detailPickRadius() with non-zero y component computes correct Euclidean distance', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 0, y: 0 });
+    // Click at (3, 4): distance = 5
+    useToolModeStore.getState().detailPickRadius({ x: 3, y: 4 });
+    const ds = useToolModeStore.getState().detailState as { stage: 'pickDrop'; radiusMm: number };
+    expect(ds.radiusMm).toBeCloseTo(5, 3);
+  });
+
+  it('detailPickDrop() calls onDispatch callback and resets stage to idle', () => {
+    useToolModeStore.getState().detailPickParent('v1');
+    useToolModeStore.getState().detailPickCenter({ x: 10, y: 8 });
+    useToolModeStore.getState().detailPickRadius({ x: 25, y: 8 });
+    const onDispatch = vi.fn();
+    useToolModeStore.getState().detailPickDrop({ x: 200, y: 150 }, onDispatch);
+    expect(onDispatch).toHaveBeenCalledOnce();
+    expect(useToolModeStore.getState().detailState).toEqual({ stage: 'idle' });
+    expect(useToolModeStore.getState().mode).toBe('idle');
+  });
+
+  it('detailPickDrop() from wrong stage is a no-op + warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cb = vi.fn();
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterDetailMode();
+    useToolModeStore.getState().detailPickDrop({ x: 5, y: 5 }, cb);
+    expect(cb).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
