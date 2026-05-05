@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 13 as const;
+export const CURRENT_FORMAT_VERSION = 14 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -213,10 +213,17 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 13 };
   },
+
+  // v13 → v14: no-op. New 'drawing' kind is forward-only; existing part/assembly
+  // files are unaffected. DrawingDocument is only created by CreateDrawingCommand.
+  13: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 14 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
-  if ((m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 || m.formatVersion === 13) && (m as any).kind === undefined) {
+  if ((m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 || m.formatVersion === 13 || m.formatVersion === 14) && (m as any).kind === undefined) {
     return { ...m, kind: 'part' } as AnyManifest;
   }
   return m;

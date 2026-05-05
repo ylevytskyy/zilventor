@@ -3,11 +3,11 @@ import { CURRENT_FORMAT_VERSION, migrateManifest, type AnyManifest } from '../fi
 
 describe('fileFormat', () => {
   it('exports a locked current version', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
   });
 
   it('returns the manifest unchanged when already current', () => {
-    const m = { formatVersion: 13, kind: 'part' as const, document: { properties: {}, materials: [] } };
+    const m = { formatVersion: 14, kind: 'part' as const, document: { properties: {}, materials: [] } };
     expect(migrateManifest(m)).toEqual(m);
   });
 
@@ -21,7 +21,7 @@ describe('fileFormat', () => {
       },
     };
     const out = migrateManifest(v10);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     expect((out.document as { cutListItemNumbers: unknown }).cutListItemNumbers).toEqual({});
   });
 
@@ -37,7 +37,7 @@ describe('fileFormat', () => {
 
 describe('fileFormat v1 → v2', () => {
   it('exports version 7 as current', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
   });
 
   it('migrates a v1 manifest (rectangle without id) to v2 with synthesized id', () => {
@@ -55,7 +55,7 @@ describe('fileFormat v1 → v2', () => {
       }
     } as unknown as AnyManifest;
     const m = migrateManifest(v1);
-    expect(m.formatVersion).toBe(13);
+    expect(m.formatVersion).toBe(14);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
     const sketch = doc.featureTree.find((f) => (f as { id?: string }).id === 's1') as { primitives: Array<{ id: string }> };
     expect(sketch.primitives[0]!.id).toBe('s1-p0');
@@ -128,7 +128,7 @@ describe('fileFormat migrations', () => {
     };
     const out = migrateManifest(input);
     expect(out.formatVersion).toBe(CURRENT_FORMAT_VERSION);
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
   });
 
   it('v2 → v3 seeds constraints on sketches that have none', () => {
@@ -206,8 +206,8 @@ describe('fileFormat v3 → v4 migration', () => {
       }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(out.formatVersion).toBe(14);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
     const params = (out.document as { parameters: Record<string, unknown> }).parameters;
     expect(params.d0).toEqual({ name: 'd0', expression: '50', value: 50, unit: 'mm' });
   });
@@ -218,7 +218,7 @@ describe('fileFormat v3 → v4 migration', () => {
       document: { featureTree: [] }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     const doc = out.document as { parameters?: Record<string, unknown> };
     expect(doc.parameters).toEqual({});
   });
@@ -237,8 +237,8 @@ describe('fileFormat v4 → v5 migration', () => {
       }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(out.formatVersion).toBe(14);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
     const tree = (out.document as { featureTree: Array<{ kind: string; operation?: string }> }).featureTree;
     const ex = tree.find((f) => f.kind === 'extrude')!;
     expect(ex.operation).toBe('new');
@@ -265,7 +265,7 @@ describe('fileFormat v4 → v5 migration', () => {
   it('empty tree migrates without change', () => {
     const input: AnyManifest = { formatVersion: 4, document: { featureTree: [] } };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
   });
 });
 
@@ -282,7 +282,7 @@ describe('fileFormat v5 → v6 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     const tree = (out.document as { featureTree: Array<{ kind: string; id?: string }> }).featureTree;
     const userFeatures = tree.filter((f) => !(typeof f.id === 'string' && f.id.startsWith('origin.')));
     expect(userFeatures).toHaveLength(2);
@@ -301,7 +301,7 @@ describe('fileFormat v5 → v6 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
   });
 });
 
@@ -317,8 +317,8 @@ describe('fileFormat v6 → v7 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
-    expect(CURRENT_FORMAT_VERSION).toBe(13);
+    expect(out.formatVersion).toBe(14);
+    expect(CURRENT_FORMAT_VERSION).toBe(14);
   });
 
   it('v6 with mixed features survives migration', () => {
@@ -332,7 +332,7 @@ describe('fileFormat v6 → v7 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
   });
 });
 
@@ -346,7 +346,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     expect((out as any).kind).toBe('part');
   });
 
@@ -359,7 +359,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     expect((out as any).kind).toBe('assembly');
   });
 
@@ -373,7 +373,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(13);
+    expect(out.formatVersion).toBe(14);
     expect((out as any).kind).toBe('part');
   });
 });
@@ -436,7 +436,7 @@ describe('migrateManifest origin features', () => {
   });
 
   it('part manifest without document is left structurally unchanged', () => {
-    const m = { formatVersion: 13, kind: 'part' as const };
+    const m = { formatVersion: 14, kind: 'part' as const };
     expect(migrateManifest(m)).toEqual(m);
   });
 });
