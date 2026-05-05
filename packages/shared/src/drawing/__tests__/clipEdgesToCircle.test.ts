@@ -25,6 +25,30 @@ describe('clipLineToCircle — case 1: both endpoints inside circle', () => {
   });
 });
 
+describe('clipLineToCircle — case 8: endpoint exactly on circle boundary', () => {
+  it('p0=(5,0) on boundary, p1=(0,5) on boundary — full segment on/inside circle → returned', () => {
+    // Both on boundary (r=5). C = 25+0-25=0 (p0 on circle). Similarly p1.
+    // disc = B^2 - 0 = B^2 >= 0. t1=0, t2=1. tEnter=0, tExit=1. Full segment.
+    const result = clipLineToCircle([5, 0], [0, 5], { x: 0, y: 0 }, 5);
+    expectSegment(result, [5, 0], [0, 5]);
+  });
+
+  it('p0=(5,0) on boundary, p1=(10,0) outside → clipped to zero interval → []', () => {
+    // ax=5,ay=0, dx=5,dy=0. A=25, B=2*(5*5)=50, C=25-25=0.
+    // disc=2500-0=2500. sqrt=50. t1=(-50-50)/50=-2, t2=(-50+50)/50=0.
+    // tEnter=max(-2,0)=0, tExit=min(0,1)=0. interval=0 → [].
+    const result = clipLineToCircle([5, 0], [10, 0], { x: 0, y: 0 }, 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('p0=(0,0) inside, p1=(5,0) exactly on boundary → clipped to (0,0)→(5,0)', () => {
+    // ax=0,ay=0. dx=5,dy=0. A=25, B=0, C=-25. disc=2500. sqrt=50.
+    // t1=-1, t2=1. tEnter=0, tExit=1. Full segment.
+    const result = clipLineToCircle([0, 0], [5, 0], { x: 0, y: 0 }, 5);
+    expectSegment(result, [0, 0], [5, 0]);
+  });
+});
+
 describe('clipLineToCircle — case 7: axis-aligned through circle center (symmetric split)', () => {
   it('vertical segment (0,-10)→(0,10) through center at origin radius=5 → (0,-5)→(0,5)', () => {
     // ax=0, ay=-10, dx=0, dy=20. A=400, B=2*(0*0+(-10)*20)=-400, C=100-25=75.
