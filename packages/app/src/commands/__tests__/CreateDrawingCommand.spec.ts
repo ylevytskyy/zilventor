@@ -3,10 +3,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { CreateDrawingCommand } from '../CreateDrawingCommand';
 import type { DrawingDocument } from '@zilventor/shared';
+import * as deleteModule from '../../storage/deleteDrawingFromOpfs';
 
-// Stub OPFS: CreateDrawingCommand calls saveDrawingToOpfs which we mock
+// Stub OPFS: CreateDrawingCommand calls saveDrawingToOpfs / deleteDrawingFromOpfs which we mock
 vi.mock('../../storage/saveDrawingToOpfs', () => ({
   saveDrawingToOpfs: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../storage/deleteDrawingFromOpfs', () => ({
+  deleteDrawingFromOpfs: vi.fn().mockResolvedValue(undefined),
 }));
 
 function getDrawing(): DrawingDocument | null {
@@ -83,5 +88,17 @@ describe('CreateDrawingCommand', () => {
     await cmd2.apply();
     const id2 = getDrawing()!.id;
     expect(id1).not.toBe(id2);
+  });
+
+  it('revert calls deleteDrawingFromOpfs with the created drawing id', async () => {
+    const deleteSpy = vi.spyOn(deleteModule, 'deleteDrawingFromOpfs');
+    const cmd = new CreateDrawingCommand({ sourcePath: 'parts/p.zipt', sourceKind: 'part' });
+    await cmd.apply();
+    const createdId = getDrawing()!.id;
+
+    await cmd.revert();
+
+    expect(deleteSpy).toHaveBeenCalledOnce();
+    expect(deleteSpy).toHaveBeenCalledWith(createdId);
   });
 });

@@ -10,6 +10,7 @@ export class RenameSheetCommand implements Command {
 
   async apply(): Promise<void> {
     const state = useAppStore.getState();
+    // TODO(phase-7): drop cast after activeDocument union widening
     const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
     if (!doc || doc.kind !== 'drawing') return;
 
@@ -24,12 +25,14 @@ export class RenameSheetCommand implements Command {
         s.id === this.opts.sheetId ? { ...s, name: this.opts.name } : s
       ),
     };
+    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
   }
 
   async revert(): Promise<void> {
     if (this.prevName === null) return;
     const state = useAppStore.getState();
+    // TODO(phase-7): drop cast after activeDocument union widening
     const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
     if (!doc || doc.kind !== 'drawing') return;
 
@@ -39,6 +42,7 @@ export class RenameSheetCommand implements Command {
         s.id === this.opts.sheetId ? { ...s, name: this.prevName! } : s
       ),
     };
+    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
     this.prevName = null;
   }

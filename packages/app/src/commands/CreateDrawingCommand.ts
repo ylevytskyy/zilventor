@@ -49,6 +49,7 @@ export class CreateDrawingCommand implements Command {
       activeSheetId: sheetId,
     };
 
+    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({
       activeDocument: { kind: 'drawing', document: doc },
       activePart: null,
@@ -65,6 +66,7 @@ export class CreateDrawingCommand implements Command {
   }
 
   async revert(): Promise<void> {
+    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({
       activeDocument: this.prevActiveDocument,
       activePart:
@@ -76,6 +78,16 @@ export class CreateDrawingCommand implements Command {
           ? this.prevActiveDocument.document
           : null,
     } as never);
-    this.createdId = null;
+
+    if (this.createdId) {
+      const id = this.createdId;
+      this.createdId = null;
+      try {
+        const { deleteDrawingFromOpfs } = await import('../storage/deleteDrawingFromOpfs');
+        await deleteDrawingFromOpfs(id);
+      } catch {
+        // Non-fatal: best-effort cleanup
+      }
+    }
   }
 }
