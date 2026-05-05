@@ -25,5 +25,5 @@ export type {
 } from './nesting';
 export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nesting';
 export { ISO_SIZES_MM } from './drawing/types';
-export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, PointRef, DrawingAnnotation, TitleBlockOverrides } from './drawing/types';
+export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, DrawingAnnotation, TitleBlockOverrides } from './drawing/types';
 export type { ProjectedGeometry, Edge2D } from './drawing/projectedGeometry';

@@ -52,7 +52,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
         hardware: [],
       },
     };
-    const out = migrateManifest(v13Asm) as { document: Record<string, unknown> };
+    const out = migrateManifest(v13Asm) as unknown as { document: Record<string, unknown> };
     expect((out.document.bomItemNumbers as Record<string, unknown>)['comp1']).toBe(1);
     expect((out.document.properties as Record<string, unknown>)['designer']).toBe('Alice');
   });
@@ -91,7 +91,7 @@ describe('migrateManifest v13 → v14 (6 — no-op additive)', () => {
         hardware: [],
       },
     };
-    const out = migrateManifest(v13Asm) as { document: { materials: unknown[] } };
+    const out = migrateManifest(v13Asm) as unknown as { document: { materials: unknown[] } };
     const m = out.document.materials[0] as Record<string, unknown>;
     expect('sheetLengthMm' in m).toBe(false);
     expect('sheetWidthMm' in m).toBe(false);
