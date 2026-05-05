@@ -168,9 +168,14 @@ export function triangulatePolygon(polygon: Vec2[]): Triangle[] {
       if (cross2(a, b, c) < CLIP_EPS) continue;
 
       // No other vertex inside this ear triangle
+      // (also skip vertices coincident with a/b/c — happens after bridge insertion)
       const empty = indices.every(idx => {
         if (idx === prev || idx === curr || idx === next) return true;
-        return !pointInTriangle(verts[idx], a, b, c);
+        const v = verts[idx];
+        if ((v.x === a.x && v.y === a.y) ||
+            (v.x === b.x && v.y === b.y) ||
+            (v.x === c.x && v.y === c.y)) return true;
+        return !pointInTriangle(v, a, b, c);
       });
 
       if (empty) {

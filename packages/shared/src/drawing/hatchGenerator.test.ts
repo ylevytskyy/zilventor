@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { clipLineToConvexPolygon } from './hatchGenerator';
+import { clipLineToConvexPolygon, triangulatePolygon, triangulatePolygonWithHoles } from './hatchGenerator';
+import type { Triangle } from './hatchGenerator';
 import type { Vec2 } from './types';
 
 const sq: Vec2[] = [
@@ -62,5 +63,72 @@ describe('clipLineToConvexPolygon', () => {
     );
     // intersection length is effectively 0 at vertex → null
     expect(r).toBeNull();
+  });
+});
+
+// Helpers
+const area2D = ([a, b, c]: Triangle): number =>
+  (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+
+describe('triangulatePolygon', () => {
+  it('convex quad → 2 triangles', () => {
+    const quad: Vec2[] = [
+      { x: 0, y: 0 }, { x: 4, y: 0 },
+      { x: 4, y: 3 }, { x: 0, y: 3 },
+    ];
+    const tris = triangulatePolygon(quad);
+    expect(tris).toHaveLength(2);
+    // all triangles CCW (positive signed area)
+    tris.forEach(t => expect(area2D(t)).toBeGreaterThan(0));
+  });
+
+  it('L-shape (6 vertices) → 4 triangles, all CCW', () => {
+    // L: full square minus top-right quadrant
+    const lShape: Vec2[] = [
+      { x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 },
+      { x: 10, y: 10 }, { x: 10, y: 20 }, { x: 0, y: 20 },
+    ];
+    const tris = triangulatePolygon(lShape);
+    expect(tris).toHaveLength(4);
+    tris.forEach(t => expect(area2D(t)).toBeGreaterThan(0));
+  });
+
+  it('U-shape (8 vertices) → 6 triangles', () => {
+    // U: outer box minus inner top notch
+    const uShape: Vec2[] = [
+      { x: 0, y: 0 },  { x: 30, y: 0 },
+      { x: 30, y: 30 }, { x: 20, y: 30 },
+      { x: 20, y: 10 }, { x: 10, y: 10 },
+      { x: 10, y: 30 }, { x: 0, y: 30 },
+    ];
+    const tris = triangulatePolygon(uShape);
+    expect(tris).toHaveLength(6);
+    tris.forEach(t => expect(area2D(t)).toBeGreaterThan(0));
+  });
+
+  it('self-intersecting polygon → throws', () => {
+    // Bow-tie
+    const bowtie: Vec2[] = [
+      { x: 0, y: 0 }, { x: 10, y: 10 },
+      { x: 10, y: 0 }, { x: 0, y: 10 },
+    ];
+    expect(() => triangulatePolygon(bowtie)).toThrow('non-simple polygon');
+  });
+});
+
+describe('triangulatePolygonWithHoles', () => {
+  it('square with square hole → 8 triangles', () => {
+    const outer: Vec2[] = [
+      { x: 0, y: 0 }, { x: 30, y: 0 },
+      { x: 30, y: 30 }, { x: 0, y: 30 },
+    ];
+    // hole (CW — holes are wound opposite to outer)
+    const hole: Vec2[] = [
+      { x: 10, y: 10 }, { x: 10, y: 20 },
+      { x: 20, y: 20 }, { x: 20, y: 10 },
+    ];
+    const tris = triangulatePolygonWithHoles(outer, [hole]);
+    expect(tris).toHaveLength(8);
+    tris.forEach(t => expect(area2D(t)).toBeGreaterThan(0));
   });
 });
