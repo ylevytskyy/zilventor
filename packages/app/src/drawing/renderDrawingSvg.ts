@@ -1,4 +1,4 @@
-import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView } from '@zilventor/shared';
 import type { DrawingDimension } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
@@ -35,6 +35,7 @@ export function renderDrawingSvg(
   );
 
   const viewGroups = sheet.views.map((v) => renderViewGroup(v)).join('\n');
+  const calloutGroups = renderDetailCalloutGroups(sheet.views);
   const dimGroups = sheet.dimensions.map((d) => renderDimensionGroup(d, sheet.views)).join('\n');
   const annGroups = sheet.annotations.map((a) => renderAnnotationGroup(a)).join('\n');
   const titleBlockSvg = renderTitleBlockSvg(
@@ -63,6 +64,7 @@ export function renderDrawingSvg(
   <rect x="10" y="10" width="${sheetW - 20}" height="${sheetH - 20 - titleH}"
     fill="white" stroke="#000" stroke-width="0.5"/>
 ${viewGroups}
+${calloutGroups}
 ${dimGroups}
 ${annGroups}
 ${titleBlockSvg}
@@ -97,12 +99,49 @@ function renderViewGroup(view: DrawingView): string {
     ? `<text x="0" y="-2" font-size="3" fill="red" data-stale-marker="${escapeAttr(view.id)}">&#x26A0; Source changed</text>`
     : '';
 
+  // Detail-specific: border circle + caption.
+  let detailMarkup = '';
+  if (view.kind === 'detail') {
+    const dv = view as DetailView;
+    const borderR = dv.regionParent.radiusMm;
+    detailMarkup += `\n    <circle cx="0" cy="0" r="${borderR}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-border" data-view-id="${escapeAttr(dv.id)}"/>`;
+    if (projection) {
+      const captionX = (projection.bbox.minX + projection.bbox.maxX) / 2;
+      const captionY = projection.bbox.maxY + 5;
+      detailMarkup += `\n    <text x="${captionX}" y="${captionY}" font-size="4" font-family="sans-serif" text-anchor="middle" data-role="detail-caption" data-view-id="${escapeAttr(dv.id)}">DETAIL ${escapeText(dv.label)}<tspan x="${captionX}" dy="5" font-size="3.5">${dv.scale.numerator}:${dv.scale.denominator}</tspan></text>`;
+    }
+  }
+
   return `  <g transform="translate(${view.positionMm.x},${view.positionMm.y}) scale(${vScale})"
      data-view-id="${escapeAttr(view.id)}" data-view-kind="${view.kind}">
     ${staleMarker}
     ${visibleLines}
-    ${hiddenLines}
+    ${hiddenLines}${detailMarkup}
   </g>`;
+}
+
+function renderDetailCalloutGroups(views: readonly DrawingView[]): string {
+  const groups: string[] = [];
+  for (const view of views) {
+    if (view.kind !== 'detail') continue;
+    const dv = view as DetailView;
+    const parent = views.find((v) => v.id === dv.parentViewId);
+    if (!parent) continue;
+    const parentScale = parent.scale.numerator / parent.scale.denominator;
+    const cx = parent.positionMm.x + dv.regionParent.center.x * parentScale;
+    const cy = parent.positionMm.y + dv.regionParent.center.y * parentScale;
+    const r = dv.regionParent.radiusMm * parentScale;
+    const COS45 = Math.SQRT1_2;
+    const labelX = cx + (r + 5) * COS45;
+    const labelY = cy - (r + 5) * COS45;
+    groups.push(
+      `  <g data-detail-callout="${escapeAttr(dv.id)}">` +
+      `\n    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}"/>` +
+      `\n    <text x="${labelX}" y="${labelY}" font-size="5" font-family="sans-serif" text-anchor="start" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}">${escapeText(dv.label)}</text>` +
+      `\n  </g>`,
+    );
+  }
+  return groups.join('\n');
 }
 
 function renderPolyline(
