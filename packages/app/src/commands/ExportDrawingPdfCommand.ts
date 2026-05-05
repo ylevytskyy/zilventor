@@ -16,6 +16,8 @@ export class ExportDrawingPdfCommand {
 
   async apply(): Promise<void> {
     const buf = renderDrawingPdfBytes(this.opts.drawing, this.opts.source);
+    // E2E-inspectable bytes hook (mirrors __zilventorNestPdfBytes in ExportNestPdfCommand)
+    (globalThis as { __zilventorDrawingPdfBytes?: Uint8Array }).__zilventorDrawingPdfBytes = buf;
     const blob = new Blob([buf.buffer as ArrayBuffer], { type: 'application/pdf' });
     await triggerDownload(blob, {
       suggestedName: this.opts.suggestedName ?? `drawing-${timestamp()}.pdf`,
