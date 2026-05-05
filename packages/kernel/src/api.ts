@@ -483,7 +483,12 @@ function buildTriangles(mesh: Mesh): Array<[[number,number,number],[number,numbe
 function serializeFaceTags(kernelTags: KernelFaceTagMap): SerializedFaceTagEntry[] {
   const out: SerializedFaceTagEntry[] = [];
   for (const [key, val] of kernelTags) {
-    out.push([key, { tag: val.tag, partId: val.partId, materialId: val.materialId }]);
+    out.push([key, {
+      tag: val.tag,
+      partId: val.partId,
+      materialId: val.materialId,
+      ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+    }]);
   }
   return out;
 }

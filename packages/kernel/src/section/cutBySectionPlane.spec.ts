@@ -58,6 +58,23 @@ describe('cutBySectionPlane', () => {
     disposeOcctShape(oc, result.compound);
   });
 
+  it('cut-face has polygon3D with 4 boundary points all at z≈5', () => {
+    const cube = makeBox(oc, 10, 10, 10);
+    const compound = buildTestCompound(oc, cube);
+    const plane: Plane = { origin: { x: 0, y: 0, z: 5 }, normal: { x: 0, y: 0, z: 1 } };
+    const result = cutBySectionPlane(oc, compound, plane, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cutFace = [...result.faceTags.values()].find(t => t.tag === 'cut-face');
+    expect(cutFace).toBeDefined();
+    expect(cutFace!.polygon3D).toBeDefined();
+    expect(cutFace!.polygon3D!.length).toBe(4);
+    for (const p of cutFace!.polygon3D!) {
+      expect(p.z).toBeCloseTo(5, 2);
+    }
+    disposeOcctShape(oc, result.compound);
+  });
+
   it('cylinder r=5 h=20 cut by x=0 arrowDir=1 → 1 half-cyl + 2 discs + 1 cut face', () => {
     const cyl = buildTestCylinder(oc, 5, 20);
     const compound = buildTestCompound(oc, cyl);

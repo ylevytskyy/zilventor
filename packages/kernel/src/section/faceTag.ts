@@ -1,5 +1,6 @@
 import type { OcctInstance } from '../occt/occtLoader';
 import type { Plane } from './cutBySectionPlane';
+import type { Vec3 } from '@zilventor/shared';
 
 const PARALLEL_TOL = 1e-4; // mm
 const POINT_ON_PLANE_TOL = 1e-4; // mm
@@ -67,6 +68,50 @@ export function classifyFace(
   const d = (lx - so.x) * (sn.x / len) + (ly - so.y) * (sn.y / len) + (lz - so.z) * (sn.z / len);
   if (Math.abs(d) > POINT_ON_PLANE_TOL) return 'original-face';
   return 'cut-face';
+}
+
+/**
+ * Extract the outer wire boundary of a planar face as an ordered list of 3D
+ * vertices. Returns one point per edge-vertex so polygon.length === edgeCount.
+ *
+ * Uses BRepTools_WireExplorer_2 (wire-only ctor) which walks edges in order
+ * and exposes CurrentVertex() for the start vertex of each edge.
+ */
+export function extractFaceBoundary3D(oc: OcctInstance, face: unknown): Vec3[] {
+  const faceTyped = oc.TopoDS.Face_1(face as never);
+
+  // Find the first (outer) wire via TopExp_Explorer
+  const wireExp = new oc.TopExp_Explorer_2(
+    faceTyped as never,
+    oc.TopAbs_ShapeEnum.TopAbs_WIRE as never,
+    oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+  );
+  if (!wireExp.More()) {
+    wireExp.delete();
+    return [];
+  }
+  const wireShape = wireExp.Current();
+  wireExp.delete();
+
+  const wire = oc.TopoDS.Wire_1(wireShape as never);
+  const points: Vec3[] = [];
+
+  // BRepTools_WireExplorer_2(wire) walks edges in order
+  const wexp = new (oc as unknown as { BRepTools_WireExplorer_2: new (w: unknown) => {
+    More(): boolean; Next(): void; CurrentVertex(): unknown; delete(): void;
+  } }).BRepTools_WireExplorer_2(wire as never);
+
+  while (wexp.More()) {
+    const vertex = wexp.CurrentVertex();
+    const pnt = oc.BRep_Tool.Pnt(vertex as never);
+    points.push({ x: pnt.X(), y: pnt.Y(), z: pnt.Z() });
+    (pnt as unknown as { delete(): void }).delete();
+    (vertex as unknown as { delete(): void }).delete();
+    wexp.Next();
+  }
+  wexp.delete();
+
+  return points;
 }
 
 export function mergeFaceTags(

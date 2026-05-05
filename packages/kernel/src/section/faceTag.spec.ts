@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { makeBox } from '../occt/SolidOps';
-import { hashFace, classifyFace, mergeFaceTags } from './faceTag';
+import { hashFace, classifyFace, mergeFaceTags, extractFaceBoundary3D } from './faceTag';
 import type { Plane, FaceTagMap } from './cutBySectionPlane';
 
 let oc: OcctInstance;
@@ -90,6 +90,37 @@ describe('classifyFace', () => {
     exp.delete();
     const tag = classifyFace(oc, f, plane);
     expect(tag).toBe('original-face');
+    (box.handle as unknown as { delete(): void }).delete();
+  });
+});
+
+describe('extractFaceBoundary3D', () => {
+  it('cut-face of cube at z=5 has 4 boundary points all near z=5', () => {
+    // Build a 10×10×10 cube. The top face (z=10) has a planar boundary with 4 vertices.
+    const box = makeBox(oc, 10, 10, 10);
+    // Find the top face (z≈10)
+    const exp = new oc.TopExp_Explorer_2(
+      box.handle as never,
+      oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+    );
+    let topFace: unknown = null;
+    while (exp.More()) {
+      const f = exp.Current();
+      const plane: Plane = { origin: { x: 0, y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } };
+      if (classifyFace(oc, f, plane) === 'cut-face') {
+        topFace = f;
+        break;
+      }
+      exp.Next();
+    }
+    exp.delete();
+    expect(topFace).not.toBeNull();
+    const pts = extractFaceBoundary3D(oc, topFace!);
+    expect(pts.length).toBe(4);
+    for (const p of pts) {
+      expect(p.z).toBeCloseTo(10, 2);
+    }
     (box.handle as unknown as { delete(): void }).delete();
   });
 });

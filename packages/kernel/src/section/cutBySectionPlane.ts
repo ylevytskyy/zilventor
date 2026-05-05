@@ -2,7 +2,7 @@ import type { AssemblyDocument } from '@zilventor/shared';
 import type { OcctInstance } from '../occt/occtLoader';
 import type { OcctShape } from '../occt/SolidOps';
 import type { Vec3 } from '@zilventor/shared';
-import { hashFace, classifyFace } from './faceTag';
+import { hashFace, classifyFace, extractFaceBoundary3D } from './faceTag';
 import { quatMultiply, quatRotateVec } from '../assembly/quat';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
@@ -80,6 +80,7 @@ export type FaceTagMap = Map<string, {
   tag: 'cut-face' | 'original-face';
   partId: string;
   materialId: string;
+  polygon3D?: Vec3[];
 }>;
 
 export type Result =
@@ -163,7 +164,8 @@ export function cutBySectionPlane(
     const face = faceExp.Current();
     const key  = hashFace(oc, face);
     const tag  = classifyFace(oc, face, plane);
-    faceTags.set(key, { tag, partId: '', materialId: '' });
+    const polygon3D = tag === 'cut-face' ? extractFaceBoundary3D(oc, face) : undefined;
+    faceTags.set(key, { tag, partId: '', materialId: '', ...(polygon3D ? { polygon3D } : {}) });
     faceExp.Next();
   }
   faceExp.delete();
