@@ -13,8 +13,7 @@ export class DeleteDrawingDimensionCommand implements Command {
   async apply(): Promise<void> {
     this.reverted = false;
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const sheets = doc.document.sheets.map((sh) => {
@@ -27,16 +26,14 @@ export class DeleteDrawingDimensionCommand implements Command {
       return { ...sh, dimensions };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (!this.priorDim || this.reverted) return;
     this.reverted = true;
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const { priorDim, priorIndex } = this;
@@ -47,7 +44,6 @@ export class DeleteDrawingDimensionCommand implements Command {
       return { ...sh, dimensions: dims };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 }

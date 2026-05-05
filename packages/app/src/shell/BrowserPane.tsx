@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DrawingTreePane } from '../drawing/__placeholders__';
 import type { AssemblyDocument, ComponentInstance, Feature, PanelFeature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
@@ -279,6 +280,9 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
 
+  if (activeDoc?.kind === 'drawing') {
+    return <DrawingTreePane />;
+  }
   if (activeDoc?.kind === 'assembly') {
     return <AssemblyModePane part={part} partInfo={partInfo} />;
   }

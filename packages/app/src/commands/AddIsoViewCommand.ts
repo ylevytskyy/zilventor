@@ -18,8 +18,7 @@ export class AddIsoViewCommand implements Command {
 
   async apply(): Promise<void> {
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const newId = crypto.randomUUID();
@@ -42,15 +41,13 @@ export class AddIsoViewCommand implements Command {
           : s
       ),
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (!this.newViewId) return;
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const next: DrawingDocument = {
@@ -61,8 +58,7 @@ export class AddIsoViewCommand implements Command {
           : s
       ),
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
     this.newViewId = null;
   }
 }

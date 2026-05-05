@@ -11,24 +11,22 @@ export class EditDrawingPropertiesCommand implements Command {
 
   async apply(): Promise<void> {
     this.reverted = false;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      this.priorProperties = doc.properties;
-      const next: DrawingDocument = { ...doc, properties: this.opts.properties };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
-    });
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    this.priorProperties = doc.document.properties;
+    const next: DrawingDocument = { ...doc.document, properties: this.opts.properties };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (this.priorProperties === undefined || this.reverted) return;
     this.reverted = true;
     const prior = this.priorProperties;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      const next: DrawingDocument = { ...doc, properties: prior };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
-    });
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    const next: DrawingDocument = { ...doc.document, properties: prior };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 }

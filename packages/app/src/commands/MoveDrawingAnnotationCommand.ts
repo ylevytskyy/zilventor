@@ -18,44 +18,42 @@ export class MoveDrawingAnnotationCommand implements Command {
 
   async apply(): Promise<void> {
     this.reverted = false;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      const sheets = doc.sheets.map((sh) => {
-        if (sh.id !== this.opts.sheetId) return sh;
-        const annotations = sh.annotations.map((a) => {
-          if (a.id !== this.opts.annId) return a;
-          this.priorAnn = a;
-          const updated = { ...a } as DrawingAnnotation;
-          if (this.opts.textPosMm !== undefined && 'textPosMm' in updated) {
-            (updated as { textPosMm: Vec2 }).textPosMm = this.opts.textPosMm;
-          }
-          if (this.opts.targetMm !== undefined && 'targetMm' in updated) {
-            (updated as { targetMm: Vec2 }).targetMm = this.opts.targetMm;
-          }
-          return updated;
-        });
-        return { ...sh, annotations };
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    const sheets = doc.document.sheets.map((sh) => {
+      if (sh.id !== this.opts.sheetId) return sh;
+      const annotations = sh.annotations.map((a) => {
+        if (a.id !== this.opts.annId) return a;
+        this.priorAnn = a;
+        const updated = { ...a } as DrawingAnnotation;
+        if (this.opts.textPosMm !== undefined && 'textPosMm' in updated) {
+          (updated as { textPosMm: Vec2 }).textPosMm = this.opts.textPosMm;
+        }
+        if (this.opts.targetMm !== undefined && 'targetMm' in updated) {
+          (updated as { targetMm: Vec2 }).targetMm = this.opts.targetMm;
+        }
+        return updated;
       });
-      const next: DrawingDocument = { ...doc, sheets };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
+      return { ...sh, annotations };
     });
+    const next: DrawingDocument = { ...doc.document, sheets };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (!this.priorAnn || this.reverted) return;
     this.reverted = true;
     const prior = this.priorAnn;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      const sheets = doc.sheets.map((sh) => {
-        if (sh.id !== this.opts.sheetId) return sh;
-        const annotations = sh.annotations.map((a) => (a.id === this.opts.annId ? prior : a));
-        return { ...sh, annotations };
-      });
-      const next: DrawingDocument = { ...doc, sheets };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    const sheets = doc.document.sheets.map((sh) => {
+      if (sh.id !== this.opts.sheetId) return sh;
+      const annotations = sh.annotations.map((a) => (a.id === this.opts.annId ? prior : a));
+      return { ...sh, annotations };
     });
+    const next: DrawingDocument = { ...doc.document, sheets };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 }

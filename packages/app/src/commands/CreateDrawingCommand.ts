@@ -49,12 +49,7 @@ export class CreateDrawingCommand implements Command {
       activeSheetId: sheetId,
     };
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({
-      activeDocument: { kind: 'drawing', document: doc },
-      activePart: null,
-      activeAssembly: null,
-    } as never);
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: doc });
 
     // Persist to OPFS — fire-and-forget; errors surface in production via status bar
     try {
@@ -66,18 +61,7 @@ export class CreateDrawingCommand implements Command {
   }
 
   async revert(): Promise<void> {
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({
-      activeDocument: this.prevActiveDocument,
-      activePart:
-        this.prevActiveDocument?.kind === 'part'
-          ? this.prevActiveDocument.document
-          : null,
-      activeAssembly:
-        this.prevActiveDocument?.kind === 'assembly'
-          ? this.prevActiveDocument.document
-          : null,
-    } as never);
+    useAppStore.getState().setActiveDocument(this.prevActiveDocument);
 
     if (this.createdId) {
       const id = this.createdId;

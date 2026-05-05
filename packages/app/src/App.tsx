@@ -1169,6 +1169,7 @@ export default function App() {
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
     const docKind = useAppStore.getState().activeDocument?.kind;
+    if (docKind === 'drawing') return;   // drawing uses DrawingCanvas, not Viewport
     if (docKind === 'assembly') {
       // B3 component drag: pointerdown over a component starts a drag candidate;
       // movement past a small threshold treats subsequent moves as drag deltas
@@ -2609,6 +2610,10 @@ export default function App() {
           const opfs = opfsRef.current;
           const doc = useAppStore.getState().activeDocument;
           if (!doc) return;
+          if (doc.kind === 'drawing') {
+            // TODO Sub-project 6: drawing autosave (.zidw)
+            return;
+          }
           if (doc.kind === 'assembly') {
             const subAssemblyDocsSnapshot = useAppStore.getState().subAssemblyDocs;
             const cacheAdapter = {

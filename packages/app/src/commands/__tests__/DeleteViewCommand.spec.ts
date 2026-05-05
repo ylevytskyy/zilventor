@@ -64,16 +64,14 @@ function makeDrawingWithCascade(): DrawingDocument {
 
 describe('DeleteViewCommand', () => {
   beforeEach(() => {
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawingWithCascade() } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawingWithCascade() } });
   });
 
   it('deleting a non-base view removes only that view, not its siblings', async () => {
     const cmd = new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'iso-standalone' });
     await cmd.apply();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const sheet = doc.sheets[0]!;
     expect(sheet.views).toHaveLength(2);
     expect(sheet.views.find(v => v.id === 'iso-standalone')).toBeUndefined();
@@ -85,8 +83,7 @@ describe('DeleteViewCommand', () => {
     const cmd = new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'base-1' });
     await cmd.apply();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const sheet = doc.sheets[0]!;
 
     // Only iso-standalone should remain
@@ -103,8 +100,7 @@ describe('DeleteViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const sheet = doc.sheets[0]!;
 
     expect(sheet.views).toHaveLength(3);
@@ -123,8 +119,7 @@ describe('DeleteViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const sheet = doc.sheets[0]!;
     expect(sheet.views).toHaveLength(3);
     expect(sheet.dimensions).toHaveLength(3);

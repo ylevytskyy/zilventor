@@ -45,8 +45,7 @@ function makeDrawing(): DrawingDocument {
 
 describe('RegenerateViewCommand', () => {
   beforeEach(() => {
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawing() } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawing() } });
   });
 
   it('apply replaces projection and inputFingerprint on the target view', async () => {
@@ -58,8 +57,7 @@ describe('RegenerateViewCommand', () => {
     });
     await cmd.apply();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toEqual(NEW_PROJECTION);
@@ -76,8 +74,7 @@ describe('RegenerateViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toEqual(OLD_PROJECTION);
@@ -92,7 +89,6 @@ describe('RegenerateViewCommand', () => {
       scale: { numerator: 1, denominator: 1 },
       showHidden: false,
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({
       activeDocument: {
         kind: 'drawing',
@@ -104,7 +100,7 @@ describe('RegenerateViewCommand', () => {
           }],
         },
       },
-    } as never);
+    });
 
     const cmd = new RegenerateViewCommand({
       sheetId: 'sheet-1', viewId: 'view-fresh',
@@ -113,8 +109,7 @@ describe('RegenerateViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toBeUndefined();

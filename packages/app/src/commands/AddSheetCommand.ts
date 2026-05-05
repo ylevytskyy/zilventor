@@ -16,8 +16,7 @@ export class AddSheetCommand implements Command {
 
   async apply(): Promise<void> {
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     this.prevActiveSheetId = doc.document.activeSheetId;
@@ -41,17 +40,15 @@ export class AddSheetCommand implements Command {
       sheets: [...doc.document.sheets, newSheet],
       activeSheetId: newId,
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({
       activeDocument: { kind: 'drawing', document: next },
-    } as never);
+    });
   }
 
   async revert(): Promise<void> {
     if (!this.newSheetId) return;
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const next: DrawingDocument = {
@@ -59,10 +56,9 @@ export class AddSheetCommand implements Command {
       sheets: doc.document.sheets.filter(s => s.id !== this.newSheetId),
       activeSheetId: this.prevActiveSheetId ?? doc.document.sheets[0]!.id,
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
     useAppStore.setState({
       activeDocument: { kind: 'drawing', document: next },
-    } as never);
+    });
     this.newSheetId = null;
   }
 }

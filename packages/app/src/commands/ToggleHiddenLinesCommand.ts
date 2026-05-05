@@ -16,8 +16,7 @@ export class ToggleHiddenLinesCommand implements Command {
 
   async apply(): Promise<void> {
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const sheet = doc.document.sheets.find(s => s.id === this.opts.sheetId);
@@ -43,15 +42,13 @@ export class ToggleHiddenLinesCommand implements Command {
           : s
       ),
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (this.prevShowHidden === null) return;
     const state = useAppStore.getState();
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = state.activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
+    const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
     const next: DrawingDocument = {
@@ -69,8 +66,7 @@ export class ToggleHiddenLinesCommand implements Command {
           : s
       ),
     };
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
     this.prevShowHidden = null;
   }
 }

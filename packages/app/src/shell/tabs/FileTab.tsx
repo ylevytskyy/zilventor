@@ -40,6 +40,10 @@ export default function FileTab() {
         }
       }
 
+      if (activeDocument.kind === 'drawing') {
+        // TODO Sub-project 6: implement drawing save
+        return;
+      }
       if (activeDocument.kind === 'assembly') {
         const doc = activeDocument.document;
         const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
@@ -87,6 +91,10 @@ export default function FileTab() {
       const manifest = JSON.parse(new TextDecoder().decode(manifestEntry.data));
       const kind = manifest.kind ?? 'part'; // legacy v7 default
 
+      if (kind === 'drawing') {
+        // TODO Sub-project 6: implement drawing open
+        return;
+      }
       if (kind === 'assembly') {
         const doc = await unpackAssembly(bytes);
         setActiveDocument({ kind: 'assembly', document: doc });

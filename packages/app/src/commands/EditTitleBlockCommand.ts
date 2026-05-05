@@ -11,31 +11,29 @@ export class EditTitleBlockCommand implements Command {
 
   async apply(): Promise<void> {
     this.reverted = false;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      const sheets = doc.sheets.map((sh) => {
-        if (sh.id !== this.opts.sheetId) return sh;
-        this.priorTitleBlock = sh.titleBlock;
-        return { ...sh, titleBlock: this.opts.overrides };
-      });
-      const next: DrawingDocument = { ...doc, sheets };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    const sheets = doc.document.sheets.map((sh) => {
+      if (sh.id !== this.opts.sheetId) return sh;
+      this.priorTitleBlock = sh.titleBlock;
+      return { ...sh, titleBlock: this.opts.overrides };
     });
+    const next: DrawingDocument = { ...doc.document, sheets };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 
   async revert(): Promise<void> {
     if (this.priorTitleBlock === undefined || this.reverted) return;
     this.reverted = true;
     const prior = this.priorTitleBlock;
-    useAppStore.setState((s) => {
-      if (s.activeDocument?.kind !== 'drawing') return s;
-      const doc = s.activeDocument.document;
-      const sheets = doc.sheets.map((sh) =>
-        sh.id === this.opts.sheetId ? { ...sh, titleBlock: prior } : sh,
-      );
-      const next: DrawingDocument = { ...doc, sheets };
-      return { activeDocument: { kind: 'drawing' as const, document: next } } as never;
-    });
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+
+    const sheets = doc.document.sheets.map((sh) =>
+      sh.id === this.opts.sheetId ? { ...sh, titleBlock: prior } : sh,
+    );
+    const next: DrawingDocument = { ...doc.document, sheets };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
   }
 }

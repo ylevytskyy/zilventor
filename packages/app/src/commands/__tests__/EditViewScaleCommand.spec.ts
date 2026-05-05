@@ -34,8 +34,7 @@ function makeDrawing(): DrawingDocument {
 
 describe('EditViewScaleCommand', () => {
   beforeEach(() => {
-    // TODO(phase-7): drop cast after activeDocument union widening
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawing() } } as never);
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawing() } });
   });
 
   it('apply updates scale and clears inputFingerprint (requires regen)', async () => {
@@ -46,8 +45,7 @@ describe('EditViewScaleCommand', () => {
     });
     await cmd.apply();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.scale).toEqual({ numerator: 1, denominator: 2 });
@@ -63,8 +61,7 @@ describe('EditViewScaleCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    // TODO(phase-7): drop cast after activeDocument union widening
-    const doc = (useAppStore.getState().activeDocument as unknown as { kind: 'drawing'; document: DrawingDocument }).document;
+    const doc = (useAppStore.getState().activeDocument).document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.scale).toEqual({ numerator: 1, denominator: 1 });
