@@ -120,6 +120,36 @@ export type SectionView = {
   readonly inputFingerprint?: string; // mirrors BaseView/ProjectedView stale-banner pattern
 };
 
+// ---------------------------------------------------------------------------
+// RegionParent — circular region in parent view's local mm space (pre-scale)
+// ---------------------------------------------------------------------------
+
+export type RegionParent = {
+  readonly center: Vec2;      // in parent view's local mm space (pre-scale)
+  readonly radiusMm: number;  // in parent view's local mm space (pre-scale)
+};
+
+// ---------------------------------------------------------------------------
+// DetailView — ANSI-style circular detail view clipped from a parent view
+// ---------------------------------------------------------------------------
+
+export type DetailView = {
+  readonly id: string;
+  readonly kind: 'detail';
+  readonly parentViewId: string;
+  readonly regionParent: RegionParent;  // circular region in parent-local mm space
+  readonly label: string;               // auto-allocated from shared callout pool: 'A', 'B', …
+  readonly positionMm: Vec2;            // sheet-space drop position
+  readonly scale: ViewScale;            // default { numerator: 2, denominator: 1 } at create time
+  readonly showHidden: boolean;         // inherited from parent at create time
+  readonly projection?: {              // populated after first clip; absent until then
+    readonly visibleEdges: readonly Edge2D[];
+    readonly hiddenEdges: readonly Edge2D[];
+    readonly bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  };
+  readonly inputFingerprint?: string;  // djb2 of parentInputFingerprint + regionParent + scale
+};
+
 export type DrawingView =
   | BaseView
   | ProjectedView
