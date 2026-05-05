@@ -45,7 +45,9 @@ describe('EditViewScaleCommand', () => {
     });
     await cmd.apply();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.scale).toEqual({ numerator: 1, denominator: 2 });
@@ -61,7 +63,9 @@ describe('EditViewScaleCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.scale).toEqual({ numerator: 1, denominator: 1 });

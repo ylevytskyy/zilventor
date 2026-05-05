@@ -13,7 +13,7 @@ describe('store cascade — drawing kind no-ops assembly mutators', () => {
   it('setColorOverride is a no-op when drawing is active', () => {
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: makeDrawing() });
     const before = useAppStore.getState().activeDocument;
-    useAppStore.getState().setColorOverride(['comp1'], { r: 1, g: 0, b: 0 });
+    useAppStore.getState().setColorOverride(['comp1'], { kind: 'hex', hex: '#ff0000' });
     expect(useAppStore.getState().activeDocument).toBe(before); // reference unchanged
   });
 

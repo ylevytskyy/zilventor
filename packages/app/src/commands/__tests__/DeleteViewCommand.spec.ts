@@ -71,7 +71,9 @@ describe('DeleteViewCommand', () => {
     const cmd = new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'iso-standalone' });
     await cmd.apply();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const sheet = doc.sheets[0]!;
     expect(sheet.views).toHaveLength(2);
     expect(sheet.views.find(v => v.id === 'iso-standalone')).toBeUndefined();
@@ -83,7 +85,9 @@ describe('DeleteViewCommand', () => {
     const cmd = new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'base-1' });
     await cmd.apply();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const sheet = doc.sheets[0]!;
 
     // Only iso-standalone should remain
@@ -100,7 +104,9 @@ describe('DeleteViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const sheet = doc.sheets[0]!;
 
     expect(sheet.views).toHaveLength(3);
@@ -119,7 +125,9 @@ describe('DeleteViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const sheet = doc.sheets[0]!;
     expect(sheet.views).toHaveLength(3);
     expect(sheet.dimensions).toHaveLength(3);

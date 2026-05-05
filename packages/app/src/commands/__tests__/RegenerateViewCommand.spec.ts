@@ -57,7 +57,9 @@ describe('RegenerateViewCommand', () => {
     });
     await cmd.apply();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toEqual(NEW_PROJECTION);
@@ -74,7 +76,9 @@ describe('RegenerateViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toEqual(OLD_PROJECTION);
@@ -109,7 +113,9 @@ describe('RegenerateViewCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = _ad.document;
     const view = doc.sheets[0]!.views[0]!;
     if (view.kind !== 'base') return;
     expect(view.projection).toBeUndefined();

@@ -35,7 +35,9 @@ describe('ToggleHiddenLinesCommand', () => {
     const cmd = new ToggleHiddenLinesCommand({ sheetId: 'sheet-1', viewId: 'view-1', showHidden: false });
     await cmd.apply();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const ad = useAppStore.getState().activeDocument;
+    if (!ad || ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = ad.document;
     const view = doc.sheets[0]!.views[0]!;
     expect(view.showHidden).toBe(false);
   });
@@ -45,7 +47,9 @@ describe('ToggleHiddenLinesCommand', () => {
     await cmd.apply();
     await cmd.revert();
 
-    const doc = (useAppStore.getState().activeDocument).document;
+    const ad = useAppStore.getState().activeDocument;
+    if (!ad || ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = ad.document;
     const view = doc.sheets[0]!.views[0]!;
     expect(view.showHidden).toBe(true);
   });
@@ -53,15 +57,19 @@ describe('ToggleHiddenLinesCommand', () => {
   it('apply → revert round-trip: true → false → true', async () => {
     const cmd = new ToggleHiddenLinesCommand({ sheetId: 'sheet-1', viewId: 'view-1', showHidden: false });
     await cmd.apply();
-    expect((useAppStore.getState().activeDocument).document.sheets[0]!.views[0]!.showHidden).toBe(false);
+    const ad1 = useAppStore.getState().activeDocument;
+    expect(ad1?.kind === 'drawing' && ad1.document.sheets[0]!.views[0]!.showHidden).toBe(false);
     await cmd.revert();
-    expect((useAppStore.getState().activeDocument).document.sheets[0]!.views[0]!.showHidden).toBe(true);
+    const ad2 = useAppStore.getState().activeDocument;
+    expect(ad2?.kind === 'drawing' && ad2.document.sheets[0]!.views[0]!.showHidden).toBe(true);
   });
 
   it('apply is a no-op when viewId not found', async () => {
     const cmd = new ToggleHiddenLinesCommand({ sheetId: 'sheet-1', viewId: 'no-such', showHidden: false });
     await expect(cmd.apply()).resolves.toBeUndefined();
-    const doc = (useAppStore.getState().activeDocument).document;
+    const ad = useAppStore.getState().activeDocument;
+    if (!ad || ad.kind !== 'drawing') throw new Error('expected drawing');
+    const doc = ad.document;
     expect(doc.sheets[0]!.views[0]!.showHidden).toBe(true);
   });
 });

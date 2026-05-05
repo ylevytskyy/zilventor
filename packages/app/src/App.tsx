@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { DrawingCanvas, DrawingTreePane } from './drawing/__placeholders__';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
@@ -339,6 +340,7 @@ export default function App() {
   }, []);
 
   // Per-slice subscriptions (avoid subscribing to the full store).
+  const activeDocKind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
   const activePart = useAppStore((s) => s.activePart);
   const kernel = useAppStore((s) => s.kernel);
   const statusMessage = useAppStore((s) => s.statusMessage);
@@ -3179,11 +3181,17 @@ export default function App() {
           <Ribbon partInfo={partInfoSnapshot} />
         </div>
         <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
-          <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} />
+          {activeDocKind === 'drawing'
+            ? <DrawingTreePane />
+            : <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} />
+          }
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>
-          <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
-          {sketchMode && activeSketchId && (() => {
+          {activeDocKind === 'drawing'
+            ? <DrawingCanvas />
+            : <Viewport ref={viewportRef} onPointer={handleViewportPointer} />
+          }
+          {activeDocKind !== 'drawing' && sketchMode && activeSketchId && (() => {
             const f = activePart?.featureTree.find((x) => x.kind === 'sketch' && x.id === activeSketchId);
             if (f?.kind !== 'sketch') return null;
             const worldToScreen = viewportRef.current?.worldToScreen ?? ((x: number, y: number) => ({ x, y }));
