@@ -29,3 +29,16 @@ export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nest
 export { ISO_SIZES_MM } from './drawing/types';
 export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, DrawingAnnotation, TitleBlockOverrides } from './drawing/types';
 export type { ProjectedGeometry, Edge2D } from './drawing/projectedGeometry';
+
+// drawing module (Sub-project 6)
+export type { Mat4, ViewOrientation } from './drawing/viewMatrix';
+export { buildViewMatrix, apply } from './drawing/viewMatrix';
+export { buildDepthBuffer, adaptivePixelPitch } from './drawing/depthBuffer';
+export type { Edge3D, ClassifiedEdges } from './drawing/edgeClassifier';
+export { classifyEdges } from './drawing/edgeClassifier';
+export type { ProjectorInput, EdgeMesh3D } from './drawing/projector';
+export { projectView } from './drawing/projector';
+export type { ViewSpec } from './drawing/fingerprint';
+export { computeViewFingerprint, computeSourceGeometryHash } from './drawing/fingerprint';
+export type { ResolvedTitleBlock } from './drawing/titleBlock';
+export { resolveTitleBlock } from './drawing/titleBlock';
