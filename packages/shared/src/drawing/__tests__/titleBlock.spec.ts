@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolveTitleBlock } from '../titleBlock';
 import type { DrawingDocument, DrawingSheet } from '../types';
-import type { PartDocument } from '../../types';
+import type { PartDocument, AssemblyDocument } from '../../types';
 
 // Minimal PartDocument stub
 const part: PartDocument = {
@@ -138,6 +138,30 @@ describe('resolveTitleBlock — edge cases', () => {
   it('part with no materials → material is empty string', () => {
     const partNoMat: PartDocument = { ...part, materials: [] };
     const r = resolveTitleBlock(drawing, sheet, partNoMat, 0, 1, CREATED_AT);
+    expect(r.material).toBe('');
+  });
+});
+
+describe('resolveTitleBlock — assembly source', () => {
+  const assembly: AssemblyDocument = {
+    id: 'a1',
+    name: 'Cabinet Assembly',
+    units: 'mm',
+    parameters: {},
+    components: [],
+    constraints: [],
+    groundedComponentPaths: [],
+    colors: {},
+    bomItemNumbers: {},
+    cutListItemNumbers: {},
+    colorOverrides: {},
+    properties: {},
+    materials: [],
+    hardware: [],
+  };
+
+  it('assembly source yields material = empty string (spec §2.8)', () => {
+    const r = resolveTitleBlock(drawing, sheet, assembly, 0, 1, CREATED_AT);
     expect(r.material).toBe('');
   });
 });
