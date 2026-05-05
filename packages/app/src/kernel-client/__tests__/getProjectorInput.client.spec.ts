@@ -16,9 +16,10 @@ describe('KernelClient.getProjectorInput routing', () => {
     } as unknown as KernelApi;
 
     const client = createKernelClient(mockProxy);
-    const result = await client.getProjectorInput('part-123');
+    const args = { kind: 'part' as const, partId: 'part-123' };
+    const result = await client.getProjectorInput(args);
 
-    expect(mockProxy.getProjectorInput).toHaveBeenCalledWith('part-123');
+    expect(mockProxy.getProjectorInput).toHaveBeenCalledWith(args);
     expect(result).toEqual(MOCK_INPUT);
   });
 
@@ -28,7 +29,7 @@ describe('KernelClient.getProjectorInput routing', () => {
     } as unknown as KernelApi;
 
     const client = createKernelClient(mockProxy);
-    const result = await client.getProjectorInput('part-cold');
+    const result = await client.getProjectorInput({ kind: 'part', partId: 'part-cold' });
     expect(result).toBeNull();
   });
 });
