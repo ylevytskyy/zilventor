@@ -82,6 +82,9 @@ export type HardwareDialogState = {
 
 export type NestDialogState = { kind: 'open' };
 
+// Sub-project 6 Phase 8 — drawing dialogs
+export type AddViewDialogKind = 'base' | 'projected' | 'iso';
+
 type AppState = {
   kernel: KernelClient | null;
   bus: CommandBus;
@@ -249,6 +252,16 @@ type AppState = {
   setNestingTabActive: (v: boolean) => void;
   nestDialog: NestDialogState | null;
   setNestDialog: (s: NestDialogState | null) => void;
+
+  // Sub-project 6 Phase 8 — drawing dialog slots
+  newDrawingDialogOpen: boolean;
+  newDrawingSourcePath: string | null;
+  newDrawingSourceKind: 'part' | 'assembly' | null;
+  addViewDialogState: { kind: AddViewDialogKind } | null;
+  setAddViewDialogOpen: (s: { kind: AddViewDialogKind } | null) => void;
+  editTitleBlockDialogState: { sheetId: string; initialOverrides: Record<string, string> } | null;
+  addDimensionDialogState: { sheetId: string; dim: import('@zilventor/shared').DrawingDimension; computedValue: number } | null;
+  addLeaderTextDialogState: { sheetId: string; ann: Extract<import('@zilventor/shared').DrawingAnnotation, { kind: 'leader' }> } | null;
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
@@ -661,6 +674,16 @@ export const useAppStore = create<AppState>((set) => ({
   setNestingTabActive: (v) => set({ nestingTabActive: v }),
   nestDialog: null,
   setNestDialog: (s) => set({ nestDialog: s }),
+
+  // Sub-project 6 Phase 8 — drawing dialog slots
+  newDrawingDialogOpen: false,
+  newDrawingSourcePath: null,
+  newDrawingSourceKind: null,
+  addViewDialogState: null,
+  setAddViewDialogOpen: (s) => set({ addViewDialogState: s }),
+  editTitleBlockDialogState: null,
+  addDimensionDialogState: null,
+  addLeaderTextDialogState: null,
 
   selectComponents: (ids) => set({ selectedComponentPaths: ids.map((id) => [id]) }),
   selectComponent: (id) => set({ selectedComponentPaths: id == null ? [] : [[id]] }),

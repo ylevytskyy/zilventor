@@ -1,2 +1,147 @@
+import React from 'react';
+import RibbonPanel from '../RibbonPanel';
+import { useAppStore } from '../../store/useAppStore';
+import { useToolModeStore } from '../../drawing/toolMode';
+import { AddSheetCommand } from '../../commands/AddSheetCommand';
 import { StubTab } from './_stub';
-export default function DrawingTab() { return <StubTab subProject={6} what="Drawing generation" />; }
+
+export default function DrawingTab(): JSX.Element {
+  const activeDocument = useAppStore((s) => s.activeDocument);
+  const bus = useAppStore((s) => s.bus);
+
+  if (activeDocument?.kind !== 'drawing') {
+    return <StubTab subProject={6} what="Drawing generation" />;
+  }
+
+  const drawing = activeDocument.document;
+  const isAssembly = drawing.source?.sourceKind === 'assembly';
+  const setMode = useToolModeStore.getState().setMode;
+
+  return (
+    <div className="flex gap-2 px-3 py-2">
+      {/* Sheet panel */}
+      <RibbonPanel title="Sheet">
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="New Sheet"
+          onClick={() => { void bus.execute(new AddSheetCommand({})); }}
+        >
+          New Sheet
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Sheet…"
+          disabled
+          title="Coming in follow-up F1"
+        >
+          Sheet…
+        </button>
+      </RibbonPanel>
+
+      {/* Place Views panel */}
+      <RibbonPanel title="Place Views">
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Base View"
+          onClick={() => {
+            setMode('placeBase');
+            useAppStore.getState().setAddViewDialogOpen({ kind: 'base' });
+          }}
+        >
+          Base View
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Projected View"
+          onClick={() => {
+            setMode('placeProjected');
+            useAppStore.getState().setAddViewDialogOpen({ kind: 'projected' });
+          }}
+        >
+          Projected View
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Iso View"
+          onClick={() => {
+            setMode('placeIso');
+            useAppStore.getState().setAddViewDialogOpen({ kind: 'iso' });
+          }}
+        >
+          Iso View
+        </button>
+      </RibbonPanel>
+
+      {/* Dimension panel */}
+      <RibbonPanel title="Dimension">
+        <button type="button" className="text-xs hover:text-white" aria-label="Linear (H)"
+          onClick={() => setMode('addLinearH')}>Linear (H)</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Linear (V)"
+          onClick={() => setMode('addLinearV')}>Linear (V)</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Aligned"
+          onClick={() => setMode('addAligned')}>Aligned</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Radial"
+          onClick={() => setMode('addRadial')}>Radial</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Diametric"
+          onClick={() => setMode('addDiametric')}>Diametric</button>
+      </RibbonPanel>
+
+      {/* Annotate panel */}
+      <RibbonPanel title="Annotate">
+        <button type="button" className="text-xs hover:text-white" aria-label="Centerline"
+          onClick={() => setMode('addCenterline')}>Centerline</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Center Mark"
+          onClick={() => setMode('addCenterMark')}>Center Mark</button>
+        <button type="button" className="text-xs hover:text-white" aria-label="Leader Text"
+          onClick={() => setMode('addLeader')}>Leader Text</button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Balloon"
+          disabled={!isAssembly}
+          aria-disabled={!isAssembly}
+          title={!isAssembly ? 'Balloon annotations require an assembly drawing' : undefined}
+          onClick={() => setMode('addBalloon')}
+        >
+          Balloon
+        </button>
+      </RibbonPanel>
+
+      {/* Export panel */}
+      <RibbonPanel title="Export">
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Export PDF"
+          disabled
+          title="Coming in T52-T55"
+        >
+          Export PDF
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Export SVG"
+          disabled
+          title="Coming in T52-T55"
+        >
+          Export SVG
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Export PNG"
+          disabled
+          title="Coming in T52-T55"
+        >
+          Export PNG
+        </button>
+      </RibbonPanel>
+    </div>
+  );
+}
