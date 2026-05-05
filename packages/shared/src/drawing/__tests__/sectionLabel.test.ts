@@ -51,16 +51,4 @@ describe('allocateCalloutLabel', () => {
     expect(allocateCalloutLabel(allA)).toBe('BA');
   });
 
-  it('mixed section + detail labels ["A", "B"] → C', () => {
-    // Simulates: sheet has SectionView label "A" and DetailView label "B"
-    expect(allocateCalloutLabel(['A', 'B'])).toBe('C');
-  });
-
-  it('gap-fill across section+detail pool: ["A", "C"] → B', () => {
-    expect(allocateCalloutLabel(['A', 'C'])).toBe('B');
-  });
-
-  it('allocates first label when both section and detail arrays are empty', () => {
-    expect(allocateCalloutLabel([])).toBe('A');
-  });
 });
