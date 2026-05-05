@@ -33,8 +33,8 @@ export function clipLineToConvexPolygon(
 
   const n = polygon.length;
   for (let i = 0; i < n; i++) {
-    const edgeA = polygon[i];
-    const edgeB = polygon[(i + 1) % n];
+    const edgeA = polygon[i]!;
+    const edgeB = polygon[(i + 1) % n]!;
 
     // Inward normal for CCW polygon: rotate edge direction 90° left
     const ex = edgeB.x - edgeA.x;
@@ -98,10 +98,10 @@ function pointInTriangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2): boolean {
 function isSelfIntersecting(poly: Vec2[]): boolean {
   const n = poly.length;
   for (let i = 0; i < n; i++) {
-    const a = poly[i], b = poly[(i + 1) % n];
+    const a = poly[i]!, b = poly[(i + 1) % n]!;
     for (let j = i + 2; j < n; j++) {
       if (i === 0 && j === n - 1) continue; // shared endpoint
-      const c = poly[j], d = poly[(j + 1) % n];
+      const c = poly[j]!, d = poly[(j + 1) % n]!;
       if (segmentsIntersect(a, b, c, d)) return true;
     }
   }
@@ -125,7 +125,7 @@ function segmentsIntersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
 /** Ensure polygon winding is CCW; reverse in-place if CW. */
 function ensureCCW(poly: Vec2[]): Vec2[] {
   const area = poly.reduce((acc, v, i) => {
-    const next = poly[(i + 1) % poly.length];
+    const next = poly[(i + 1) % poly.length]!;
     return acc + (v.x * next.y - next.x * v.y);
   }, 0);
   return area < 0 ? [...poly].reverse() : poly;
@@ -139,12 +139,12 @@ export function triangulatePolygon(polygon: Vec2[]): Triangle[] {
 
   // Fast-path: convex polygon → fan triangulation
   const isConvex = verts.every((_, i) =>
-    cross2(verts[i], verts[(i + 1) % n], verts[(i + 2) % n]) >= 0,
+    cross2(verts[i]!, verts[(i + 1) % n]!, verts[(i + 2) % n]!) >= 0,
   );
   if (isConvex) {
     const result: Triangle[] = [];
     for (let i = 1; i < n - 1; i++) {
-      result.push([verts[0], verts[i], verts[i + 1]]);
+      result.push([verts[0]!, verts[i]!, verts[i + 1]!]);
     }
     return result;
   }
@@ -159,10 +159,10 @@ export function triangulatePolygon(polygon: Vec2[]): Triangle[] {
   while (indices.length > 3 && iterations++ < maxIter) {
     let earFound = false;
     for (let i = 0; i < indices.length; i++) {
-      const prev = indices[(i - 1 + indices.length) % indices.length];
-      const curr = indices[i];
-      const next = indices[(i + 1) % indices.length];
-      const a = verts[prev], b = verts[curr], c = verts[next];
+      const prev = indices[(i - 1 + indices.length) % indices.length]!;
+      const curr = indices[i]!;
+      const next = indices[(i + 1) % indices.length]!;
+      const a = verts[prev]!, b = verts[curr]!, c = verts[next]!;
 
       // Must be convex vertex
       if (cross2(a, b, c) < CLIP_EPS) continue;
@@ -171,7 +171,7 @@ export function triangulatePolygon(polygon: Vec2[]): Triangle[] {
       // (also skip vertices coincident with a/b/c — happens after bridge insertion)
       const empty = indices.every(idx => {
         if (idx === prev || idx === curr || idx === next) return true;
-        const v = verts[idx];
+        const v = verts[idx]!;
         if ((v.x === a.x && v.y === a.y) ||
             (v.x === b.x && v.y === b.y) ||
             (v.x === c.x && v.y === c.y)) return true;
@@ -189,8 +189,10 @@ export function triangulatePolygon(polygon: Vec2[]): Triangle[] {
   }
 
   if (indices.length === 3) {
-    const [i0, i1, i2] = indices;
-    result.push([verts[i0], verts[i1], verts[i2]]);
+    const i0 = indices[0]!;
+    const i1 = indices[1]!;
+    const i2 = indices[2]!;
+    result.push([verts[i0]!, verts[i1]!, verts[i2]!]);
   }
 
   return result;
@@ -217,32 +219,34 @@ export function triangulatePolygonWithHoles(
 
     // Find rightmost vertex of hole
     const rightIdx = hole.reduce(
-      (best, v, i) => (v.x > hole[best].x ? i : best),
+      (best, v, i) => (v.x > hole[best]!.x ? i : best),
       0,
     );
-    const holeV = hole[rightIdx];
+    const holeV = hole[rightIdx]!;
 
     // Find nearest visible outer vertex (simple: pick closest by x, then distance)
     let bestOuter = 0;
     let bestDist = Infinity;
     for (let i = 0; i < merged.length; i++) {
-      if (merged[i].x >= holeV.x) {
-        const dx = merged[i].x - holeV.x;
-        const dy = merged[i].y - holeV.y;
+      const mv = merged[i]!;
+      if (mv.x >= holeV.x) {
+        const dx = mv.x - holeV.x;
+        const dy = mv.y - holeV.y;
         const dist = dx * dx + dy * dy;
         if (dist < bestDist) { bestDist = dist; bestOuter = i; }
       }
     }
 
     // Bridge: insert hole into outer polygon
-    const holeReordered = [
+    const holeReordered: Vec2[] = [
       ...hole.slice(rightIdx),
       ...hole.slice(0, rightIdx + 1),
     ];
+    const bridgeVertex = merged[bestOuter]!;
     merged = [
       ...merged.slice(0, bestOuter + 1),
       ...holeReordered,
-      merged[bestOuter],
+      bridgeVertex,
       ...merged.slice(bestOuter + 1),
     ];
   }
@@ -283,13 +287,14 @@ const MERGE_EPS = 1e-6; // mm
 function mergeIntervals(intervals: [number, number][]): [number, number][] {
   if (intervals.length === 0) return [];
   const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
-  const merged: [number, number][] = [sorted[0]];
+  const merged: [number, number][] = [[sorted[0]![0], sorted[0]![1]]];
   for (let i = 1; i < sorted.length; i++) {
-    const last = merged[merged.length - 1];
-    if (sorted[i][0] <= last[1] + MERGE_EPS) {
-      last[1] = Math.max(last[1], sorted[i][1]);
+    const cur = sorted[i]!;
+    const last = merged[merged.length - 1]!;
+    if (cur[0] <= last[1] + MERGE_EPS) {
+      last[1] = Math.max(last[1], cur[1]);
     } else {
-      merged.push(sorted[i]);
+      merged.push([cur[0], cur[1]]);
     }
   }
   return merged;
@@ -335,7 +340,10 @@ export function generateHatchSegments(
         xs.push(p.x + t * (q.x - p.x));
       }
       if (xs.length === 2) {
-        const [x0, x1] = xs[0] < xs[1] ? [xs[0], xs[1]] : [xs[1], xs[0]];
+        const xa = xs[0] as number;
+        const xb = xs[1] as number;
+        const x0 = xa < xb ? xa : xb;
+        const x1 = xa < xb ? xb : xa;
         if (x1 - x0 > MERGE_EPS) intervals.push([x0, x1]);
       }
     }
