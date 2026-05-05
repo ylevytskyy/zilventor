@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { DeleteViewCommand } from '../DeleteViewCommand';
-import type { DrawingDocument, BaseView, ProjectedView, DrawingDimension, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, BaseView, ProjectedView, DrawingDimension, SectionView, DetailView } from '@zilventor/shared';
 
 vi.mock('../../drawing/sectionCache', () => ({
   sectionCache: {
@@ -222,5 +222,211 @@ describe('DeleteViewCommand — section cascade (F20)', () => {
     const cmd = new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'base-1' });
     await cmd.apply();
     expect(sectionCache.delete).not.toHaveBeenCalled();
+  });
+});
+
+// ── Detail cascade fixtures ───────────────────────────────────────────────
+
+const BASE_FOR_DETAIL: BaseView = {
+  id: 'base-d1', kind: 'base',
+  positionMm: { x: 50, y: 50 },
+  orientation: 'front',
+  scale: { numerator: 1, denominator: 1 },
+  showHidden: false,
+  projection: {
+    visibleEdges: [{ id: 'e1', kind: 'outline' as const, points: [[0, 0], [100, 0]] as [number, number][], sourceFaceIds: [] }],
+    hiddenEdges: [],
+    bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
+  },
+  inputFingerprint: 'parent-fp',
+};
+
+const DETAIL_A: DetailView = {
+  id: 'detail-a', kind: 'detail',
+  parentViewId: 'base-d1',
+  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  label: 'A',
+  positionMm: { x: 200, y: 200 },
+  scale: { numerator: 2, denominator: 1 },
+  showHidden: false,
+  projection: {
+    visibleEdges: [{ id: 'clip-e1', kind: 'outline' as const, points: [[2, 1], [8, 1]] as [number, number][], sourceFaceIds: [] }],
+    hiddenEdges: [],
+    bbox: { minX: 2, minY: 1, maxX: 8, maxY: 7 },
+  },
+  inputFingerprint: 'detail-a-fp',
+};
+
+function makeDrawingWithDetail(): DrawingDocument {
+  return {
+    id: 'd-detail', name: 'D-Detail', units: 'mm',
+    source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [{
+      id: 'sheet-d', name: 'Sheet D',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [BASE_FOR_DETAIL, DETAIL_A],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+    }],
+    activeSheetId: 'sheet-d',
+  };
+}
+
+describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawingWithDetail() } });
+  });
+
+  it('deleting a base view with one detail child removes both views', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-d', viewId: 'base-d1' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(0);
+    expect(sheet.views.find(v => v.id === 'detail-a')).toBeUndefined();
+    expect(sheet.views.find(v => v.id === 'base-d1')).toBeUndefined();
+  });
+
+  it('revert after base+detail cascade restores both views in original order', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-d', viewId: 'base-d1' });
+    await cmd.apply();
+    await cmd.revert();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(2);
+    expect(sheet.views[0]!.id).toBe('base-d1');
+    expect(sheet.views[1]!.id).toBe('detail-a');
+  });
+
+  it('deleting only the detail view (not parent) removes only the detail', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-d', viewId: 'detail-a' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(1);
+    expect(sheet.views[0]!.id).toBe('base-d1');
+  });
+
+  it('deleting parent with 2 detail + 1 section children removes all 4 views', async () => {
+    const detail_b: DetailView = {
+      id: 'detail-b', kind: 'detail',
+      parentViewId: 'base-d1',
+      regionParent: { center: { x: 30, y: 20 }, radiusMm: 8 },
+      label: 'B',
+      positionMm: { x: 300, y: 200 },
+      scale: { numerator: 2, denominator: 1 },
+      showHidden: false,
+      projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+      inputFingerprint: 'detail-b-fp',
+    };
+    const section_c = {
+      id: 'sect-c', kind: 'section' as const,
+      parentViewId: 'base-d1',
+      sectionLine: { p0: { x: 0, y: 30 }, p1: { x: 100, y: 30 } },
+      arrowDirection: 1 as const,
+      label: 'C',
+      positionMm: { x: 400, y: 100 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      hatchSegments: [],
+      fingerprint: 'fp-sect-c',
+      projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+    };
+    // Sheet has: base-d1, detail-a, detail-b, sect-c
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-mixed', name: 'D-Mixed', units: 'mm',
+          source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-m', name: 'Sheet M',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [BASE_FOR_DETAIL, DETAIL_A, detail_b, section_c],
+            dimensions: [],
+            annotations: [],
+            titleBlock: {},
+          }],
+          activeSheetId: 'sheet-m',
+        },
+      },
+    });
+
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-m', viewId: 'base-d1' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(0);
+  });
+
+  it('revert restores all 4 views in original order after mixed cascade delete', async () => {
+    const detail_b: DetailView = {
+      id: 'detail-b', kind: 'detail',
+      parentViewId: 'base-d1',
+      regionParent: { center: { x: 30, y: 20 }, radiusMm: 8 },
+      label: 'B',
+      positionMm: { x: 300, y: 200 },
+      scale: { numerator: 2, denominator: 1 },
+      showHidden: false,
+      projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+      inputFingerprint: 'detail-b-fp',
+    };
+    const section_c = {
+      id: 'sect-c', kind: 'section' as const,
+      parentViewId: 'base-d1',
+      sectionLine: { p0: { x: 0, y: 30 }, p1: { x: 100, y: 30 } },
+      arrowDirection: 1 as const,
+      label: 'C',
+      positionMm: { x: 400, y: 100 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      hatchSegments: [],
+      fingerprint: 'fp-sect-c',
+      projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-mixed2', name: 'D-Mixed2', units: 'mm',
+          source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-m2', name: 'Sheet M2',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [BASE_FOR_DETAIL, DETAIL_A, detail_b, section_c],
+            dimensions: [],
+            annotations: [],
+            titleBlock: {},
+          }],
+          activeSheetId: 'sheet-m2',
+        },
+      },
+    });
+
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-m2', viewId: 'base-d1' });
+    await cmd.apply();
+    await cmd.revert();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(4);
+    expect(sheet.views[0]!.id).toBe('base-d1');
+    expect(sheet.views[1]!.id).toBe('detail-a');
+    expect(sheet.views[2]!.id).toBe('detail-b');
+    expect(sheet.views[3]!.id).toBe('sect-c');
   });
 });

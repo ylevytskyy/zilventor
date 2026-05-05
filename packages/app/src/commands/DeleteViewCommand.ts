@@ -1,5 +1,5 @@
 import type { Command } from './Command';
-import type { DrawingDocument, DrawingView, DrawingDimension, DrawingAnnotation, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingView, DrawingDimension, DrawingAnnotation, SectionView, DetailView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { sectionCache } from '../drawing/sectionCache';
 
@@ -41,6 +41,12 @@ export class DeleteViewCommand implements Command {
         if (v.kind === 'section' && (v as SectionView).parentViewId === this.opts.viewId) {
           viewIdsToRemove.add(v.id);
         }
+      }
+    }
+    // Detail views can reference any parent kind — always cascade-remove detail children.
+    for (const v of sheet.views) {
+      if (v.kind === 'detail' && (v as DetailView).parentViewId === this.opts.viewId) {
+        viewIdsToRemove.add(v.id);
       }
     }
 
