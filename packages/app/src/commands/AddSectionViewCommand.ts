@@ -1,6 +1,6 @@
 // packages/app/src/commands/AddSectionViewCommand.ts
 import type { Command } from './Command';
-import type { DrawingDocument, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, SectionView, DetailView } from '@zilventor/shared';
 import { resolveSectionSource, getHatchSpec } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { deriveSectionPlane } from '@zilventor/shared/src/drawing/sectionPlane';
@@ -8,7 +8,7 @@ import { cutBySectionPlane, cutAssemblyBySectionPlane } from '../kernel/cutBySec
 import { projectSectionView } from '../drawing/projectSectionView';
 import { sectionCache } from '../drawing/sectionCache';
 import { fingerprintPlane } from '../drawing/planeFingerprint';
-import { allocateSectionLabel } from '@zilventor/shared/src/drawing/sectionLabel';
+import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 
 import type { Vec2 } from '@zilventor/shared';
 import type { FaceTagMap } from '../drawing/projectSectionView';
@@ -118,9 +118,10 @@ export class AddSectionViewCommand implements Command {
     );
 
     const existingLabels = sheet.views
-      .filter((v) => v.kind === 'section')
-      .map((v) => (v as SectionView).label);
-    const label = allocateSectionLabel(existingLabels);
+      .filter((v): v is SectionView | DetailView =>
+        v.kind === 'section' || v.kind === 'detail')
+      .map((v) => v.label);
+    const label = allocateCalloutLabel(existingLabels);
 
     const newId = crypto.randomUUID();
     this.newViewId = newId;

@@ -10,8 +10,8 @@ import { AnnotationElement } from './AnnotationElement';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
-import { allocateSectionLabel } from '@zilventor/shared/src/drawing/sectionLabel';
-import type { DrawingDocument, DrawingSheet, SectionView, BaseView, ProjectedView } from '@zilventor/shared';
+import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
+import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView } from '@zilventor/shared';
 
 // ISO sheet sizes in mm (landscape orientation)
 const ISO_MM: Record<string, { w: number; h: number }> = {
@@ -334,9 +334,10 @@ export function DrawingCanvas() {
         const parent = sheet.views.find((v) => v.id === ds.parentViewId);
         if (!parent || (parent.kind !== 'base' && parent.kind !== 'projected')) return null;
         const existingLabels = sheet.views
-          .filter((v) => v.kind === 'section')
-          .map((v) => (v as SectionView).label);
-        const previewLabel = allocateSectionLabel(existingLabels);
+          .filter((v): v is SectionView | DetailView =>
+            v.kind === 'section' || v.kind === 'detail')
+          .map((v) => v.label);
+        const previewLabel = allocateCalloutLabel(existingLabels);
         const previewView: SectionView = {
           id: 'preview',
           kind: 'section',
