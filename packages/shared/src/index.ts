@@ -49,3 +49,5 @@ export { allocateCalloutLabel } from './drawing/sectionLabel';
 export { fingerprintDetailView, fingerprintBreaksArray } from './drawing/fingerprint';
 export { projectDetailView } from './drawing/projectDetailView';
 export type { DetailViewInput, DetailViewOutput } from './drawing/projectDetailView';
+export { applyBreaks } from './drawing/applyBreaks';
+export type { ApplyBreaksResult } from './drawing/applyBreaks';
