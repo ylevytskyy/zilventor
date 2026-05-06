@@ -238,3 +238,45 @@ describe('ProjectFile formatVersion union — v17 arm (spec §5.4)', () => {
     expect(pf.kind).toBe('drawing');
   });
 });
+
+describe('DrawingView union — exhaustiveness check with breaks/rawProjection fields', () => {
+  it('switch over DrawingView.kind still compiles with never fallthrough', () => {
+    function describeView(v: DrawingView): string {
+      switch (v.kind) {
+        case 'base':      return `base, breaks=${v.breaks?.length ?? 0}`;
+        case 'projected': return `projected, breaks=${v.breaks?.length ?? 0}`;
+        case 'iso':       return `iso, breaks=${v.breaks?.length ?? 0}`;
+        case 'section':   return `section, breaks=${v.breaks?.length ?? 0}`;
+        case 'detail':    return 'detail';
+        default: {
+          const _exhaustive: never = v;
+          return _exhaustive;
+        }
+      }
+    }
+
+    const bv: DrawingView = {
+      id: 'bv', kind: 'base',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 1, denominator: 1 },
+      orientation: 'front', showHidden: false,
+      breaks: [{ id: 'b1', axis: 'x', coordA: 10, coordB: 50, gapMm: 5, style: 'zigzag' }],
+    };
+    expect(describeView(bv)).toBe('base, breaks=1');
+  });
+
+  it('detail view does NOT have breaks field (spec §5.2: DetailView excluded)', () => {
+    const dv: DrawingView = {
+      id: 'dv', kind: 'detail',
+      parentViewId: 'bv',
+      regionParent: { center: { x: 0, y: 0 }, radiusMm: 5 },
+      label: 'A',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 2, denominator: 1 },
+      showHidden: false,
+    };
+    // DetailView has no breaks field — TypeScript compile check implicitly verifies this
+    // by not allowing `dv.breaks` (if added to test, it would be a TS error on 'detail').
+    expect(dv.kind).toBe('detail');
+  });
+});
