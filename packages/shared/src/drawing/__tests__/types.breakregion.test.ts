@@ -139,3 +139,29 @@ describe('ProjectedView — breaks and rawProjection fields (spec §5.2)', () =>
     expect(v.breaks).toHaveLength(1);
   });
 });
+
+describe('IsoView — breaks and rawProjection fields (spec §5.2)', () => {
+  it('IsoView compiles without breaks', () => {
+    const v: IsoView = {
+      id: 'iv1', kind: 'iso',
+      positionMm: { x: 0, y: 0 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+    };
+    expect(v.breaks).toBeUndefined();
+  });
+
+  it('IsoView accepts breaks and rawProjection', () => {
+    const v: IsoView = {
+      id: 'iv2', kind: 'iso',
+      positionMm: { x: 200, y: 50 },
+      corner: 'SW',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      breaks: [{ id: 'b2', axis: 'y', coordA: 20, coordB: 70, gapMm: 5, style: 'zigzag' }],
+      rawProjection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 100, maxY: 100 } },
+    };
+    expect(v.breaks![0]!.axis).toBe('y');
+  });
+});
