@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { BreakRegion, BaseView, ViewScale, ProjectedView, IsoView, SectionView, DrawingView } from '../types';
 import type { Edge2D, ProjectedGeometry } from '../projectedGeometry';
+import type { ProjectFile } from '../../types';
 
 describe('BreakRegion shape (spec §5.1)', () => {
   it('has all 6 required fields with correct types', () => {
@@ -200,5 +201,40 @@ describe('SectionView — breaks and rawProjection fields (forward compat, spec 
       rawProjection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 200, maxY: 80 } },
     };
     expect(v.breaks).toHaveLength(1);
+  });
+});
+
+describe('ProjectFile formatVersion union — v17 arm (spec §5.4)', () => {
+  it('a formatVersion:17 part document is assignable to ProjectFile', () => {
+    const pf: ProjectFile = {
+      formatVersion: 17,
+      kind: 'part',
+      createdAt: '2026-05-06T00:00:00.000Z',
+      appVersion: '0.0.1',
+      document: {
+        id: 'p1', name: 'Test', units: 'mm',
+        parameters: {}, featureTree: [], properties: {},
+        materials: [], hardware: [],
+      },
+    };
+    expect(pf.formatVersion).toBe(17);
+  });
+
+  it('a formatVersion:17 drawing document is assignable to ProjectFile', () => {
+    const pf: ProjectFile = {
+      formatVersion: 17,
+      kind: 'drawing',
+      createdAt: '2026-05-06T00:00:00.000Z',
+      appVersion: '0.0.1',
+      document: {
+        id: 'draw-1', name: 'Drawing', units: 'mm',
+        source: { partPath: 'parts/x.zipt', sourceKind: 'part' },
+        properties: {},
+        sheets: [],
+        activeSheetId: '',
+      },
+    };
+    expect(pf.formatVersion).toBe(17);
+    expect(pf.kind).toBe('drawing');
   });
 });
