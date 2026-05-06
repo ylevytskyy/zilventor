@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 16 as const;
+export const CURRENT_FORMAT_VERSION = 17 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -234,13 +234,20 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 16 };
   },
+
+  // v16 → v17: additive. Broken views store breaks[] on existing view types.
+  // No existing document contains breaks; absent field === [] at runtime.
+  16: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 17 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
   if (
     (m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 ||
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
-     m.formatVersion === 16) &&
+     m.formatVersion === 16 || m.formatVersion === 17) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
