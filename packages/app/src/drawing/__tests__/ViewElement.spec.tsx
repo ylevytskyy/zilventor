@@ -183,6 +183,73 @@ const DETAIL_VIEW_FIXTURE: DetailView = {
   inputFingerprint: 'fp-detail',
 };
 
+const BASE_VIEW_WITH_BREAK_EDGE: import('@zilventor/shared').DrawingView = {
+  id: 'bv-break',
+  kind: 'base',
+  positionMm: { x: 50, y: 50 },
+  scale: { numerator: 1, denominator: 1 },
+  orientation: 'front',
+  showHidden: false,
+  projection: {
+    visibleEdges: [
+      { id: 've-normal', kind: 'outline', points: [[0, 0], [50, 0]] },
+      {
+        id: 'break_b1',
+        kind: 'break' as const,
+        points: [[55, -5], [53, 0], [57, 5], [55, 10], [53, 15], [57, 20]],
+      },
+    ],
+    hiddenEdges: [],
+    bbox: { minX: 0, minY: -5, maxX: 60, maxY: 25 },
+  },
+  inputFingerprint: 'fp-bv-break',
+} as import('@zilventor/shared').DrawingView;
+
+describe('ViewElement — break-symbol edge rendering', () => {
+  it('renders a polyline with data-role="break-symbol" for kind=break edge', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={BASE_VIEW_WITH_BREAK_EDGE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const breakPoly = container.querySelector('polyline[data-role="break-symbol"]');
+    expect(breakPoly).not.toBeNull();
+  });
+
+  it('break-symbol polyline has strokeWidth 0.5 (heavier than normal 0.35)', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={BASE_VIEW_WITH_BREAK_EDGE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const breakPoly = container.querySelector('polyline[data-role="break-symbol"]')!;
+    expect(breakPoly.getAttribute('stroke-width')).toBe('0.5');
+  });
+
+  it('normal outline edge does NOT have data-role="break-symbol"', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={BASE_VIEW_WITH_BREAK_EDGE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const normalPoly = container.querySelector('polyline[data-edge-id="ve-normal"]');
+    expect(normalPoly).not.toBeNull();
+    expect(normalPoly!.getAttribute('data-role')).toBeNull();
+  });
+
+  it('both break-symbol and normal polylines share the same parent visible edge group', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={BASE_VIEW_WITH_BREAK_EDGE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const group = container.querySelector('[data-edge-group="visible"]');
+    expect(group).not.toBeNull();
+    const polylines = group!.querySelectorAll('polyline');
+    expect(polylines.length).toBe(2); // one normal + one break-symbol
+  });
+});
+
 describe('ViewElement — detail view', () => {
   it('renders <circle data-role="detail-border"> with r = regionParent.radiusMm', () => {
     const { container } = render(

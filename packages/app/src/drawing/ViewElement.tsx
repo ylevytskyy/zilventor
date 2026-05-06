@@ -28,17 +28,33 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
     >
       {/* Visible edges */}
       <g data-edge-group="visible">
-        {proj?.visibleEdges.map((e) => (
-          <polyline
-            key={e.id}
-            data-edge-id={e.id}
-            data-view-id={view.id}
-            points={pointsAttr(e.points)}
-            stroke="#111111"
-            strokeWidth="0.35"
-            fill="none"
-          />
-        ))}
+        {proj?.visibleEdges.map((e) => {
+          if (e.kind === 'break') {
+            return (
+              <polyline
+                key={e.id}
+                data-edge-id={e.id}
+                data-view-id={view.id}
+                data-role="break-symbol"
+                points={pointsAttr(e.points)}
+                stroke="#111111"
+                strokeWidth="0.5"
+                fill="none"
+              />
+            );
+          }
+          return (
+            <polyline
+              key={e.id}
+              data-edge-id={e.id}
+              data-view-id={view.id}
+              points={pointsAttr(e.points)}
+              stroke="#111111"
+              strokeWidth="0.35"
+              fill="none"
+            />
+          );
+        })}
       </g>
 
       {/* Hidden edges — suppressed for section views */}
