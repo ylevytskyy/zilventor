@@ -123,24 +123,12 @@ function clipEdge1D(
     ];
   }
 
-  // ── p0 after, p1 inside or before ────────────────────────────────────────
+  // ── p0 after, p1 inside (afterB0 && beforeA1 was handled above) ─────────
   if (afterB0 && !afterB1) {
-    if (beforeA1) {
-      // Already handled above
-      const tB = tForCoord(coordB);
-      const tA = tForCoord(coordA);
-      const ptB = lerp(tB);
-      const ptA = lerp(tA);
-      return [
-        { p0: ptA, p1, side: 'a' },
-        { p0, p1: ptB, side: 'b' },
-      ];
-    } else {
-      // p1 inside → crosses coordB only; drop inside
-      const tB = tForCoord(coordB);
-      const ptB = lerp(tB);
-      return [{ p0, p1: ptB, side: 'b' }];
-    }
+    // p1 is inside the band; clip at coordB and drop the inside portion.
+    const tB = tForCoord(coordB);
+    const ptB = lerp(tB);
+    return [{ p0, p1: ptB, side: 'b' }];
   }
 
   // ── p0 inside, p1 before ─ crosses coordA ────────────────────────────────

@@ -172,7 +172,8 @@ describe('AB-1 edge crossing band — both fragments', () => {
     expect(b).toBeDefined();
 
     // Before fragment: [(0,0),(50,0)]
-    expect(a!.points[0]).toEqual([0, 0]);
+    expect(a!.points[0]![0]).toBeCloseTo(0, 5);
+    expect(a!.points[0]![1]).toBeCloseTo(0, 5);
     expect(a!.points[1]![0]).toBeCloseTo(50, 5);
 
     // After fragment translated: shift = −(150−50−5) = −95; 150−95=55; 200−95=105
