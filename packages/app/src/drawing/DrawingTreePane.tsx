@@ -72,6 +72,16 @@ function SheetNode({
                 } else {
                   label = `Iso — ${v.corner}`;
                 }
+
+                // Append break-count suffix for breakable view kinds
+                const breakCount =
+                  (v.kind === 'base' || v.kind === 'projected' || v.kind === 'iso')
+                    ? (v.breaks?.length ?? 0)
+                    : 0;
+                if (breakCount > 0) {
+                  label = `${label} · [${breakCount} ${breakCount === 1 ? 'break' : 'breaks'}]`;
+                }
+
                 return (
                   <li key={v.id} style={{ fontSize: '0.8em', color: '#555' }}>
                     {label} · {v.scale.numerator}:{v.scale.denominator}

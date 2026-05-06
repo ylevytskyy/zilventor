@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DrawingTreePane } from '../DrawingTreePane';
 import { useAppStore } from '../../store/useAppStore';
-import type { DrawingDocument, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, DetailView, BreakRegion } from '@zilventor/shared';
 
 const makeDrawing = (): DrawingDocument => ({
   id: 'd1', name: 'Cabinet — Drawing', units: 'mm',
@@ -109,5 +109,89 @@ describe('DrawingTreePane — detail views in tree', () => {
     fireEvent.click(toggles[0]!);
     // The row text includes "· 2:1"
     expect(screen.getByText(/2:1/)).toBeInTheDocument();
+  });
+});
+
+const twoBreaks: readonly BreakRegion[] = [
+  { id: 'br1', axis: 'x', coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' },
+  { id: 'br2', axis: 'x', coordA: 200, coordB: 280, gapMm: 5, style: 'zigzag' },
+];
+
+const makeDrawingWithBrokenView = (): DrawingDocument => ({
+  id: 'd1', name: 'Test', units: 'mm',
+  source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+  properties: {},
+  sheets: [
+    {
+      id: 's1', name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [
+        {
+          id: 'bv1', kind: 'base' as const,
+          positionMm: { x: 20, y: 20 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          breaks: twoBreaks,
+        },
+      ],
+      dimensions: [], annotations: [], titleBlock: {},
+    },
+  ],
+  activeSheetId: 's1',
+});
+
+describe('DrawingTreePane — broken views display (no new row)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDrawing: makeDrawingWithBrokenView(),
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+  });
+
+  it('view with breaks shows "· [2 breaks]" suffix in tree label', () => {
+    render(<DrawingTreePane />);
+    const toggles = screen.getAllByText('▸');
+    fireEvent.click(toggles[0]!); // expand first sheet
+    expect(screen.getByText(/\[2 breaks?\]/i)).toBeInTheDocument();
+  });
+
+  it('view with no breaks does NOT show "[N breaks]" suffix', () => {
+    const cleanDrawing: DrawingDocument = {
+      ...makeDrawingWithBrokenView(),
+      sheets: [
+        {
+          ...makeDrawingWithBrokenView().sheets[0]!,
+          views: [
+            {
+              id: 'bv2', kind: 'base' as const,
+              positionMm: { x: 20, y: 20 },
+              scale: { numerator: 1, denominator: 1 },
+              orientation: 'front' as const,
+              showHidden: false,
+              // no breaks field
+            },
+          ],
+        },
+      ],
+    };
+    useAppStore.setState({
+      activeDrawing: cleanDrawing,
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingTreePane />);
+    const toggles = screen.getAllByText('▸');
+    fireEvent.click(toggles[0]!);
+    expect(screen.queryByText(/breaks/i)).toBeNull();
+  });
+
+  it('broken view does NOT appear as a separate child tree row', () => {
+    render(<DrawingTreePane />);
+    const toggles = screen.getAllByText('▸');
+    fireEvent.click(toggles[0]!);
+    // Should not find a "Broken View" label as a standalone row
+    expect(screen.queryByText(/^broken view/i)).toBeNull();
+    // Should not find a "Broken —" label
+    expect(screen.queryByText(/^broken —/i)).toBeNull();
   });
 });
