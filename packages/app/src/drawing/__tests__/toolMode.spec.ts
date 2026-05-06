@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { ToolMode, PendingViewParams, SectionToolState, DetailToolState } from '../toolMode';
+import type { ToolMode, PendingViewParams, SectionToolState, DetailToolState, BreakToolState } from '../toolMode';
 
 describe('useToolModeStore', () => {
   beforeEach(() => {
@@ -95,6 +95,228 @@ describe('useToolModeStore', () => {
     expect(useToolModeStore.getState().pendingViewParams).toEqual(params);
   });
 });
+
+describe('break tool — initial state + BreakToolState type', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+  });
+
+  it('reset() initialises breakState to { stage: "idle" }', () => {
+    const s = useToolModeStore.getState();
+    expect(s.breakState).toEqual({ stage: 'idle' });
+  });
+
+  it('setMode("break") sets mode=break without touching breakState', () => {
+    useToolModeStore.getState().setMode('break');
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('break');
+    expect(s.breakState).toEqual({ stage: 'idle' });
+  });
+
+  it('BreakToolState stage "idle" is the narrow type at runtime', () => {
+    useToolModeStore.getState().reset();
+    const s = useToolModeStore.getState();
+    // Compile-time narrowing: stage === 'idle' has no extra fields
+    if (s.breakState.stage === 'idle') {
+      // TypeScript should accept this without 'viewId' being accessible
+      const keys = Object.keys(s.breakState);
+      expect(keys).toEqual(['stage']);
+    }
+  });
+});
+
+describe('break tool — enterBreakMode', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('enterBreakMode() sets mode=break, breakState.stage=pickParent', () => {
+    useToolModeStore.getState().enterBreakMode();
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('break');
+    expect(s.breakState).toEqual({ stage: 'pickParent' });
+  });
+
+  it('reset() from break mode clears back to idle', () => {
+    useToolModeStore.getState().enterBreakMode();
+    useToolModeStore.getState().reset();
+    expect(useToolModeStore.getState().mode).toBe('idle');
+    expect(useToolModeStore.getState().breakState).toEqual({ stage: 'idle' });
+  });
+});
+
+describe('break tool — breakPickParent', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode();
+  });
+
+  it('breakPickParent() from pickParent → pickAxis with viewId', () => {
+    useToolModeStore.getState().breakPickParent('bv1');
+    const s = useToolModeStore.getState();
+    expect(s.breakState).toEqual({ stage: 'pickAxis', viewId: 'bv1' });
+  });
+
+  it('breakPickParent() from wrong stage is no-op + warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().breakPickParent('bv1'); // idle→pickParent done by enterBreakMode; now stage=pickParent
+    // now stage=pickAxis; calling again should warn
+    useToolModeStore.getState().breakPickParent('bv2');
+    expect(useToolModeStore.getState().breakState).toMatchObject({ stage: 'pickAxis', viewId: 'bv1' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('break tool — breakSetAxis', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode();
+    useToolModeStore.getState().breakPickParent('bv1');
+  });
+
+  it('breakSetAxis("x") from pickAxis → pickP0 with axis=x', () => {
+    useToolModeStore.getState().breakSetAxis('x');
+    expect(useToolModeStore.getState().breakState).toEqual({
+      stage: 'pickP0', viewId: 'bv1', axis: 'x',
+    });
+  });
+
+  it('breakSetAxis("y") from pickAxis → pickP0 with axis=y', () => {
+    useToolModeStore.getState().breakSetAxis('y');
+    expect(useToolModeStore.getState().breakState).toEqual({
+      stage: 'pickP0', viewId: 'bv1', axis: 'y',
+    });
+  });
+
+  it('breakSetAxis from wrong stage is no-op + warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode(); // stage=pickParent
+    useToolModeStore.getState().breakSetAxis('x'); // wrong stage
+    expect(useToolModeStore.getState().breakState).toEqual({ stage: 'pickParent' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('break tool — breakPickP0', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode();
+    useToolModeStore.getState().breakPickParent('bv1');
+    useToolModeStore.getState().breakSetAxis('x');
+  });
+
+  it('breakPickP0() from pickP0 → pickP1 with coordA captured', () => {
+    useToolModeStore.getState().breakPickP0(75.5);
+    const s = useToolModeStore.getState();
+    expect(s.breakState).toEqual({
+      stage: 'pickP1', viewId: 'bv1', axis: 'x', coordA: 75.5,
+    });
+  });
+
+  it('breakPickP0() from wrong stage is no-op + warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode(); // stage=pickParent
+    useToolModeStore.getState().breakPickP0(50); // wrong stage
+    expect(useToolModeStore.getState().breakState).toEqual({ stage: 'pickParent' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('break tool — breakPickP1', () => {
+  function setupToPickP1() {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode();
+    useToolModeStore.getState().breakPickParent('bv1');
+    useToolModeStore.getState().breakSetAxis('x');
+    useToolModeStore.getState().breakPickP0(50);
+  }
+
+  it('breakPickP1() transitions to idle, calls onDispatch with (coordA, coordB)', () => {
+    setupToPickP1();
+    const cb = vi.fn();
+    useToolModeStore.getState().breakPickP1(150, cb);
+    expect(cb).toHaveBeenCalledOnce();
+    expect(cb).toHaveBeenCalledWith(50, 150);
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('idle');
+    expect(s.breakState).toEqual({ stage: 'idle' });
+  });
+
+  it('breakPickP1() calls onDispatch exactly once', () => {
+    setupToPickP1();
+    const cb = vi.fn();
+    useToolModeStore.getState().breakPickP1(200, cb);
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('breakPickP1() from wrong stage is no-op + warns, callback not called', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode(); // stage=pickParent
+    const cb = vi.fn();
+    useToolModeStore.getState().breakPickP1(100, cb);
+    expect(cb).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('break tool — breakCancel + ESC back-tracking', () => {
+  function setupAt(stage: string) {
+    useToolModeStore.getState().reset();
+    useToolModeStore.getState().enterBreakMode(); // pickParent
+    if (stage === 'pickParent') return;
+    useToolModeStore.getState().breakPickParent('bv1'); // pickAxis
+    if (stage === 'pickAxis') return;
+    useToolModeStore.getState().breakSetAxis('x'); // pickP0
+    if (stage === 'pickP0') return;
+    useToolModeStore.getState().breakPickP0(50); // pickP1
+  }
+
+  it('breakCancel() from pickP1 → pickP0 (one stage back)', () => {
+    setupAt('pickP1');
+    useToolModeStore.getState().breakCancel();
+    expect(useToolModeStore.getState().breakState).toMatchObject({ stage: 'pickP0' });
+    expect(useToolModeStore.getState().mode).toBe('break');
+  });
+
+  it('breakCancel() from pickP0 → pickAxis (one stage back)', () => {
+    setupAt('pickP0');
+    useToolModeStore.getState().breakCancel();
+    expect(useToolModeStore.getState().breakState).toMatchObject({ stage: 'pickAxis' });
+    expect(useToolModeStore.getState().mode).toBe('break');
+  });
+
+  it('breakCancel() from pickAxis → pickParent (one stage back)', () => {
+    setupAt('pickAxis');
+    useToolModeStore.getState().breakCancel();
+    expect(useToolModeStore.getState().breakState).toEqual({ stage: 'pickParent' });
+    expect(useToolModeStore.getState().mode).toBe('break');
+  });
+
+  it('breakCancel() from pickParent → exits break mode entirely (mode=idle)', () => {
+    setupAt('pickParent');
+    useToolModeStore.getState().breakCancel();
+    expect(useToolModeStore.getState().mode).toBe('idle');
+    expect(useToolModeStore.getState().breakState).toEqual({ stage: 'idle' });
+  });
+
+  it('double-ESC from pickP1 exits to mode=idle', () => {
+    setupAt('pickP1');
+    useToolModeStore.getState().breakCancel(); // pickP1 → pickP0
+    useToolModeStore.getState().breakCancel(); // pickP0 → pickAxis
+    useToolModeStore.getState().breakCancel(); // pickAxis → pickParent
+    useToolModeStore.getState().breakCancel(); // pickParent → idle (exits mode)
+    expect(useToolModeStore.getState().mode).toBe('idle');
+  });
+});
+
+// Confirm BreakToolState type is exported and satisfies its discriminant
+const _typeCheck: BreakToolState = { stage: 'idle' };
+void _typeCheck;
 
 describe('section tool state machine', () => {
   beforeEach(() => {

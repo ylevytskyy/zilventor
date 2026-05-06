@@ -37,6 +37,16 @@ export type PendingViewParams =
     };
 
 // ---------------------------------------------------------------------------
+// Break tool sub-state
+// ---------------------------------------------------------------------------
+export type BreakToolState =
+  | { stage: 'idle' }
+  | { stage: 'pickParent' }
+  | { stage: 'pickAxis'; viewId: string }
+  | { stage: 'pickP0'; viewId: string; axis: 'x' | 'y' }
+  | { stage: 'pickP1'; viewId: string; axis: 'x' | 'y'; coordA: number };
+
+// ---------------------------------------------------------------------------
 // Detail tool sub-state
 // ---------------------------------------------------------------------------
 export type DetailToolState =
@@ -70,6 +80,7 @@ interface ToolModeState {
   pendingViewParams: PendingViewParams | null;
   sectionState: SectionToolState;
   detailState: DetailToolState;
+  breakState: BreakToolState;
 
   setMode(mode: ToolMode): void;
   setPendingViewParams(p: PendingViewParams | null): void;
@@ -82,6 +93,14 @@ interface ToolModeState {
   sectionPickP1(point: { x: number; y: number }): void;
   sectionPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
   sectionCancel(): void;
+
+  // Break tool actions
+  enterBreakMode(): void;
+  breakPickParent(viewId: string): void;
+  breakSetAxis(axis: 'x' | 'y'): void;
+  breakPickP0(coord: number): void;
+  breakPickP1(coord: number, onDispatch: (coordA: number, coordB: number) => void): void;
+  breakCancel(): void;
 
   // Detail tool actions
   enterDetailMode(): void;
@@ -97,6 +116,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   pendingViewParams: null,
   sectionState: { stage: 'idle' },
   detailState: { stage: 'idle' },
+  breakState: { stage: 'idle' },
 
   setMode(mode) {
     set({ mode });
@@ -107,7 +127,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   },
 
   reset() {
-    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' } });
+    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' } });
   },
 
   enterSectionMode() {
@@ -172,6 +192,68 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       set({ mode: 'idle', sectionState: { stage: 'idle' } });
     } else {
       set({ sectionState: { stage: 'idle' } });
+    }
+  },
+
+  enterBreakMode() {
+    set({ mode: 'break', breakState: { stage: 'pickParent' } });
+  },
+
+  breakPickParent(viewId) {
+    const { breakState } = get();
+    if (breakState.stage !== 'pickParent') {
+      console.warn('breakPickParent: expected stage=pickParent, got', breakState.stage);
+      return;
+    }
+    set({ breakState: { stage: 'pickAxis', viewId } });
+  },
+
+  breakSetAxis(axis) {
+    const { breakState } = get();
+    if (breakState.stage !== 'pickAxis') {
+      console.warn('breakSetAxis: expected stage=pickAxis, got', breakState.stage);
+      return;
+    }
+    set({ breakState: { stage: 'pickP0', viewId: breakState.viewId, axis } });
+  },
+
+  breakPickP0(coord) {
+    const { breakState } = get();
+    if (breakState.stage !== 'pickP0') {
+      console.warn('breakPickP0: expected stage=pickP0, got', breakState.stage);
+      return;
+    }
+    set({ breakState: { stage: 'pickP1', viewId: breakState.viewId, axis: breakState.axis, coordA: coord } });
+  },
+
+  breakPickP1(coord, onDispatch) {
+    const { breakState } = get();
+    if (breakState.stage !== 'pickP1') {
+      console.warn('breakPickP1: expected stage=pickP1, got', breakState.stage);
+      return;
+    }
+    const coordA = breakState.coordA;
+    set({ mode: 'idle', breakState: { stage: 'idle' } });
+    onDispatch(coordA, coord);
+  },
+
+  breakCancel() {
+    const { breakState } = get();
+    switch (breakState.stage) {
+      case 'idle':
+        break;
+      case 'pickParent':
+        set({ mode: 'idle', breakState: { stage: 'idle' } });
+        break;
+      case 'pickAxis':
+        set({ breakState: { stage: 'pickParent' } });
+        break;
+      case 'pickP0':
+        set({ breakState: { stage: 'pickAxis', viewId: breakState.viewId } });
+        break;
+      case 'pickP1':
+        set({ breakState: { stage: 'pickP0', viewId: breakState.viewId, axis: breakState.axis } });
+        break;
     }
   },
 
