@@ -2,7 +2,7 @@
 
 export type Edge2D = {
   readonly id: string;                                        // stable id: <viewId>_<edgeNameKey>_<runIndex>
-  readonly kind: 'silhouette' | 'feature' | 'outline';        // line-weight tier
+  readonly kind: 'silhouette' | 'feature' | 'outline' | 'break';  // line-weight tier; 'break' = synthetic zigzag symbol (F3)
   readonly points: ReadonlyArray<readonly [number, number]>;  // polyline in part-mm space (pre-scale)
   readonly sourceFaceIds?: readonly string[];                 // back-references to FaceNaming for hover/selection
 };
