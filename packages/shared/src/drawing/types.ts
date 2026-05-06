@@ -48,6 +48,19 @@ export type ViewScale = {
 };
 
 // ---------------------------------------------------------------------------
+// BreakRegion — one axis-aligned band removed from a view (spec §5.1)
+// ---------------------------------------------------------------------------
+
+export type BreakRegion = {
+  readonly id: string;           // nanoid(); stable across undo/redo
+  readonly axis: 'x' | 'y';     // which axis the band is perpendicular to
+  readonly coordA: number;       // view-local mm (pre-scale); lesser boundary
+  readonly coordB: number;       // view-local mm (pre-scale); greater boundary; coordB > coordA ALWAYS
+  readonly gapMm: number;        // visible gap on sheet after collapse; default 5
+  readonly style: 'zigzag';      // wave/double deferred to F3.1; field exists for forward compat
+};
+
+// ---------------------------------------------------------------------------
 // DrawingView union
 // ---------------------------------------------------------------------------
 
