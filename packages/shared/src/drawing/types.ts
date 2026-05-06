@@ -141,6 +141,9 @@ export type SectionView = {
     readonly bbox: { minX: number; minY: number; maxX: number; maxY: number };
   };
   readonly inputFingerprint?: string; // mirrors BaseView/ProjectedView stale-banner pattern
+  readonly breaks?: readonly BreakRegion[];  // NEW (F3): forward compat; in-scope testing deferred (F3.6)
+  // Invariant: rawProjection !== undefined ⟺ breaks.length > 0. Enforced by commands.
+  readonly rawProjection?: ProjectedGeometry;
 };
 
 // ---------------------------------------------------------------------------

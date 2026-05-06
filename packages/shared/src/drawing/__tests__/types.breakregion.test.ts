@@ -165,3 +165,40 @@ describe('IsoView — breaks and rawProjection fields (spec §5.2)', () => {
     expect(v.breaks![0]!.axis).toBe('y');
   });
 });
+
+describe('SectionView — breaks and rawProjection fields (forward compat, spec §5.2)', () => {
+  it('SectionView compiles with breaks field present (no behavioral test — F3.6 deferred)', () => {
+    const v: SectionView = {
+      id: 'sv1', kind: 'section',
+      parentViewId: 'bv1',
+      sectionLine: { p0: { x: 50, y: 0 }, p1: { x: 50, y: 100 } },
+      arrowDirection: 1,
+      label: 'A',
+      positionMm: { x: 200, y: 0 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      hatchSegments: [],
+      fingerprint: 'abc',
+    };
+    expect(v.breaks).toBeUndefined();
+    expect(v.rawProjection).toBeUndefined();
+  });
+
+  it('SectionView accepts breaks + rawProjection without TypeScript error', () => {
+    const v: SectionView = {
+      id: 'sv2', kind: 'section',
+      parentViewId: 'bv1',
+      sectionLine: { p0: { x: 50, y: 0 }, p1: { x: 50, y: 100 } },
+      arrowDirection: -1,
+      label: 'B',
+      positionMm: { x: 300, y: 0 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      hatchSegments: [],
+      fingerprint: 'def',
+      breaks: [{ id: 'bsv', axis: 'x', coordA: 10, coordB: 50, gapMm: 5, style: 'zigzag' }],
+      rawProjection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 200, maxY: 80 } },
+    };
+    expect(v.breaks).toHaveLength(1);
+  });
+});
