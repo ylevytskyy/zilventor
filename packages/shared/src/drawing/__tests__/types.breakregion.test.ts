@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { BreakRegion } from '../types';
-import type { Edge2D } from '../projectedGeometry';
+import type { BreakRegion, BaseView, ViewScale, ProjectedView, IsoView, SectionView, DrawingView } from '../types';
+import type { Edge2D, ProjectedGeometry } from '../projectedGeometry';
 
 describe('BreakRegion shape (spec §5.1)', () => {
   it('has all 6 required fields with correct types', () => {
@@ -67,5 +67,46 @@ describe('Edge2D.kind — break tier (spec §5.3)', () => {
     expect(e1.kind).toBe('silhouette');
     expect(e2.kind).toBe('feature');
     expect(e3.kind).toBe('outline');
+  });
+});
+
+describe('BaseView — breaks and rawProjection fields (spec §5.2)', () => {
+  const scale: ViewScale = { numerator: 1, denominator: 1 };
+
+  it('BaseView compiles without breaks (existing views unaffected)', () => {
+    const v: BaseView = {
+      id: 'v1', kind: 'base',
+      positionMm: { x: 0, y: 0 }, scale,
+      orientation: 'front', showHidden: false,
+    };
+    expect(v.breaks).toBeUndefined();
+    expect(v.rawProjection).toBeUndefined();
+  });
+
+  it('BaseView accepts breaks array with BreakRegion entries', () => {
+    const br: BreakRegion = { id: 'b1', axis: 'x', coordA: 50, coordB: 150, gapMm: 5, style: 'zigzag' };
+    const rawProj: ProjectedGeometry = {
+      visibleEdges: [], hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 400, maxY: 50 },
+    };
+    const v: BaseView = {
+      id: 'v2', kind: 'base',
+      positionMm: { x: 0, y: 0 }, scale,
+      orientation: 'front', showHidden: false,
+      breaks: [br],
+      rawProjection: rawProj,
+    };
+    expect(v.breaks).toHaveLength(1);
+    expect(v.rawProjection?.bbox.maxX).toBe(400);
+  });
+
+  it('α-conditional: rawProjection absent when breaks absent (compile-time semantics)', () => {
+    const v: BaseView = {
+      id: 'v3', kind: 'base',
+      positionMm: { x: 10, y: 10 }, scale,
+      orientation: 'top', showHidden: true,
+    };
+    expect(v.breaks).toBeUndefined();
+    expect(v.rawProjection).toBeUndefined();
   });
 });

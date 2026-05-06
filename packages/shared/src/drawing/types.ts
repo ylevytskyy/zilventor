@@ -73,6 +73,10 @@ export type BaseView = {
   readonly showHidden: boolean;
   readonly projection?: ProjectedGeometry;
   readonly inputFingerprint?: string;
+  readonly breaks?: readonly BreakRegion[];  // NEW (F3): absent = no breaks (treated as [] at runtime)
+  // rawProjection is populated iff breaks.length > 0.
+  // Invariant: rawProjection !== undefined ⟺ breaks.length > 0. Enforced by commands.
+  readonly rawProjection?: ProjectedGeometry;
 };
 
 export type ProjectedView = {
