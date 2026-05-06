@@ -1,8 +1,20 @@
 // packages/app/src/commands/__tests__/RegenerateViewCommand.spec.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { RegenerateViewCommand } from '../RegenerateViewCommand';
-import type { DrawingDocument, BaseView, ProjectedGeometry, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, BaseView, ProjectedGeometry, DetailView, BreakRegion } from '@zilventor/shared';
+
+vi.mock('@zilventor/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zilventor/shared')>();
+  return {
+    ...actual,
+    applyBreaks: vi.fn().mockReturnValue({
+      edges: [{ id: 'frag-regen', kind: 'outline', points: [[0, 0], [55, 0]], sourceFaceIds: [] }],
+      breakSymbolEdges: [{ id: 'sym-regen', kind: 'break', points: [[55, -3], [58, 3]], sourceFaceIds: [] }],
+    }),
+    fingerprintBreaksArray: vi.fn().mockReturnValue('regen-breaks-fp-mock'),
+  };
+});
 
 const OLD_PROJECTION: ProjectedGeometry = {
   visibleEdges: [{ id: 'e1', kind: 'outline', points: [[0, 0], [100, 0]], sourceFaceIds: [] }],
@@ -227,5 +239,164 @@ describe('RegenerateViewCommand — detail view branch', () => {
     expect(view.positionMm).toEqual({ x: 200, y: 200 });
     expect(view.scale).toEqual({ numerator: 2, denominator: 1 });
     expect(view.showHidden).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T3.15 — RegenerateViewCommand breaks-aware extension
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BROKEN_PROJ_RAW: ProjectedGeometry = {
+  visibleEdges: [{ id: 'raw-e1', kind: 'outline', points: [[0, 0], [200, 0]] as [number, number][], sourceFaceIds: [] }],
+  hiddenEdges: [],
+  bbox: { minX: 0, minY: 0, maxX: 200, maxY: 80 },
+};
+
+const BROKEN_PROJ_APPLIED: ProjectedGeometry = {
+  visibleEdges: [
+    { id: 'frag-1', kind: 'outline', points: [[0, 0], [55, 0]] as [number, number][], sourceFaceIds: [] },
+    { id: 'sym-1', kind: 'break' as const, points: [[55, -3], [58, 3]] as [number, number][], sourceFaceIds: [] },
+    { id: 'frag-2', kind: 'outline', points: [[60, 0], [200, 0]] as [number, number][], sourceFaceIds: [] },
+  ],
+  hiddenEdges: [],
+  bbox: { minX: 0, minY: 0, maxX: 200, maxY: 80 },
+};
+
+const BREAK_REGION: BreakRegion = {
+  id: 'br-1', axis: 'x', coordA: 50, coordB: 150, gapMm: 5, style: 'zigzag',
+};
+
+const viewWithBreak: BaseView & { breaks: BreakRegion[]; rawProjection?: ProjectedGeometry } = {
+  id: 'view-broken', kind: 'base',
+  positionMm: { x: 50, y: 50 },
+  orientation: 'front',
+  scale: { numerator: 1, denominator: 1 },
+  showHidden: false,
+  projection: BROKEN_PROJ_APPLIED,
+  inputFingerprint: 'stale-broken-fp',
+  breaks: [BREAK_REGION],
+  rawProjection: BROKEN_PROJ_APPLIED, // simulates pre-existing rawProjection
+};
+
+describe('RegenerateViewCommand — breaks-aware extension', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-broken', name: 'D', units: 'mm',
+          source: { partPath: 'p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-b', name: 'SB',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [viewWithBreak], dimensions: [], annotations: [], titleBlock: {},
+          }],
+          activeSheetId: 'sheet-b',
+        },
+      },
+    });
+  });
+
+  it('when breaks.length > 0: fresh kernel output stored as rawProjection, applyBreaks produces projection', async () => {
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-b',
+      viewId: 'view-broken',
+      projection: BROKEN_PROJ_RAW,
+      inputFingerprint: 'fresh-fp',
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const v = doc.document.sheets[0]!.views[0]! as
+      BaseView & { breaks?: BreakRegion[]; rawProjection?: ProjectedGeometry };
+
+    // rawProjection must be the fresh kernel output
+    expect(v.rawProjection).toEqual(BROKEN_PROJ_RAW);
+    // projection is the applyBreaks result (set by mock)
+    expect(v.projection).toBeDefined();
+    // projection should not be the raw kernel output verbatim (breaks applied)
+    expect(v.projection).not.toEqual(BROKEN_PROJ_RAW);
+  });
+
+  it('when breaks.length > 0: α-conditional holds after regen', async () => {
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-b',
+      viewId: 'view-broken',
+      projection: BROKEN_PROJ_RAW,
+      inputFingerprint: 'fresh-fp',
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const v = doc.document.sheets[0]!.views[0]! as
+      BaseView & { breaks?: unknown[]; rawProjection?: unknown };
+    expect((v.breaks?.length ?? 0) > 0).toBe(v.rawProjection !== undefined);
+  });
+
+  it('when breaks.length === 0: rawProjection stays undefined, projection = fresh kernel output', async () => {
+    const viewNoBreaks: BaseView = {
+      id: 'view-no-breaks', kind: 'base',
+      positionMm: { x: 50, y: 50 },
+      orientation: 'front',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      projection: OLD_PROJECTION,
+      inputFingerprint: 'stale-no-break-fp',
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'd-nb', name: 'D', units: 'mm',
+          source: { partPath: 'p.zipt', sourceKind: 'part' },
+          properties: {},
+          sheets: [{
+            id: 'sheet-nb', name: 'SNB',
+            size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [viewNoBreaks], dimensions: [], annotations: [], titleBlock: {},
+          }],
+          activeSheetId: 'sheet-nb',
+        },
+      },
+    });
+
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-nb',
+      viewId: 'view-no-breaks',
+      projection: NEW_PROJECTION,
+      inputFingerprint: 'fresh-fp-nb',
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const v = doc.document.sheets[0]!.views[0]! as
+      BaseView & { rawProjection?: ProjectedGeometry };
+    expect(v.projection).toEqual(NEW_PROJECTION);
+    expect(v.rawProjection).toBeUndefined();
+  });
+
+  it('revert after breaks-path regen restores prior rawProjection and projection', async () => {
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-b',
+      viewId: 'view-broken',
+      projection: BROKEN_PROJ_RAW,
+      inputFingerprint: 'fresh-fp',
+    });
+    await cmd.apply();
+    await cmd.revert();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const v = doc.document.sheets[0]!.views[0]! as
+      BaseView & { breaks?: BreakRegion[]; rawProjection?: ProjectedGeometry };
+    // rawProjection should be restored to what it was before regen
+    expect(v.rawProjection).toEqual(BROKEN_PROJ_APPLIED);
+    // projection should be restored
+    expect(v.projection).toEqual(BROKEN_PROJ_APPLIED);
   });
 });
