@@ -212,6 +212,89 @@ describe('DrawingTab ribbon — Section button', () => {
   });
 });
 
+describe('DrawingTab ribbon — Add Break button', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+  });
+
+  it('renders an "Add Break" button in the Place Views panel', () => {
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /add break/i })).toBeInTheDocument();
+  });
+
+  it('Add Break button is disabled when no breakable views have a projection', () => {
+    // seedDrawing() has views: [] → no projection
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /add break/i })).toBeDisabled();
+  });
+
+  it('Add Break button is enabled when at least one breakable view has a projection', () => {
+    const dwgWithProjection: DrawingDocument = {
+      ...seedDrawing(),
+      sheets: [
+        {
+          ...seedDrawing().sheets[0]!,
+          views: [
+            {
+              id: 'bv1', kind: 'base' as const,
+              positionMm: { x: 20, y: 20 },
+              scale: { numerator: 1, denominator: 1 },
+              orientation: 'front' as const,
+              showHidden: false,
+              projection: {
+                visibleEdges: [],
+                hiddenEdges: [],
+                bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 },
+              },
+              inputFingerprint: 'fp1',
+            },
+          ],
+        },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwgWithProjection });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /add break/i })).not.toBeDisabled();
+  });
+
+  it('clicking Add Break button calls enterBreakMode()', () => {
+    const dwgWithProjection: DrawingDocument = {
+      ...seedDrawing(),
+      sheets: [
+        {
+          ...seedDrawing().sheets[0]!,
+          views: [
+            {
+              id: 'bv1', kind: 'base' as const,
+              positionMm: { x: 20, y: 20 },
+              scale: { numerator: 1, denominator: 1 },
+              orientation: 'front' as const,
+              showHidden: false,
+              projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+              inputFingerprint: 'fp1',
+            },
+          ],
+        },
+      ],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwgWithProjection });
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: /add break/i }));
+    expect(useToolModeStore.getState().mode).toBe('break');
+    expect(useToolModeStore.getState().breakState.stage).toBe('pickParent');
+  });
+
+  it('Add Break button appears after Detail button in DOM order', () => {
+    render(<DrawingTab />);
+    const buttons = Array.from(screen.getAllByRole('button'));
+    const detailIdx = buttons.findIndex((b) => /^detail$/i.test(b.textContent ?? ''));
+    const addBreakIdx = buttons.findIndex((b) => /add break/i.test(b.textContent ?? ''));
+    expect(detailIdx).toBeGreaterThan(-1);
+    expect(addBreakIdx).toBeGreaterThan(detailIdx);
+  });
+});
+
 describe('DrawingTab — non-drawing active doc', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);

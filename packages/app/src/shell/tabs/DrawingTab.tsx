@@ -22,6 +22,12 @@ export default function DrawingTab(): JSX.Element {
   const setMode = useToolModeStore.getState().setMode;
   const activeSheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
   const hasProjectedView = activeSheet?.views.some((v) => v.projection != null) ?? false;
+  const hasBreakableProjection =
+    activeSheet?.views.some(
+      (v) =>
+        (v.kind === 'base' || v.kind === 'projected' || v.kind === 'iso') &&
+        v.projection != null,
+    ) ?? false;
 
   return (
     <div className="flex gap-2 px-3 py-2">
@@ -98,6 +104,20 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => useToolModeStore.getState().enterDetailMode()}
         >
           Detail
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Add Break"
+          disabled={!hasBreakableProjection}
+          title={
+            !hasBreakableProjection
+              ? 'Add a base, projected, or iso view with a projection first'
+              : undefined
+          }
+          onClick={() => useToolModeStore.getState().enterBreakMode()}
+        >
+          Add Break
         </button>
       </RibbonPanel>
 
