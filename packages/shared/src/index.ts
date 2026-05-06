@@ -27,7 +27,7 @@ export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nest
 // PointRef omitted from this re-export — collides with constraints.PointRef (sketcher anchor type).
 // Drawing consumers must `import { PointRef } from '@zilventor/shared/drawing/types'` directly.
 export { ISO_SIZES_MM } from './drawing/types';
-export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, DrawingAnnotation, TitleBlockOverrides, SectionView, HatchSegment, Vec2, DetailView, RegionParent } from './drawing/types';
+export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, DrawingAnnotation, TitleBlockOverrides, SectionView, HatchSegment, Vec2, DetailView, RegionParent, BreakRegion } from './drawing/types';
 export type { ProjectedGeometry, Edge2D } from './drawing/projectedGeometry';
 
 // drawing module (Sub-project 6)
@@ -46,6 +46,6 @@ export { resolveSectionSource } from './drawing/resolveSectionSource';
 export { deriveSectionPlane } from './drawing/sectionPlane';
 export type { Plane } from './drawing/sectionPlane';
 export { allocateCalloutLabel } from './drawing/sectionLabel';
-export { fingerprintDetailView } from './drawing/fingerprint';
+export { fingerprintDetailView, fingerprintBreaksArray } from './drawing/fingerprint';
 export { projectDetailView } from './drawing/projectDetailView';
 export type { DetailViewInput, DetailViewOutput } from './drawing/projectDetailView';
