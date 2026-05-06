@@ -38,4 +38,9 @@ describe('fingerprintBreaksArray (spec §8.1)', () => {
     const brModified: BreakRegion = { ...br1, gapMm: 10 };
     expect(fingerprintBreaksArray([brModified])).not.toBe(fingerprintBreaksArray([br1]));
   });
+
+  it('changing axis produces a different hash', () => {
+    const brModified: BreakRegion = { ...br1, axis: 'y' };
+    expect(fingerprintBreaksArray([brModified])).not.toBe(fingerprintBreaksArray([br1]));
+  });
 });
