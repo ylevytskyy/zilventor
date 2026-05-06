@@ -280,3 +280,41 @@ describe('DrawingView union — exhaustiveness check with breaks/rawProjection f
     expect(dv.kind).toBe('detail');
   });
 });
+
+describe('Edge2D "break" kind — serialization round-trip (spec §5.3)', () => {
+  it('ProjectedGeometry with break-kind edges survives JSON round-trip', () => {
+    const geom: ProjectedGeometry = {
+      visibleEdges: [
+        { id: 'v1_break_b1', kind: 'break', points: [[50, -5], [51.5, 0], [48.5, 3], [50, 6]] },
+        { id: 'v1_e1', kind: 'silhouette', points: [[0, 0], [50, 0]] },
+        { id: 'v1_e2', kind: 'silhouette', points: [[55, 0], [100, 0]] },
+      ],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: -5, maxX: 100, maxY: 10 },
+    };
+    const parsed = JSON.parse(JSON.stringify(geom)) as ProjectedGeometry;
+    const breakEdge = parsed.visibleEdges.find(e => e.kind === 'break');
+    expect(breakEdge).toBeDefined();
+    expect(breakEdge!.id).toBe('v1_break_b1');
+    expect(breakEdge!.points).toHaveLength(4);
+    expect(breakEdge!.sourceFaceIds).toBeUndefined();
+  });
+
+  it('all four kind values coexist in a ProjectedGeometry', () => {
+    const geom: ProjectedGeometry = {
+      visibleEdges: [
+        { id: 'e1', kind: 'silhouette', points: [[0, 0]] },
+        { id: 'e2', kind: 'feature',    points: [[0, 0]] },
+        { id: 'e3', kind: 'outline',    points: [[0, 0]] },
+        { id: 'e4', kind: 'break',      points: [[0, 0]] },
+      ],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+    };
+    const kinds = new Set(geom.visibleEdges.map(e => e.kind));
+    expect(kinds.has('silhouette')).toBe(true);
+    expect(kinds.has('feature')).toBe(true);
+    expect(kinds.has('outline')).toBe(true);
+    expect(kinds.has('break')).toBe(true);
+  });
+});
