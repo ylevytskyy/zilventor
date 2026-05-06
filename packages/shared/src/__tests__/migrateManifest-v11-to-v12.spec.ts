@@ -16,7 +16,7 @@ describe('migration v11→v12', () => {
       },
     };
     const result = migrateManifest(manifest);
-    expect(result.formatVersion).toBe(16);
+    expect(result.formatVersion).toBe(17);
     expect((result.document as { hardware?: unknown }).hardware).toEqual([]);
   });
 
@@ -32,7 +32,7 @@ describe('migration v11→v12', () => {
       },
     };
     const result = migrateManifest(manifest);
-    expect(result.formatVersion).toBe(16);
+    expect(result.formatVersion).toBe(17);
     const hw = (result.document as { hardware?: unknown[] }).hardware;
     expect(hw).toHaveLength(7);
     expect(hw!.map((e: unknown) => (e as { id: string }).id)).toEqual(
