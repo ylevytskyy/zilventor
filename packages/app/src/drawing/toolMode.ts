@@ -16,7 +16,8 @@ export type ToolMode =
   | 'addLeader'
   | 'addBalloon'
   | 'section'
-  | 'detail';    // NEW — Drawing F2
+  | 'detail'
+  | 'break';     // NEW — Drawing F3
 
 export type PendingViewParams =
   | {

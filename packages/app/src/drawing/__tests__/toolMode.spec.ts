@@ -13,6 +13,11 @@ describe('useToolModeStore', () => {
     expect(s.pendingViewParams).toBeNull();
   });
 
+  it('setMode round-trip includes break', () => {
+    useToolModeStore.getState().setMode('break');
+    expect(useToolModeStore.getState().mode).toBe('break');
+  });
+
   it('setMode round-trip for every ToolMode value', () => {
     const modes: ToolMode[] = [
       'idle',
