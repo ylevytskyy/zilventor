@@ -1,6 +1,7 @@
 // packages/shared/src/drawing/__tests__/fingerprint.spec.ts
 import { describe, it, expect } from 'vitest';
-import { computeViewFingerprint, computeSourceGeometryHash, fingerprintDetailView } from '../fingerprint';
+import { computeViewFingerprint, computeSourceGeometryHash, fingerprintDetailView, fingerprintBreaksArray } from '../fingerprint';
+import type { BreakRegion } from '../types';
 import type { ProjectorInput } from '../projector';
 
 const BASE_INPUT: ProjectorInput = {
@@ -116,5 +117,82 @@ describe('fingerprintDetailView', () => {
     const fp1 = fingerprintDetailView(parentFp, region, scale);
     const fp2 = fingerprintDetailView(parentFp, regionB, scale);
     expect(fp1).not.toBe(fp2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T2.15 — fingerprintBreaksArray (spec §8.1)
+// ---------------------------------------------------------------------------
+
+describe('fingerprintBreaksArray (T2.15 — spec §8.1)', () => {
+  const mkBreak = (axis: 'x' | 'y', coordA: number, coordB: number, gapMm = 5): BreakRegion => ({
+    id: 'test-id',
+    axis,
+    coordA,
+    coordB,
+    gapMm,
+    style: 'zigzag',
+  });
+
+  it('T2.15a empty array → stable non-empty 8-char hex string', () => {
+    const fp = fingerprintBreaksArray([]);
+    expect(fp).toBeTruthy();
+    expect(fp).toMatch(/^[0-9a-f]{8}$/);
+    expect(fingerprintBreaksArray([])).toBe(fp); // idempotent
+  });
+
+  it('T2.15b single break → same result across calls', () => {
+    const br = mkBreak('x', 50, 100);
+    const fp1 = fingerprintBreaksArray([br]);
+    const fp2 = fingerprintBreaksArray([br]);
+    expect(fp1).toBe(fp2);
+    expect(fp1).not.toBe(fingerprintBreaksArray([]));
+  });
+
+  it('T2.15c reversed order produces same fingerprint (sorted by coordA)', () => {
+    const b1 = mkBreak('x', 50, 100);
+    const b2 = mkBreak('x', 200, 300);
+    const fp_forward  = fingerprintBreaksArray([b1, b2]);
+    const fp_reversed = fingerprintBreaksArray([b2, b1]);
+    expect(fp_forward).toBe(fp_reversed);
+  });
+
+  it('T2.15d different coordA → different fingerprint', () => {
+    const fp1 = fingerprintBreaksArray([mkBreak('x', 50, 100)]);
+    const fp2 = fingerprintBreaksArray([mkBreak('x', 51, 100)]);
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it('T2.15e sub-1e-3 mm change in coordA → same fingerprint (1e-3 rounding bucket)', () => {
+    const fp1 = fingerprintBreaksArray([mkBreak('x', 50.000, 100)]);
+    const fp2 = fingerprintBreaksArray([mkBreak('x', 50.0001, 100)]);
+    expect(fp1).toBe(fp2);
+  });
+
+  it('T2.15f different axis → different fingerprint', () => {
+    const fp1 = fingerprintBreaksArray([mkBreak('x', 50, 100)]);
+    const fp2 = fingerprintBreaksArray([mkBreak('y', 50, 100)]);
+    expect(fp1).not.toBe(fp2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T2.16 — §8.2 composition pattern
+// ---------------------------------------------------------------------------
+
+describe('fingerprintBreaksArray — §8.2 integration with inputFingerprint pattern (T2.16)', () => {
+  it('T2.16a same view fingerprint + same breaks → same composed fingerprint', () => {
+    const breaks: BreakRegion[] = [
+      { id: 'b1', axis: 'x', coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' },
+    ];
+    const fp1 = fingerprintBreaksArray(breaks);
+    const fp2 = fingerprintBreaksArray(breaks);
+    expect(fp1).toBe(fp2);
+  });
+
+  it('T2.16b different breaks array → different fingerprintBreaksArray output', () => {
+    const b1: BreakRegion = { id: 'x', axis: 'x', coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' };
+    const b2: BreakRegion = { id: 'y', axis: 'x', coordA: 60, coordB: 100, gapMm: 5, style: 'zigzag' };
+    expect(fingerprintBreaksArray([b1])).not.toBe(fingerprintBreaksArray([b2]));
   });
 });
