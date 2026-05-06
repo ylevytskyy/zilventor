@@ -110,3 +110,32 @@ describe('BaseView — breaks and rawProjection fields (spec §5.2)', () => {
     expect(v.rawProjection).toBeUndefined();
   });
 });
+
+describe('ProjectedView — breaks and rawProjection fields (spec §5.2)', () => {
+  it('ProjectedView compiles without breaks', () => {
+    const v: ProjectedView = {
+      id: 'pv1', kind: 'projected',
+      positionMm: { x: 0, y: 0 },
+      baseViewId: 'bv1',
+      direction: 'right',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+    };
+    expect(v.breaks).toBeUndefined();
+    expect(v.rawProjection).toBeUndefined();
+  });
+
+  it('ProjectedView accepts breaks array', () => {
+    const v: ProjectedView = {
+      id: 'pv2', kind: 'projected',
+      positionMm: { x: 100, y: 0 },
+      baseViewId: 'bv1',
+      direction: 'top',
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      breaks: [{ id: 'b1', axis: 'x', coordA: 10, coordB: 60, gapMm: 5, style: 'zigzag' }],
+      rawProjection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 200, maxY: 40 } },
+    };
+    expect(v.breaks).toHaveLength(1);
+  });
+});
