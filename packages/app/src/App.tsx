@@ -462,6 +462,38 @@ export default function App() {
         const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      w.__zilventorBrokenViewMs = async (n = 100) => {
+        const { applyBreaks } = await import('@zilventor/shared/src/drawing/applyBreaks');
+        type Edge2D = import('@zilventor/shared').Edge2D;
+        // Fixture: 1 000 edges — 10 axis-aligned + 990 oblique (per spec §15.2).
+        const syntheticEdges = Array.from({ length: 1000 }, (_, i): Edge2D => {
+          if (i < 10) {
+            // Axis-aligned horizontal.
+            return { id: `e${i}`, kind: 'silhouette' as const, points: [[0, i * 10], [1000, i * 10]] as ReadonlyArray<readonly [number, number]> };
+          }
+          // Oblique: deterministic-ish endpoints seeded by index.
+          const x0 = (i * 37) % 1000;
+          const y0 = (i * 53) % 100;
+          const x1 = (x0 + 200 + (i % 300)) % 1000;
+          const y1 = (y0 + 50 + (i % 50)) % 100;
+          return { id: `e${i}`, kind: 'silhouette' as const, points: [[x0, y0], [x1, y1]] as ReadonlyArray<readonly [number, number]> };
+        });
+        const breaks = [
+          { id: 'b1', axis: 'x' as const, coordA: 100, coordB: 300, gapMm: 5, style: 'zigzag' as const },
+          { id: 'b2', axis: 'x' as const, coordA: 500, coordB: 700, gapMm: 5, style: 'zigzag' as const },
+        ];
+        const bbox = { minX: 0, minY: 0, maxX: 1000, maxY: 100 };
+        const samples: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const t0 = performance.now();
+          applyBreaks(syntheticEdges, breaks, bbox);
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((a, b) => a - b);
+        const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
+        return { p95ms };
+      };
     }
   }, []);
 
