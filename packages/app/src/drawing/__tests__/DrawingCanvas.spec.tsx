@@ -8,6 +8,13 @@ import { AddDrawingDimensionCommand } from '../../commands/AddDrawingDimensionCo
 import { AddSectionViewCommand } from '../../commands/AddSectionViewCommand';
 import type { DrawingDocument, DrawingSheet, BaseView, SectionView, DetailView } from '@zilventor/shared';
 
+vi.mock('../../commands/AddBreakCommand', () => ({
+  AddBreakCommand: vi.fn().mockImplementation((payload) => ({
+    name: 'AddBreakCommand',
+    payload,
+  })),
+}));
+
 // Minimal drawing fixture
 const makeSheet = (): DrawingSheet => ({
   id: 's1',
@@ -475,5 +482,205 @@ describe('DrawingCanvas — DetailRegionOverlay rendering', () => {
     useToolModeStore.setState({ mode: 'idle' } as never);
     render(<DrawingCanvas />);
     expect(document.querySelectorAll('[data-detail-callout-overlay]')).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T4.9 + T4.10 — DrawingCanvas break tool mode
+// ---------------------------------------------------------------------------
+
+const makeBreakViewSheet = (): DrawingSheet => ({
+  id: 's1', name: 'Sheet 1',
+  size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+  views: [
+    {
+      id: 'bv1', kind: 'base' as const,
+      positionMm: { x: 20, y: 20 },
+      scale: { numerator: 1, denominator: 1 },
+      orientation: 'front' as const,
+      showHidden: false,
+      projection: {
+        visibleEdges: [],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 },
+      },
+      inputFingerprint: 'fp-bv1',
+    },
+  ],
+  dimensions: [], annotations: [], titleBlock: {},
+});
+
+describe('DrawingCanvas — break tool mode click dispatch', () => {
+  beforeEach(() => {
+    useToolModeStore.setState({
+      mode: 'break',
+      breakState: { stage: 'pickParent' },
+      sectionState: { stage: 'idle' },
+      detailState: { stage: 'idle' },
+      pendingViewParams: null,
+    } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [makeBreakViewSheet()] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+  });
+
+  it('click on view element in pickParent stage → breakPickParent called with viewId', () => {
+    const pickParent = vi.spyOn(useToolModeStore.getState(), 'breakPickParent');
+    const { container } = render(<DrawingCanvas />);
+    const viewGroup = container.querySelector('[data-view-id="bv1"]') as Element;
+    if (viewGroup) {
+      fireEvent.click(viewGroup);
+      expect(pickParent).toHaveBeenCalledWith('bv1');
+    }
+  });
+
+  it('stage=pickP0 + click → breakPickP0 called', () => {
+    useToolModeStore.setState({
+      mode: 'break',
+      breakState: { stage: 'pickP0', viewId: 'bv1', axis: 'x' },
+    } as never);
+    const pickP0 = vi.spyOn(useToolModeStore.getState(), 'breakPickP0');
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.click(svg, { clientX: 50, clientY: 50 });
+    expect(pickP0).toHaveBeenCalled();
+  });
+
+  it('stage=pickP1 + click → bus.execute called with AddBreakCommand', () => {
+    useToolModeStore.setState({
+      mode: 'break',
+      breakState: { stage: 'pickP1', viewId: 'bv1', axis: 'x', coordA: 30 },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.click(svg, { clientX: 100, clientY: 50 });
+    const bus = useAppStore.getState().bus;
+    expect(bus.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'AddBreakCommand' }),
+    );
+  });
+
+  it('ESC key calls breakCancel()', () => {
+    const cancel = vi.spyOn(useToolModeStore.getState(), 'breakCancel');
+    render(<DrawingCanvas />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe('DrawingCanvas — break tool axis guide preview', () => {
+  it('renders axis guide hint when stage=pickAxis and cursor moves', () => {
+    useToolModeStore.setState({
+      mode: 'break',
+      breakState: { stage: 'pickAxis', viewId: 'bv1' },
+      sectionState: { stage: 'idle' },
+      detailState: { stage: 'idle' },
+      pendingViewParams: null,
+    } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [makeBreakViewSheet()] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.mouseMove(svg, { clientX: 80, clientY: 60 });
+    const guide = document.querySelector('[data-role="break-axis-guide"]');
+    expect(guide).not.toBeNull();
+  });
+
+  it('renders pickP1 guide line when stage=pickP1 and cursor moves', () => {
+    useToolModeStore.setState({
+      mode: 'break',
+      breakState: { stage: 'pickP1', viewId: 'bv1', axis: 'x', coordA: 30 },
+      sectionState: { stage: 'idle' },
+      detailState: { stage: 'idle' },
+      pendingViewParams: null,
+    } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [makeBreakViewSheet()] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    const svg = document.querySelector('svg')!;
+    fireEvent.mouseMove(svg, { clientX: 100, clientY: 60 });
+    const guide = document.querySelector('[data-role="break-axis-guide"]');
+    expect(guide).not.toBeNull();
+  });
+
+  it('no axis guide when break stage is idle', () => {
+    useToolModeStore.setState({
+      mode: 'idle',
+      breakState: { stage: 'idle' },
+      sectionState: { stage: 'idle' },
+      detailState: { stage: 'idle' },
+      pendingViewParams: null,
+    } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [makeBreakViewSheet()] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-role="break-axis-guide"]')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T4.15 — Stale banner with breaks
+// ---------------------------------------------------------------------------
+
+describe('DrawingCanvas — stale banner with breaks', () => {
+  it('view with breaks and matching inputFingerprint shows no stale marker', () => {
+    const sheetWithBrokenView: DrawingSheet = {
+      id: 's1', name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [
+        {
+          id: 'bv1', kind: 'base' as const,
+          positionMm: { x: 20, y: 20 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+          inputFingerprint: 'fp-with-breaks',
+          breaks: [{ id: 'br1', axis: 'x' as const, coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' as const }],
+        },
+      ],
+      dimensions: [], annotations: [], titleBlock: {},
+    };
+    useToolModeStore.setState({ mode: 'idle', breakState: { stage: 'idle' }, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, pendingViewParams: null } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [sheetWithBrokenView] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-stale-marker]')).toBeNull();
+  });
+
+  it('view with breaks but missing inputFingerprint is stale', () => {
+    const sheetWithStaleBrokenView: DrawingSheet = {
+      id: 's1', name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [
+        {
+          id: 'bv1', kind: 'base' as const,
+          positionMm: { x: 20, y: 20 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+          // No inputFingerprint → stale
+          breaks: [{ id: 'br1', axis: 'x' as const, coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' as const }],
+        },
+      ],
+      dimensions: [], annotations: [], titleBlock: {},
+    };
+    useToolModeStore.setState({ mode: 'idle', breakState: { stage: 'idle' }, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, pendingViewParams: null } as never);
+    useAppStore.setState({
+      activeDrawing: { ...makeDrawing(), sheets: [sheetWithStaleBrokenView] },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    expect(document.querySelector('[data-stale-marker]')).not.toBeNull();
   });
 });

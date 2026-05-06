@@ -1,5 +1,5 @@
 // packages/app/src/drawing/DrawingCanvas.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { useToolModeStore } from './toolMode';
 import { TitleBlock } from './TitleBlock';
@@ -11,6 +11,8 @@ import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionComma
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
 import { AddDetailViewCommand } from '../commands/AddDetailViewCommand';
+import { AddBreakCommand } from '../commands/AddBreakCommand';
+import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
@@ -76,6 +78,7 @@ export function DrawingCanvas() {
   const toolMode = useToolModeStore((s) => s.mode);
   const sectionState = useToolModeStore((s) => s.sectionState);
   const detailState = useToolModeStore((s) => s.detailState);
+  const breakState = useToolModeStore((s) => s.breakState);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -86,6 +89,7 @@ export function DrawingCanvas() {
 
   // Tool-mode click accumulation (up to 2 clicks for linear dims / centerline)
   const [clickAccum, setClickAccum] = useState<ClickPoint[]>([]);
+  const [addBreakDialogOpen, setAddBreakDialogOpen] = useState(false);
 
   // Per-view stale flags
   const [staleViews, setStaleViews] = useState<Set<string>>(new Set());
@@ -111,12 +115,13 @@ export function DrawingCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id]);
 
-  // ESC cancels section/detail tool in-progress
+  // ESC cancels section/detail/break tool in-progress
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         useToolModeStore.getState().sectionCancel();
         useToolModeStore.getState().detailCancel();
+        useToolModeStore.getState().breakCancel();
       }
     }
     document.addEventListener('keydown', onKeyDown);
@@ -282,6 +287,54 @@ export function DrawingCanvas() {
       return;
     }
 
+    if (toolMode === 'break') {
+      const bs = useToolModeStore.getState().breakState;
+      const sheetPt = { x: svgX, y: svgY };
+
+      if (bs.stage === 'pickParent') {
+        const hitViewId = getViewAtPoint(sheet.views, sheetPt, viewId);
+        if (!hitViewId) return;
+        const hitView = sheet.views.find((v) => v.id === hitViewId);
+        if (!hitView) return;
+        if (hitView.kind === 'section' || hitView.kind === 'detail') {
+          return;
+        }
+        useToolModeStore.getState().breakPickParent(hitViewId);
+        setAddBreakDialogOpen(true);
+        return;
+      }
+
+      if (bs.stage === 'pickP0') {
+        const parentView = sheet.views.find((v) => v.id === bs.viewId);
+        if (!parentView) return;
+        const localPt = sheetToParentLocal(sheetPt, parentView);
+        const coord = bs.axis === 'x' ? localPt.x : localPt.y;
+        useToolModeStore.getState().breakPickP0(coord);
+        return;
+      }
+
+      if (bs.stage === 'pickP1') {
+        const parentView = sheet.views.find((v) => v.id === bs.viewId);
+        if (!parentView) return;
+        const localPt = sheetToParentLocal(sheetPt, parentView);
+        const coord = bs.axis === 'x' ? localPt.x : localPt.y;
+        useToolModeStore.getState().breakPickP1(coord, (coordA, coordB) => {
+          void bus.execute(new AddBreakCommand({
+            drawingId: drawing.id,
+            sheetId: sheet.id,
+            viewId: bs.viewId,
+            axis: bs.axis,
+            coordA,
+            coordB,
+            gapMm: 5,
+          }));
+        });
+        return;
+      }
+
+      return;
+    }
+
     if (toolMode === 'addLinearH' || toolMode === 'addLinearV' || toolMode === 'addAligned') {
       const next = [...clickAccum, clickPt];
       if (next.length >= 2) {
@@ -359,6 +412,7 @@ export function DrawingCanvas() {
   const vbH = sheetH / zoom;
 
   return (
+    <Fragment>
     <svg
       ref={svgRef}
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
@@ -529,6 +583,66 @@ export function DrawingCanvas() {
           createdAt=""
         />
       )}
+
+      {/* Break axis hint badge during pickAxis stage */}
+      {toolMode === 'break' && breakState.stage === 'pickAxis' && cursorMm && (
+        <g data-role="break-axis-guide" key="break-axis-hint">
+          <rect
+            x={cursorMm.x - 10}
+            y={cursorMm.y - 4}
+            width={20}
+            height={8}
+            fill="rgba(0,0,0,0.6)"
+            rx={2}
+          />
+          <text
+            x={cursorMm.x}
+            y={cursorMm.y + 2}
+            textAnchor="middle"
+            fontSize={3}
+            fill="white"
+            fontFamily="sans-serif"
+          >
+            Choose axis in dialog
+          </text>
+        </g>
+      )}
+
+      {/* Break coordA guide line during pickP1 stage */}
+      {toolMode === 'break' && breakState.stage === 'pickP1' && cursorMm && (() => {
+        const bs = breakState;
+        const parentView = sheet.views.find((v) => v.id === bs.viewId);
+        if (!parentView) return null;
+        const s = parentView.scale.numerator / parentView.scale.denominator;
+        const coordASheet = bs.axis === 'x'
+          ? parentView.positionMm.x + bs.coordA * s
+          : parentView.positionMm.y + bs.coordA * s;
+        return (
+          <line
+            key="break-p1-guide"
+            data-role="break-axis-guide"
+            x1={bs.axis === 'x' ? coordASheet : 0}
+            y1={bs.axis === 'x' ? 0 : coordASheet}
+            x2={bs.axis === 'x' ? coordASheet : sheetW}
+            y2={bs.axis === 'x' ? sheetH : coordASheet}
+            stroke="rgba(30,100,255,0.6)"
+            strokeWidth={0.4}
+            strokeDasharray="3 2"
+          />
+        );
+      })()}
     </svg>
+    <AddBreakDialog
+      open={addBreakDialogOpen && toolMode === 'break' && breakState.stage === 'pickAxis'}
+      onConfirm={(axis) => {
+        setAddBreakDialogOpen(false);
+        useToolModeStore.getState().breakSetAxis(axis);
+      }}
+      onCancel={() => {
+        setAddBreakDialogOpen(false);
+        useToolModeStore.getState().breakCancel();
+      }}
+    />
+    </Fragment>
   );
 }
