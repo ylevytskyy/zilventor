@@ -440,7 +440,10 @@ describe('α-conditional invariant — sequence property test', () => {
 
         if (step.op === 'add') {
           const cmd = new AddBreakCommand({ ...addBreakOpts, axis: step.axis ?? 'x', coordA: step.coordA, coordB: step.coordB });
-          try { await cmd.apply(); } catch { /* overlapping or invalid-band from prior steps — skip */ }
+          try { await cmd.apply(); } catch (e) {
+            const msg = (e as Error).message;
+            if (msg !== 'overlapping-break' && msg !== 'invalid-band') throw e;
+          }
         } else if (step.op === 'delete') {
           const doc = useAppStore.getState().activeDocument;
           if (!doc || doc.kind !== 'drawing') continue;
