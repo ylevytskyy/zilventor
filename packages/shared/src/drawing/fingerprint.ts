@@ -3,7 +3,7 @@
 import type { ProjectorInput, EdgeMesh3D } from './projector';
 import type { ViewOrientation } from './viewMatrix';
 import { fingerprintPlane } from './planeFingerprint';
-import type { SectionView } from './types';
+import type { SectionView, BreakRegion } from './types';
 
 export type ViewSpec = {
   readonly orientation: ViewOrientation;
@@ -106,6 +106,20 @@ export function fingerprintDetailView(
     scale.numerator,
     scale.denominator,
   ].join('|');
+  return djb2(payload);
+}
+
+/**
+ * Synchronous djb2 fingerprint contribution for a BreakRegion array.
+ * Encodes axis, coordA, coordB, gapMm, style for each break, sorted by coordA ascending.
+ * Matches fingerprintDetailView's pipe-separated, 1e-3mm convention.
+ * Spec §8.1.
+ */
+export function fingerprintBreaksArray(breaks: readonly BreakRegion[]): string {
+  const sorted = [...breaks].sort((a, b) => a.coordA - b.coordA);
+  const payload = sorted.map(b =>
+    [b.axis, b.coordA.toFixed(3), b.coordB.toFixed(3), b.gapMm.toFixed(3), b.style].join('|')
+  ).join(';');
   return djb2(payload);
 }
 
