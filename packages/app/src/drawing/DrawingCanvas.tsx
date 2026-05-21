@@ -680,36 +680,36 @@ export function DrawingCanvas() {
           />
         );
       })()}
+      {/* Half-section cut-side picker overlay — rendered inside SVG in sheet-space mm */}
+      {toolMode === 'section' && sectionState.stage === 'pickCutSide' && (
+        <HalfSectionSidePreview
+          sectionLine={{ p0: sectionState.p0, p1: sectionState.p1 }}
+          pendingCutSide={sectionState.pendingCutSide}
+          zoom={zoom}
+          dropAt={sectionState.dropAt}
+          onSideHover={(side) => useToolModeStore.getState().sectionPickCutSide(side)}
+          onCommit={(cutSide) => {
+            // Read live state for dispatch — do NOT use closed-over sectionState
+            const live = useToolModeStore.getState().sectionState;
+            if (live.stage !== 'pickCutSide') return;
+            const { parentViewId, p0, p1, arrowDirection, dropAt } = live;
+            useToolModeStore.getState().sectionCommitCutSide((_side, _drop) => {
+              void bus.execute(new AddSectionViewCommand({
+                drawingId,
+                sheetId,
+                parentViewId,
+                p0,
+                p1,
+                arrowDirection,
+                dropAt,
+                mode: 'half',
+                cutSide,
+              }));
+            });
+          }}
+        />
+      )}
     </svg>
-
-    {/* Half-section cut-side picker overlay */}
-    {toolMode === 'section' && sectionState.stage === 'pickCutSide' && (
-      <HalfSectionSidePreview
-        sectionLine={{ p0: sectionState.p0, p1: sectionState.p1 }}
-        pendingCutSide={sectionState.pendingCutSide}
-        zoom={zoom}
-        onSideHover={(side) => useToolModeStore.getState().sectionPickCutSide(side)}
-        onCommit={(cutSide) => {
-          // Read live state for dispatch — do NOT use closed-over sectionState
-          const live = useToolModeStore.getState().sectionState;
-          if (live.stage !== 'pickCutSide') return;
-          const { parentViewId, p0, p1, arrowDirection, dropAt } = live;
-          useToolModeStore.getState().sectionCommitCutSide((_side, _drop) => {
-            void bus.execute(new AddSectionViewCommand({
-              drawingId,
-              sheetId,
-              parentViewId,
-              p0,
-              p1,
-              arrowDirection,
-              dropAt,
-              mode: 'half',
-              cutSide,
-            }));
-          });
-        }}
-      />
-    )}
 
     <AddBreakDialog
       open={addBreakDialogOpen && toolMode === 'break' && breakState.stage === 'pickAxis'}
