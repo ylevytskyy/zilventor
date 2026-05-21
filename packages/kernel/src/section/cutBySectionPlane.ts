@@ -175,8 +175,8 @@ export function cutBySectionPlane(
   source: unknown /* TopoDS_Compound */,
   plane: Plane,
   arrowDirection: -1 | 1,
-  splitPlane?: Plane,   // F1.1 half-section: second cutting plane
-  splitSide?: -1 | 1,  // F1.1 half-section: which side of splitPlane to remove
+  splitPlane?: Plane,   // second cutting plane for half-section (omitted → full section)
+  splitSide?: -1 | 1,  // which side of splitPlane to remove (omitted when splitPlane omitted)
 ): Result {
   if (splitPlane !== undefined) {
     // HALF-SECTION PATH: remove only the quadrant at the intersection of both
@@ -353,8 +353,8 @@ export function cutAssemblyBySectionPlane(
   plane: Plane,
   arrowDirection: -1 | 1,
   opts: AssemblyCutOptions,
-  splitPlane?: Plane,   // F1.1 half-section: second cutting plane
-  splitSide?: -1 | 1,  // F1.1 half-section: which side of splitPlane to remove
+  splitPlane?: Plane,   // second cutting plane for half-section (omitted → full section)
+  splitSide?: -1 | 1,  // which side of splitPlane to remove (omitted when splitPlane omitted)
 ): Result {
   const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
 
