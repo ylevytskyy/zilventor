@@ -133,6 +133,19 @@ export function fingerprintSectionView(
   parentSourceFingerprint: string,
 ): string {
   const planeFp = view.plane ? fingerprintPlane(view.plane) : 'no-plane';
+
+  const splitFp = (view.mode === 'half' && view.splitPlane !== undefined && view.cutSide !== undefined)
+    ? [
+        view.splitPlane.origin.x.toFixed(3),
+        view.splitPlane.origin.y.toFixed(3),
+        view.splitPlane.origin.z.toFixed(3),
+        view.splitPlane.normal.x.toFixed(3),
+        view.splitPlane.normal.y.toFixed(3),
+        view.splitPlane.normal.z.toFixed(3),
+        String(view.cutSide),
+      ].join(',')
+    : 'full';
+
   const payload = [
     parentSourceFingerprint,
     planeFp,
@@ -143,6 +156,8 @@ export function fingerprintSectionView(
     view.sectionLine.p0.y.toFixed(3),
     view.sectionLine.p1.x.toFixed(3),
     view.sectionLine.p1.y.toFixed(3),
+    view.mode,   // NEW (F1.1)
+    splitFp,     // NEW (F1.1)
   ].join('|');
   return djb2(payload);
 }
