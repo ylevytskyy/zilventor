@@ -132,6 +132,17 @@ export type SectionView = {
   readonly positionMm: Vec2;
   readonly scale: ViewScale;
   readonly showHidden: false;        // literal — ANSI convention: never show hidden in section
+
+  // --- NEW in F1.1 (Drawing Half-Section) ---
+  readonly mode: 'full' | 'half';   // 'full' is the F1 default; back-filled by v17→v18 migration
+  readonly cutSide?: -1 | 1;        // present iff mode === 'half'
+  readonly splitPlane?: {           // present iff mode === 'half'
+    readonly origin: { readonly x: number; readonly y: number; readonly z: number };
+    readonly normal: { readonly x: number; readonly y: number; readonly z: number };
+  };
+  // α-invariant: mode === 'half' ⟺ cutSide !== undefined && splitPlane !== undefined
+  // Enforced at command time (AddSectionViewCommand.apply) and by property test.
+
   readonly plane?: { readonly origin: { readonly x: number; readonly y: number; readonly z: number }; readonly normal: { readonly x: number; readonly y: number; readonly z: number } };
   readonly hatchSegments: readonly HatchSegment[];
   readonly fingerprint: string;      // SHA-256 of cut-plane + source geometry

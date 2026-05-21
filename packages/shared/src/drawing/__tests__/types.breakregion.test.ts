@@ -178,6 +178,7 @@ describe('SectionView — breaks and rawProjection fields (forward compat, spec 
       positionMm: { x: 200, y: 0 },
       scale: { numerator: 1, denominator: 1 },
       showHidden: false,
+      mode: 'full',
       hatchSegments: [],
       fingerprint: 'abc',
     };
@@ -195,6 +196,7 @@ describe('SectionView — breaks and rawProjection fields (forward compat, spec 
       positionMm: { x: 300, y: 0 },
       scale: { numerator: 1, denominator: 1 },
       showHidden: false,
+      mode: 'full',
       hatchSegments: [],
       fingerprint: 'def',
       breaks: [{ id: 'bsv', axis: 'x', coordA: 10, coordB: 50, gapMm: 5, style: 'zigzag' }],

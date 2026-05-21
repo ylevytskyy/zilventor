@@ -544,6 +544,7 @@ export function DrawingCanvas() {
           positionMm: { x: 0, y: 0 },
           scale: { numerator: 1, denominator: 1 },
           showHidden: false,
+          mode: 'full',
           hatchSegments: [],
           fingerprint: '',
           projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },

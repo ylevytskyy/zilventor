@@ -153,6 +153,7 @@ describe('drawing/types — discriminator round-trips', () => {
       positionMm: { x: 10, y: 120 },
       scale: { numerator: 1, denominator: 1 },
       showHidden: false,
+      mode: 'full',
       hatchSegments: [],
       fingerprint: '',
     };
@@ -195,8 +196,107 @@ describe('drawing/types — discriminator round-trips', () => {
       arrowDirection: -1, label: 'B',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 1, denominator: 2 },
-      showHidden: false, hatchSegments: [], fingerprint: '',
+      showHidden: false, mode: 'full', hatchSegments: [], fingerprint: '',
     };
     expect(label(sv)).toBe('section');
+  });
+});
+
+// --- Half-section additions (Drawing F1.1) ---
+
+describe('SectionView — half-section mode fields (F1.1)', () => {
+  it('SectionView with mode: full has no cutSide or splitPlane', () => {
+    const sv: SectionView = {
+      id: 'sv-full',
+      kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 0, y: 50 }, p1: { x: 200, y: 50 } },
+      arrowDirection: 1,
+      label: 'A',
+      positionMm: { x: 10, y: 130 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      mode: 'full',
+      hatchSegments: [],
+      fingerprint: '',
+    };
+    expect(sv.mode).toBe('full');
+    expect(sv.cutSide).toBeUndefined();
+    expect(sv.splitPlane).toBeUndefined();
+  });
+
+  it('SectionView with mode: half carries cutSide and splitPlane', () => {
+    const sv: SectionView = {
+      id: 'sv-half',
+      kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 0, y: 50 }, p1: { x: 200, y: 50 } },
+      arrowDirection: 1,
+      label: 'B',
+      positionMm: { x: 10, y: 200 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      mode: 'half',
+      cutSide: 1,
+      splitPlane: {
+        origin: { x: 100, y: 0, z: 0 },
+        normal: { x: 1, y: 0, z: 0 },
+      },
+      hatchSegments: [],
+      fingerprint: '',
+    };
+    expect(sv.mode).toBe('half');
+    expect(sv.cutSide).toBe(1);
+    expect(sv.splitPlane).toBeDefined();
+    expect(sv.splitPlane!.normal.x).toBe(1);
+  });
+
+  it('SectionView half-section survives JSON round-trip with all new fields intact', () => {
+    const sv: SectionView = {
+      id: 'sv-rt',
+      kind: 'section',
+      parentViewId: 'v2',
+      sectionLine: { p0: { x: 10, y: 40 }, p1: { x: 190, y: 40 } },
+      arrowDirection: -1,
+      label: 'C',
+      positionMm: { x: 10, y: 280 },
+      scale: { numerator: 1, denominator: 2 },
+      showHidden: false,
+      mode: 'half',
+      cutSide: -1,
+      splitPlane: {
+        origin: { x: 50, y: 30, z: 20 },
+        normal: { x: 0, y: 1, z: 0 },
+      },
+      hatchSegments: [],
+      fingerprint: 'abc123',
+    };
+    const parsed = JSON.parse(JSON.stringify(sv)) as SectionView;
+    expect(parsed.mode).toBe('half');
+    expect(parsed.cutSide).toBe(-1);
+    expect(parsed.splitPlane!.origin.y).toBe(30);
+    expect(parsed.splitPlane!.normal.y).toBe(1);
+  });
+
+  it('α-invariant: mode full leaves cutSide and splitPlane undefined after round-trip', () => {
+    const sv: SectionView = {
+      id: 'sv-alpha',
+      kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 0, y: 0 }, p1: { x: 100, y: 0 } },
+      arrowDirection: 1,
+      label: 'D',
+      positionMm: { x: 0, y: 150 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      mode: 'full',
+      hatchSegments: [],
+      fingerprint: '',
+    };
+    const parsed = JSON.parse(JSON.stringify(sv)) as SectionView;
+    // α-invariant: mode === 'full' => cutSide and splitPlane must be absent
+    expect(parsed.mode).toBe('full');
+    expect(parsed.cutSide).toBeUndefined();
+    expect(parsed.splitPlane).toBeUndefined();
   });
 });

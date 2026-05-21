@@ -40,7 +40,7 @@ describe('resolveSectionSource', () => {
       arrowDirection: 1 as const, label: 'A',
       positionMm: { x: 0, y: 150 },
       scale: { numerator: 1, denominator: 1 },
-      showHidden: false as const, hatchSegments: [], fingerprint: '',
+      showHidden: false as const, mode: 'full' as const, hatchSegments: [], fingerprint: '',
     };
     const result = resolveSectionSource(sv, baseDoc);
     expect(result.kind).toBe('part');
@@ -59,7 +59,7 @@ describe('resolveSectionSource', () => {
       arrowDirection: -1 as const, label: 'B',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 1, denominator: 1 },
-      showHidden: false as const, hatchSegments: [], fingerprint: '',
+      showHidden: false as const, mode: 'full' as const, hatchSegments: [], fingerprint: '',
     };
     const result = resolveSectionSource(sv, asmDoc);
     expect(result.kind).toBe('assembly');
@@ -74,7 +74,7 @@ describe('resolveSectionSource', () => {
       arrowDirection: 1 as const, label: 'C',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 1, denominator: 1 },
-      showHidden: false as const, hatchSegments: [], fingerprint: '',
+      showHidden: false as const, mode: 'full' as const, hatchSegments: [], fingerprint: '',
     };
     expect(() => resolveSectionSource(sv, baseDoc)).toThrow('parentViewId');
   });

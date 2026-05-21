@@ -15,6 +15,7 @@ describe('fingerprintSectionView', () => {
     sectionLine: { p0: { x: 0, y: 0 }, p1: { x: 100, y: 0 } },
     arrowDirection: 1,
     parentViewId: 'v1',
+    mode: 'full',
     plane: { origin: { x: 0, y: 0, z: 50 }, normal: { x: 0, y: 0, z: -1 } },
     hatchSegments: [],
     fingerprint: '',

@@ -154,6 +154,7 @@ const SECTION_A: SectionView = {
   positionMm: { x: 250, y: 100 },
   scale: { numerator: 1, denominator: 1 },
   showHidden: false,
+  mode: 'full',
   hatchSegments: [],
   fingerprint: 'fp-sect-a',
 };
@@ -337,6 +338,7 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
       positionMm: { x: 400, y: 100 },
       scale: { numerator: 1, denominator: 1 },
       showHidden: false as const,
+      mode: 'full' as const,
       hatchSegments: [],
       fingerprint: 'fp-sect-c',
       projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
@@ -392,6 +394,7 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
       positionMm: { x: 400, y: 100 },
       scale: { numerator: 1, denominator: 1 },
       showHidden: false as const,
+      mode: 'full' as const,
       hatchSegments: [],
       fingerprint: 'fp-sect-c',
       projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },

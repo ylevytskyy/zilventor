@@ -23,6 +23,7 @@ const SECTION_VIEW: SectionView = {
   positionMm: { x: 200, y: 100 },
   scale: { numerator: 1, denominator: 1 },
   showHidden: false,
+  mode: 'full',
   hatchSegments: [],
   fingerprint: 'fp-a',
   projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 50, maxY: 50 } },

@@ -99,6 +99,7 @@ const SECTION_VIEW_WITH_HATCH: SectionView = {
   positionMm: { x: 100, y: 50 },
   scale: { numerator: 1, denominator: 1 },
   showHidden: false,
+  mode: 'full',
   hatchSegments: [
     { p0: { x: 10, y: 5 }, p1: { x: 40, y: 5 }, materialId: 'mat-pine' },
     { p0: { x: 10, y: 8 }, p1: { x: 40, y: 8 }, materialId: 'mat-pine' },
