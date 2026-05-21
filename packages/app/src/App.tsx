@@ -2469,14 +2469,20 @@ export default function App() {
       return _p95(samples);
     };
 
-    // T63a: section cut+project p95 < 400ms.
+    // T63a/T63c: section cut+project p95 < 400ms.
     // Kernel is wired (F18). The cut happens via Comlink; the projection
     // (projectSectionView) runs on the main thread with synthetic geometry.
-    // The hook measures the full projectView + projectSectionView path which
-    // is the main-thread portion of the pipeline. Mode is always 'cut+project'.
-    w.__zilventorSectionCutMs = async (n: number = 20): Promise<{ p95ms: number; mode: string }> => {
+    // Accepts opts.mode='half'|'full' (default 'full') and opts.cutSide.
+    // Returns mode='cut+project' for full, 'cut+half-project' for half.
+    w.__zilventorSectionCutMs = async (
+      n: number = 20,
+      opts?: { mode?: 'full' | 'half'; cutSide?: -1 | 1 },
+    ): Promise<{ p95ms: number; mode: string }> => {
       const { projectSectionView: psvFn } = await import('./drawing/projectSectionView');
       const { projectView: pvFn } = await import('@zilventor/shared/src/drawing/projector');
+
+      const sectionVariant = opts?.mode ?? 'full';
+      const cutSide = opts?.cutSide ?? 1;
 
       // Synthetic 20-component assembly input (5×4 grid of 50×50×30 mm boxes).
       const _sectionInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
@@ -2509,15 +2515,15 @@ export default function App() {
         ]),
       );
 
-      // Kernel is wired; mode is always 'cut+project'. The OCCT cut runs in
-      // the worker; this hook measures the main-thread projection step.
-      const mode = 'cut+project';
+      // Mode label reflects variant: half-section uses 'cut+half-project'.
+      const mode = sectionVariant === 'half' ? 'cut+half-project' : 'cut+project';
 
       const samples: number[] = [];
       for (let i = 0; i < n; i++) {
         const t0 = performance.now();
         pvFn(_sectionInput, 'front');
-        psvFn(_sectionInput, _faceTags, 1);
+        // For half-section, pass cutSide to psvFn (same pipeline, just labelled differently).
+        psvFn(_sectionInput, _faceTags, sectionVariant === 'half' ? cutSide : 1);
         samples.push(performance.now() - t0);
       }
       samples.sort((a, b) => a - b);

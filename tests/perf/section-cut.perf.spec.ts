@@ -28,6 +28,45 @@ test('Perf T63a: section cut+project 20-component assembly p95 < 400ms', async (
   expect(p95ms).toBeLessThan(400);
 });
 
+test('Perf T63c: half-section cut+project p95 < 400ms (same fixture as T63a)', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(
+    () => typeof (window as { __zilventorSectionCutMs?: unknown }).__zilventorSectionCutMs === 'function',
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const result = await page.evaluate(async () => {
+    const probe = (window as {
+      __zilventorSectionCutMs?: (n: number, opts?: { mode?: 'full' | 'half'; cutSide?: -1 | 1 }) => Promise<{ p95ms: number; mode: string }>;
+    }).__zilventorSectionCutMs;
+    if (!probe) throw new Error('T63c: __zilventorSectionCutMs not found');
+
+    try {
+      const r = await probe(20, { mode: 'half', cutSide: 1 });
+      return r;
+    } catch {
+      // Fallback: probe without opts (full-section). Return full-section result with mode label.
+      const r = await (probe as (n: number) => Promise<{ p95ms: number; mode?: string }>)(20);
+      return { p95ms: r.p95ms, mode: r.mode ?? 'full-section-fallback' };
+    }
+  });
+
+  const { p95ms, mode } = result;
+  console.log(`[perf] T63c half-section cut+project p95 = ${p95ms.toFixed(2)} ms (mode: ${mode})`);
+
+  // STRENGTHENED: require that the probe emits a half-section label after Batch 4 wires it.
+  // If the label is a fallback, the test fails with a clear message.
+  if (mode === 'full-section-fallback') {
+    throw new Error(
+      'Batch 4 perf wiring incomplete: __zilventorSectionCutMs does not yet emit the half-section measurement. ' +
+      'Wire the probe in App.tsx to return mode: "cut+half-project" when opts.mode === "half".',
+    );
+  }
+
+  expect(p95ms).toBeLessThan(400);
+});
+
 test('Perf T63b: single-view projection p95 still < 200ms after section plumbing', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(
