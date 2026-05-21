@@ -23,8 +23,8 @@ import { generateHatchSegments } from './hatchGenerator';
 // ---------------------------------------------------------------------------
 
 export type FaceTag =
-  | { tag: 'cut-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[] }
-  | { tag: 'original-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[] };
+  | { tag: 'cut-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[]; planeSource?: 'section' | 'split' }
+  | { tag: 'original-face'; partId: string; materialId: string; polygon?: Vec2[]; polygon3D?: Vec3[]; planeSource?: 'section' | 'split' };
 
 export type FaceTagMap = Map<string, FaceTag>;
 

@@ -18,15 +18,18 @@ export type CutResult =
  * The kernel worker runs the OCCT cut and tessellation in-process, returning
  * a serializable ProjectorInput. The caller passes this directly to
  * projectSectionView.
+ * Pass `splitPlane`/`splitSide` to produce a half-section view (F1.1).
  */
 export async function cutBySectionPlane(
   partId: string,
   plane: Plane,
   arrowDirection: -1 | 1 = 1,
+  splitPlane?: Plane,
+  splitSide?: -1 | 1,
 ): Promise<CutResult> {
   const kernel = useAppStore.getState().kernel;
   if (!kernel) throw new Error('cutBySectionPlane: kernel not ready');
-  const r = await kernel.cutBySectionPlane(partId, plane, arrowDirection);
+  const r = await kernel.cutBySectionPlane(partId, plane, arrowDirection, splitPlane, splitSide);
   if (!r.ok) return r;
   const faceTags: FaceTagMap = new Map(r.faceTags);
   return { ok: true, compound: r.projectorInput, faceTags };

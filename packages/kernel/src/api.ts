@@ -92,7 +92,7 @@ export type KernelApi = {
    * and return a serializable ProjectorInput + face tags.
    * Returns { ok: false, reason } if the plane is tangent or misses the geometry.
    */
-  cutBySectionPlane(partId: string, plane: Plane, arrowDirection: -1 | 1): Promise<CutSectionResult>;
+  cutBySectionPlane(partId: string, plane: Plane, arrowDirection: -1 | 1, splitPlane?: Plane, splitSide?: -1 | 1): Promise<CutSectionResult>;
 
   /**
    * Cut every part in a loaded assembly by the given plane, tessellate, and merge.
@@ -391,7 +391,7 @@ export function createKernelApi(): KernelApi {
       return getProjectorInputFn(occt, args, lookup);
     },
 
-    async cutBySectionPlane(partId, plane, arrowDirection) {
+    async cutBySectionPlane(partId, plane, arrowDirection, splitPlane, splitSide) {
       if (!occt) throw new Error('kernel not initialized');
       const ns = namedShapeCache.get(partId);
       if (!ns) return { ok: false, reason: 'empty' as const };
@@ -402,7 +402,7 @@ export function createKernelApi(): KernelApi {
       srcBuilder.Add(srcComp, ns.shape.handle as never);
       srcBuilder.delete();
 
-      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection);
+      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection, splitPlane, splitSide);
       srcComp.delete();
 
       if (!r.ok) return r;
@@ -480,7 +480,8 @@ function buildTriangles(mesh: Mesh): Array<[[number,number,number],[number,numbe
   return triangles;
 }
 
-function serializeFaceTags(kernelTags: KernelFaceTagMap): SerializedFaceTagEntry[] {
+/** @internal — exported for unit-testing only. */
+export function serializeFaceTags(kernelTags: KernelFaceTagMap): SerializedFaceTagEntry[] {
   const out: SerializedFaceTagEntry[] = [];
   for (const [key, val] of kernelTags) {
     out.push([key, {
@@ -488,6 +489,7 @@ function serializeFaceTags(kernelTags: KernelFaceTagMap): SerializedFaceTagEntry
       partId: val.partId,
       materialId: val.materialId,
       ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+      ...(val.planeSource ? { planeSource: val.planeSource } : {}),
     }]);
   }
   return out;
