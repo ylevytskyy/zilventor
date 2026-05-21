@@ -64,7 +64,7 @@ function invertMat4RowMajor(m: number[]): number[] {
 
   const det = m[0]! * inv[0]! + m[1]! * inv[4]! + m[2]! * inv[8]! + m[3]! * inv[12]!;
   /* eslint-enable @typescript-eslint/no-non-null-assertion */
-  if (Math.abs(det) < 1e-12) throw new Error('deriveSectionPlane: singular view matrix');
+  if (Math.abs(det) < 1e-12) throw new Error('singular view matrix');
   const d = 1 / det;
   return inv.map(v => v * d);
 }
@@ -196,7 +196,12 @@ export function deriveSplitPlane(
   const dy = sectionLine.p1.y - sectionLine.p0.y;
   const lineLen = Math.sqrt(dx * dx + dy * dy);
   if (lineLen < 1e-12) {
-    return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+    const midView: Vec3 = {
+      x: (sectionLine.p0.x + sectionLine.p1.x) / 2,
+      y: (sectionLine.p0.y + sectionLine.p1.y) / 2,
+      z: 0,
+    };
+    return { origin: applyRowMajor(invM, midView), normal: { x: 1, y: 0, z: 0 } };
   }
   const lineDirX = dx / lineLen;
   const lineDirY = dy / lineLen;

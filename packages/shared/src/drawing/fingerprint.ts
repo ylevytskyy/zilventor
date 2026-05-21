@@ -156,8 +156,8 @@ export function fingerprintSectionView(
     view.sectionLine.p0.y.toFixed(3),
     view.sectionLine.p1.x.toFixed(3),
     view.sectionLine.p1.y.toFixed(3),
-    view.mode,   // NEW (F1.1)
-    splitFp,     // NEW (F1.1)
+    view.mode,
+    splitFp,
   ].join('|');
   return djb2(payload);
 }

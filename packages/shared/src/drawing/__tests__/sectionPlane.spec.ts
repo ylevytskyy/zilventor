@@ -80,11 +80,9 @@ describe('deriveSplitPlane (HS-SP-1..HS-SP-4)', () => {
     // Structural check: for vertical line in top view, cutSide=+1 means right of p0→p1 direction in view.
     // lineDir=(0,1) in view; splitNormal2D = (-1, 0) in view; view-X = world-X → normal.x < 0.
     // Sign robustness: we verify the cross-product sign rather than hardcoding the value.
-    const lineDirInWorld = { x: 0, y: 0, z: 0 }; // vertical in top view: view-Y → world-Z direction
     // For top view: applyRowMajorDir on (0,1,0): x=0*0+0*1+0*0=0; y=0*0+0*1+(-1)*0=0; z=0*0+1*1+0*0=1
     // So lineDir in world = (0,0,1). Cross(lineDir, normal) should have cutSide sign.
     // The main verification: normal.x should be negative (left side of world X axis)
-    void lineDirInWorld; // suppress unused variable
     expect(result.normal.x).toBeLessThan(-0.5);
   });
 
@@ -103,6 +101,27 @@ describe('deriveSplitPlane (HS-SP-1..HS-SP-4)', () => {
     expect(result.normal.x).toBeLessThan(-0.5);
     expect(result.normal.y).toBeGreaterThan(0.5);
     expect(approx(result.normal.z, 0, 1e-4)).toBe(true);
+  });
+});
+
+describe('deriveSplitPlane degenerate (HS-SP-6)', () => {
+  // HS-SP-6: degenerate zero-length section line returns plane at world midpoint of p0/p1
+  // p0 = p1 = (10, 5) → midView = (10, 5, 0)
+  // FRONT_VIEW_MATRIX inverse: identity in XY, z_world = 1000 - z_view = 1000
+  // applyRowMajor(invFront, {x:10,y:5,z:0}) = {x:10, y:5, z:1000}
+  it('HS-SP-6: degenerate zero-length section line returns plane at world midpoint of p0/p1', () => {
+    const result: Plane = deriveSplitPlane(
+      { p0: { x: 10, y: 5 }, p1: { x: 10, y: 5 } },
+      FRONT_VIEW_MATRIX, 1,
+    );
+    // Origin should be world-space transform of (10, 5, 0) via invFront
+    // invFront of FRONT_VIEW_MATRIX: since it's an orthographic matrix,
+    // applyRowMajor(invM, {x:10,y:5,z:0}) = {x:10, y:5, z:1000}
+    expect(approx(result.origin.x, 10, 1e-3)).toBe(true);
+    expect(approx(result.origin.y, 5, 1e-3)).toBe(true);
+    expect(approx(result.origin.z, 1000, 1e-3)).toBe(true);
+    // Normal must be a unit vector (any direction is acceptable in the degenerate case)
+    expect(approx(normLen(result.normal), 1.0)).toBe(true);
   });
 });
 
