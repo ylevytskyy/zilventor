@@ -318,6 +318,98 @@ describe('break tool — breakCancel + ESC back-tracking', () => {
 const _typeCheck: BreakToolState = { stage: 'idle' };
 void _typeCheck;
 
+describe('sectionMode field (HS-TM-1)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('default sectionMode is "full"', () => {
+    expect(useToolModeStore.getState().sectionMode).toBe('full');
+  });
+  it('setSectionMode("half") → sectionMode === "half"', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    expect(useToolModeStore.getState().sectionMode).toBe('half');
+  });
+  it('setSectionMode("full") → sectionMode === "full"', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    useToolModeStore.getState().setSectionMode('full');
+    expect(useToolModeStore.getState().sectionMode).toBe('full');
+  });
+  it('reset() clears sectionMode back to "full"', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    useToolModeStore.getState().reset();
+    expect(useToolModeStore.getState().sectionMode).toBe('full');
+  });
+  it('enterSectionMode() does not change sectionMode', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    useToolModeStore.getState().enterSectionMode();
+    expect(useToolModeStore.getState().sectionMode).toBe('half');
+  });
+});
+
+describe('SectionToolState 5th stage — pickCutSide (HS-TM-2..6)', () => {
+  // NOTE: setupToPickDrop does NOT call reset() — beforeEach handles that.
+  // setSectionMode('half') must be called BEFORE setupToPickDrop because
+  // sectionMode is preserved through enterSectionMode / pickP0 / pickP1.
+  function setupToPickDrop() {
+    useToolModeStore.getState().enterSectionMode();
+    useToolModeStore.getState().sectionPickParent('v1');
+    useToolModeStore.getState().sectionPickP0({ x: 10, y: 50 });
+    useToolModeStore.getState().sectionPickP1({ x: 90, y: 50 });
+  }
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('HS-TM-2: full-section sectionPickDrop → calls onDispatch, stage=idle', () => {
+    setupToPickDrop();
+    const cb = vi.fn();
+    useToolModeStore.getState().sectionPickDrop({ x: 200, y: 200 }, cb);
+    expect(cb).toHaveBeenCalledOnce();
+    expect(useToolModeStore.getState().sectionState).toEqual({ stage: 'idle' });
+  });
+
+  it('HS-TM-3: half-section sectionPickDrop → stage=pickCutSide, pendingCutSide=1', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    setupToPickDrop();
+    const cb = vi.fn();
+    useToolModeStore.getState().sectionPickDrop({ x: 200, y: 200 }, cb);
+    expect(cb).not.toHaveBeenCalled();
+    const s = useToolModeStore.getState().sectionState;
+    expect(s.stage).toBe('pickCutSide');
+    if (s.stage === 'pickCutSide') {
+      expect(s.pendingCutSide).toBe(1);
+      expect(s.dropAt).toEqual({ x: 200, y: 200 });
+    }
+  });
+
+  it('HS-TM-4: sectionPickCutSide(-1) → pendingCutSide === -1', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    setupToPickDrop();
+    useToolModeStore.getState().sectionPickDrop({ x: 200, y: 200 }, vi.fn());
+    useToolModeStore.getState().sectionPickCutSide(-1);
+    const s = useToolModeStore.getState().sectionState;
+    expect(s.stage).toBe('pickCutSide');
+    if (s.stage === 'pickCutSide') expect(s.pendingCutSide).toBe(-1);
+  });
+
+  it('HS-TM-5: sectionCommitCutSide → onDispatch(cutSide, dropAt); stage=idle', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    setupToPickDrop();
+    useToolModeStore.getState().sectionPickDrop({ x: 200, y: 200 }, vi.fn());
+    useToolModeStore.getState().sectionPickCutSide(-1);
+    const commit = vi.fn();
+    useToolModeStore.getState().sectionCommitCutSide(commit);
+    expect(commit).toHaveBeenCalledWith(-1, { x: 200, y: 200 });
+    expect(useToolModeStore.getState().sectionState).toEqual({ stage: 'idle' });
+  });
+
+  it('HS-TM-6: sectionCancel() from pickCutSide → stage=idle', () => {
+    useToolModeStore.getState().setSectionMode('half');
+    setupToPickDrop();
+    useToolModeStore.getState().sectionPickDrop({ x: 200, y: 200 }, vi.fn());
+    expect(useToolModeStore.getState().sectionState.stage).toBe('pickCutSide');
+    useToolModeStore.getState().sectionCancel();
+    expect(useToolModeStore.getState().sectionState).toEqual({ stage: 'idle' });
+  });
+});
+
 describe('section tool state machine', () => {
   beforeEach(() => {
     useToolModeStore.getState().reset();

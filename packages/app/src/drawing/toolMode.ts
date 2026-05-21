@@ -73,6 +73,15 @@ export type SectionToolState =
       p0: { x: number; y: number };
       p1: { x: number; y: number };
       arrowDirection: -1 | 1;
+    }
+  | {
+      stage: 'pickCutSide';
+      parentViewId: string;
+      p0: { x: number; y: number };
+      p1: { x: number; y: number };
+      arrowDirection: -1 | 1;
+      dropAt: { x: number; y: number };
+      pendingCutSide: -1 | 1;
     };
 
 interface ToolModeState {
@@ -81,6 +90,7 @@ interface ToolModeState {
   sectionState: SectionToolState;
   detailState: DetailToolState;
   breakState: BreakToolState;
+  sectionMode: 'full' | 'half';
 
   setMode(mode: ToolMode): void;
   setPendingViewParams(p: PendingViewParams | null): void;
@@ -92,7 +102,10 @@ interface ToolModeState {
   sectionPickP0(point: { x: number; y: number }): void;
   sectionPickP1(point: { x: number; y: number }): void;
   sectionPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
+  sectionPickCutSide(side: -1 | 1): void;
+  sectionCommitCutSide(onDispatch: (cutSide: -1 | 1, dropAt: { x: number; y: number }) => void): void;
   sectionCancel(): void;
+  setSectionMode(m: 'full' | 'half'): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -117,6 +130,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   sectionState: { stage: 'idle' },
   detailState: { stage: 'idle' },
   breakState: { stage: 'idle' },
+  sectionMode: 'full',
 
   setMode(mode) {
     set({ mode });
@@ -127,7 +141,11 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   },
 
   reset() {
-    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' } });
+    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' }, sectionMode: 'full' });
+  },
+
+  setSectionMode(m) {
+    set({ sectionMode: m });
   },
 
   enterSectionMode() {
@@ -175,18 +193,50 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     });
   },
 
-  sectionPickDrop(_point, onDispatch) {
-    const { sectionState } = get();
+  sectionPickDrop(point, onDispatch) {
+    const { sectionState, sectionMode } = get();
     if (sectionState.stage !== 'pickDrop') {
       console.warn('sectionPickDrop: expected stage=pickDrop, got', sectionState.stage);
       return;
     }
-    onDispatch();
-    set({ sectionState: { stage: 'idle' } });
+    if (sectionMode === 'half') {
+      set({
+        sectionState: {
+          stage: 'pickCutSide',
+          parentViewId: sectionState.parentViewId,
+          p0: sectionState.p0,
+          p1: sectionState.p1,
+          arrowDirection: sectionState.arrowDirection,
+          dropAt: point,
+          pendingCutSide: 1,
+        },
+      });
+    } else {
+      onDispatch();
+      set({ sectionState: { stage: 'idle' } });
+    }
+  },
+
+  sectionPickCutSide(side) {
+    const { sectionState } = get();
+    if (sectionState.stage !== 'pickCutSide') return;
+    set({ sectionState: { ...sectionState, pendingCutSide: side } });
+  },
+
+  sectionCommitCutSide(onDispatch) {
+    const { sectionState } = get();
+    if (sectionState.stage !== 'pickCutSide') return;
+    const { pendingCutSide, dropAt } = sectionState;
+    set({ mode: 'idle', sectionState: { stage: 'idle' } });
+    onDispatch(pendingCutSide, dropAt);
   },
 
   sectionCancel() {
     const { sectionState, mode } = get();
+    if (sectionState.stage === 'pickCutSide') {
+      set({ sectionState: { stage: 'idle' } });
+      return;
+    }
     if (sectionState.stage === 'idle' && mode === 'section') {
       // Second ESC: exit section mode entirely
       set({ mode: 'idle', sectionState: { stage: 'idle' } });
