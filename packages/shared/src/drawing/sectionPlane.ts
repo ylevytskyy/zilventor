@@ -167,3 +167,56 @@ export function deriveSectionPlane(
 
   return { plane, sectionViewMatrix };
 }
+
+// ---------------------------------------------------------------------------
+// deriveSplitPlane (Drawing F1.1 — Half-section views)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the split plane for a half-section view.
+ *
+ * The split plane is orthogonal to the section plane, contains the section
+ * line, and has its normal pointing in the `cutSide` direction perpendicular
+ * to the section line within the parent view's XY plane.
+ *
+ * @param sectionLine       - p0, p1 in parent view-local mm space (pre-scale)
+ * @param parentViewMatrix  - row-major 4×4 view-to-world matrix of the parent view
+ * @param cutSide           - which side of the split plane to remove (-1 or +1)
+ * @returns A world-space Plane { origin, normal }
+ */
+export function deriveSplitPlane(
+  sectionLine: { p0: Vec2; p1: Vec2 },
+  parentViewMatrix: Mat4,
+  cutSide: -1 | 1,
+): Plane {
+  const m = parentViewMatrix as unknown as number[];
+  const invM = invertMat4RowMajor(m);
+
+  const dx = sectionLine.p1.x - sectionLine.p0.x;
+  const dy = sectionLine.p1.y - sectionLine.p0.y;
+  const lineLen = Math.sqrt(dx * dx + dy * dy);
+  if (lineLen < 1e-12) {
+    return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+  }
+  const lineDirX = dx / lineLen;
+  const lineDirY = dy / lineLen;
+
+  // Perpendicular to line direction in view XY plane, pointing cutSide.
+  // Formula per spec §5.2: splitNormal2D = { x: -lineDir.y * cutSide, y: lineDir.x * cutSide, z: 0 }
+  const splitNormalView: Vec3 = normalize3({
+    x: -lineDirY * cutSide,
+    y:  lineDirX * cutSide,
+    z: 0,
+  });
+
+  const midView: Vec3 = {
+    x: (sectionLine.p0.x + sectionLine.p1.x) / 2,
+    y: (sectionLine.p0.y + sectionLine.p1.y) / 2,
+    z: 0,
+  };
+
+  const origin = applyRowMajor(invM, midView);
+  const normal = normalize3(applyRowMajorDir(invM, splitNormalView));
+
+  return { origin, normal };
+}
