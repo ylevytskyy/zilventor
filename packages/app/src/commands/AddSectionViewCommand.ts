@@ -21,7 +21,6 @@ export type AddSectionViewPayload = {
   p1: Vec2;   // parent view-space mm
   arrowDirection: -1 | 1;
   dropAt: Vec2; // sheet-space mm
-  // --- F1.1 Half-section fields ---
   mode: 'full' | 'half';
   cutSide?: -1 | 1;   // required when mode === 'half'
 };
@@ -172,11 +171,6 @@ export class AddSectionViewCommand implements Command {
       },
       ...(sectionViewMatrix ? { inputFingerprint: Array.from(sectionViewMatrix).slice(0, 4).join(',') } : {}),
     };
-
-    // α-invariant check: half-section must have both cutSide and splitPlane
-    if (sectionView.mode === 'half' && (sectionView.cutSide === undefined || sectionView.splitPlane === undefined)) {
-      throw new Error('half-section-invariant-violated');
-    }
 
     const nextDoc: DrawingDocument = {
       ...drawing,

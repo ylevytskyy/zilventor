@@ -49,7 +49,7 @@ function makeHalfFTM(): FaceTagMap {
   m.set('f-split', {
     tag: 'cut-face', partId: 'p1', materialId: 'mat-1',
     planeSource: 'split' as const,
-    polygon: [{ x: 25, y: 0 }, { x: 25, y: 50 }, { x: 25, y: 30 }],
+    polygon: [{ x: 25, y: 0 }, { x: 26, y: 0 }, { x: 26, y: 30 }, { x: 25, y: 30 }],
   });
   return m;
 }

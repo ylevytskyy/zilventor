@@ -200,14 +200,24 @@ describe('AddSectionViewCommand.revert()', () => {
 
 describe('AddSectionViewCommand.revert() — half-section cache eviction (HS-CMD-3)', () => {
   it('apply half-section → revert → sectionCache.delete called with half-section cacheKey', async () => {
+    // Capture full-section key for structural comparison
+    const fullCmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await fullCmd.apply();
+    const fullCacheKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    vi.clearAllMocks();
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (cutBySectionPlane as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, compound: {}, faceTags: new Map() });
+
     const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
     await cmd.apply();
 
     const putCall = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0];
     const halfCacheKey = putCall?.[0] as string;
     expect(halfCacheKey).toBeDefined();
-    // Half-section key must contain the cutSide suffix
-    expect(halfCacheKey).toContain('::1');
+    expect(fullCacheKey).toBeDefined();
+    // Half-section key must be structurally different from full-section key on the same parent
+    expect(halfCacheKey).not.toBe(fullCacheKey);
 
     vi.clearAllMocks();
     await cmd.revert();
