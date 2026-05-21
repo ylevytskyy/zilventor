@@ -129,6 +129,30 @@ describe('cutBySectionPlane', () => {
 
     disposeOcctShape(oc, result.compound);
   });
+
+  it('HS-K-3: half-section on 50×50×30 box — quarter removed, two cut faces', () => {
+    const box = makeBox(oc, 50, 50, 30);
+    const compound = buildTestCompound(oc, box);
+    const sectionPlane: Plane = { origin: { x: 0, y: 0, z: 15 }, normal: { x: 0, y: 0, z: 1 } };
+    const splitPlane: Plane   = { origin: { x: 25, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+
+    const result = cutBySectionPlane(oc, compound, sectionPlane, 1, splitPlane, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Volume: 50×50×30 = 75000; removed 25×50×15 = 18750; kept ≈ 56250 ± 750
+    const vol = shapeVolumePublic(oc, result.compound);
+    expect(vol).toBeGreaterThan(55500);
+    expect(vol).toBeLessThan(57000);
+
+    const tags = [...result.faceTags.values()];
+    const sectionCutFaces = tags.filter(t => t.tag === 'cut-face' && (t as { planeSource?: string }).planeSource === 'section');
+    const splitCutFaces   = tags.filter(t => t.tag === 'cut-face' && (t as { planeSource?: string }).planeSource === 'split');
+    expect(sectionCutFaces.length).toBeGreaterThanOrEqual(1);
+    expect(splitCutFaces.length).toBeGreaterThanOrEqual(1);
+
+    disposeOcctShape(oc, result.compound);
+  });
 });
 
 describe('cutAssemblyBySectionPlane', () => {
@@ -259,6 +283,17 @@ describe('cutAssemblyBySectionPlane', () => {
     if (result.ok) disposeOcctShape(oc, result.compound);
   });
 });
+
+// Helper for volume computation in tests — mirrors shapeVolume in cutBySectionPlane.ts
+function shapeVolumePublic(oc: OcctInstance, shape: unknown): number {
+  const props = new oc.GProp_GProps_1();
+  try {
+    oc.BRepGProp.VolumeProperties_1(shape as never, props, true as never, false as never, false as never);
+    return props.Mass();
+  } finally {
+    props.delete();
+  }
+}
 
 describe('buildQuarterBox', () => {
   it('HS-K-1: box for +X/+Z quadrant of a 50×50×30 fixture spans correct octant', () => {

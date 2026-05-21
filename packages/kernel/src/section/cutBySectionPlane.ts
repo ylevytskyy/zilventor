@@ -153,6 +153,7 @@ export type FaceTagMap = Map<string, {
   partId: string;
   materialId: string;
   polygon3D?: Vec3[];
+  planeSource?: 'section' | 'split';  // present only on cut-face entries for half-section (F1.1)
 }>;
 
 export type Result =
@@ -178,8 +179,64 @@ export function cutBySectionPlane(
   splitSide?: -1 | 1,  // F1.1 half-section: which side of splitPlane to remove
 ): Result {
   if (splitPlane !== undefined) {
-    // HALF-SECTION PATH — implemented in Task 2.3; stub until then
-    throw new Error('half-section path not yet implemented');
+    // HALF-SECTION PATH: remove only the quadrant at the intersection of both
+    // cutting half-spaces. We use a single BRepAlgoAPI_Cut against the quarter-box
+    // (which is already clipped to the intersection of both planes' "remove" sides).
+    if (splitSide === undefined) return { ok: false, reason: 'empty' };
+
+    const sourceShape: OcctShape = { __brand: 'OcctShape', handle: source };
+    const quarterBox = buildQuarterBox(oc, sourceShape, plane, arrowDirection, splitPlane, splitSide);
+    const ra = new oc.Message_ProgressRange_1();
+    const rb = new oc.Message_ProgressRange_1();
+    let cut: unknown; let cutOk = false;
+    try {
+      const cutter = new oc.BRepAlgoAPI_Cut_3(source as never, quarterBox.handle as never, ra);
+      cutter.Build(rb);
+      if (cutter.IsDone()) { cut = cutter.Shape(); cutOk = true; }
+      cutter.delete();
+    } finally {
+      ra.delete(); rb.delete();
+      (quarterBox.handle as unknown as { delete(): void }).delete();
+    }
+    if (!cutOk) return { ok: false, reason: 'empty' };
+
+    // Empty check
+    const solidExpH = new oc.TopExp_Explorer_2(cut as never, oc.TopAbs_ShapeEnum.TopAbs_SOLID as never, oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never);
+    const hasSolidH = solidExpH.More();
+    solidExpH.delete();
+    if (!hasSolidH) { (cut as unknown as { delete?(): void }).delete?.(); return { ok: false, reason: 'empty' }; }
+
+    // Tangent check: if the quarter-box misses the source, volume is unchanged
+    const volSrcH  = shapeVolume(oc, source);
+    const volCutH  = shapeVolume(oc, cut);
+    if (volSrcH > 0 && Math.abs(volCutH - volSrcH) < Math.max(volSrcH, 1) * 1e-6) {
+      (cut as unknown as { delete?(): void }).delete?.();
+      return { ok: false, reason: 'tangent' };
+    }
+
+    // Classify faces — cut faces from sectionPlane get planeSource='section',
+    // cut faces from splitPlane get planeSource='split', originals get no planeSource.
+    const halfFaceTags: FaceTagMap = new Map();
+    const faceExpH = new oc.TopExp_Explorer_2(cut as never, oc.TopAbs_ShapeEnum.TopAbs_FACE as never, oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never);
+    while (faceExpH.More()) {
+      const face = faceExpH.Current();
+      const key = hashFace(oc, face);
+      if (classifyFace(oc, face, plane) === 'cut-face') {
+        const polygon3D = extractFaceBoundary3D(oc, face);
+        halfFaceTags.set(key, { tag: 'cut-face', partId: '', materialId: '', planeSource: 'section', ...(polygon3D.length ? { polygon3D } : {}) });
+        faceExpH.Next(); continue;
+      }
+      if (classifyFace(oc, face, splitPlane) === 'cut-face') {
+        const polygon3D = extractFaceBoundary3D(oc, face);
+        halfFaceTags.set(key, { tag: 'cut-face', partId: '', materialId: '', planeSource: 'split', ...(polygon3D.length ? { polygon3D } : {}) });
+        faceExpH.Next(); continue;
+      }
+      halfFaceTags.set(key, { tag: 'original-face', partId: '', materialId: '' });
+      faceExpH.Next();
+    }
+    faceExpH.delete();
+
+    return { ok: true, compound: cut, faceTags: halfFaceTags };
   }
 
   const halfSpace = buildHalfSpace(oc, plane, arrowDirection);
