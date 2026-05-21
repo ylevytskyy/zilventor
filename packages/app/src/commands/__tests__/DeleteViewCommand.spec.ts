@@ -532,3 +532,70 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
     expect(sheet.views.map(v => v.id)).toEqual(['base-d1']);
   });
 });
+
+// ── Half-section cascade regression (Drawing F1.1) ───────────────────────
+
+const HALF_SV: SectionView = {
+  id: 'section-half-1', kind: 'section', parentViewId: 'base-1',
+  sectionLine: { p0: { x: 10, y: 50 }, p1: { x: 190, y: 50 } },
+  arrowDirection: 1, label: 'A', positionMm: { x: 10, y: 150 },
+  scale: { numerator: 1, denominator: 1 }, showHidden: false,
+  mode: 'half', cutSide: 1,
+  splitPlane: { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+  hatchSegments: [], fingerprint: 'fp-half',
+};
+
+function makeDrawingWithHalfSection(): DrawingDocument {
+  return {
+    id: 'd-half', name: 'D-Half', units: 'mm',
+    source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [{
+      id: 'sheet-half', name: 'Sheet Half',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [BASE, HALF_SV],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+    }],
+    activeSheetId: 'sheet-half',
+  };
+}
+
+describe('DeleteViewCommand — mode=half cascade (Drawing F1.1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawingWithHalfSection() } });
+  });
+
+  it('deleting base view also removes a mode=half SectionView that references it', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-half', viewId: 'base-1' });
+    await cmd.apply();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(0);
+    expect(sheet.views.find(v => v.id === 'section-half-1')).toBeUndefined();
+    expect(sheet.views.find(v => v.id === 'base-1')).toBeUndefined();
+  });
+
+  it('deleting base view with mode=half child calls sectionCache.delete for fingerprint', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-half', viewId: 'base-1' });
+    await cmd.apply();
+    expect(sectionCache.delete).toHaveBeenCalledWith('fp-half');
+  });
+
+  it('revert after base+mode=half cascade restores both views', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-half', viewId: 'base-1' });
+    await cmd.apply();
+    await cmd.revert();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    expect(sheet.views).toHaveLength(2);
+    expect(sheet.views.find(v => v.id === 'section-half-1')).toBeDefined();
+    expect(sheet.views.find(v => v.id === 'base-1')).toBeDefined();
+  });
+});
