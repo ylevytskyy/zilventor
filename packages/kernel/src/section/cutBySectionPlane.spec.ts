@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
-import { buildHalfSpace, cutBySectionPlane, cutAssemblyBySectionPlane, type Plane } from './cutBySectionPlane';
+import { buildHalfSpace, buildQuarterBox, cutBySectionPlane, cutAssemblyBySectionPlane, type Plane } from './cutBySectionPlane';
 
 let oc: OcctInstance;
 beforeAll(async () => { oc = await loadOcct(); }, 60_000);
@@ -234,6 +234,24 @@ describe('cutAssemblyBySectionPlane', () => {
     // With correct pose composition the panel is at x∈[100,110], plane at x=105 bisects it → ok:true
     expect(result.ok).toBe(true);
     if (result.ok) disposeOcctShape(oc, result.compound);
+  });
+});
+
+describe('buildQuarterBox', () => {
+  it('HS-K-1: box for +X/+Z quadrant of a 50×50×30 fixture spans correct octant', () => {
+    const fixture = makeBox(oc, 50, 50, 30);
+    const sectionPlane: Plane = { origin: { x: 0, y: 0, z: 15 }, normal: { x: 0, y: 0, z: 1 } };
+    const splitPlane: Plane   = { origin: { x: 25, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+
+    const qBox = buildQuarterBox(oc, fixture, sectionPlane, 1, splitPlane, 1);
+    const bb = computeBoundingBox(oc, qBox);
+
+    expect(bb[0]).toBeLessThanOrEqual(25);     // xmin ≤ 25
+    expect(bb[3]).toBeGreaterThanOrEqual(51);  // xmax ≥ 51
+    expect(bb[5]).toBeGreaterThanOrEqual(16);  // zmax ≥ 16
+
+    (qBox.handle as { delete(): void }).delete();
+    (fixture.handle as { delete(): void }).delete();
   });
 });
 

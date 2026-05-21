@@ -3,6 +3,7 @@ import type { OcctInstance } from '../occt/occtLoader';
 import type { OcctShape } from '../occt/SolidOps';
 import type { Vec3 } from '@zilventor/shared';
 import { hashFace, classifyFace, extractFaceBoundary3D } from './faceTag';
+import { computeBoundingBox } from '../occt/SolidOps';
 import { quatMultiply, quatRotateVec } from '../assembly/quat';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
@@ -70,6 +71,77 @@ export function buildHalfSpace(
   (orig as unknown as { delete(): void }).delete();
   (keepDir as unknown as { delete(): void }).delete();
   (centredShape as unknown as { delete?(): void }).delete?.();
+
+  return { __brand: 'OcctShape', handle: result };
+}
+
+// --- quarter-box helper for half-section ---
+
+const QUARTER_BOX_EPS = 1.0; // mm overshoot to ensure full coverage
+
+/**
+ * Build an AABB that covers the quadrant to be subtracted in a half-section cut.
+ * The box spans the portion of `source`'s bounding box that lies:
+ *   - on the arrowDirection side of sectionPlane
+ *   - on the splitSide side of splitPlane
+ *
+ * Axis-aligned section/split planes only. Works correctly for furniture-CAD
+ * where all planes are aligned to a dominant axis.
+ */
+export function buildQuarterBox(
+  oc: OcctInstance,
+  source: OcctShape,
+  sectionPlane: Plane,
+  arrowDirection: -1 | 1,
+  splitPlane: Plane,
+  splitSide: -1 | 1,
+): OcctShape {
+  const [xmin, ymin, zmin, xmax, ymax, zmax] = computeBoundingBox(oc, source);
+  const e = QUARTER_BOX_EPS;
+
+  let lo = { x: xmin - e, y: ymin - e, z: zmin - e };
+  let hi = { x: xmax + e, y: ymax + e, z: zmax + e };
+
+  function clipToPlaneSide(
+    bLo: { x: number; y: number; z: number },
+    bHi: { x: number; y: number; z: number },
+    plane: Plane,
+    keepSign: number,
+  ): { lo: { x: number; y: number; z: number }; hi: { x: number; y: number; z: number } } {
+    const { normal: n, origin: o } = plane;
+    const ax = Math.abs(n.x); const ay = Math.abs(n.y); const az = Math.abs(n.z);
+    const lo2 = { ...bLo }; const hi2 = { ...bHi };
+    if (ax >= ay && ax >= az) {
+      if (keepSign * n.x > 0) { lo2.x = o.x; } else { hi2.x = o.x; }
+    } else if (ay >= ax && ay >= az) {
+      if (keepSign * n.y > 0) { lo2.y = o.y; } else { hi2.y = o.y; }
+    } else {
+      if (keepSign * n.z > 0) { lo2.z = o.z; } else { hi2.z = o.z; }
+    }
+    return { lo: lo2, hi: hi2 };
+  }
+
+  const r1 = clipToPlaneSide(lo, hi, sectionPlane, arrowDirection);
+  const r2 = clipToPlaneSide(r1.lo, r1.hi, splitPlane, splitSide);
+  lo = r2.lo; hi = r2.hi;
+
+  const dx = Math.max(hi.x - lo.x, 0.001);
+  const dy = Math.max(hi.y - lo.y, 0.001);
+  const dz = Math.max(hi.z - lo.z, 0.001);
+
+  const mk = new oc.BRepPrimAPI_MakeBox_2(dx, dy, dz);
+  const rawBox = mk.Shape();
+  mk.delete();
+
+  const tx = new oc.gp_Trsf_1();
+  const tv = new oc.gp_Vec_4(lo.x, lo.y, lo.z);
+  (tx as unknown as { SetTranslation_1(v: unknown): void }).SetTranslation_1(tv as never);
+  const xform = new oc.BRepBuilderAPI_Transform_2(rawBox as never, tx as never, true as never);
+  const result = (xform as unknown as { Shape(): unknown }).Shape();
+  (xform as unknown as { delete(): void }).delete();
+  (tx as unknown as { delete(): void }).delete();
+  (tv as unknown as { delete(): void }).delete();
+  (rawBox as unknown as { delete?(): void }).delete?.();
 
   return { __brand: 'OcctShape', handle: result };
 }
