@@ -198,6 +198,33 @@ describe('AddSectionViewCommand.revert()', () => {
   });
 });
 
+describe('AddSectionViewCommand.revert() — half-section cache eviction (HS-CMD-3)', () => {
+  it('apply half-section → revert → sectionCache.delete called with half-section cacheKey', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
+    await cmd.apply();
+
+    const putCall = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0];
+    const halfCacheKey = putCall?.[0] as string;
+    expect(halfCacheKey).toBeDefined();
+    // Half-section key must contain the cutSide suffix
+    expect(halfCacheKey).toContain('::1');
+
+    vi.clearAllMocks();
+    await cmd.revert();
+
+    expect(sectionCache.delete).toHaveBeenCalledTimes(1);
+    expect(sectionCache.delete).toHaveBeenCalledWith(halfCacheKey);
+  });
+
+  it('apply half-section → revert → store restored to pre-apply state', async () => {
+    const snapshot = JSON.parse(JSON.stringify(useAppStore.getState().activeDocument));
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeDocument).toEqual(snapshot);
+  });
+});
+
 describe('AddSectionViewPayload — type extension (HS-TYPE-1)', () => {
   it('accepts mode=full without cutSide', () => {
     const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' as const });
