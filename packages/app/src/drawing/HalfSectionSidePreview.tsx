@@ -1,7 +1,6 @@
 // packages/app/src/drawing/HalfSectionSidePreview.tsx
 import React, { useEffect } from 'react';
-
-export type Vec2 = { x: number; y: number };
+import type { Vec2 } from '@zilventor/shared';
 
 export interface HalfSectionSidePreviewProps {
   sectionLine: { p0: Vec2; p1: Vec2 };
@@ -71,7 +70,6 @@ export function HalfSectionSidePreview({
         stroke="none"
         pointerEvents="none"
         data-testid="half-fill"
-        style={{ width: `${fillWidth}px` }}
       />
 
       {/* Section line (vertical centre) */}

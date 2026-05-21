@@ -54,11 +54,10 @@ describe('HalfSectionSidePreview (HS-UI-1)', () => {
     expect(onCommit).toHaveBeenCalledWith(-1);
   });
 
-  it('HS-UI-1d: fill element has min width ≥ 4px (zoom-scaled)', () => {
+  it('HS-UI-1d: fill element has min width ≥ 4 (zoom-scaled)', () => {
     const { getByTestId } = renderInSvg({ ...defaultProps, pendingCutSide: 1, zoom: 1 });
     const fillEl = getByTestId('half-fill');
-    const style = fillEl.getAttribute('style') ?? '';
-    const width = parseFloat(style.match(/width:\s*([0-9.]+)px/)?.[1] ?? '0');
+    const width = parseFloat(fillEl.getAttribute('width') ?? '0');
     expect(width).toBeGreaterThanOrEqual(4);
   });
 

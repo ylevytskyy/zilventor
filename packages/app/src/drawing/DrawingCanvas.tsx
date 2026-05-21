@@ -447,7 +447,7 @@ export function DrawingCanvas() {
 
     // Other modes (addRadial, addDiametric, addLeader, addBalloon, placeBase) → wired in Phase 8 batch 2
     setClickAccum([]);
-  }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing]);
+  }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
   const handleRegenerate = useCallback((viewId: string) => {
     setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
