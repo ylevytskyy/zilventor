@@ -110,6 +110,8 @@ export function projectSectionView(
 
   for (const [, faceInfo] of faceTags.entries()) {
     if (faceInfo.tag !== 'cut-face') continue;
+    // Explicit filter per spec §5.4: split-plane faces are edge-on and must not be hatched.
+    if (faceInfo.planeSource === 'split') continue;
 
     // Prefer pre-projected 2D polygon; fall back to projecting polygon3D via sectionViewMatrix.
     let polygon = faceInfo.polygon;
