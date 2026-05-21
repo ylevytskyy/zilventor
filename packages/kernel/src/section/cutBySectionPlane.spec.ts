@@ -295,6 +295,32 @@ function shapeVolumePublic(oc: OcctInstance, shape: unknown): number {
   }
 }
 
+describe('cutBySectionPlane — planeSource field (HS-K-4)', () => {
+  it('HS-K-4: half-section — planeSource populated on all cut faces', () => {
+    const box = makeBox(oc, 50, 50, 30);
+    const compound = buildTestCompound(oc, box);
+    const sectionPlane: Plane = { origin: { x: 0, y: 0, z: 15 }, normal: { x: 0, y: 0, z: 1 } };
+    const splitPlane: Plane   = { origin: { x: 25, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+
+    const result = cutBySectionPlane(oc, compound, sectionPlane, 1, splitPlane, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tags = [...result.faceTags.values()];
+    // Every cut-face must have planeSource
+    const cutWithoutSource = tags.filter(t => t.tag === 'cut-face' && t.planeSource === undefined);
+    expect(cutWithoutSource).toHaveLength(0);
+    // original-face entries must NOT have planeSource
+    const origWithSource = tags.filter(t => t.tag === 'original-face' && t.planeSource !== undefined);
+    expect(origWithSource).toHaveLength(0);
+    // At least one of each source
+    expect(tags.some(t => t.tag === 'cut-face' && t.planeSource === 'section')).toBe(true);
+    expect(tags.some(t => t.tag === 'cut-face' && t.planeSource === 'split')).toBe(true);
+
+    disposeOcctShape(oc, result.compound);
+  });
+});
+
 describe('buildQuarterBox', () => {
   it('HS-K-1: box for +X/+Z quadrant of a 50×50×30 fixture spans correct octant', () => {
     const fixture = makeBox(oc, 50, 50, 30);
