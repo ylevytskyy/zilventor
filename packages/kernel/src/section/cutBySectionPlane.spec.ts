@@ -106,6 +106,29 @@ describe('cutBySectionPlane', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('tangent');
   });
+
+  it('HS-K-2: splitPlane omitted → result identical to F1 full-section (10mm cube at z=5)', () => {
+    // Regression guard: full-section path is unchanged when splitPlane is undefined.
+    const cube = makeBox(oc, 10, 10, 10);
+    const compound = buildTestCompound(oc, cube);
+    const plane: Plane = { origin: { x: 0, y: 0, z: 5 }, normal: { x: 0, y: 0, z: 1 } };
+
+    const result = cutBySectionPlane(oc, compound, plane, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tags = [...result.faceTags.values()];
+    const cutCount = tags.filter(t => t.tag === 'cut-face').length;
+    const origCount = tags.filter(t => t.tag === 'original-face').length;
+    expect(cutCount).toBe(1);
+    expect(origCount).toBe(5);
+
+    // Full-section path does not set planeSource
+    const cutFace = tags.find(t => t.tag === 'cut-face')!;
+    expect((cutFace as { planeSource?: string }).planeSource).toBeUndefined();
+
+    disposeOcctShape(oc, result.compound);
+  });
 });
 
 describe('cutAssemblyBySectionPlane', () => {
