@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 17 as const;
+export const CURRENT_FORMAT_VERSION = 18 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -241,13 +241,32 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 17 };
   },
+
+  // v17 → v18: back-fill mode: 'full' on all SectionViews in drawing documents.
+  // Half-section views (mode: 'half') are only created by F1.1 commands; pre-existing
+  // documents always have full-section views without a mode field.
+  17: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: { sheets?: Array<{ views?: Array<Record<string, unknown>> }> } };
+    if (anyM.kind === 'drawing' && anyM.document?.sheets) {
+      for (const sheet of anyM.document.sheets) {
+        if (!Array.isArray(sheet.views)) continue;
+        for (const view of sheet.views) {
+          if (view['kind'] === 'section' && view['mode'] === undefined) {
+            view['mode'] = 'full';
+          }
+        }
+      }
+    }
+    return { ...m, formatVersion: 18 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
   if (
     (m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 ||
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
-     m.formatVersion === 16 || m.formatVersion === 17) &&
+     m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
