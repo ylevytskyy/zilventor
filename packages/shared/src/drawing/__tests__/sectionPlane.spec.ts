@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveSplitPlane, type Plane } from '../sectionPlane';
+import { deriveSplitPlane, sideOfSectionLine, type Plane } from '../sectionPlane';
 import type { Mat4 } from '../viewMatrix';
 
 // Front-view matrix: camera at (0,0,1000) looking at origin, up = +Y.
@@ -103,5 +103,27 @@ describe('deriveSplitPlane (HS-SP-1..HS-SP-4)', () => {
     expect(result.normal.x).toBeLessThan(-0.5);
     expect(result.normal.y).toBeGreaterThan(0.5);
     expect(approx(result.normal.z, 0, 1e-4)).toBe(true);
+  });
+});
+
+describe('sideOfSectionLine (HS-SP-5)', () => {
+  it('HS-SP-5a: horizontal line — mouse below (y<0) returns +1', () => {
+    expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: -10 })).toBe(1);
+  });
+  it('HS-SP-5b: horizontal line — mouse above (y>0) returns -1', () => {
+    expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 10 })).toBe(-1);
+  });
+  it('HS-SP-5c: vertical line — mouse right (x>50) returns +1', () => {
+    expect(sideOfSectionLine({ x: 50, y: 0 }, { x: 50, y: 100 }, { x: 60, y: 50 })).toBe(1);
+  });
+  it('HS-SP-5d: vertical line — mouse left (x<50) returns -1', () => {
+    expect(sideOfSectionLine({ x: 50, y: 0 }, { x: 50, y: 100 }, { x: 40, y: 50 })).toBe(-1);
+  });
+  it('HS-SP-5e: diagonal line — mouse on each side', () => {
+    expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 80, y: 20 })).toBe(1);
+    expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 20, y: 80 })).toBe(-1);
+  });
+  it('HS-SP-5f: mouse on line → +1 (tie-break, cross === 0)', () => {
+    expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 0 })).toBe(1);
   });
 });

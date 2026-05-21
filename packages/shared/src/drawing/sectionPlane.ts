@@ -220,3 +220,20 @@ export function deriveSplitPlane(
 
   return { origin, normal };
 }
+
+// ---------------------------------------------------------------------------
+// sideOfSectionLine (Drawing F1.1 — Half-section hover-side detection)
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine which side of the directed section line a point lies on.
+ * Uses the 2D cross product (signed area).
+ * Convention: +1 is the "right" side when looking from p0 toward p1.
+ * Tie-break: cross === 0 (mouse on line) returns +1.
+ */
+export function sideOfSectionLine(p0: Vec2, p1: Vec2, mouse: Vec2): -1 | 1 {
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const cross = (mouse.x - p0.x) * dy - (mouse.y - p0.y) * dx;
+  return cross >= 0 ? 1 : -1;
+}
