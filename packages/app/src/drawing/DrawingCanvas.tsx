@@ -14,6 +14,7 @@ import { AddDetailViewCommand } from '../commands/AddDetailViewCommand';
 import { AddBreakCommand } from '../commands/AddBreakCommand';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
+import { HalfSectionSidePreview } from './HalfSectionSidePreview';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
 
@@ -77,6 +78,7 @@ export function DrawingCanvas() {
   const bus = useAppStore((s) => s.bus);
   const toolMode = useToolModeStore((s) => s.mode);
   const sectionState = useToolModeStore((s) => s.sectionState);
+  const sectionMode = useToolModeStore((s) => s.sectionMode);
   const detailState = useToolModeStore((s) => s.detailState);
   const breakState = useToolModeStore((s) => s.breakState);
 
@@ -104,6 +106,9 @@ export function DrawingCanvas() {
   if (!sheet) return null;
 
   const { w: sheetW, h: sheetH } = sheetDims(sheet);
+  // Stable string IDs for use in useEffect dep arrays (avoids TS null-narrowing issues)
+  const drawingId = drawing.id;
+  const sheetId = sheet.id;
 
   // Detect stale views on mount (views with projection but no fingerprint)
   useEffect(() => {
@@ -115,9 +120,46 @@ export function DrawingCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id]);
 
-  // ESC cancels section/detail/break tool in-progress
+  // ESC / Enter / Arrow keys for section/detail/break tool
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // CRITICAL: read live state at event time — closed-over render-scope value is stale
+      const liveState = useToolModeStore.getState().sectionState;
+
+      if (liveState.stage === 'pickCutSide') {
+        if (e.key === 'Escape') {
+          useToolModeStore.getState().sectionCancel();
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          useToolModeStore.getState().sectionPickCutSide(1);
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          useToolModeStore.getState().sectionPickCutSide(-1);
+          return;
+        }
+        if (e.key === 'Enter') {
+          // Capture fields BEFORE committing (commit resets state)
+          const captured = liveState;
+          useToolModeStore.getState().sectionCommitCutSide((cutSide, dropAt) => {
+            void bus.execute(new AddSectionViewCommand({
+              drawingId: drawingId,
+              sheetId: sheetId,
+              parentViewId: captured.parentViewId,
+              p0: captured.p0,
+              p1: captured.p1,
+              arrowDirection: captured.arrowDirection,
+              dropAt,
+              mode: 'half',
+              cutSide,
+            }));
+          });
+          return;
+        }
+      }
+
+      // Existing fallback: Escape cancels section/detail/break at any other stage
       if (e.key === 'Escape') {
         useToolModeStore.getState().sectionCancel();
         useToolModeStore.getState().detailCancel();
@@ -126,7 +168,7 @@ export function DrawingCanvas() {
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [bus, drawingId, sheetId]);
 
   // Pan/zoom handlers
   const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
@@ -225,18 +267,23 @@ export function DrawingCanvas() {
       }
 
       if (toolState.stage === 'pickDrop') {
-        useToolModeStore.getState().sectionPickDrop(sheetPt, () => {
-          void bus.execute(new AddSectionViewCommand({
-            drawingId: drawing.id,
-            sheetId: sheet.id,
-            parentViewId: toolState.parentViewId,
-            p0: toolState.p0,
-            p1: toolState.p1,
-            arrowDirection: toolState.arrowDirection,
-            dropAt: sheetPt,
-            mode: 'full',
-          }));
-        });
+        if (sectionMode === 'half') {
+          // half-section: sectionPickDrop transitions to pickCutSide; onDispatch unused
+          useToolModeStore.getState().sectionPickDrop(sheetPt, () => {});
+        } else {
+          useToolModeStore.getState().sectionPickDrop(sheetPt, () => {
+            void bus.execute(new AddSectionViewCommand({
+              drawingId: drawing.id,
+              sheetId: sheet.id,
+              parentViewId: toolState.parentViewId,
+              p0: toolState.p0,
+              p1: toolState.p1,
+              arrowDirection: toolState.arrowDirection,
+              dropAt: sheetPt,
+              mode: 'full',
+            }));
+          });
+        }
         return;
       }
 
@@ -634,6 +681,36 @@ export function DrawingCanvas() {
         );
       })()}
     </svg>
+
+    {/* Half-section cut-side picker overlay */}
+    {toolMode === 'section' && sectionState.stage === 'pickCutSide' && (
+      <HalfSectionSidePreview
+        sectionLine={{ p0: sectionState.p0, p1: sectionState.p1 }}
+        pendingCutSide={sectionState.pendingCutSide}
+        zoom={zoom}
+        onSideHover={(side) => useToolModeStore.getState().sectionPickCutSide(side)}
+        onCommit={(cutSide) => {
+          // Read live state for dispatch — do NOT use closed-over sectionState
+          const live = useToolModeStore.getState().sectionState;
+          if (live.stage !== 'pickCutSide') return;
+          const { parentViewId, p0, p1, arrowDirection, dropAt } = live;
+          useToolModeStore.getState().sectionCommitCutSide((_side, _drop) => {
+            void bus.execute(new AddSectionViewCommand({
+              drawingId,
+              sheetId,
+              parentViewId,
+              p0,
+              p1,
+              arrowDirection,
+              dropAt,
+              mode: 'half',
+              cutSide,
+            }));
+          });
+        }}
+      />
+    )}
+
     <AddBreakDialog
       open={addBreakDialogOpen && toolMode === 'break' && breakState.stage === 'pickAxis'}
       onConfirm={(axis) => {

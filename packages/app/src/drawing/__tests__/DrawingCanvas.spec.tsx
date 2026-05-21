@@ -685,3 +685,73 @@ describe('DrawingCanvas — stale banner with breaks', () => {
     expect(document.querySelector('[data-stale-marker]')).not.toBeNull();
   });
 });
+
+describe('DrawingCanvas — pickCutSide stage (HS-UI-3)', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.setState({
+      activeDrawing: makeDrawing(),
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+  });
+
+  it('HS-UI-3a: HalfSectionSidePreview rendered when stage=pickCutSide', () => {
+    useToolModeStore.setState({
+      mode: 'section',
+      sectionMode: 'half',
+      sectionState: {
+        stage: 'pickCutSide',
+        parentViewId: 'bv-hs',
+        p0: { x: 10, y: 30 },
+        p1: { x: 90, y: 30 },
+        arrowDirection: 1 as -1 | 1,
+        dropAt: { x: 200, y: 200 },
+        pendingCutSide: 1 as -1 | 1,
+      },
+    } as never);
+    const { container } = render(<DrawingCanvas />);
+    expect(container.querySelector('[data-testid="half-side-1"]')).not.toBeNull();
+  });
+
+  it('HS-UI-3b: Enter key from pickCutSide dispatches AddSectionViewCommand with mode=half', () => {
+    const executeMock = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({ bus: { execute: executeMock } } as never);
+    useToolModeStore.setState({
+      mode: 'section',
+      sectionMode: 'half',
+      sectionState: {
+        stage: 'pickCutSide',
+        parentViewId: 'bv-hs',
+        p0: { x: 10, y: 30 },
+        p1: { x: 90, y: 30 },
+        arrowDirection: 1 as -1 | 1,
+        dropAt: { x: 200, y: 200 },
+        pendingCutSide: 1 as -1 | 1,
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(AddSectionViewCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'half', cutSide: 1 }),
+    );
+  });
+
+  it('HS-UI-3c: Esc key from pickCutSide returns to idle', () => {
+    useToolModeStore.setState({
+      mode: 'section',
+      sectionMode: 'half',
+      sectionState: {
+        stage: 'pickCutSide',
+        parentViewId: 'bv-hs',
+        p0: { x: 10, y: 30 },
+        p1: { x: 90, y: 30 },
+        arrowDirection: 1 as -1 | 1,
+        dropAt: { x: 200, y: 200 },
+        pendingCutSide: 1 as -1 | 1,
+      },
+    } as never);
+    render(<DrawingCanvas />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(useToolModeStore.getState().sectionState).toEqual({ stage: 'idle' });
+  });
+});
