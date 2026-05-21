@@ -21,6 +21,9 @@ export type AddSectionViewPayload = {
   p1: Vec2;   // parent view-space mm
   arrowDirection: -1 | 1;
   dropAt: Vec2; // sheet-space mm
+  // --- F1.1 Half-section fields ---
+  mode: 'full' | 'half';
+  cutSide?: -1 | 1;   // required when mode === 'half'
 };
 
 export class AddSectionViewCommand implements Command {

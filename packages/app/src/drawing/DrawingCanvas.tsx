@@ -234,6 +234,7 @@ export function DrawingCanvas() {
             p1: toolState.p1,
             arrowDirection: toolState.arrowDirection,
             dropAt: sheetPt,
+            mode: 'full',
           }));
         });
         return;

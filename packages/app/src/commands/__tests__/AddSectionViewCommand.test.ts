@@ -82,6 +82,7 @@ const basePayload = {
   p1: { x: 190, y: 50 } as { x: number; y: number },
   arrowDirection: 1 as -1 | 1,
   dropAt: { x: 10, y: 130 } as { x: number; y: number },
+  mode: 'full' as const,
 };
 
 beforeEach(() => {
@@ -190,5 +191,16 @@ describe('AddSectionViewCommand.revert()', () => {
     expect(sv.label).toBe('A');
     // Kernel was called twice (once on first apply, once on re-apply)
     expect(cutBySectionPlane).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('AddSectionViewPayload — type extension (HS-TYPE-1)', () => {
+  it('accepts mode=full without cutSide', () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' as const });
+    expect(cmd).toBeInstanceOf(AddSectionViewCommand);
+  });
+  it('accepts mode=half with cutSide', () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half' as const, cutSide: 1 as const });
+    expect(cmd).toBeInstanceOf(AddSectionViewCommand);
   });
 });
