@@ -28,6 +28,10 @@ vi.mock('@zilventor/shared/src/drawing/sectionPlane', () => ({
     plane: { origin: { x: 0, y: 0, z: 50 }, normal: { x: 0, y: 1, z: 0 } },
     sectionViewMatrix: new Float64Array(16),
   }),
+  deriveSplitPlane: vi.fn().mockReturnValue({
+    origin: { x: 0, y: 0, z: 0 },
+    normal: { x: 1, y: 0, z: 0 },
+  }),
 }));
 vi.mock('@zilventor/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zilventor/shared')>();
@@ -202,5 +206,35 @@ describe('AddSectionViewPayload — type extension (HS-TYPE-1)', () => {
   it('accepts mode=half with cutSide', () => {
     const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half' as const, cutSide: 1 as const });
     expect(cmd).toBeInstanceOf(AddSectionViewCommand);
+  });
+});
+
+describe('AddSectionViewCommand.apply() — half-section mode (HS-CMD-1)', () => {
+  it('mode=half with cutSide=1 stores SectionView with mode=half, cutSide, splitPlane', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
+    await cmd.apply();
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sv = doc.document.sheets.find(s => s.id === 's1')!.views.find(v => v.kind === 'section') as SectionView & { mode?: string; cutSide?: number; splitPlane?: unknown };
+    expect(sv).toBeDefined();
+    expect(sv.mode).toBe('half');
+    expect(sv.cutSide).toBe(1);
+    expect(sv.splitPlane).toBeDefined();
+  });
+
+  it('mode=half with cutSide=undefined throws half-section-invariant-violated', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half' });
+    await expect(cmd.apply()).rejects.toThrow('half-section-invariant-violated');
+  });
+
+  it('mode=full stores SectionView with mode=full, no cutSide, no splitPlane', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await cmd.apply();
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sv = doc.document.sheets.find(s => s.id === 's1')!.views.find(v => v.kind === 'section') as SectionView & { mode?: string; cutSide?: unknown; splitPlane?: unknown };
+    expect(sv.mode).toBe('full');
+    expect(sv.cutSide).toBeUndefined();
+    expect(sv.splitPlane).toBeUndefined();
   });
 });

@@ -3,7 +3,7 @@ import type { Command } from './Command';
 import type { DrawingDocument, SectionView, DetailView } from '@zilventor/shared';
 import { resolveSectionSource, getHatchSpec } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
-import { deriveSectionPlane } from '@zilventor/shared/src/drawing/sectionPlane';
+import { deriveSectionPlane, deriveSplitPlane } from '@zilventor/shared/src/drawing/sectionPlane';
 import { cutBySectionPlane, cutAssemblyBySectionPlane } from '../kernel/cutBySectionPlane';
 import { projectSectionView } from '../drawing/projectSectionView';
 import { sectionCache } from '../drawing/sectionCache';
@@ -70,6 +70,19 @@ export class AddSectionViewCommand implements Command {
       parentView.scale.numerator / parentView.scale.denominator,
       this.payload.arrowDirection,
     );
+
+    // Derive split plane for half-section mode
+    let splitPlane: { origin: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } | undefined;
+    if (this.payload.mode === 'half') {
+      if (this.payload.cutSide === undefined) {
+        throw new Error('half-section-invariant-violated');
+      }
+      splitPlane = deriveSplitPlane(
+        { p0: this.payload.p0, p1: this.payload.p1 },
+        ((parentView as { viewMatrix?: number[] }).viewMatrix ?? (new Array(16).fill(0) as number[])) as import('@zilventor/shared/src/drawing/viewMatrix').Mat4,
+        this.payload.cutSide,
+      );
+    }
 
     // source.id is the file path (unique per project).
     const key = `${source.id}::${fingerprintPlane(plane)}`;
@@ -140,7 +153,9 @@ export class AddSectionViewCommand implements Command {
       positionMm: this.payload.dropAt,
       scale: parentView.scale,
       showHidden: false,
-      mode: 'full',
+      mode: this.payload.mode,
+      ...(this.payload.cutSide !== undefined ? { cutSide: this.payload.cutSide } : {}),
+      ...(splitPlane !== undefined ? { splitPlane } : {}),
       hatchSegments,
       fingerprint,
       plane,
@@ -151,6 +166,11 @@ export class AddSectionViewCommand implements Command {
       },
       ...(sectionViewMatrix ? { inputFingerprint: Array.from(sectionViewMatrix).slice(0, 4).join(',') } : {}),
     };
+
+    // α-invariant check: half-section must have both cutSide and splitPlane
+    if (sectionView.mode === 'half' && (sectionView.cutSide === undefined || sectionView.splitPlane === undefined)) {
+      throw new Error('half-section-invariant-violated');
+    }
 
     const nextDoc: DrawingDocument = {
       ...drawing,
