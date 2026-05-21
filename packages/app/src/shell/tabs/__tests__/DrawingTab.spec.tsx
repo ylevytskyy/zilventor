@@ -212,6 +212,35 @@ describe('DrawingTab ribbon — Section button', () => {
   });
 });
 
+describe('DrawingTab — Half Section ribbon button (HS-UI-2)', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+  });
+
+  it('renders "Half Section" button', () => {
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: 'Half Section' })).toBeInTheDocument();
+  });
+
+  it('clicking "Half Section" sets sectionMode=half and mode=section', () => {
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Half Section' }));
+    const s = useToolModeStore.getState();
+    expect(s.sectionMode).toBe('half');
+    expect(s.mode).toBe('section');
+  });
+
+  it('clicking "Section" sets sectionMode=full and mode=section', () => {
+    render(<DrawingTab />);
+    useToolModeStore.getState().setSectionMode('half');
+    fireEvent.click(screen.getByRole('button', { name: 'Section' }));
+    const s = useToolModeStore.getState();
+    expect(s.sectionMode).toBe('full');
+    expect(s.mode).toBe('section');
+  });
+});
+
 describe('DrawingTab ribbon — Add Break button', () => {
   beforeEach(() => {
     useToolModeStore.getState().reset();

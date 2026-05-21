@@ -91,9 +91,23 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white"
           aria-label="Section"
-          onClick={() => useToolModeStore.getState().enterSectionMode()}
+          onClick={() => {
+            useToolModeStore.getState().setSectionMode('full');
+            useToolModeStore.getState().enterSectionMode();
+          }}
         >
           Section
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Half Section"
+          onClick={() => {
+            useToolModeStore.getState().setSectionMode('half');
+            useToolModeStore.getState().enterSectionMode();
+          }}
+        >
+          Half Section
         </button>
         <button
           type="button"
