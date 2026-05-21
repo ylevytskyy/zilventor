@@ -99,7 +99,7 @@ export type KernelApi = {
    * `asmId` is the partId that contains an AssemblyDocument (loaded via load/loadFromBytes).
    * Returns { ok: false, reason } if no part produces a cut result.
    */
-  cutAssemblyBySectionPlane(asmId: string, plane: Plane, arrowDirection: -1 | 1): Promise<CutSectionResult>;
+  cutAssemblyBySectionPlane(asmId: string, plane: Plane, arrowDirection: -1 | 1, splitPlane?: Plane, splitSide?: -1 | 1): Promise<CutSectionResult>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -421,7 +421,7 @@ export function createKernelApi(): KernelApi {
       return { ok: true, projectorInput, faceTags };
     },
 
-    async cutAssemblyBySectionPlane(asmId, plane, arrowDirection) {
+    async cutAssemblyBySectionPlane(asmId, plane, arrowDirection, splitPlane, splitSide) {
       if (!occt) throw new Error('kernel not initialized');
 
       const builder = new occt.BRep_Builder();
@@ -440,7 +440,7 @@ export function createKernelApi(): KernelApi {
         return { ok: false, reason: 'empty' as const };
       }
 
-      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection);
+      const r = kernelCutBySectionPlane(occt, srcComp, plane, arrowDirection, splitPlane, splitSide);
       srcComp.delete();
 
       if (!r.ok) return r;

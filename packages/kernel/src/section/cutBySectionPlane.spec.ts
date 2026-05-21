@@ -361,3 +361,49 @@ function buildTestCylinder(oc: OcctInstance, r: number, h: number): OcctShape {
 function disposeOcctShape(_oc: OcctInstance, compound: unknown): void {
   (compound as { delete?(): void }).delete?.();
 }
+
+describe('cutAssemblyBySectionPlane — half-section propagation (HS-K-5)', () => {
+  it('HS-K-5: splitPlane/splitSide propagated — assembly cut removes correct quadrant', () => {
+    const asm: AssemblyDocument = {
+      id: 'hs-asm1', name: 'hs-test', units: 'mm', parameters: {},
+      components: [
+        { id: 'hc1', partPath: 'p1.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'hc2', partPath: 'p2.zipt', position: { x: 0, y: 60, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [],
+    };
+    const bodyResolver = (_id: string, pose: { translation: { x: number; y: number; z: number } }) => {
+      const mk = new oc.BRepPrimAPI_MakeBox_2(50, 50, 30);
+      const raw = mk.Shape(); mk.delete();
+      const tx = new oc.gp_Trsf_1();
+      const tv = new oc.gp_Vec_4(pose.translation.x, pose.translation.y, pose.translation.z);
+      (tx as unknown as { SetTranslation_1(v: unknown): void }).SetTranslation_1(tv as never);
+      const xf = new oc.BRepBuilderAPI_Transform_2(raw as never, tx as never, true as never);
+      const shape = (xf as unknown as { Shape(): unknown }).Shape();
+      (xf as unknown as { delete(): void }).delete();
+      (tx as unknown as { delete(): void }).delete();
+      (tv as unknown as { delete(): void }).delete();
+      (raw as unknown as { delete?(): void }).delete?.();
+      return { __brand: 'OcctShape' as const, handle: shape };
+    };
+    const sectionPlane: Plane = { origin: { x: 0, y: 0, z: 15 }, normal: { x: 0, y: 0, z: 1 } };
+    const splitPlane: Plane   = { origin: { x: 25, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+
+    const result = cutAssemblyBySectionPlane(oc, asm, sectionPlane, 1, {
+      lookupSubAsm: () => undefined,
+      partPathToId: new Map([['p1.zipt', 'part-1'], ['p2.zipt', 'part-2']]),
+      bodyResolver,
+      materialResolver: () => 'mat-default',
+    }, splitPlane, 1);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tags = [...result.faceTags.values()];
+    expect(tags.filter(t => t.tag === 'cut-face' && t.planeSource === 'section').length).toBeGreaterThanOrEqual(2);
+    expect(tags.filter(t => t.tag === 'cut-face' && t.planeSource === 'split').length).toBeGreaterThanOrEqual(2);
+
+    disposeOcctShape(oc, result.compound);
+  });
+});

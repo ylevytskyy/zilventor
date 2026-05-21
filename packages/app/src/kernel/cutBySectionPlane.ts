@@ -34,15 +34,18 @@ export async function cutBySectionPlane(
 
 /**
  * Cut every part in an assembly by the given plane and merge results.
+ * Pass `splitPlane`/`splitSide` to produce a half-section view (F1.1).
  */
 export async function cutAssemblyBySectionPlane(
   asmId: string,
   plane: Plane,
   arrowDirection: -1 | 1 = 1,
+  splitPlane?: Plane,
+  splitSide?: -1 | 1,
 ): Promise<CutResult> {
   const kernel = useAppStore.getState().kernel;
   if (!kernel) throw new Error('cutAssemblyBySectionPlane: kernel not ready');
-  const r = await kernel.cutAssemblyBySectionPlane(asmId, plane, arrowDirection);
+  const r = await kernel.cutAssemblyBySectionPlane(asmId, plane, arrowDirection, splitPlane, splitSide);
   if (!r.ok) return r;
   const faceTags: FaceTagMap = new Map(r.faceTags);
   return { ok: true, compound: r.projectorInput, faceTags };

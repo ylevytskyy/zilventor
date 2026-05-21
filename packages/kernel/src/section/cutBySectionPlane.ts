@@ -352,7 +352,9 @@ export function cutAssemblyBySectionPlane(
   asm: AssemblyDocument,
   plane: Plane,
   arrowDirection: -1 | 1,
-  opts: AssemblyCutOptions
+  opts: AssemblyCutOptions,
+  splitPlane?: Plane,   // F1.1 half-section: second cutting plane
+  splitSide?: -1 | 1,  // F1.1 half-section: which side of splitPlane to remove
 ): Result {
   const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
 
@@ -374,7 +376,7 @@ export function cutAssemblyBySectionPlane(
     srcBuilder.Add(srcComp, body.handle as never);
     srcBuilder.delete();
 
-    const r = cutBySectionPlane(oc, srcComp, plane, arrowDirection);
+    const r = cutBySectionPlane(oc, srcComp, plane, arrowDirection, splitPlane, splitSide);
     srcComp.delete();
 
     if (!r.ok) {
@@ -390,7 +392,13 @@ export function cutAssemblyBySectionPlane(
 
     const matId = opts.materialResolver(partId);
     for (const [key, val] of r.faceTags) {
-      mergedTags.set(key, { tag: val.tag, partId, materialId: matId });
+      mergedTags.set(key, {
+        tag: val.tag,
+        partId,
+        materialId: matId,
+        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
+      });
     }
   }
 
