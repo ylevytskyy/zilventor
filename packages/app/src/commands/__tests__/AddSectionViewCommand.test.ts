@@ -209,6 +209,38 @@ describe('AddSectionViewPayload — type extension (HS-TYPE-1)', () => {
   });
 });
 
+describe('AddSectionViewCommand — cache key extension (HS-CMD-2)', () => {
+  it('half-section cache key differs from full-section key on the same parent', async () => {
+    const fullCmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await fullCmd.apply();
+    const fullKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    vi.clearAllMocks();
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (cutBySectionPlane as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, compound: {}, faceTags: new Map() });
+
+    const halfCmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
+    await halfCmd.apply();
+    const halfKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    expect(fullKey).toBeDefined();
+    expect(halfKey).toBeDefined();
+    expect(halfKey).not.toBe(fullKey);
+  });
+
+  it('half-section kernel call passes splitPlane and cutSide', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: -1 });
+    await cmd.apply();
+    expect(cutBySectionPlane).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ origin: expect.any(Object), normal: expect.any(Object) }),
+      expect.any(Number),
+      expect.objectContaining({ origin: expect.any(Object), normal: expect.any(Object) }),
+      -1,
+    );
+  });
+});
+
 describe('AddSectionViewCommand.apply() — half-section mode (HS-CMD-1)', () => {
   it('mode=half with cutSide=1 stores SectionView with mode=half, cutSide, splitPlane', async () => {
     const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });

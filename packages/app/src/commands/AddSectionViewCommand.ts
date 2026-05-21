@@ -84,8 +84,14 @@ export class AddSectionViewCommand implements Command {
       );
     }
 
-    // source.id is the file path (unique per project).
-    const key = `${source.id}::${fingerprintPlane(plane)}`;
+    // Build cache key — half-section includes splitPlane fingerprint + cutSide
+    let key: string;
+    if (this.payload.mode === 'half' && splitPlane !== undefined && this.payload.cutSide !== undefined) {
+      const splitPlaneFp = fingerprintPlane(splitPlane);
+      key = `${source.id}::${fingerprintPlane(plane)}::${splitPlaneFp}::${this.payload.cutSide}`;
+    } else {
+      key = `${source.id}::${fingerprintPlane(plane)}`;
+    }
     this.cacheKey = key;
 
     let compound: unknown;
@@ -101,8 +107,8 @@ export class AddSectionViewCommand implements Command {
         ? (state.activeAssembly?.id ?? source.id)
         : (state.activePart?.id ?? source.id);
       const result = source.kind === 'assembly'
-        ? await cutAssemblyBySectionPlane(kernelId, plane, this.payload.arrowDirection)
-        : await cutBySectionPlane(kernelId, plane, this.payload.arrowDirection);
+        ? await cutAssemblyBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide)
+        : await cutBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide);
 
       if (!result.ok) {
         if (result.reason === 'tangent') {
