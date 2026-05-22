@@ -843,3 +843,75 @@ describe('stepped-section tool — steppedToggleLockedAxis Tab key (SS-TM-8)', (
     if (s.stage === 'placing') expect(s.lockedAxis).toBeUndefined();
   });
 });
+
+describe('stepped-section tool — steppedCommit (SS-TM-5, SS-TM-6)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  function setupWithVerts(verts: { x: number; y: number }[]) {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    for (const v of verts) useToolModeStore.getState().steppedClickVertex(v);
+  }
+
+  it('SS-TM-5: steppedCommit with 1 vertex is a no-op (warn); state preserved', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    setupWithVerts([{ x: 0, y: 30 }]);
+    const dispatch = vi.fn();
+    useToolModeStore.getState().steppedCommit(dispatch);
+    expect(dispatch).not.toHaveBeenCalled();
+    const s = useToolModeStore.getState().steppedSectionState;
+    expect(s.stage).toBe('placing');
+    if (s.stage === 'placing') expect(s.vertices.length).toBe(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('SS-TM-6: steppedCommit with 4 verts builds 3 stepSegments and resets to idle', () => {
+    setupWithVerts([
+      { x: 0,   y: 30 },
+      { x: 60,  y: 99 },   // snaps to (60,30)
+      { x: 99,  y: 60 },   // snaps to (60,60)
+      { x: 120, y: 88 },   // snaps to (120,60)
+    ]);
+    const dispatch = vi.fn();
+    useToolModeStore.getState().steppedCommit(dispatch);
+    expect(dispatch).toHaveBeenCalledOnce();
+    const arg = dispatch.mock.calls[0]![0];
+    expect(arg).toEqual([
+      { startSheet: { x: 0,   y: 30 }, endSheet: { x: 60,  y: 30 } },
+      { startSheet: { x: 60,  y: 30 }, endSheet: { x: 60,  y: 60 } },
+      { startSheet: { x: 60,  y: 60 }, endSheet: { x: 120, y: 60 } },
+    ]);
+    expect(useToolModeStore.getState().mode).toBe('idle');
+    expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
+  });
+});
+
+describe('stepped-section tool — steppedCancel (SS-TM-7)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('SS-TM-7: first Esc with vertices clears vertices; mode stays "pickSteppedSection"', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    useToolModeStore.getState().steppedClickVertex({ x: 0, y: 30 });
+    useToolModeStore.getState().steppedClickVertex({ x: 60, y: 30 });
+    useToolModeStore.getState().steppedCancel();
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('pickSteppedSection');
+    expect(s.steppedSectionState.stage).toBe('placing');
+    if (s.steppedSectionState.stage === 'placing') {
+      expect(s.steppedSectionState.vertices).toEqual([]);
+      expect(s.steppedSectionState.lockedAxis).toBeUndefined();
+    }
+  });
+
+  it('SS-TM-7b: second Esc (vertices already empty) exits to idle', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    // No vertices yet.
+    useToolModeStore.getState().steppedCancel();
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('idle');
+    expect(s.steppedSectionState).toEqual({ stage: 'idle' });
+  });
+});

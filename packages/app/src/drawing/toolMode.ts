@@ -131,6 +131,12 @@ interface ToolModeState {
   steppedPickParent(viewId: string): void;
   steppedClickVertex(point: { x: number; y: number }): void;
   steppedToggleLockedAxis(): void;
+  steppedCommit(
+    onDispatch: (
+      segments: readonly { startSheet: { x: number; y: number }; endSheet: { x: number; y: number } }[],
+    ) => void,
+  ): void;
+  steppedCancel(): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -252,6 +258,40 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
         lockedAxis: flipped,
       },
     });
+  },
+
+  steppedCommit(onDispatch) {
+    const { steppedSectionState } = get();
+    if (steppedSectionState.stage !== 'placing') return;
+    const { vertices } = steppedSectionState;
+    if (vertices.length < 2) {
+      console.warn('steppedCommit: need at least 2 vertices (1 jog); have', vertices.length);
+      return;
+    }
+    const segments = vertices.slice(0, -1).map((v, i) => ({
+      startSheet: { x: v.x, y: v.y },
+      endSheet:   { x: vertices[i + 1]!.x, y: vertices[i + 1]!.y },
+    }));
+    set({ mode: 'idle', steppedSectionState: { stage: 'idle' } });
+    onDispatch(segments);
+  },
+
+  steppedCancel() {
+    const { steppedSectionState } = get();
+    if (steppedSectionState.stage === 'placing' && steppedSectionState.vertices.length > 0) {
+      // First Esc with vertices: clear vertices, stay in placing with same parent.
+      set({
+        steppedSectionState: {
+          stage: 'placing',
+          parentViewId: steppedSectionState.parentViewId,
+          vertices: [],
+          // lockedAxis omitted (exactOptionalPropertyTypes); reset.
+        },
+      });
+      return;
+    }
+    // Vertices empty (or idle/pickParent): exit the tool entirely.
+    set({ mode: 'idle', steppedSectionState: { stage: 'idle' } });
   },
 
   sectionPickParent(viewId) {
