@@ -494,6 +494,159 @@ export default function App() {
         const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      // Drawing F4 — AutoDimCommand perf probe.
+      // Fixture: 20 dim-length constraints × 10 edges each = 200 projected edges.
+      // Budget: p95 < 200 ms. Pure JS path — no kernel call.
+      (w as unknown as { __zilventorAutoDimMs: (n?: number) => Promise<{ p95ms: number }> }).__zilventorAutoDimMs = async (n = 50) => {
+        const { AutoDimCommand } = await import('./commands/AutoDimCommand');
+        type Edge2D = import('@zilventor/shared').Edge2D;
+
+        const CONSTRAINTS = 20;
+        const EDGES_PER_CONSTRAINT = 10;
+
+        // Build synthetic part with 20 sketch primitives + dim-length constraints.
+        const primitives = Array.from({ length: CONSTRAINTS }, (_, i) => ({
+          id: `line-${i}`,
+          kind: 'line' as const,
+          x1: i % 2 === 0 ? 0 : i * 5,
+          y1: i % 2 === 0 ? i * 3 : 0,
+          x2: i % 2 === 0 ? 50 : i * 5,
+          y2: i % 2 === 0 ? i * 3 : 30,
+        }));
+        const constraints = Array.from({ length: CONSTRAINTS }, (_, i) => ({
+          id: `c-${i}`,
+          kind: 'dim-length' as const,
+          line: `line-${i}`,
+          paramName: `param${i}`,
+        }));
+        const parameters = Object.fromEntries(
+          Array.from({ length: CONSTRAINTS }, (_, i) => [
+            `param${i}`,
+            { name: `param${i}`, value: 50 + i, unit: 'mm' },
+          ]),
+        );
+
+        const syntheticPart = {
+          id: 'perf-part-autodim',
+          name: 'PerfPart',
+          units: 'mm',
+          parameters,
+          featureTree: [
+            {
+              id: 'sketch-perf',
+              kind: 'sketch',
+              name: 'Sketch1',
+              primitives,
+              constraints,
+            },
+            {
+              id: 'extrude-perf',
+              kind: 'extrude',
+              name: 'Extrusion1',
+              sketchRef: 'sketch-perf',
+              distanceParam: 'param0',
+              operation: 'new',
+              direction: 'forward',
+            },
+          ],
+        };
+
+        // 200 synthetic edges: 10 per constraint; only the first per group matches exactly.
+        // The bbox for sourceBbox derivation: minX=0, minY=0, maxX=50, maxY=150 (covering all rows).
+        // buildViewMatrix('front', [0,0,0,50,150,50]): cx=25, cy=75, cz=25.
+        // Primitive i (even): x1=0,y1=i*3 → x2=50,y2=i*3; projected: (-25, i*3-75) → (25, i*3-75).
+        // Primitive i (odd):  x1=i*5,y1=0 → x2=i*5,y2=30; projected: (i*5-25, -75) → (i*5-25, -45).
+        // Matching edge for each: first edge in its group uses exact projected coords.
+        const bboxForPerf = { minX: 0, minY: 0, maxX: 50, maxY: 150 };
+        const cx = 25, cy = 75, cz = 25;
+        const syntheticEdges: Edge2D[] = Array.from({ length: CONSTRAINTS * EDGES_PER_CONSTRAINT }, (_, i) => {
+          const cIdx = Math.floor(i / EDGES_PER_CONSTRAINT);
+          const prim = primitives[cIdx]!;
+          const isExact = (i % EDGES_PER_CONSTRAINT === 0);
+          const jitter = isExact ? 0 : 5 + (i % 3) * 0.5;
+          // Exact match uses projected coords; jitter doesn't match (within 1e-3 tol)
+          const px1 = isExact ? prim.x1 - cx : prim.x1 + jitter;
+          const py1 = isExact ? prim.y1 - cy : prim.y1 + jitter;
+          const px2 = isExact ? prim.x2 - cx : prim.x2 + jitter;
+          const py2 = isExact ? prim.y2 - cy : prim.y2 + jitter;
+          return {
+            id: `e${i}`,
+            kind: 'outline' as const,
+            points: [
+              [px1, py1] as readonly [number, number],
+              [px2, py2] as readonly [number, number],
+            ] as ReadonlyArray<readonly [number, number]>,
+          };
+        });
+
+        const syntheticSheet = {
+          id: 'perf-sheet',
+          name: 'Sheet 1',
+          size: { kind: 'iso' as const, size: 'A4' as const },
+          orientation: 'landscape' as const,
+          views: [{
+            id: 'perf-view',
+            kind: 'base' as const,
+            positionMm: { x: 0, y: 0 },
+            scale: { numerator: 1, denominator: 1 },
+            orientation: 'front',
+            showHidden: false,
+            projection: {
+              visibleEdges: syntheticEdges,
+              hiddenEdges: [] as Edge2D[],
+              bbox: bboxForPerf,
+            },
+            inputFingerprint: 'fp-perf',
+          }],
+          dimensions: [],
+          annotations: [],
+          titleBlock: {},
+        };
+
+        const syntheticDrawing = {
+          id: 'perf-drawing',
+          name: 'PerfDrawing',
+          units: 'mm',
+          source: { partPath: 'perf-part-autodim.zipt', sourceKind: 'part' as const },
+          properties: {},
+          sheets: [syntheticSheet],
+          activeSheetId: 'perf-sheet',
+        };
+
+        const { useAppStore } = await import('./store/useAppStore');
+        const prevState = useAppStore.getState();
+        useAppStore.setState({
+          activeDocument: { kind: 'drawing', document: syntheticDrawing as never },
+          activeDrawing: syntheticDrawing as never,
+          activePart: syntheticPart as never,
+        });
+
+        const autoDimSamples: number[] = [];
+        try {
+          for (let iter = 0; iter < n; iter++) {
+            // Reset dims between iterations to avoid accumulation
+            useAppStore.setState({
+              activeDocument: {
+                kind: 'drawing',
+                document: { ...syntheticDrawing, sheets: [{ ...syntheticSheet, dimensions: [] }] } as never,
+              },
+              activeDrawing: { ...syntheticDrawing, sheets: [{ ...syntheticSheet, dimensions: [] }] } as never,
+            });
+            const cmd = new AutoDimCommand({ drawingId: 'perf-drawing', sheetId: 'perf-sheet', viewId: 'perf-view' });
+            const t0 = performance.now();
+            await cmd.apply();
+            autoDimSamples.push(performance.now() - t0);
+          }
+        } finally {
+          // Restore prior store state EVEN IF apply() throws mid-iteration.
+          useAppStore.setState(prevState);
+        }
+
+        autoDimSamples.sort((a, b) => a - b);
+        const p95ms = autoDimSamples[Math.floor(autoDimSamples.length * 0.95)] ?? 0;
+        return { p95ms };
+      };
     }
   }, []);
 
