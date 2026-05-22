@@ -159,7 +159,9 @@ export type BBox2D = { minX: number; minY: number; maxX: number; maxY: number };
  * - linear-v: stack to the right of bbox (X increasing). Same scaling on height dimension.
  * - aligned:  offset from midpoint at 3mm + N*8mm (fixed increment).
  *
- * Deterministic: candidates pre-sorted by (kind, from.edgeId, id) before placement.
+ * Deterministic: candidates pre-sorted by (kind, id) — alphabetical, giving
+ * aligned → linear-h → linear-v within kind groups. (`from.edgeId` plays no role;
+ * radial/diametric lack a `from` field and are silently skipped if passed in.)
  *
  * @param candidates  - Dims with offsetMm === 0 (placeholder).
  * @param viewBboxMm  - View projection bbox.
