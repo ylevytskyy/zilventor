@@ -119,6 +119,17 @@ export type HatchSegment = {
 };
 
 // ---------------------------------------------------------------------------
+// StepSegment — one axis-aligned segment of a stepped section's polyline.
+// Both endpoints are in parent-view-local mm space (pre-scale), matching
+// SectionView.sectionLine.{p0,p1}.
+// ---------------------------------------------------------------------------
+
+export type StepSegment = {
+  readonly startSheet: Vec2;
+  readonly endSheet:   Vec2;
+};
+
+// ---------------------------------------------------------------------------
 // SectionView — ANSI-style cut view derived from a parent BaseView
 // ---------------------------------------------------------------------------
 

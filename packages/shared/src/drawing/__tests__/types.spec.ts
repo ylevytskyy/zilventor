@@ -374,3 +374,18 @@ describe('DrawingDimension — F4 sourceParameterName + textOverride fields', ()
     expect((dim as Record<string, unknown>)['sourceParameterName']).toBeUndefined();
   });
 });
+
+// --- Stepped-section additions (Drawing F1.2) ---
+
+import type { StepSegment } from '../types';
+
+describe('StepSegment type export (F1.2)', () => {
+  it('StepSegment is exported with readonly startSheet and endSheet (Vec2)', () => {
+    const seg: StepSegment = {
+      startSheet: { x: 0, y: 0 },
+      endSheet:   { x: 10, y: 0 },
+    };
+    expect(seg.startSheet).toEqual({ x: 0, y: 0 });
+    expect(seg.endSheet).toEqual({ x: 10, y: 0 });
+  });
+});
