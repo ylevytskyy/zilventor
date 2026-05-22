@@ -317,22 +317,34 @@ function renderDimensionGroup(
       const endAngle   = Math.atan2(pEnd[1]   - cy_arc, pEnd[0]   - cx_arc);
 
       const arcR = r_arc + dim.offsetMm;  // outward from edge
-      const sweepRad = normalizeAngle(endAngle - startAngle);
+      // insideSweepRad is the CCW sweep from startAngle to endAngle
+      const insideSweepRad = normalizeAngle(endAngle - startAngle);
+      // When arcSide=outside, we draw the complementary arc (the long way around)
+      const isOutside = dim.arcSide === 'outside';
+      const sweepRad = isOutside ? 2 * Math.PI - insideSweepRad : insideSweepRad;
 
       const asx = vx + (cx_arc + arcR * Math.cos(startAngle)) * vScale;
       const asy = vy + (cy_arc + arcR * Math.sin(startAngle)) * vScale;
       const aex = vx + (cx_arc + arcR * Math.cos(endAngle)) * vScale;
       const aey = vy + (cy_arc + arcR * Math.sin(endAngle)) * vScale;
+      // largeArc=1 when the rendered sweep exceeds π
       const largeArc = sweepRad > Math.PI ? 1 : 0;
+      // sweepFlag=1 draws CCW in SVG y-down coords (positive angle direction).
+      // inside arc = CCW from start to end → sweepFlag=1.
+      // outside arc = CW from start to end (going the long way backwards) → sweepFlag=0.
+      const sweepFlag = isOutside ? 0 : 1;
       const arcRScaled = arcR * vScale;
 
-      const midAngle = startAngle + sweepRad / 2;
+      // Text position at midpoint of the drawn arc
+      const midAngle = isOutside
+        ? startAngle - (2 * Math.PI - insideSweepRad) / 2  // go CW by half of outside sweep
+        : startAngle + insideSweepRad / 2;
       const textX = vx + (cx_arc + (arcR + 1.5) * Math.cos(midAngle)) * vScale;
       const textY = vy + (cy_arc + (arcR + 1.5) * Math.sin(midAngle)) * vScale;
       const label = formatAngleDeg(sweepRad);
 
       return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="angular" data-arc-side="${dim.arcSide}" stroke="#00c" stroke-width="0.2" fill="none">
-      <path d="M ${asx} ${asy} A ${arcRScaled} ${arcRScaled} 0 ${largeArc} 1 ${aex} ${aey}"/>
+      <path d="M ${asx} ${asy} A ${arcRScaled} ${arcRScaled} 0 ${largeArc} ${sweepFlag} ${aex} ${aey}"/>
       <text x="${textX}" y="${textY}" font-size="3.5" text-anchor="middle" fill="#00c" stroke="none">${label}</text>
     </g>`;
     }
@@ -360,9 +372,14 @@ function renderDimensionGroup(
     </g>`;
     }
 
-    // Direction vectors from apex toward each edge's far endpoint
-    const d1 = unitVec({ x: e1p1.x - apex.x, y: e1p1.y - apex.y });
-    const d2 = unitVec({ x: e2p1.x - apex.x, y: e2p1.y - apex.y });
+    // Direction vectors from apex toward each edge's far endpoint.
+    // We must pick the endpoint that is NOT the apex (or farthest from it),
+    // otherwise a reversed edge would give a zero-length direction vector.
+    // Pick the endpoint of each edge that is farther from the apex.
+    const e1FarPt = distSq(e1p0, apex) >= distSq(e1p1, apex) ? e1p0 : e1p1;
+    const e2FarPt = distSq(e2p0, apex) >= distSq(e2p1, apex) ? e2p0 : e2p1;
+    const d1 = unitVec({ x: e1FarPt.x - apex.x, y: e1FarPt.y - apex.y });
+    const d2 = unitVec({ x: e2FarPt.x - apex.x, y: e2FarPt.y - apex.y });
 
     const { insideRad, outsideRad } = subtendedAngle(d1, d2);
     const sweepRad = dim.arcSide === 'inside' ? insideRad : outsideRad;
@@ -382,9 +399,19 @@ function renderDimensionGroup(
     const aey = apexSvgY + arcRScaled * Math.sin(endAngle);
 
     const largeArc = sweepRad > Math.PI ? 1 : 0;
-    // sweep-flag: 1 = counter-clockwise in SVG coordinates (y-down), matching the
-    // angle from d1 to d2 going counter-clockwise.
-    const sweepFlag = dim.arcSide === 'inside' ? 1 : 0;
+    // Compute the signed cross product of d1 × d2 in screen y-down coordinates.
+    // cross > 0 means d2 is CW from d1 (clockwise rotation in y-down space).
+    // cross < 0 means d2 is CCW from d1.
+    //
+    // SVG sweepFlag=1 draws the arc in the positive-angle (CCW in y-down) direction.
+    // For arcSide='inside':
+    //   cross > 0 → d2 is CW from d1 → the "inside" (smaller) arc from d1→d2 goes CW → sweepFlag=1
+    //   cross < 0 → d2 is CCW from d1 → the "inside" arc goes CCW → sweepFlag=0
+    // arcSide='outside' flips the bit.
+    const cross = d1.x * d2.y - d1.y * d2.x;
+    const sweepFlag = dim.arcSide === 'inside'
+      ? (cross > 0 ? 1 : 0)
+      : (cross > 0 ? 0 : 1);
 
     const midAngle = startAngle + (dim.arcSide === 'inside' ? insideRad : outsideRad) / 2;
     const textR = arcR + 1.5;
@@ -398,6 +425,12 @@ function renderDimensionGroup(
   }
 
   return '';
+}
+
+function distSq(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
 }
 
 function unitVec(v: { x: number; y: number }): { x: number; y: number } {
