@@ -22,6 +22,7 @@ function makeDrawingDoc(dims: DrawingDimension[] = []): DrawingDocument {
         orientation: 'landscape',
         views: [],
         dimensions: dims,
+        dimensionGroups: [],
         annotations: [],
         titleBlock: {},
       },

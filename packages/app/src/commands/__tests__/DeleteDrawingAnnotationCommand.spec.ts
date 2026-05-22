@@ -22,7 +22,7 @@ function makeDrawingDoc(): DrawingDocument {
     sheets: [{
       id: 'sh1', name: 'Sheet 1',
       size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-      views: [], dimensions: [], annotations: [annA, annB], titleBlock: {},
+      views: [], dimensions: [], dimensionGroups: [], annotations: [annA, annB], titleBlock: {},
     }],
   };
 }

@@ -60,6 +60,7 @@ const makeSheet = (): DrawingSheet => ({
   orientation: 'landscape',
   views: [PARENT_VIEW],
   dimensions: [],
+  dimensionGroups: [],
   annotations: [],
   titleBlock: {},
 });

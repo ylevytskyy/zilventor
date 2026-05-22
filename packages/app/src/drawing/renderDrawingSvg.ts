@@ -294,11 +294,12 @@ function renderDimensionGroup(
     const vScale = view.scale.numerator / view.scale.denominator;
     const vx = view.positionMm.x;
     const vy = view.positionMm.y;
+    const ref = dim.ref;
 
-    if (dim.ref.kind === 'arc') {
+    if (ref.kind === 'arc') {
       // Arc edge: sweep angle of the arc itself
-      const arcEdge = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge.edgeId)
-        ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge.edgeId);
+      const arcEdge = view.projection.visibleEdges.find((e) => e.id === ref.edge.edgeId)
+        ?? view.projection.hiddenEdges.find((e) => e.id === ref.edge.edgeId);
       if (!arcEdge || arcEdge.points.length < 3) return '';
 
       // Estimate arc center, radius, start/end angles from first, mid, last polyline points
@@ -337,10 +338,10 @@ function renderDimensionGroup(
     }
 
     // two-edges case
-    const edge1 = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge1.edgeId)
-      ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge1.edgeId);
-    const edge2 = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge2.edgeId)
-      ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge2.edgeId);
+    const edge1 = view.projection.visibleEdges.find((e) => e.id === ref.edge1.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === ref.edge1.edgeId);
+    const edge2 = view.projection.visibleEdges.find((e) => e.id === ref.edge2.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === ref.edge2.edgeId);
     if (!edge1 || !edge2 || edge1.points.length < 2 || edge2.points.length < 2) return '';
 
     const e1p0 = { x: edge1.points[0]![0], y: edge1.points[0]![1] };

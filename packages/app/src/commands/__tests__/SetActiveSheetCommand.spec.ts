@@ -10,9 +10,9 @@ const makeDrawing = (activeSheetId: string): DrawingDocument => ({
   properties: {},
   sheets: [
     { id: 's1', name: 'Sheet 1', size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-      views: [], dimensions: [], annotations: [], titleBlock: {} },
+      views: [], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {} },
     { id: 's2', name: 'Sheet 2', size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-      views: [], dimensions: [], annotations: [], titleBlock: {} },
+      views: [], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {} },
   ],
   activeSheetId,
 });

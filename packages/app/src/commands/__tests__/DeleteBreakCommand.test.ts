@@ -38,7 +38,7 @@ const BASE_VIEW: BaseView = {
 const makeSheet = (): DrawingSheet => ({
   id: 's1', name: 'Sheet 1',
   size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-  views: [BASE_VIEW], dimensions: [], annotations: [], titleBlock: {},
+  views: [BASE_VIEW], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {},
 });
 
 const makeDrawing = (): DrawingDocument => ({

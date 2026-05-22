@@ -64,6 +64,7 @@ const makeSheet = (): DrawingSheet => ({
     },
   ],
   dimensions: [],
+  dimensionGroups: [],
   annotations: [],
   titleBlock: {},
 });

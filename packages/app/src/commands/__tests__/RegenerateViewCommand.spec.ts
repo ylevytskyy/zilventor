@@ -49,7 +49,7 @@ function makeDrawing(): DrawingDocument {
     sheets: [{
       id: 'sheet-1', name: 'Sheet 1',
       size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-      views: [VIEW_WITH_OLD], dimensions: [], annotations: [], titleBlock: {},
+      views: [VIEW_WITH_OLD], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {},
     }],
     activeSheetId: 'sheet-1',
   };
@@ -175,6 +175,7 @@ function makeDrawingWithStaleDetail(): DrawingDocument {
       size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
       views: [DETAIL_VIEW_STALE],
       dimensions: [],
+      dimensionGroups: [],
       annotations: [],
       titleBlock: {},
     }],
@@ -291,7 +292,7 @@ describe('RegenerateViewCommand — breaks-aware extension', () => {
           sheets: [{
             id: 'sheet-b', name: 'SB',
             size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-            views: [viewWithBreak], dimensions: [], annotations: [], titleBlock: {},
+            views: [viewWithBreak], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {},
           }],
           activeSheetId: 'sheet-b',
         },
@@ -357,7 +358,7 @@ describe('RegenerateViewCommand — breaks-aware extension', () => {
           sheets: [{
             id: 'sheet-nb', name: 'SNB',
             size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-            views: [viewNoBreaks], dimensions: [], annotations: [], titleBlock: {},
+            views: [viewNoBreaks], dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {},
           }],
           activeSheetId: 'sheet-nb',
         },

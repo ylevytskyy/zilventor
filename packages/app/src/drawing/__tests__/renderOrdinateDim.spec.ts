@@ -79,7 +79,7 @@ describe('renderOrdinateDim — HS-REND-6: L-leader path has two segments', () =
     // Ordinate L-leader = vertical leg + horizontal leg = 2 <line> elements
     const groupMatch = svg.match(/<g [^>]*data-dim-kind="ordinate"[^>]*>([\s\S]*?)<\/g>/);
     expect(groupMatch).not.toBeNull();
-    const groupContent = groupMatch![1];
+    const groupContent = groupMatch![1]!;
     const lineCount = (groupContent.match(/<line /g) ?? []).length;
     expect(lineCount).toBeGreaterThanOrEqual(2);
   });
