@@ -418,3 +418,72 @@ describe('AddSectionViewCommand.apply() — stepped-section happy path (SS-CMD-1
     expect(validateSteppedInvariant).toHaveBeenCalled();
   });
 });
+
+describe('AddSectionViewCommand.apply() — stepped α-invariant guards (SS-CMD-2 + SS-CMD-3)', () => {
+  it('SS-CMD-2: mode="stepped" with stepSegments=undefined throws stepped-section-invariant-violated', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      // intentionally omit stepSegments
+    });
+    await expect(cmd.apply()).rejects.toThrow(/stepped-section-invariant-violated/);
+    // The guard fires BEFORE kernel dispatch: no cut call should have been issued.
+    expect(cutByStepSegments).not.toHaveBeenCalled();
+    expect(cutBySectionPlane).not.toHaveBeenCalled();
+  });
+
+  it('SS-CMD-2b: mode="stepped" with stepSegments.length === 1 throws (clause 2: length >= 2)', async () => {
+    const oneSeg: readonly StepSegment[] = [
+      { startSheet: { x: 0, y: 0 }, endSheet: { x: 60, y: 0 } },
+    ];
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: oneSeg,
+    });
+    await expect(cmd.apply()).rejects.toThrow(/stepped-section-invariant-violated/);
+    expect(cutByStepSegments).not.toHaveBeenCalled();
+  });
+
+  it('SS-CMD-3: mode="stepped" with cutSide set throws (clause 7: stepped + half rejected)', async () => {
+    const segments: readonly StepSegment[] = [
+      { startSheet: { x: 0,  y: 0 },  endSheet: { x: 60, y: 0 } },
+      { startSheet: { x: 60, y: 0 },  endSheet: { x: 60, y: 30 } },
+    ];
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+      cutSide: 1,
+    });
+    await expect(cmd.apply()).rejects.toThrow(/stepped-section-invariant-violated/);
+    // Crucially, the guard fires BEFORE plane derivation and kernel cut.
+    expect(cutByStepSegments).not.toHaveBeenCalled();
+  });
+
+  it('SS-CMD-3b: when SS-CMD-3 throws, no SectionView is appended to sheet.views', async () => {
+    const before = useAppStore.getState().activeDocument;
+    const sheetBefore = before && before.kind === 'drawing'
+      ? before.document.sheets.find((s) => s.id === 's1')!
+      : null;
+    const initialViewCount = sheetBefore ? sheetBefore.views.length : 0;
+
+    const segments: readonly StepSegment[] = [
+      { startSheet: { x: 0,  y: 0 }, endSheet: { x: 60, y: 0 } },
+      { startSheet: { x: 60, y: 0 }, endSheet: { x: 60, y: 30 } },
+    ];
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+      cutSide: -1,
+    });
+    await expect(cmd.apply()).rejects.toThrow();
+
+    const after = useAppStore.getState().activeDocument;
+    const sheetAfter = after && after.kind === 'drawing'
+      ? after.document.sheets.find((s) => s.id === 's1')!
+      : null;
+    expect(sheetAfter?.views.length).toBe(initialViewCount);
+  });
+});
