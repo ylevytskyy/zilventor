@@ -198,4 +198,28 @@ describe('MoveDrawingDimensionCommand — F5 new kinds', () => {
     const dim = doc2.sheets[0]!.dimensions[0]! as unknown as { offsetMm: number };
     expect(dim.offsetMm).toBe(30);
   });
+
+  it('(f) revert-then-revert leaves baseline group unchanged after first revert', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithBaseline() } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'bm0', offsetMm: 40 });
+    await cmd.apply();
+    await cmd.revert();
+    // Second revert should be a no-op — group should still have the original baseOffsetMm=20
+    await cmd.revert();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { baseOffsetMm: number };
+    expect(group.baseOffsetMm).toBe(20);
+  });
+
+  it('(g) revert-then-revert leaves ordinate group unchanged after first revert', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithOrdinate('x') } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'om0', offsetMm: 55 });
+    await cmd.apply();
+    await cmd.revert();
+    // Second revert should be a no-op — group should still have the original xColumnOffsetMm=30
+    await cmd.revert();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { xColumnOffsetMm: number };
+    expect(group.xColumnOffsetMm).toBe(30);
+  });
 });
