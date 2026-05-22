@@ -66,6 +66,7 @@ Added to the discriminated union in `packages/shared/src/drawing/types.ts`:
     readonly id: string;
     readonly viewId: string;
     readonly groupId: string;        // FK to DimensionGroup of kind 'baseline'
+    readonly slot: number;            // 0-indexed; stack position within group (offset = baseOffsetMm + slot * spacingMm)
     readonly to: PointRef;            // datum point is in the group
     readonly sourceParameterName?: string;
     readonly textOverride?: string;
@@ -138,7 +139,7 @@ export interface DrawingSheet {
 1. Every `baseline` dim's `groupId` resolves to a `DimensionGroup` with `kind: 'baseline'` on the same `viewId`.
 2. Every `ordinate` dim's `groupId` resolves to a `DimensionGroup` with `kind: 'ordinate'` on the same `viewId`.
 3. An `angular` dim with `ref.kind === 'two-edges'` MUST have `edge1.viewId === edge2.viewId === viewId`.
-4. Member dims order WITHIN a group is determined by `id` lexicographic sort (deterministic — same convention as F4 greedy placement).
+4. Baseline member stack position is determined by the `slot` field (0-indexed, monotonically assigned on add — next slot = `max(existing slots) + 1`). Ordinate members have no implicit ordering — each renders at its own `to` coordinate along the column line.
 5. Deleting a `DimensionGroup` cascades — all member dims are removed in the same command.
 6. A `DimensionGroup` may exist with zero members (between creation and first add).
 
@@ -158,12 +159,12 @@ For each `baseline` member dim:
 1. Resolve `groupId` → group with `datum`, `direction`, `baseOffsetMm`, `spacingMm`.
 2. Resolve member `to` PointRef → world point.
 3. Resolve `datum` PointRef → world point.
-4. Compute member index = sorted-position of this dim's id among siblings (group members ordered by id ascending).
-5. Member offset = `baseOffsetMm + index * spacingMm`.
+4. Read member's `slot` field (0-indexed).
+5. Member offset = `baseOffsetMm + slot * spacingMm`.
 6. Render as a `linear-h` (if `direction === 'h'`) or `linear-v` (if `direction === 'v'`) dim from datum→to at the computed offset.
 7. Two extension lines (from datum, from to) drop to the dim line. Dim line spans datum.X..to.X (h) or .Y..Y (v).
 8. Arrowheads at both ends of the dim line. Text at midpoint, 1mm offset from dim line, parallel to line.
-9. `data-dim-id`, `data-dim-kind="baseline"`, `data-group-id="<groupId>"`.
+9. `data-dim-id`, `data-dim-kind="baseline"`, `data-group-id="<groupId>"`, `data-slot="<slot>"`.
 
 ### Ordinate
 
@@ -224,8 +225,9 @@ new AddBaselineMemberCommand(sheetId: string, groupId: string, to: PointRef, opt
 ```
 
 - Validates group exists + is `kind: 'baseline'` + same `viewId`.
-- Appends new `kind: 'baseline'` dim to `dimensions[]` with assigned UUID, `groupId`, `to`, `viewId` from group, optional cascade fields.
-- Revert: removes by dim id.
+- Computes `slot = max(slots of existing members in this group, -1) + 1` (so first member gets slot 0).
+- Appends new `kind: 'baseline'` dim to `dimensions[]` with assigned UUID, `groupId`, computed `slot`, `to`, `viewId` from group, optional cascade fields.
+- Revert: removes by dim id. (Note: holes in slot numbering are OK; next add still gets `max+1`. Slot reuse on revert is intentional — undoing then redoing produces identical state.)
 
 ### `AddOrdinateMemberCommand`
 
@@ -375,7 +377,7 @@ The non-reactive `getState()` snapshot pattern continues. `DrawingCanvas` re-ren
 
 `tests/e2e/drawing/T-6-12-dimension-styles.spec.ts` — 4 assertions:
 
-1. **Baseline group:** Inject part + drawing via store. Dispatch `AddDimensionGroupCommand` (kind baseline) + 3 `AddBaselineMemberCommand`s. Assert SVG contains 3 `data-dim-kind="baseline"` with same `data-group-id`. Assert Y-offsets are `baseOffsetMm`, `baseOffsetMm + spacingMm`, `baseOffsetMm + 2*spacingMm` (stacked).
+1. **Baseline group:** Inject part + drawing via store. Dispatch `AddDimensionGroupCommand` (kind baseline) + 3 `AddBaselineMemberCommand`s. Assert SVG contains 3 `data-dim-kind="baseline"` with same `data-group-id`. Assert `data-slot` values are `0`, `1`, `2` in insertion order, and Y-offsets follow `baseOffsetMm + slot * spacingMm`.
 2. **Ordinate group:** Dispatch ordinate group + 2 X-members + 1 Y-member. Assert L-leader paths present (3 `<path>` elements with `data-dim-kind="ordinate"`, correct `data-axis` values).
 3. **Angular dim:** Dispatch `AddAngularDimCommand` with two-edges ref. Assert SVG contains one `<path>` with `data-dim-kind="angular"`, arc rendered (path `d` contains `A`).
 4. **Cascade:** Edit a parameter referenced by an angular dim's `sourceParameterName`. Assert dim text updates to new value formatted as degrees.
