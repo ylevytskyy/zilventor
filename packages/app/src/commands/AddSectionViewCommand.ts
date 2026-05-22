@@ -3,8 +3,8 @@ import type { Command } from './Command';
 import type { DrawingDocument, SectionView, DetailView } from '@zilventor/shared';
 import { resolveSectionSource, getHatchSpec } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
-import { deriveSectionPlane, deriveSplitPlane } from '@zilventor/shared/src/drawing/sectionPlane';
-import { cutBySectionPlane, cutAssemblyBySectionPlane } from '../kernel/cutBySectionPlane';
+import { deriveSectionPlane, deriveSplitPlane, deriveStepPlanes, validateSteppedInvariant } from '@zilventor/shared/src/drawing/sectionPlane';
+import { cutBySectionPlane, cutAssemblyBySectionPlane, cutByStepSegments, cutAssemblyByStepSegments } from '../kernel/cutBySectionPlane';
 import { projectSectionView } from '../drawing/projectSectionView';
 import { sectionCache } from '../drawing/sectionCache';
 import { fingerprintPlane } from '../drawing/planeFingerprint';
@@ -46,6 +46,13 @@ export class AddSectionViewCommand implements Command {
 
     const parentView = sheet.views.find((v) => v.id === this.payload.parentViewId);
     if (!parentView) throw new Error('parent view not found');
+
+    // ── F1.2: stepped-section branch ──────────────────────────────────────
+    if (this.payload.mode === 'stepped') {
+      await this.applyStepped(state, drawing, sheet, parentView);
+      return;
+    }
+    // ── F1 + F1.1: full / half branch (unchanged below) ───────────────────
 
     // Build a minimal SectionView for resolveSectionSource lookup purposes.
     const source = resolveSectionSource(
@@ -167,6 +174,164 @@ export class AddSectionViewCommand implements Command {
       hatchSegments,
       fingerprint,
       plane,
+      projection: {
+        visibleEdges: edges,
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      },
+      ...(sectionViewMatrix ? { inputFingerprint: Array.from(sectionViewMatrix).slice(0, 4).join(',') } : {}),
+    };
+
+    const nextDoc: DrawingDocument = {
+      ...drawing,
+      sheets: drawing.sheets.map((s) =>
+        s.id === this.payload.sheetId
+          ? { ...s, views: [...s.views, sectionView] }
+          : s,
+      ),
+    };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
+  }
+
+  /**
+   * F1.2 — apply() body for stepped sections. Branches off the main apply()
+   * when this.payload.mode === 'stepped'. The full/half path is unchanged.
+   */
+  private async applyStepped(
+    state: ReturnType<typeof useAppStore.getState>,
+    drawing: DrawingDocument,
+    sheet: NonNullable<ReturnType<DrawingDocument['sheets']['find']>>,
+    parentView: (typeof sheet)['views'][number],
+  ): Promise<void> {
+    const stepSegments = this.payload.stepSegments;
+    if (!stepSegments || stepSegments.length < 2) {
+      throw new Error('stepped-section-invariant-violated: stepSegments must have length >= 2');
+    }
+    // α-invariant clause 7 — stepped + half combo rejected at command boundary.
+    if (this.payload.cutSide !== undefined) {
+      throw new Error('stepped-section-invariant-violated: cutSide must be undefined when mode==="stepped"');
+    }
+
+    // Layer 2 of α-invariant (helper layer = layer 1; projector = layer 3 — Task 3.6).
+    // The validator runs BEFORE any plane derivation so a programmatic misuse is caught early.
+    validateSteppedInvariant({
+      mode: 'stepped',
+      stepSegments,
+      cutSide: undefined,
+      splitPlane: undefined,
+    });
+
+    // Convenience sectionLine: V0 → V_last (per spec §4.4). NOT authoritative geometry —
+    // stepSegments is the source of truth.
+    const p0 = stepSegments[0]!.startSheet;
+    const p1 = stepSegments[stepSegments.length - 1]!.endSheet;
+
+    // resolveSectionSource lookup needs a SectionView shape. Use a placeholder.
+    const source = resolveSectionSource(
+      {
+        id: '__pending__',
+        kind: 'section',
+        parentViewId: this.payload.parentViewId,
+        sectionLine: { p0, p1 },
+        arrowDirection: this.payload.arrowDirection,
+        label: '',
+        positionMm: this.payload.dropAt,
+        scale: parentView.scale,
+        showHidden: false,
+        mode: 'stepped',
+        stepSegments,
+        hatchSegments: [],
+        fingerprint: '',
+      } satisfies SectionView,
+      drawing,
+    );
+
+    const viewMatrix = ((parentView as { viewMatrix?: number[] }).viewMatrix
+      ?? (new Array(16).fill(0) as number[])) as import('@zilventor/shared/src/drawing/viewMatrix').Mat4;
+
+    const planes = deriveStepPlanes(stepSegments, viewMatrix, this.payload.arrowDirection);
+
+    // Cache key per spec §9.2:
+    //   key = `${sourceId}::${planeFp_0}::${planeFp_1}::...::${planeFp_(N-1)}::stepped`
+    const planeFps = planes.map((p) => fingerprintPlane(p)).join('::');
+    const key = `${source.id}::${planeFps}::stepped`;
+    this.cacheKey = key;
+
+    let compound: unknown;
+    let faceTags: FaceTagMap;
+    const cached = await sectionCache.get(key);
+    if (cached) {
+      compound = cached.brep;
+      faceTags = cached.faceTags;
+    } else {
+      const kernelId = source.kind === 'assembly'
+        ? (state.activeAssembly?.id ?? source.id)
+        : (state.activePart?.id ?? source.id);
+      const result = source.kind === 'assembly'
+        ? await cutAssemblyByStepSegments(kernelId, planes, this.payload.arrowDirection)
+        : await cutByStepSegments(kernelId, planes, this.payload.arrowDirection);
+
+      if (!result.ok) {
+        throw new Error('stepped-section-empty-cut');
+      }
+      compound = result.compound;
+      faceTags = result.faceTags;
+      await sectionCache.put(key, compound, faceTags);
+    }
+
+    const materials =
+      state.activePart?.materials ??
+      state.activeAssembly?.materials ??
+      [];
+    const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
+      const mat = materials.find((m) => m.id === materialId);
+      return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
+    };
+
+    // For stepped views the projector still wants ONE sectionViewMatrix. Re-use the FIRST
+    // segment's matrix as the canonical projection frame; the kernel has already merged all
+    // face tags into a single FaceTagMap so projector hatch generation works uniformly.
+    const { sectionViewMatrix } = deriveSectionPlane(
+      { p0, p1 },
+      viewMatrix,
+      parentView.scale.numerator / parentView.scale.denominator,
+      this.payload.arrowDirection,
+    );
+
+    const scale = parentView.scale.numerator / parentView.scale.denominator;
+    const { edges, hatchSegments, fingerprint } = projectSectionView(
+      compound as Parameters<typeof projectSectionView>[0],
+      faceTags,
+      scale,
+      hatchLookup,
+      sectionViewMatrix,
+    );
+
+    const existingLabels = sheet.views
+      .filter((v): v is SectionView | DetailView =>
+        v.kind === 'section' || v.kind === 'detail')
+      .map((v) => v.label);
+    const label = allocateCalloutLabel(existingLabels);
+
+    const newId = crypto.randomUUID();
+    this.newViewId = newId;
+
+    const sectionView: SectionView = {
+      id: newId,
+      kind: 'section',
+      parentViewId: this.payload.parentViewId,
+      sectionLine: { p0, p1 },
+      arrowDirection: this.payload.arrowDirection,
+      label,
+      positionMm: this.payload.dropAt,
+      scale: parentView.scale,
+      showHidden: false,
+      mode: 'stepped',
+      stepSegments,
+      hatchSegments,
+      fingerprint,
+      // NB: NO `plane` — stepped views have N planes; the legacy `plane?` field is omitted.
+      // NB: NO `cutSide` and NO `splitPlane` (α-invariant clause 7).
       projection: {
         visibleEdges: edges,
         hiddenEdges: [],

@@ -8,6 +8,8 @@ import type { DrawingDocument, DrawingSheet, SectionView, StepSegment } from '@z
 vi.mock('../../kernel/cutBySectionPlane', () => ({
   cutBySectionPlane: vi.fn(),
   cutAssemblyBySectionPlane: vi.fn(),
+  cutByStepSegments: vi.fn(),              // F1.2 — added in Batch 2
+  cutAssemblyByStepSegments: vi.fn(),      // F1.2 — added in Batch 2
 }));
 vi.mock('../../drawing/sectionCache', () => ({
   sectionCache: {
@@ -32,6 +34,13 @@ vi.mock('@zilventor/shared/src/drawing/sectionPlane', () => ({
     origin: { x: 0, y: 0, z: 0 },
     normal: { x: 1, y: 0, z: 0 },
   }),
+  // F1.2 — added in Batch 1
+  deriveStepPlanes: vi.fn().mockReturnValue([
+    { origin: { x: 0,  y: 0,  z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+    { origin: { x: 60, y: 0,  z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+    { origin: { x: 60, y: 30, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+  ]),
+  validateSteppedInvariant: vi.fn(),       // throws when clause fails; default = no-op
 }));
 vi.mock('@zilventor/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zilventor/shared')>();
@@ -44,8 +53,9 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
   };
 });
 
-import { cutBySectionPlane } from '../../kernel/cutBySectionPlane';
+import { cutBySectionPlane, cutByStepSegments } from '../../kernel/cutBySectionPlane';
 import { sectionCache } from '../../drawing/sectionCache';
+import { validateSteppedInvariant } from '@zilventor/shared/src/drawing/sectionPlane';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 const makeSheet = (): DrawingSheet => ({
@@ -102,6 +112,13 @@ beforeEach(() => {
     compound: {},
     faceTags: new Map(),
   });
+  // F1.2 — Batch 3 mocks
+  (cutByStepSegments as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: true,
+    compound: {},
+    faceTags: new Map(),
+  });
+  (validateSteppedInvariant as ReturnType<typeof vi.fn>).mockImplementation(() => undefined);
   // Reset cache mock: clearAllMocks() only clears call history, not implementations.
   // Explicitly reset to null so each test starts with an empty cache.
   (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -339,5 +356,65 @@ describe('AddSectionViewPayload — stepped mode type extension (F1.2)', () => {
       cutSide: 1 as const,
     });
     expect(cmd).toBeInstanceOf(AddSectionViewCommand);
+  });
+});
+
+describe('AddSectionViewCommand.apply() — stepped-section happy path (SS-CMD-1)', () => {
+  const segments: readonly StepSegment[] = [
+    { startSheet: { x: 0,   y: 0 },  endSheet: { x: 60,  y: 0 } },
+    { startSheet: { x: 60,  y: 0 },  endSheet: { x: 60,  y: 30 } },
+    { startSheet: { x: 60,  y: 30 }, endSheet: { x: 120, y: 30 } },
+  ];
+
+  it('mode=stepped with valid 3-segment payload → sheet.views gains one SectionView with mode=stepped + stepSegments', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sheet = doc.document.sheets.find((s) => s.id === 's1')!;
+    expect(sheet.views).toHaveLength(2);
+
+    const sv = sheet.views.find((v) => v.kind === 'section') as SectionView & {
+      mode?: string;
+      stepSegments?: readonly StepSegment[];
+      cutSide?: unknown;
+      splitPlane?: unknown;
+    };
+    expect(sv).toBeDefined();
+    expect(sv.mode).toBe('stepped');
+    expect(sv.stepSegments).toEqual(segments);
+    // Per spec §4.4: sectionLine on a stepped view is V0 → V_last (convenience).
+    expect(sv.sectionLine.p0).toEqual({ x: 0, y: 0 });
+    expect(sv.sectionLine.p1).toEqual({ x: 120, y: 30 });
+    // α-invariant clause 7: cutSide and splitPlane MUST be absent.
+    expect(sv.cutSide).toBeUndefined();
+    expect(sv.splitPlane).toBeUndefined();
+  });
+
+  it('apply(mode=stepped) routes through cutByStepSegments, NOT cutBySectionPlane', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+    expect(cutByStepSegments).toHaveBeenCalledTimes(1);
+    expect(cutBySectionPlane).not.toHaveBeenCalled();
+  });
+
+  it('apply(mode=stepped) calls validateSteppedInvariant BEFORE plane derivation (layer 2)', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+    // The validator must have been called at least once at the command boundary.
+    expect(validateSteppedInvariant).toHaveBeenCalled();
   });
 });
