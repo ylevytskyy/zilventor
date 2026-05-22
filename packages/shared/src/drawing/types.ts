@@ -233,6 +233,38 @@ export type DrawingDimension =
   | { readonly id: string; readonly kind: 'diametric'; readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number };
 
 // ---------------------------------------------------------------------------
+// EdgeRef — used by angular/radial/diametric dimensions to reference edges
+// ---------------------------------------------------------------------------
+
+export type EdgeRef = {
+  readonly viewId: string;
+  readonly edgeId: string;
+};
+
+// ---------------------------------------------------------------------------
+// DimensionGroup — baseline and ordinate group-level state (F5)
+// ---------------------------------------------------------------------------
+
+export type DimensionGroup =
+  | {
+      readonly kind: 'baseline';
+      readonly id: string;
+      readonly viewId: string;
+      readonly datum: PointRef;
+      readonly direction: 'h' | 'v';
+      readonly baseOffsetMm: number;
+      readonly spacingMm: number;
+    }
+  | {
+      readonly kind: 'ordinate';
+      readonly id: string;
+      readonly viewId: string;
+      readonly origin: PointRef;
+      readonly xColumnOffsetMm: number;
+      readonly yColumnOffsetMm: number;
+    };
+
+// ---------------------------------------------------------------------------
 // DrawingAnnotation union
 // ---------------------------------------------------------------------------
 
