@@ -282,4 +282,11 @@ export function validateSteppedInvariant(
         view.stepSegments.length + ')',
     );
   }
+  // Clause 3 — stepSegments.length must be at most 8 (per §4.5 perf budget headroom).
+  if (view.stepSegments.length > 8) {
+    throw new Error(
+      'stepped-section-invariant-violated: stepSegments.length must be <= 8 (got ' +
+        view.stepSegments.length + ')',
+    );
+  }
 }

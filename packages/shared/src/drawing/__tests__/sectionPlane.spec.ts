@@ -231,4 +231,26 @@ describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
     };
     expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*stepSegments\.length must be >= 2/);
   });
+
+  // SS-SP-4c — clause 3: stepSegments.length <= 8
+  it('SS-SP-4c: throws when stepSegments has 9 segments (max is 8 = 7 jogs)', () => {
+    // 9 axis-aligned alternating segments, each sharing endpoints — only clause 3 should catch this.
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y:  0 }, endSheet: { x: 10, y:  0 } }, // H
+        { startSheet: { x: 10, y:  0 }, endSheet: { x: 10, y: 10 } }, // V
+        { startSheet: { x: 10, y: 10 }, endSheet: { x: 20, y: 10 } }, // H
+        { startSheet: { x: 20, y: 10 }, endSheet: { x: 20, y: 20 } }, // V
+        { startSheet: { x: 20, y: 20 }, endSheet: { x: 30, y: 20 } }, // H
+        { startSheet: { x: 30, y: 20 }, endSheet: { x: 30, y: 30 } }, // V
+        { startSheet: { x: 30, y: 30 }, endSheet: { x: 40, y: 30 } }, // H
+        { startSheet: { x: 40, y: 30 }, endSheet: { x: 40, y: 40 } }, // V
+        { startSheet: { x: 40, y: 40 }, endSheet: { x: 50, y: 40 } }, // H — 9th segment
+      ],
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*stepSegments\.length must be <= 8/);
+  });
 });
