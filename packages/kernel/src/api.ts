@@ -11,7 +11,12 @@ import { getProjectorInput as getProjectorInputFn, type GetProjectorInputArgs } 
 import { packProject, unpackProject } from './storage/ProjectPacker';
 import { writeToHandle, readFromHandle } from './storage/FileSystemAccess';
 import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocalGeometry } from './assembly/AssemblyConstraintRefs';
-import { cutBySectionPlane as kernelCutBySectionPlane, type Plane, type FaceTagMap as KernelFaceTagMap } from './section/cutBySectionPlane';
+import {
+  cutBySectionPlane as kernelCutBySectionPlane,
+  cutByStepSegments as kernelCutByStepSegments,
+  type Plane,
+  type FaceTagMap as KernelFaceTagMap,
+} from './section/cutBySectionPlane';
 import type { FaceTag } from '@zilventor/shared/src/drawing/projectSectionView';
 
 /**
@@ -100,6 +105,23 @@ export type KernelApi = {
    * Returns { ok: false, reason } if no part produces a cut result.
    */
   cutAssemblyBySectionPlane(asmId: string, plane: Plane, arrowDirection: -1 | 1, splitPlane?: Plane, splitSide?: -1 | 1): Promise<CutSectionResult>;
+
+  /**
+   * Cut a part (by partId) with a polyline of N axis-aligned half-spaces — one
+   * per stepped-section segment (Drawing F1.2). Tessellates the result and
+   * returns a serializable ProjectorInput + face tags.
+   * Throws 'stepped-section-invariant-violated' when planes.length < 2 or > 8.
+   * Returns { ok: false, reason: 'empty' } when the cumulative cut produces no solid.
+   * Cut faces carry planeSource: 'section' uniformly; no 'tangent' return.
+   */
+  cutByStepSegments(partId: string, planes: readonly Plane[], arrowDirection: -1 | 1): Promise<CutSectionResult>;
+
+  /**
+   * Stepped-section assembly variant of cutByStepSegments. Cuts every cached
+   * part in the assembly with the same N-segment polyline, merges per-component
+   * results, and returns a serializable ProjectorInput + merged face tags.
+   */
+  cutAssemblyByStepSegments(asmId: string, planes: readonly Plane[], arrowDirection: -1 | 1): Promise<CutSectionResult>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -457,6 +479,75 @@ export function createKernelApi(): KernelApi {
       };
       const faceTags = serializeFaceTags(r.faceTags);
       // asmId not used for compound building (all cached parts are included)
+      void asmId;
+      return { ok: true, projectorInput, faceTags };
+    },
+
+    async cutByStepSegments(partId, planes, arrowDirection) {
+      if (!occt) throw new Error('kernel not initialized');
+      const ns = namedShapeCache.get(partId);
+      if (!ns) return { ok: false, reason: 'empty' as const };
+
+      const srcBuilder = new occt.BRep_Builder();
+      const srcComp = new occt.TopoDS_Compound();
+      srcBuilder.MakeCompound(srcComp);
+      srcBuilder.Add(srcComp, ns.shape.handle as never);
+      srcBuilder.delete();
+
+      const r = kernelCutByStepSegments(occt, srcComp, planes, arrowDirection);
+      srcComp.delete();
+
+      if (!r.ok) return r;
+
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = {
+        triangles,
+        edges: [],
+        bbox: mesh.boundingBox,
+      };
+      const faceTags = serializeFaceTags(r.faceTags);
+      return { ok: true, projectorInput, faceTags };
+    },
+
+    async cutAssemblyByStepSegments(asmId, planes, arrowDirection) {
+      if (!occt) throw new Error('kernel not initialized');
+
+      const builder = new occt.BRep_Builder();
+      const srcComp = new occt.TopoDS_Compound();
+      builder.MakeCompound(srcComp);
+      let anyAdded = false;
+
+      for (const [, ns] of namedShapeCache) {
+        builder.Add(srcComp, ns.shape.handle as never);
+        anyAdded = true;
+      }
+      builder.delete();
+
+      if (!anyAdded) {
+        srcComp.delete();
+        return { ok: false, reason: 'empty' as const };
+      }
+
+      const r = kernelCutByStepSegments(occt, srcComp, planes, arrowDirection);
+      srcComp.delete();
+
+      if (!r.ok) return r;
+
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = {
+        triangles,
+        edges: [],
+        bbox: mesh.boundingBox,
+      };
+      const faceTags = serializeFaceTags(r.faceTags);
       void asmId;
       return { ok: true, projectorInput, faceTags };
     },

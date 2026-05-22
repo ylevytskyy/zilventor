@@ -53,3 +53,45 @@ export async function cutAssemblyBySectionPlane(
   const faceTags: FaceTagMap = new Map(r.faceTags);
   return { ok: true, compound: r.projectorInput, faceTags };
 }
+
+/**
+ * Cut a part (by partId) with a polyline of N axis-aligned half-spaces (one per
+ * stepped-section segment, Drawing F1.2). Each plane is derived upstream from
+ * one `StepSegment` via `deriveStepPlanes`. The kernel worker runs N sequential
+ * BRepAlgoAPI_Cut_3 calls and tessellates the result.
+ *
+ * Throws 'stepped-section-invariant-violated' (relayed from kernel) when
+ * planes.length < 2 or > 8. Returns { ok: false, reason: 'empty' } when the
+ * cumulative cut produces no solid; never returns 'tangent' (per-segment
+ * tangents are skipped non-fatally in the kernel).
+ */
+export async function cutByStepSegments(
+  partId: string,
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1 = 1,
+): Promise<CutResult> {
+  const kernel = useAppStore.getState().kernel;
+  if (!kernel) throw new Error('cutByStepSegments: kernel not ready');
+  const r = await kernel.cutByStepSegments(partId, planes, arrowDirection);
+  if (!r.ok) return r;
+  const faceTags: FaceTagMap = new Map(r.faceTags);
+  return { ok: true, compound: r.projectorInput, faceTags };
+}
+
+/**
+ * Stepped-section assembly variant of cutByStepSegments. Cuts every cached part
+ * in the assembly with the same N-segment polyline and merges per-component
+ * results.
+ */
+export async function cutAssemblyByStepSegments(
+  asmId: string,
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1 = 1,
+): Promise<CutResult> {
+  const kernel = useAppStore.getState().kernel;
+  if (!kernel) throw new Error('cutAssemblyByStepSegments: kernel not ready');
+  const r = await kernel.cutAssemblyByStepSegments(asmId, planes, arrowDirection);
+  if (!r.ok) return r;
+  const faceTags: FaceTagMap = new Map(r.faceTags);
+  return { ok: true, compound: r.projectorInput, faceTags };
+}
