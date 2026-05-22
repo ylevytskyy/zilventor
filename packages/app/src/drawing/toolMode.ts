@@ -130,6 +130,7 @@ interface ToolModeState {
   enterSteppedSectionMode(): void;
   steppedPickParent(viewId: string): void;
   steppedClickVertex(point: { x: number; y: number }): void;
+  steppedToggleLockedAxis(): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -236,6 +237,19 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
         parentViewId,
         vertices: [...vertices, snapped],
         lockedAxis: nextLock,
+      },
+    });
+  },
+
+  steppedToggleLockedAxis() {
+    const { steppedSectionState } = get();
+    if (steppedSectionState.stage !== 'placing') return;
+    if (steppedSectionState.vertices.length !== 1) return;
+    const flipped: 'x' | 'y' = steppedSectionState.lockedAxis === 'x' ? 'y' : 'x';
+    set({
+      steppedSectionState: {
+        ...steppedSectionState,
+        lockedAxis: flipped,
       },
     });
   },

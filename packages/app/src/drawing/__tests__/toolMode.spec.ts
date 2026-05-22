@@ -798,3 +798,48 @@ describe('stepped-section tool — steppedClickVertex axis-snap (SS-TM-4)', () =
     }
   });
 });
+
+describe('stepped-section tool — steppedToggleLockedAxis Tab key (SS-TM-8)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  function gotoFirstVertex() {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    useToolModeStore.getState().steppedClickVertex({ x: 0, y: 30 });
+  }
+
+  it('SS-TM-8: Tab with 1 vertex toggles lockedAxis "x" → "y"', () => {
+    gotoFirstVertex();
+    expect((useToolModeStore.getState().steppedSectionState as { lockedAxis?: string }).lockedAxis).toBe('x');
+    useToolModeStore.getState().steppedToggleLockedAxis();
+    const s = useToolModeStore.getState().steppedSectionState;
+    if (s.stage === 'placing') expect(s.lockedAxis).toBe('y');
+  });
+
+  it('SS-TM-8b: Tab twice toggles back to "x"', () => {
+    gotoFirstVertex();
+    useToolModeStore.getState().steppedToggleLockedAxis();
+    useToolModeStore.getState().steppedToggleLockedAxis();
+    const s = useToolModeStore.getState().steppedSectionState;
+    if (s.stage === 'placing') expect(s.lockedAxis).toBe('x');
+  });
+
+  it('SS-TM-8c: Tab with 2+ vertices is ignored (no toggle)', () => {
+    gotoFirstVertex();
+    useToolModeStore.getState().steppedClickVertex({ x: 60, y: 99 });  // 2 verts; lockedAxis flips to "y"
+    const before = (useToolModeStore.getState().steppedSectionState as { lockedAxis?: string }).lockedAxis;
+    expect(before).toBe('y');
+    useToolModeStore.getState().steppedToggleLockedAxis();
+    const after = (useToolModeStore.getState().steppedSectionState as { lockedAxis?: string }).lockedAxis;
+    expect(after).toBe('y');  // unchanged
+  });
+
+  it('SS-TM-8d: Tab with 0 vertices is ignored', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    // 0 vertices yet
+    useToolModeStore.getState().steppedToggleLockedAxis();
+    const s = useToolModeStore.getState().steppedSectionState;
+    if (s.stage === 'placing') expect(s.lockedAxis).toBeUndefined();
+  });
+});
