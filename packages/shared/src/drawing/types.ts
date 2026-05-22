@@ -145,14 +145,23 @@ export type SectionView = {
   readonly showHidden: false;        // literal — ANSI convention: never show hidden in section
 
   // --- NEW in F1.1 (Drawing Half-Section) ---
-  readonly mode: 'full' | 'half';   // 'full' is the F1 default; back-filled by v17→v18 migration
+  readonly mode: 'full' | 'half' | 'stepped';   // 'stepped' is NEW in F1.2; no manifest bump (additive)
   readonly cutSide?: -1 | 1;        // present iff mode === 'half'
   readonly splitPlane?: {           // present iff mode === 'half'
     readonly origin: { readonly x: number; readonly y: number; readonly z: number };
     readonly normal: { readonly x: number; readonly y: number; readonly z: number };
   };
-  // α-invariant: mode === 'half' ⟺ cutSide !== undefined && splitPlane !== undefined
-  // Enforced at command time (AddSectionViewCommand.apply) and by property test.
+  // --- NEW in F1.2 (Drawing Stepped Section) ---
+  readonly stepSegments?: readonly StepSegment[];  // present iff mode === 'stepped'
+  // α-invariant: mode === 'half'    ⟺ cutSide !== undefined && splitPlane !== undefined
+  // α-invariant: mode === 'stepped' ⟺ stepSegments !== undefined
+  //                                && stepSegments.length in [2..8]
+  //                                && every segment is axis-aligned (dx===0 XOR dy===0)
+  //                                && consecutive segments share an endpoint
+  //                                && jog directions alternate
+  //                                && cutSide === undefined && splitPlane === undefined.
+  // Enforced at three layers (validateSteppedInvariant in sectionPlane.ts, command boundary,
+  // and projector filter). Throws 'stepped-section-invariant-violated' on breach.
 
   readonly plane?: { readonly origin: { readonly x: number; readonly y: number; readonly z: number }; readonly normal: { readonly x: number; readonly y: number; readonly z: number } };
   readonly hatchSegments: readonly HatchSegment[];

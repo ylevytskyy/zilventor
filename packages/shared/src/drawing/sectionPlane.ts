@@ -7,7 +7,7 @@
 // apply(M, v) = M[0..3] · [vx,vy,vz,1], M[4..7] · [...], etc.
 
 import type { Mat4, Vec3 } from './viewMatrix';
-import type { Vec2 } from './types';
+import type { Vec2, SectionView, StepSegment } from './types';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
 
@@ -241,4 +241,38 @@ export function sideOfSectionLine(p0: Vec2, p1: Vec2, mouse: Vec2): -1 | 1 {
   const dy = p1.y - p0.y;
   const cross = (mouse.x - p0.x) * dy - (mouse.y - p0.y) * dx;
   return cross >= 0 ? 1 : -1;
+}
+
+// ---------------------------------------------------------------------------
+// validateSteppedInvariant (Drawing F1.2 — Stepped section α-invariant guard)
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate the α-invariant for a stepped SectionView. No-op when
+ * `view.mode !== 'stepped'`. Throws `Error('stepped-section-invariant-violated: ...')`
+ * with a clause-specific suffix on the first clause that fails.
+ *
+ * Clauses (built up red→green clause-by-clause through Batch 1, Tasks 1.2 → 1.7):
+ *   1. stepSegments !== undefined            (this task, SS-SP-4a)
+ *   2. stepSegments.length >= 2              (Task 1.3, SS-SP-4b)
+ *   3. stepSegments.length <= 8              (Task 1.4, SS-SP-4c)
+ *   4. every segment is axis-aligned         (Task 1.5, SS-SP-4d)
+ *   5. consecutive segments share endpoints  (Task 1.6, SS-SP-4e)
+ *   6. consecutive segments alternate axes   (Task 1.6, SS-SP-4f)
+ *   7. cutSide and splitPlane undefined      (Task 1.7, SS-SP-4g)
+ */
+export function validateSteppedInvariant(
+  view: {
+    readonly mode: SectionView['mode'];
+    readonly stepSegments: readonly StepSegment[] | undefined;
+    readonly cutSide: (-1 | 1) | undefined;
+    readonly splitPlane: SectionView['splitPlane'] | undefined;
+  },
+): void {
+  if (view.mode !== 'stepped') return;
+
+  // Clause 1 — stepSegments must be defined.
+  if (view.stepSegments === undefined) {
+    throw new Error('stepped-section-invariant-violated: stepSegments must be defined');
+  }
 }

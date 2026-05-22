@@ -146,3 +146,76 @@ describe('sideOfSectionLine (HS-SP-5)', () => {
     expect(sideOfSectionLine({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 0 })).toBe(1);
   });
 });
+
+// --- Stepped-section validator (Drawing F1.2) ---
+
+import { validateSteppedInvariant } from '../sectionPlane';
+import type { SectionView } from '../types';
+
+// NOTE (F1.2 adaptation): exactOptionalPropertyTypes is true in tsconfig.base,
+// so we model the validator-input shape with explicit `| undefined` rather than
+// `Pick<SectionView, ...>` — the test cases need to pass `undefined` literals to
+// the validator to exercise each clause's "absent" branch.
+type SteppedValidatorInput = {
+  mode: SectionView['mode'];
+  stepSegments: SectionView['stepSegments'] | undefined;
+  cutSide: SectionView['cutSide'] | undefined;
+  splitPlane: SectionView['splitPlane'] | undefined;
+};
+
+describe('SectionView — stepped mode + stepSegments shape (F1.2 type extension)', () => {
+  it("SectionView accepts mode: 'stepped' with stepSegments and no cutSide/splitPlane", () => {
+    const sv: SectionView = {
+      id: 'sv-step',
+      kind: 'section',
+      parentViewId: 'v1',
+      sectionLine: { p0: { x: 0, y: 0 }, p1: { x: 10, y: 10 } },
+      arrowDirection: 1,
+      label: 'A',
+      positionMm: { x: 10, y: 130 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x: 0,  y: 0 }, endSheet: { x: 10, y: 0  } },
+        { startSheet: { x: 10, y: 0 }, endSheet: { x: 10, y: 10 } },
+      ],
+      hatchSegments: [],
+      fingerprint: '',
+    };
+    expect(sv.mode).toBe('stepped');
+    expect(sv.stepSegments).toHaveLength(2);
+    expect(sv.cutSide).toBeUndefined();
+    expect(sv.splitPlane).toBeUndefined();
+  });
+});
+
+describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
+  // SS-SP-4a — clause 1: stepSegments !== undefined
+  it('SS-SP-4a: throws when mode === stepped but stepSegments is undefined', () => {
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: undefined,
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*stepSegments must be defined/);
+  });
+
+  it('does not throw when mode !== stepped (validator is a no-op for full/half)', () => {
+    const fullView: SteppedValidatorInput = {
+      mode: 'full',
+      stepSegments: undefined,
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(fullView)).not.toThrow();
+    const halfView: SteppedValidatorInput = {
+      mode: 'half',
+      stepSegments: undefined,
+      cutSide: 1,
+      splitPlane: { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+    };
+    expect(() => validateSteppedInvariant(halfView)).not.toThrow();
+  });
+});
