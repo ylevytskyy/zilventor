@@ -95,4 +95,62 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
     const out = migrateManifest(v18) as { formatVersion: number };
     expect(out.formatVersion).toBe(18);
   });
+
+  // SS-MIG-1: v18 drawing with mode: 'stepped' + valid stepSegments round-trips intact
+  // (manifest stays at v18; stepSegments? is additive per spec §4.6 / §9.1)
+  it('SS-MIG-1: v18 drawing with mode: stepped + valid stepSegments round-trips intact', () => {
+    const v18 = {
+      formatVersion: 18, kind: 'drawing',
+      document: {
+        id: 'draw-step', name: 'Stepped Test', units: 'mm',
+        source: { partPath: 'b.zipt', sourceKind: 'part' }, properties: {},
+        sheets: [{
+          id: 's1', name: 'Sheet 1', size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+          views: [
+            { id: 'base-1', kind: 'base', positionMm: { x: 10, y: 10 }, scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false },
+            {
+              id: 'ss-1', kind: 'section', parentViewId: 'base-1',
+              sectionLine: { p0: { x: 0, y: 0 }, p1: { x: 120, y: 30 } },
+              arrowDirection: 1, label: 'A',
+              positionMm: { x: 80, y: 180 },
+              scale: { numerator: 1, denominator: 1 }, showHidden: false,
+              mode: 'stepped',
+              stepSegments: [
+                { startSheet: { x:  0, y:  0 }, endSheet: { x: 60, y:  0 } },
+                { startSheet: { x: 60, y:  0 }, endSheet: { x: 60, y: 30 } },
+                { startSheet: { x: 60, y: 30 }, endSheet: { x: 120, y: 30 } },
+              ],
+              hatchSegments: [], fingerprint: 'fp-stepped',
+            },
+          ],
+          dimensions: [], annotations: [], titleBlock: {},
+        }],
+        activeSheetId: 's1',
+      },
+    };
+    const out = migrateManifest(JSON.parse(JSON.stringify(v18))) as {
+      formatVersion: number;
+      document: {
+        sheets: Array<{
+          views: Array<{
+            kind: string;
+            mode?: string;
+            stepSegments?: ReadonlyArray<{ startSheet: { x: number; y: number }; endSheet: { x: number; y: number } }>;
+            cutSide?: unknown;
+            splitPlane?: unknown;
+          }>;
+        }>;
+      };
+    };
+    expect(out.formatVersion).toBe(18);
+    const ss = out.document.sheets[0]!.views.find(v => v.kind === 'section')!;
+    expect(ss.mode).toBe('stepped');
+    expect(ss.stepSegments).toBeDefined();
+    expect(ss.stepSegments!).toHaveLength(3);
+    expect(ss.stepSegments![0]!.startSheet).toEqual({ x: 0, y: 0 });
+    expect(ss.stepSegments![0]!.endSheet).toEqual({ x: 60, y: 0 });
+    expect(ss.stepSegments![2]!.endSheet).toEqual({ x: 120, y: 30 });
+    expect(ss.cutSide).toBeUndefined();
+    expect(ss.splitPlane).toBeUndefined();
+  });
 });

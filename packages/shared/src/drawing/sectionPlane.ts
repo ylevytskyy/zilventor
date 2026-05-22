@@ -334,4 +334,52 @@ export function validateSteppedInvariant(
       );
     }
   }
+  // Clause 7 — stepped+half combo is rejected (deferred to F1.2.2).
+  if (view.cutSide !== undefined || view.splitPlane !== undefined) {
+    throw new Error(
+      'stepped-section-invariant-violated: cutSide and splitPlane must be undefined for stepped mode ' +
+        '(cutSide=' + String(view.cutSide) + ', splitPlane=' + (view.splitPlane === undefined ? 'undefined' : 'set') + ')',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// deriveStepPlanes (Drawing F1.2 — Stepped section view)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive one world-space `Plane` per segment of a stepped section view. Each
+ * segment's plane is computed by the same formula as `deriveSplitPlane`:
+ * the plane contains the segment's midpoint in world space, with its normal
+ * = (perpendicular-to-segment in view XY) mapped through the parent view's
+ * inverse matrix. `arrowDirection` plays the same role as `cutSide` does for
+ * half-section: it selects which side of each plane is the "keep" side.
+ *
+ * Validates the α-invariant first (clauses 1–7); throws
+ * `Error('stepped-section-invariant-violated: ...')` on breach.
+ *
+ * @param stepSegments      - polyline of axis-aligned segments in parent-view-local mm
+ * @param parentViewMatrix  - row-major 4×4 view-to-world matrix of the parent view
+ * @param arrowDirection    - which side of each plane to remove (-1 or +1)
+ * @returns N planes, one per segment, in input order.
+ */
+export function deriveStepPlanes(
+  stepSegments: readonly StepSegment[],
+  parentViewMatrix: Mat4,
+  arrowDirection: -1 | 1,
+): Plane[] {
+  validateSteppedInvariant({
+    mode: 'stepped',
+    stepSegments,
+    cutSide: undefined,
+    splitPlane: undefined,
+  });
+
+  return stepSegments.map(seg =>
+    deriveSplitPlane(
+      { p0: seg.startSheet, p1: seg.endSheet },
+      parentViewMatrix,
+      arrowDirection,
+    ),
+  );
 }

@@ -301,4 +301,134 @@ describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
     };
     expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*consecutive segments must alternate axes/);
   });
+
+  // SS-SP-4g — clause 7: cutSide and splitPlane must be undefined for stepped mode
+  it('SS-SP-4g: throws when stepped view also carries cutSide (stepped+half combo rejected)', () => {
+    // 2 valid axis-aligned alternating segments sharing endpoints — clauses 1-6 all pass.
+    // cutSide is set → clause 7 must catch.
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 10, y:  0 } },
+        { startSheet: { x: 10, y: 0 }, endSheet: { x: 10, y: 10 } },
+      ],
+      cutSide: 1, // <— forbidden in stepped mode (deferred to F1.2.2)
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*cutSide and splitPlane must be undefined/);
+  });
+
+  it('SS-SP-4g (bis): throws when stepped view also carries splitPlane', () => {
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 10, y:  0 } },
+        { startSheet: { x: 10, y: 0 }, endSheet: { x: 10, y: 10 } },
+      ],
+      cutSide: undefined,
+      splitPlane: { origin: { x: 5, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 } }, // <— forbidden
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*cutSide and splitPlane must be undefined/);
+  });
+});
+
+// --- deriveStepPlanes happy-path (SS-SP-1 .. SS-SP-3) ---
+
+import { deriveStepPlanes } from '../sectionPlane';
+
+describe('deriveStepPlanes (SS-SP-1..SS-SP-3)', () => {
+  // SS-SP-1 — Front view, 2 axis-aligned segments, arrowDirection +1
+  //   seg0 horizontal (0,0)→(60,0): lineDir=(1,0,0) view; splitNormal2D=(0,1,0); world ≈ (0,1,0).
+  //   seg1 vertical   (60,0)→(60,30): lineDir=(0,1,0) view; splitNormal2D=(-1,0,0); world ≈ (-1,0,0).
+  it('SS-SP-1: front view, 2 axis-aligned segments → 2 orthogonal planes with normals along world-Y and world-X', () => {
+    const planes = deriveStepPlanes(
+      [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 60, y:  0 } }, // H
+        { startSheet: { x: 60, y: 0 }, endSheet: { x: 60, y: 30 } }, // V
+      ],
+      FRONT_VIEW_MATRIX,
+      1,
+    );
+    expect(planes).toHaveLength(2);
+
+    // plane 0: normal along +Y in world
+    expect(approx(normLen(planes[0]!.normal), 1.0)).toBe(true);
+    expect(approx(planes[0]!.normal.x, 0, 1e-4)).toBe(true);
+    expect(planes[0]!.normal.y).toBeGreaterThan(0.9);
+    expect(approx(planes[0]!.normal.z, 0, 1e-4)).toBe(true);
+
+    // plane 1: normal along -X in world
+    expect(approx(normLen(planes[1]!.normal), 1.0)).toBe(true);
+    expect(planes[1]!.normal.x).toBeLessThan(-0.9);
+    expect(approx(planes[1]!.normal.y, 0, 1e-4)).toBe(true);
+    expect(approx(planes[1]!.normal.z, 0, 1e-4)).toBe(true);
+
+    // Orthogonality cross-check: dot(plane0.normal, plane1.normal) ≈ 0
+    const dot = planes[0]!.normal.x * planes[1]!.normal.x
+              + planes[0]!.normal.y * planes[1]!.normal.y
+              + planes[0]!.normal.z * planes[1]!.normal.z;
+    expect(approx(dot, 0, 1e-6)).toBe(true);
+  });
+
+  // SS-SP-2 — Same geometry, arrowDirection -1 → all normals negated relative to SS-SP-1.
+  it('SS-SP-2: arrowDirection -1 → all planes’ normals flipped', () => {
+    const planesPos = deriveStepPlanes(
+      [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 60, y:  0 } },
+        { startSheet: { x: 60, y: 0 }, endSheet: { x: 60, y: 30 } },
+      ],
+      FRONT_VIEW_MATRIX,
+      1,
+    );
+    const planesNeg = deriveStepPlanes(
+      [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 60, y:  0 } },
+        { startSheet: { x: 60, y: 0 }, endSheet: { x: 60, y: 30 } },
+      ],
+      FRONT_VIEW_MATRIX,
+      -1,
+    );
+    expect(planesNeg).toHaveLength(2);
+
+    for (let i = 0; i < 2; i++) {
+      const np = planesPos[i]!.normal;
+      const nn = planesNeg[i]!.normal;
+      expect(approx(nn.x, -np.x, 1e-6)).toBe(true);
+      expect(approx(nn.y, -np.y, 1e-6)).toBe(true);
+      expect(approx(nn.z, -np.z, 1e-6)).toBe(true);
+      // Origins are identical (same segment midpoints; not affected by arrowDirection).
+      expect(approx(planesNeg[i]!.origin.x, planesPos[i]!.origin.x, 1e-6)).toBe(true);
+      expect(approx(planesNeg[i]!.origin.y, planesPos[i]!.origin.y, 1e-6)).toBe(true);
+      expect(approx(planesNeg[i]!.origin.z, planesPos[i]!.origin.z, 1e-6)).toBe(true);
+    }
+  });
+
+  // SS-SP-3 — Top view, 2 axis-aligned segments → planes correctly transformed into world space.
+  // Structural check: unit-length normals, perpendicular to each other.
+  it('SS-SP-3: top view, 2 axis-aligned segments → planes transformed into world space (structural check)', () => {
+    const planes = deriveStepPlanes(
+      [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 50, y:  0 } }, // H in top view
+        { startSheet: { x: 50, y: 0 }, endSheet: { x: 50, y: 40 } }, // V in top view
+      ],
+      TOP_VIEW_MATRIX,
+      1,
+    );
+    expect(planes).toHaveLength(2);
+
+    // Both normals unit-length
+    expect(approx(normLen(planes[0]!.normal), 1.0)).toBe(true);
+    expect(approx(normLen(planes[1]!.normal), 1.0)).toBe(true);
+
+    // Top-view sees XZ plane: view-Y on screen = world -Z. Plane normals therefore live in the
+    // world XZ subspace (i.e., world Y component ≈ 0).
+    expect(approx(planes[0]!.normal.y, 0, 1e-4)).toBe(true);
+    expect(approx(planes[1]!.normal.y, 0, 1e-4)).toBe(true);
+
+    // Orthogonality of normals
+    const dot = planes[0]!.normal.x * planes[1]!.normal.x
+              + planes[0]!.normal.y * planes[1]!.normal.y
+              + planes[0]!.normal.z * planes[1]!.normal.z;
+    expect(approx(dot, 0, 1e-6)).toBe(true);
+  });
 });
