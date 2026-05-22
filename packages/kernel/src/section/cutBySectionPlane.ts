@@ -554,6 +554,18 @@ export function cutByStepSegments(
       return { ok: false, reason: 'empty' };
     }
 
+    // Per-segment volume-tangent check (spec §5.2 / §5.4).
+    // If the cut didn't change volume, this segment's plane was coincident with
+    // an existing face. Per-segment tangent is non-fatal: skip the merge, keep
+    // running, and proceed to the next segment.
+    const volRunning = shapeVolume(oc, running);
+    const volNext = shapeVolume(oc, next);
+    if (volRunning > 0 && Math.abs(volNext - volRunning) < Math.max(volRunning, 1) * 1e-6) {
+      console.warn(`cutByStepSegments: tangent segment ${i}, skipping`);
+      (next as unknown as { delete?(): void }).delete?.();
+      continue; // running stays as-is; mergedTags untouched for this i
+    }
+
     // Walk faces of `next`; classify against this segment's plane.
     const faceExp = new oc.TopExp_Explorer_2(
       next as never,

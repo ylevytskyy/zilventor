@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
@@ -547,5 +547,49 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
       expect(result.reason).toBe('empty');
     }
     disposeOcctShape(oc, compound);
+  });
+
+  it('SS-K-10: one tangent segment + one valid segment → ok:true, console.warn, only valid segment contributes', () => {
+    const box = makeBox(oc, 100, 60, 40);
+    const compound = buildTestCompound(oc, box);
+
+    // arrowDirection=1 with these planes (buildHalfSpace: solid grows opposite
+    // arrowDirection*normal, i.e. on -normal side):
+    //  Segment 1 (z=0, +Z, arrowDir=1): solid at z<0; box at z∈[0,40] doesn't
+    //    overlap → cut is a no-op → volume unchanged → per-segment tangent.
+    //  Segment 2 (x=50, +X, arrowDir=1): solid at x<50; cut removes x<50 of box,
+    //    keeps x∈[50,100] → volume = 50*60*40 = 120 000 mm³.
+    const planes: Plane[] = [
+      { origin: { x: 0,  y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } }, // tangent (no-op)
+      { origin: { x: 50, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } }, // valid
+    ];
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const result = cutByStepSegments(oc, compound, planes, 1);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      // Per-segment tangent must trigger a console warning naming the segment index.
+      const warnCalls = warnSpy.mock.calls.map(c => String(c[0] ?? ''));
+      expect(warnCalls.some(s => /tangent segment 0/.test(s))).toBe(true);
+
+      // Only the valid segment (index 1) contributed cut faces. The right half
+      // of the box should be kept (x≥50), with one cut face at x=50.
+      const tags = [...result.faceTags.values()];
+      const cutFaces = tags.filter(t => t.tag === 'cut-face');
+      expect(cutFaces.length).toBeGreaterThanOrEqual(1);
+      for (const face of cutFaces) {
+        expect((face as { planeSource?: string }).planeSource).toBe('section');
+      }
+      // Approx volume: 50 * 60 * 40 = 120 000 mm³ (right half kept).
+      const vol = shapeVolumePublic(oc, result.compound);
+      expect(vol).toBeGreaterThan(115_000);
+      expect(vol).toBeLessThan(125_000);
+
+      disposeOcctShape(oc, result.compound);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
