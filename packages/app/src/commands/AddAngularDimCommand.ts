@@ -58,9 +58,9 @@ export class AddAngularDimCommand implements Command {
     const id = crypto.randomUUID();
     this.placedId = id;
 
-    const newDim = {
+    const newDim: Extract<DrawingDimension, { kind: 'angular' }> = {
       id,
-      kind: 'angular' as const,
+      kind: 'angular',
       viewId: this.opts.viewId,
       ref,
       arcSide,
@@ -71,7 +71,7 @@ export class AddAngularDimCommand implements Command {
       ...(this.opts.opts?.textOverride !== undefined
         ? { textOverride: this.opts.opts.textOverride }
         : {}),
-    } as unknown as DrawingDimension;
+    };
 
     const nextDoc: DrawingDocument = {
       ...doc.document,

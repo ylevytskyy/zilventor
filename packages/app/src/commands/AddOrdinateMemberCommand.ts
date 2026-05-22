@@ -32,9 +32,9 @@ export class AddOrdinateMemberCommand implements Command {
     const id = crypto.randomUUID();
     this.placedId = id;
 
-    const newDim = {
+    const newDim: Extract<DrawingDimension, { kind: 'ordinate' }> = {
       id,
-      kind: 'ordinate' as const,
+      kind: 'ordinate',
       viewId: group.viewId,
       groupId: this.opts.groupId,
       to: this.opts.to,
@@ -45,7 +45,7 @@ export class AddOrdinateMemberCommand implements Command {
       ...(this.opts.opts?.textOverride !== undefined
         ? { textOverride: this.opts.opts.textOverride }
         : {}),
-    } as unknown as DrawingDimension;
+    };
 
     const nextSheet = { ...sheet, dimensions: [...sheet.dimensions, newDim] };
 

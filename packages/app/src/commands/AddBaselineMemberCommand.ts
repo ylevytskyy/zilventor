@@ -37,9 +37,9 @@ export class AddBaselineMemberCommand implements Command {
     const id = crypto.randomUUID();
     this.placedId = id;
 
-    const newDim = {
+    const newDim: Extract<DrawingDimension, { kind: 'baseline' }> = {
       id,
-      kind: 'baseline' as const,
+      kind: 'baseline',
       viewId: group.viewId,
       groupId: this.opts.groupId,
       slot,
@@ -50,7 +50,7 @@ export class AddBaselineMemberCommand implements Command {
       ...(this.opts.opts?.textOverride !== undefined
         ? { textOverride: this.opts.opts.textOverride }
         : {}),
-    } as unknown as DrawingDimension;
+    };
 
     const nextSheet = { ...sheet, dimensions: [...sheet.dimensions, newDim] };
 
