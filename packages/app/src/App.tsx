@@ -2766,13 +2766,64 @@ export default function App() {
     // Returns mode='cut+project' for full, 'cut+half-project' for half.
     w.__zilventorSectionCutMs = async (
       n: number = 20,
-      opts?: { mode?: 'full' | 'half'; cutSide?: -1 | 1 },
+      opts?:
+        | { mode?: 'full' | 'half'; cutSide?: -1 | 1 }
+        | { mode: 'stepped'; segmentCount: number },
     ): Promise<{ p95ms: number; mode: string }> => {
       const { projectSectionView: psvFn } = await import('./drawing/projectSectionView');
       const { projectView: pvFn } = await import('@zilventor/shared/src/drawing/projector');
 
-      const sectionVariant = opts?.mode ?? 'full';
-      const cutSide = opts?.cutSide ?? 1;
+      // --- F1.2: stepped variant ---
+      if (opts && 'segmentCount' in opts && opts.mode === 'stepped') {
+        const segmentCount = Math.max(2, Math.min(8, opts.segmentCount));
+        const synthVerts = Array.from({ length: segmentCount + 1 }, (_, i) => ({
+          x: i * (300 / segmentCount),
+          y: (i % 2) * 30,  // zigzag in Y
+        }));
+        const _stepInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
+          triangles: Array.from({ length: 20 * 2 }, (__, i) => {
+            const bx = (i % 5) * 60; const bz = Math.floor(i / 5) * 40;
+            return [[bx, 0, bz], [bx + 50, 0, bz], [bx + 50, 50, bz + 30]] as
+              [[number, number, number], [number, number, number], [number, number, number]];
+          }),
+          edges: Array.from({ length: 20 * 4 }, (__, i) => ({
+            id: `sc-e${i}`,
+            points: [[(i % 5) * 60, 0, 0], [(i % 5) * 60 + 50, 0, 0]] as
+              [[number, number, number], [number, number, number]],
+            adjacentFaces: [],
+          })),
+          bbox: [0, 0, 0, 300, 50, 160],
+        };
+        const _stepFaceTags: import('./drawing/projectSectionView').FaceTagMap = new Map(
+          synthVerts.slice(0, -1).map((v, i) => [
+            `f-stepped-${i}`,
+            {
+              tag: 'cut-face' as const,
+              partId: `box_${i}`,
+              materialId: 'mat-pine',
+              polygon: [
+                { x: v.x, y: v.y },
+                { x: synthVerts[i + 1]!.x, y: synthVerts[i + 1]!.y },
+                { x: synthVerts[i + 1]!.x, y: 50 },
+                { x: v.x, y: 50 },
+              ],
+            },
+          ]),
+        );
+        const stepSamples: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const t0 = performance.now();
+          pvFn(_stepInput, 'front');
+          psvFn(_stepInput, _stepFaceTags, 1);
+          stepSamples.push(performance.now() - t0);
+        }
+        stepSamples.sort((a, b) => a - b);
+        const stepP95 = stepSamples[Math.floor(stepSamples.length * 0.95)] ?? 0;
+        return { p95ms: stepP95, mode: 'cut+stepped-project' };
+      }
+
+      const sectionVariant = (opts as { mode?: 'full' | 'half' } | undefined)?.mode ?? 'full';
+      const cutSide = (opts as { cutSide?: -1 | 1 } | undefined)?.cutSide ?? 1;
 
       // Synthetic 20-component assembly input (5×4 grid of 50×50×30 mm boxes).
       const _sectionInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
