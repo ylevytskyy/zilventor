@@ -18,7 +18,10 @@ export type ToolMode =
   | 'section'
   | 'detail'
   | 'break'      // Drawing F3
-  | 'autoDim';   // Drawing F4 — auto-dimensioning from sketch parameters
+  | 'autoDim'   // Drawing F4 — auto-dimensioning from sketch parameters
+  | 'baseline'  // Drawing F5 — baseline dimension group (manual)
+  | 'ordinate'  // Drawing F5 — ordinate dimension group (manual)
+  | 'angular';  // Drawing F5 — angular dimension (two-edges or arc)
 
 export type PendingViewParams =
   | {
