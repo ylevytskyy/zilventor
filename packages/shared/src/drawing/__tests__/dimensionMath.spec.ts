@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/dimensionMath.spec.ts
 import { describe, it, expect } from 'vitest';
-import { intersectLines } from '../dimensionMath';
+import { intersectLines, subtendedAngle } from '../dimensionMath';
 
 describe('intersectLines — HS-MATH-1: perpendicular lines', () => {
   it('returns intersection of horizontal and vertical line', () => {
@@ -46,5 +46,29 @@ describe('intersectLines — HS-MATH-4: collinear lines return null', () => {
       { p0: { x: 1, y: 0 }, p1: { x: 8, y: 0 } },
     );
     expect(result).toBeNull();
+  });
+});
+
+describe('subtendedAngle — HS-MATH-5: same direction (0°)', () => {
+  it('returns insideRad ≈ 0 for identical unit vectors', () => {
+    const result = subtendedAngle({ x: 1, y: 0 }, { x: 1, y: 0 });
+    expect(result.insideRad).toBeCloseTo(0, 6);
+    expect(result.outsideRad).toBeCloseTo(2 * Math.PI, 5);
+  });
+});
+
+describe('subtendedAngle — HS-MATH-6: perpendicular (90°)', () => {
+  it('returns insideRad ≈ π/2 for perpendicular vectors', () => {
+    const result = subtendedAngle({ x: 1, y: 0 }, { x: 0, y: 1 });
+    expect(result.insideRad).toBeCloseTo(Math.PI / 2, 6);
+    expect(result.outsideRad).toBeCloseTo(3 * Math.PI / 2, 6);
+  });
+});
+
+describe('subtendedAngle — HS-MATH-7: opposite directions (180°)', () => {
+  it('returns insideRad ≈ π for anti-parallel vectors', () => {
+    const result = subtendedAngle({ x: 1, y: 0 }, { x: -1, y: 0 });
+    expect(result.insideRad).toBeCloseTo(Math.PI, 5);
+    expect(result.outsideRad).toBeCloseTo(Math.PI, 5);
   });
 });

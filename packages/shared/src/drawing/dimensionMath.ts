@@ -30,3 +30,20 @@ export function intersectLines(
     y: line1.p0.y + t * dy1,
   };
 }
+
+/**
+ * Returns inside and outside subtended angles between two unit (or non-unit) direction vectors.
+ * `insideRad` = acos(dot(d1, d2)) — always in [0, π].
+ * `outsideRad` = 2π − insideRad.
+ */
+export function subtendedAngle(
+  d1: Vec2D,
+  d2: Vec2D,
+): { readonly insideRad: number; readonly outsideRad: number } {
+  const dot = d1.x * d2.x + d1.y * d2.y;
+  const len1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
+  const len2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
+  const cosA = len1 * len2 > EPSILON ? dot / (len1 * len2) : 1;
+  const insideRad = Math.acos(Math.max(-1, Math.min(1, cosA)));  // clamp against floating-point overshoot
+  return { insideRad, outsideRad: 2 * Math.PI - insideRad };
+}
