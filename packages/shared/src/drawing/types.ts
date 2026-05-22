@@ -207,10 +207,28 @@ export type PointRef =
 // DrawingDimension union
 // ---------------------------------------------------------------------------
 
+// F4 (Drawing auto-dim): sourceParameterName and textOverride are additive at
+// format v18. Existing dims back-fill undefined automatically — no migration needed.
 export type DrawingDimension =
-  | { readonly id: string; readonly kind: 'linear-h';  readonly viewId: string; readonly from: PointRef; readonly to: PointRef; readonly offsetMm: number }
-  | { readonly id: string; readonly kind: 'linear-v';  readonly viewId: string; readonly from: PointRef; readonly to: PointRef; readonly offsetMm: number }
-  | { readonly id: string; readonly kind: 'aligned';   readonly viewId: string; readonly from: PointRef; readonly to: PointRef; readonly offsetMm: number }
+  | { readonly id: string; readonly kind: 'linear-h';
+      readonly viewId: string; readonly from: PointRef; readonly to: PointRef;
+      readonly offsetMm: number;
+      // F4: parametric binding (additive — existing dims back-fill undefined; format stays v18)
+      readonly sourceParameterName?: string;  // bound SketchParameter.name
+      readonly textOverride?: string;          // user-set label; takes priority over everything
+    }
+  | { readonly id: string; readonly kind: 'linear-v';
+      readonly viewId: string; readonly from: PointRef; readonly to: PointRef;
+      readonly offsetMm: number;
+      readonly sourceParameterName?: string;
+      readonly textOverride?: string;
+    }
+  | { readonly id: string; readonly kind: 'aligned';
+      readonly viewId: string; readonly from: PointRef; readonly to: PointRef;
+      readonly offsetMm: number;
+      readonly sourceParameterName?: string;
+      readonly textOverride?: string;
+    }
   | { readonly id: string; readonly kind: 'radial';    readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number }
   | { readonly id: string; readonly kind: 'diametric'; readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number };
 

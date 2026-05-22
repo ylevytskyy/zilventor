@@ -300,3 +300,76 @@ describe('SectionView — half-section mode fields (F1.1)', () => {
     expect(parsed.splitPlane).toBeUndefined();
   });
 });
+
+// --- Auto-dim additions (Drawing F4) ---
+
+describe('DrawingDimension — F4 sourceParameterName + textOverride fields', () => {
+  it('linear-h with sourceParameterName and textOverride accepted by TypeScript', () => {
+    const dim: DrawingDimension = {
+      id: 'd-auto-1',
+      kind: 'linear-h',
+      viewId: 'v1',
+      from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+      to:   { kind: 'edge-endpoint', edgeId: 'e1', end: 'end' },
+      offsetMm: 8,
+      sourceParameterName: 'width',
+      textOverride: 'WIDTH ±0.5',
+    };
+    expect(dim.sourceParameterName).toBe('width');
+    expect(dim.textOverride).toBe('WIDTH ±0.5');
+  });
+
+  it('manual linear-h without sourceParameterName or textOverride still accepted', () => {
+    const dim: DrawingDimension = {
+      id: 'd-manual-1',
+      kind: 'linear-h',
+      viewId: 'v1',
+      from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+      to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'end' },
+      offsetMm: 10,
+    };
+    expect(dim.sourceParameterName).toBeUndefined();
+    expect(dim.textOverride).toBeUndefined();
+  });
+
+  it('linear-v with sourceParameterName only accepted', () => {
+    const dim: DrawingDimension = {
+      id: 'd-auto-2',
+      kind: 'linear-v',
+      viewId: 'v1',
+      from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+      to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'end' },
+      offsetMm: 5,
+      sourceParameterName: 'height',
+    };
+    expect(dim.sourceParameterName).toBe('height');
+    expect(dim.textOverride).toBeUndefined();
+  });
+
+  it('aligned with textOverride only accepted', () => {
+    const dim: DrawingDimension = {
+      id: 'd-auto-3',
+      kind: 'aligned',
+      viewId: 'v1',
+      from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+      to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'end' },
+      offsetMm: 6,
+      textOverride: 'DIAG',
+    };
+    expect(dim.textOverride).toBe('DIAG');
+    expect(dim.sourceParameterName).toBeUndefined();
+  });
+
+  it('radial dim does NOT have sourceParameterName (radial unchanged in v1)', () => {
+    const dim: DrawingDimension = {
+      id: 'd-radial-1',
+      kind: 'radial',
+      viewId: 'v1',
+      edgeId: 'e1',
+      offsetMm: 10,
+      angleDeg: 45,
+    };
+    // Runtime check: field absent
+    expect((dim as Record<string, unknown>)['sourceParameterName']).toBeUndefined();
+  });
+});
