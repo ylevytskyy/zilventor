@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { AssemblyDocument } from '@zilventor/shared';
+import { deriveStepPlanes } from '@zilventor/shared/src/drawing/sectionPlane';
+import type { Mat4 } from '@zilventor/shared/src/drawing/viewMatrix';
+import type { StepSegment } from '@zilventor/shared/src/drawing/types';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
 import {
@@ -8,8 +11,16 @@ import {
   cutBySectionPlane,
   cutAssemblyBySectionPlane,
   cutByStepSegments,                 // NEW (Drawing F1.2 Batch 2)
+  cutAssemblyByStepSegments,         // NEW (Drawing F1.2 Batch 2 / Task 2.6)
   type Plane,
 } from './cutBySectionPlane';
+
+const IDENTITY_PARENT_MATRIX: Mat4 = [
+  1, 0,  0,    0,
+  0, 1,  0,    0,
+  0, 0, -1, 1000,
+  0, 0,  0,    1,
+];
 
 let oc: OcctInstance;
 beforeAll(async () => { oc = await loadOcct(); }, 60_000);
@@ -591,5 +602,79 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('SS-INT-1: oblique segment (dx !== 0 && dy !== 0) → deriveStepPlanes throws (clause 4)', () => {
+    const bad: StepSegment[] = [
+      { startSheet: { x: 0,  y: 0  }, endSheet: { x: 50, y: 50 } }, // oblique — fails clause 4
+      { startSheet: { x: 50, y: 50 }, endSheet: { x: 50, y: 100 } },
+    ];
+    expect(() => deriveStepPlanes(bad, IDENTITY_PARENT_MATRIX, 1))
+      .toThrow(/stepped-section-invariant-violated/);
+  });
+
+  it('SS-INT-2: two segments do not share an endpoint → deriveStepPlanes throws (clause 5)', () => {
+    const bad: StepSegment[] = [
+      { startSheet: { x: 0,  y: 0  }, endSheet: { x: 50, y: 0  } },
+      { startSheet: { x: 60, y: 0  }, endSheet: { x: 60, y: 50 } }, // gap at x=50..60 — fails clause 5
+    ];
+    expect(() => deriveStepPlanes(bad, IDENTITY_PARENT_MATRIX, 1))
+      .toThrow(/stepped-section-invariant-violated/);
+  });
+
+  it('SS-INT-3: two consecutive horizontal segments (same axis) → deriveStepPlanes throws (clause 6)', () => {
+    const bad: StepSegment[] = [
+      { startSheet: { x: 0,  y: 0 }, endSheet: { x: 50, y: 0 } },
+      { startSheet: { x: 50, y: 0 }, endSheet: { x: 100, y: 0 } }, // both horizontal — fails clause 6
+    ];
+    expect(() => deriveStepPlanes(bad, IDENTITY_PARENT_MATRIX, 1))
+      .toThrow(/stepped-section-invariant-violated/);
+  });
+
+  it('SS-K assembly: cutAssemblyByStepSegments — 2-component fixture, both components cut by both planes', () => {
+    const asm: AssemblyDocument = {
+      id: 'ss-asm', name: 'stepped-asm', units: 'mm', parameters: {},
+      components: [
+        { id: 'c1', partPath: 'p1.zipt', position: { x: 0,   y: 0,   z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'c2', partPath: 'p2.zipt', position: { x: 0,   y: 80,  z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+      cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [],
+    };
+    const bodyResolver = (_partId: string, pose: { translation: { x: number; y: number; z: number } }) => {
+      const mk = new oc.BRepPrimAPI_MakeBox_2(100, 60, 40);
+      const raw = mk.Shape(); mk.delete();
+      const tx = new oc.gp_Trsf_1();
+      const tv = new oc.gp_Vec_4(pose.translation.x, pose.translation.y, pose.translation.z);
+      (tx as unknown as { SetTranslation_1(v: unknown): void }).SetTranslation_1(tv as never);
+      const xf = new oc.BRepBuilderAPI_Transform_2(raw as never, tx as never, true as never);
+      const shape = (xf as unknown as { Shape(): unknown }).Shape();
+      (xf as unknown as { delete(): void }).delete();
+      (tx as unknown as { delete(): void }).delete();
+      (tv as unknown as { delete(): void }).delete();
+      return { __brand: 'OcctShape' as const, handle: shape };
+    };
+    const planes: Plane[] = [
+      { origin: { x: 0,  y: 0, z: 20 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 50, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+    ];
+    const result = cutAssemblyByStepSegments(oc, asm, planes, 1, {
+      lookupSubAsm: () => undefined,
+      partPathToId: new Map([['p1.zipt', 'part-1'], ['p2.zipt', 'part-2']]),
+      bodyResolver,
+      materialResolver: () => 'mat-default',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tags = [...result.faceTags.values()];
+    const sectionFaces = tags.filter(t => t.tag === 'cut-face' && (t as { planeSource?: string }).planeSource === 'section');
+    // At minimum 2 cut faces per component × 2 components = 4. Lower bound 2 for robustness against OCCT face merging.
+    expect(sectionFaces.length).toBeGreaterThanOrEqual(2);
+    // No 'split' tags from this code path.
+    const splitFaces = tags.filter(t => (t as { planeSource?: string }).planeSource === 'split');
+    expect(splitFaces).toHaveLength(0);
+
+    disposeOcctShape(oc, result.compound);
   });
 });

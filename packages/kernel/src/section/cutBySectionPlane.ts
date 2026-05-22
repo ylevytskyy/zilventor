@@ -440,6 +440,84 @@ function composePoses(parent: LocalPose, child: LocalPose): LocalPose {
 }
 
 // ---------------------------------------------------------------------------
+// cutAssemblyByStepSegments (Drawing F1.2 — assembly mirror of cutByStepSegments)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cut every leaf part in `asm` by the stepped polyline `planes`/`arrowDirection`
+ * and compose the per-component results into a single compound + merged
+ * FaceTagMap. Mirrors `cutAssemblyBySectionPlane`'s structure exactly; only the
+ * per-leaf call differs.
+ *
+ * Components that produce { ok: false, reason: 'empty' } are silently skipped
+ * (consistent with the existing assembly section path). Per-component
+ * count-< 2 / count-> 8 throws from `cutByStepSegments` are NOT caught here —
+ * those are programmer errors that must surface to the caller.
+ */
+export function cutAssemblyByStepSegments(
+  oc: OcctInstance,
+  asm: AssemblyDocument,
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1,
+  opts: AssemblyCutOptions,
+): Result {
+  const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
+
+  const builder = new oc.BRep_Builder();
+  const resultCompound = new oc.TopoDS_Compound();
+  builder.MakeCompound(resultCompound);
+
+  const mergedTags: FaceTagMap = new Map();
+  let anyOk = false;
+
+  for (const { partId, pose } of leaves) {
+    const body = opts.bodyResolver(partId, pose);
+    if (!body) continue;
+
+    // Wrap body in compound for cutByStepSegments
+    const srcBuilder = new oc.BRep_Builder();
+    const srcComp = new oc.TopoDS_Compound();
+    srcBuilder.MakeCompound(srcComp);
+    srcBuilder.Add(srcComp, body.handle as never);
+    srcBuilder.delete();
+
+    const r = cutByStepSegments(oc, srcComp, planes, arrowDirection);
+    srcComp.delete();
+
+    if (!r.ok) {
+      // 'empty' is non-fatal at the assembly level (matches F1's anyOk pattern).
+      // The kernel-module cutByStepSegments only ever returns 'empty' as its
+      // failure reason — never 'tangent' — so no console.warn branch is needed.
+      continue;
+    }
+
+    anyOk = true;
+    builder.Add(resultCompound, r.compound as never);
+    (r.compound as unknown as { delete?(): void }).delete?.();
+
+    const matId = opts.materialResolver(partId);
+    for (const [key, val] of r.faceTags) {
+      mergedTags.set(key, {
+        tag: val.tag,
+        partId,
+        materialId: matId,
+        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
+      });
+    }
+  }
+
+  builder.delete();
+
+  if (!anyOk) {
+    resultCompound.delete();
+    return { ok: false, reason: 'empty' };
+  }
+
+  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+}
+
+// ---------------------------------------------------------------------------
 // cutByStepSegments (Drawing F1.2 — Stepped-section views)
 // ---------------------------------------------------------------------------
 //
