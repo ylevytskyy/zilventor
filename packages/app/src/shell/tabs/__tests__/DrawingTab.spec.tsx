@@ -348,3 +348,33 @@ describe('DrawingTab — non-drawing active doc', () => {
     expect(screen.getByText(/drawing generation/i)).toBeInTheDocument();
   });
 });
+
+describe('DrawingTab — Stepped Section ribbon button (F1.2)', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+  });
+
+  it('renders a button with aria-label="Stepped Section"', () => {
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: 'Stepped Section' })).toBeInTheDocument();
+  });
+
+  it('clicking "Stepped Section" sets mode to "pickSteppedSection"', () => {
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Stepped Section' }));
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('pickSteppedSection');
+    expect(s.steppedSectionState.stage).toBe('pickParent');
+  });
+
+  it('button is positioned adjacent to "Half Section" (DOM order)', () => {
+    render(<DrawingTab />);
+    const half = screen.getByRole('button', { name: 'Half Section' });
+    const stepped = screen.getByRole('button', { name: 'Stepped Section' });
+    // Walk DOM: stepped must follow half in the same parent.
+    expect(half.parentElement).toBe(stepped.parentElement);
+    const siblings = Array.from(half.parentElement!.children);
+    expect(siblings.indexOf(stepped)).toBeGreaterThan(siblings.indexOf(half));
+  });
+});

@@ -111,6 +111,14 @@ export default function DrawingTab(): JSX.Element {
         </button>
         <button
           type="button"
+          className="text-xs hover:text-white"
+          aria-label="Stepped Section"
+          onClick={() => useToolModeStore.getState().enterSteppedSectionMode()}
+        >
+          Stepped Section
+        </button>
+        <button
+          type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Detail"
           disabled={!hasProjectedView}
