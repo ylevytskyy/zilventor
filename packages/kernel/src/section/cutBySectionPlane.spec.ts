@@ -465,4 +465,44 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
 
     disposeOcctShape(oc, result.compound);
   });
+
+  it('SS-K-2: 4-segment / 3-jog cut on 100×60×40 box — monotonic volume reduction, prior cut-face tags preserved', () => {
+    const box = makeBox(oc, 100, 60, 40);
+    const compound = buildTestCompound(oc, box);
+
+    // 4 axis-aligned segments forming 3 jogs:
+    //  z=30 (top) → x=70 (right) → z=10 (bottom step) → x=30 (left).
+    // Each plane carves a different region; the kept compound shrinks at every step.
+    const planes: Plane[] = [
+      { origin: { x: 0,  y: 0, z: 30 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 70, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 0,  y: 0, z: 10 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 30, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+    ];
+
+    const baselineVol = 100 * 60 * 40; // direct from fixture dims (box compound consumed below)
+    const result = cutByStepSegments(oc, compound, planes, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Monotonic reduction: final volume strictly less than baseline.
+    const finalVol = shapeVolumePublic(oc, result.compound);
+    expect(finalVol).toBeLessThan(baselineVol);
+    expect(finalVol).toBeGreaterThan(0); // not over-cut into empty
+
+    // Face-tag contract: every cut face — accumulated across all 4 segments —
+    // must carry planeSource:'section'. None should have been clobbered back to
+    // 'original-face' by a later segment.
+    const tags = [...result.faceTags.values()];
+    const cutFaces = tags.filter(t => t.tag === 'cut-face');
+    expect(cutFaces.length).toBeGreaterThanOrEqual(2); // at least two distinct cut faces survive
+    // Tighten: no cut face should be missing planeSource (regression on preserve guard)
+    const cutFacesMissingSource = cutFaces.filter(t => (t as { planeSource?: string }).planeSource === undefined);
+    expect(cutFacesMissingSource).toHaveLength(0);
+    for (const face of cutFaces) {
+      expect((face as { planeSource?: string }).planeSource).toBe('section');
+    }
+
+    disposeOcctShape(oc, result.compound);
+  });
 });

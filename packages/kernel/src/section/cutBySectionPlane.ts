@@ -556,9 +556,11 @@ export function cutByStepSegments(
           ...(polygon3D.length ? { polygon3D } : {}),
         });
       } else {
-        // NOTE: this naive set may overwrite a prior segment's cut-face tag —
-        // Task 2.3 adds the preserve-prior-cut-face guard.
-        mergedTags.set(key, { tag: 'original-face', partId: '', materialId: '' });
+        // Preserve prior segment's cut-face tag — never downgrade to 'original-face'.
+        // Per spec §5.2: `if mergedTags.has(key): continue`.
+        if (!mergedTags.has(key)) {
+          mergedTags.set(key, { tag: 'original-face', partId: '', materialId: '' });
+        }
       }
       faceExp.Next();
     }
