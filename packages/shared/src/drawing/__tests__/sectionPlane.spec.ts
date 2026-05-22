@@ -253,4 +253,19 @@ describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
     };
     expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*stepSegments\.length must be <= 8/);
   });
+
+  // SS-SP-4d — clause 4: every segment is axis-aligned (dx===0 XOR dy===0)
+  it('SS-SP-4d: throws when any segment is oblique (dx !== 0 AND dy !== 0)', () => {
+    // Length 2 (clauses 2,3 pass). First segment is oblique: dx=10, dy=10.
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y:  0 }, endSheet: { x: 10, y: 10 } }, // OBLIQUE
+        { startSheet: { x: 10, y: 10 }, endSheet: { x: 10, y: 20 } }, // V (irrelevant — clause 4 should fail on seg 0 first)
+      ],
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*segments must be axis-aligned/);
+  });
 });

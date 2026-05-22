@@ -289,4 +289,19 @@ export function validateSteppedInvariant(
         view.stepSegments.length + ')',
     );
   }
+  // Clause 4 — every segment is axis-aligned: dx===0 XOR dy===0.
+  // Tolerance 1e-9 absorbs float-arith noise; degenerate zero-length segments fall here too.
+  for (let i = 0; i < view.stepSegments.length; i++) {
+    const seg = view.stepSegments[i]!;
+    const dx = seg.endSheet.x - seg.startSheet.x;
+    const dy = seg.endSheet.y - seg.startSheet.y;
+    const horiz = Math.abs(dy) < 1e-9 && Math.abs(dx) > 1e-9;
+    const vert  = Math.abs(dx) < 1e-9 && Math.abs(dy) > 1e-9;
+    if (!horiz && !vert) {
+      throw new Error(
+        'stepped-section-invariant-violated: segments must be axis-aligned ' +
+          '(segment ' + i + ' has dx=' + dx + ', dy=' + dy + ')',
+      );
+    }
+  }
 }
