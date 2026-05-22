@@ -275,4 +275,11 @@ export function validateSteppedInvariant(
   if (view.stepSegments === undefined) {
     throw new Error('stepped-section-invariant-violated: stepSegments must be defined');
   }
+  // Clause 2 — stepSegments.length must be at least 2 (a single segment is a full section).
+  if (view.stepSegments.length < 2) {
+    throw new Error(
+      'stepped-section-invariant-violated: stepSegments.length must be >= 2 (got ' +
+        view.stepSegments.length + ')',
+    );
+  }
 }

@@ -218,4 +218,17 @@ describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
     };
     expect(() => validateSteppedInvariant(halfView)).not.toThrow();
   });
+
+  // SS-SP-4b — clause 2: stepSegments.length >= 2
+  it('SS-SP-4b: throws when stepSegments has only 1 segment (use full Section tool instead)', () => {
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x: 0, y: 0 }, endSheet: { x: 10, y: 0 } },
+      ],
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*stepSegments\.length must be >= 2/);
+  });
 });
