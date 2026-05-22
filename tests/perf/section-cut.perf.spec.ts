@@ -67,6 +67,30 @@ test('Perf T63c: half-section cut+project p95 < 400ms (same fixture as T63a)', a
   expect(p95ms).toBeLessThan(400);
 });
 
+test('Perf T63d: stepped-section cut+project (N=4) p95 < 600ms', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(
+    () => typeof (window as { __zilventorSectionCutMs?: unknown }).__zilventorSectionCutMs === 'function',
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const result = await page.evaluate(async () => {
+    const probe = (window as { __zilventorSectionCutMs?: (n: number, opts?: { mode?: 'full' | 'half' | 'stepped'; cutSide?: -1 | 1; segmentCount?: number }) => Promise<{ p95ms: number; mode: string }> }).__zilventorSectionCutMs;
+    if (!probe) throw new Error('T63d: __zilventorSectionCutMs not found');
+    return await probe(20, { mode: 'stepped', segmentCount: 4 });
+  });
+
+  console.log(`[perf] T63d stepped-section (N=4) p95 = ${result.p95ms.toFixed(2)} ms (mode: ${result.mode})`);
+  // STRENGTHENED: require the probe to emit the cut+stepped-project label
+  // (Batch 4 Task 4.9 wired this). Reject the full-section fallback explicitly
+  // so a missing-wiring regression surfaces with a clear message.
+  if (result.mode !== 'cut+stepped-project') {
+    throw new Error(`Batch 5 perf wiring incomplete: probe returned mode='${result.mode}' instead of 'cut+stepped-project'`);
+  }
+  expect(result.p95ms).toBeLessThan(600);
+});
+
 test('Perf T63b: single-view projection p95 still < 200ms after section plumbing', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(
