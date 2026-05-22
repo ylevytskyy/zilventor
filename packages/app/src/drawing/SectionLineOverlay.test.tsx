@@ -100,3 +100,85 @@ describe('SectionLineOverlay', () => {
     expect(termini).toContain('p1');
   });
 });
+
+describe('SectionLineOverlay — stepped polyline branch (F1.2)', () => {
+  const PARENT: BaseView = {
+    id: 'bv-1',
+    kind: 'base',
+    positionMm: { x: 100, y: 100 },
+    scale: { numerator: 1, denominator: 1 },
+    orientation: 'front',
+    showHidden: false,
+  };
+
+  const STEPPED: SectionView = {
+    id: 'sv-stepped-1',
+    kind: 'section',
+    parentViewId: 'bv-1',
+    sectionLine: { p0: { x: 0, y: 30 }, p1: { x: 120, y: 60 } },
+    arrowDirection: 1,
+    label: 'A',
+    positionMm: { x: 80, y: 180 },
+    scale: { numerator: 1, denominator: 1 },
+    showHidden: false,
+    mode: 'stepped',
+    stepSegments: [
+      { startSheet: { x: 0,  y: 30 }, endSheet: { x: 60,  y: 30 } },
+      { startSheet: { x: 60, y: 30 }, endSheet: { x: 60,  y: 60 } },
+      { startSheet: { x: 60, y: 60 }, endSheet: { x: 120, y: 60 } },
+    ],
+    hatchSegments: [],
+    fingerprint: 'fp-stepped-1',
+  };
+
+  it('renders a <polyline data-role="stepped-section-line"> when mode==="stepped"', () => {
+    const { container } = render(
+      <svg>
+        <SectionLineOverlay parentView={PARENT} sectionView={STEPPED} zoom={1} />
+      </svg>,
+    );
+    const poly = container.querySelector('[data-role="stepped-section-line"]');
+    expect(poly).not.toBeNull();
+    expect(poly!.tagName.toLowerCase()).toBe('polyline');
+  });
+
+  it('polyline points include all 4 vertices (V0..V3) in parent-view sheet space', () => {
+    const { container } = render(
+      <svg>
+        <SectionLineOverlay parentView={PARENT} sectionView={STEPPED} zoom={1} />
+      </svg>,
+    );
+    const poly = container.querySelector('[data-role="stepped-section-line"]') as SVGPolylineElement;
+    const pts = (poly.getAttribute('points') ?? '').trim().split(/\s+/);
+    expect(pts).toHaveLength(4);
+    // parent positionMm = {100,100}; scale = 1:1 → sheet pt = positionMm + vertex
+    expect(pts[0]).toBe('100,130');   // V0 = (0,30)   → (100,130)
+    expect(pts[1]).toBe('160,130');   // V1 = (60,30)  → (160,130)
+    expect(pts[2]).toBe('160,160');   // V2 = (60,60)  → (160,160)
+    expect(pts[3]).toBe('220,160');   // V3 = (120,60) → (220,160)
+  });
+
+  it('renders arrowheads + labels at V0 and V_last only — NOT at jog vertices', () => {
+    const { container } = render(
+      <svg>
+        <SectionLineOverlay parentView={PARENT} sectionView={STEPPED} zoom={1} />
+      </svg>,
+    );
+    const arrowheads = container.querySelectorAll('[data-role="arrowhead"]');
+    expect(arrowheads).toHaveLength(2);  // V0 + V_last; no V1/V2 decoration
+    const labels = container.querySelectorAll('text');
+    expect(labels).toHaveLength(2);      // "A" at V0 and "A" at V_last
+  });
+
+  it('falls back to single-<line> branch when mode==="full" (no regression)', () => {
+    const fullView: SectionView = { ...STEPPED, mode: 'full' };
+    // remove stepSegments for full mode (additive — type allows absent on full)
+    const { container } = render(
+      <svg>
+        <SectionLineOverlay parentView={PARENT} sectionView={fullView} zoom={1} />
+      </svg>,
+    );
+    expect(container.querySelector('[data-role="stepped-section-line"]')).toBeNull();
+    expect(container.querySelector('line')).not.toBeNull();
+  });
+});

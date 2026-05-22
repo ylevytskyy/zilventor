@@ -1,4 +1,4 @@
-import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView, SectionView } from '@zilventor/shared';
 import type { DrawingDimension, DimensionGroup } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
@@ -37,6 +37,7 @@ export function renderDrawingSvg(
 
   const viewGroups = sheet.views.map((v) => renderViewGroup(v)).join('\n');
   const calloutGroups = renderDetailCalloutGroups(sheet.views);
+  const steppedSectionLineGroups = renderSteppedSectionLines(sheet.views);
   const dimGroups = sheet.dimensions.map((d) => renderDimensionGroup(d, sheet.views, sheet.dimensionGroups)).join('\n');
   const annGroups = sheet.annotations.map((a) => renderAnnotationGroup(a)).join('\n');
   const titleBlockSvg = renderTitleBlockSvg(
@@ -66,10 +67,81 @@ export function renderDrawingSvg(
     fill="white" stroke="#000" stroke-width="0.5"/>
 ${viewGroups}
 ${calloutGroups}
+${steppedSectionLineGroups}
 ${dimGroups}
 ${annGroups}
 ${titleBlockSvg}
 </svg>`;
+}
+
+/**
+ * Drawing F1.2 — emit a <polyline data-role="stepped-section-line"> on the parent view
+ * for every SectionView with mode === 'stepped'. The stepSegments are in the parent
+ * view's local mm space; we transform them to sheet space using the parent view's
+ * positionMm + scale (same convention as SectionLineOverlay.tsx live React canvas).
+ *
+ * TODO(F1.x): full/half section-line emission in renderDrawingSvg (out of scope for F1.2 —
+ * the export path currently emits NO section-line decoration for full/half views; only
+ * the hatched cut compound. The stepped branch added here is the first parent-view
+ * section-line emission in the export pipeline.)
+ */
+function renderSteppedSectionLines(views: readonly DrawingView[]): string {
+  const out: string[] = [];
+  for (const view of views) {
+    if (view.kind !== 'section') continue;
+    const sv = view as SectionView;
+    if (sv.mode !== 'stepped' || !sv.stepSegments || sv.stepSegments.length < 2) continue;
+    const parent = views.find((v) => v.id === sv.parentViewId);
+    if (!parent) continue;
+    if (parent.kind !== 'base' && parent.kind !== 'projected') continue;
+
+    const ox = parent.positionMm.x;
+    const oy = parent.positionMm.y;
+    const scale = parent.scale.numerator / parent.scale.denominator;
+    const verts = [
+      sv.stepSegments[0]!.startSheet,
+      ...sv.stepSegments.map((s) => s.endSheet),
+    ];
+    const sheetVerts = verts.map((v) => ({ x: ox + v.x * scale, y: oy + v.y * scale }));
+    const pointsAttr = sheetVerts.map((v) => `${v.x.toFixed(3)},${v.y.toFixed(3)}`).join(' ');
+
+    // Arrow normals (mirror SectionLineOverlay.tsx logic).
+    const first = sheetVerts[0]!;
+    const second = sheetVerts[1]!;
+    const last = sheetVerts[sheetVerts.length - 1]!;
+    const penult = sheetVerts[sheetVerts.length - 2]!;
+    const arrowDirection = sv.arrowDirection;
+
+    const fdx = second.x - first.x;
+    const fdy = second.y - first.y;
+    const flen = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+    const fnx = (-fdy / flen) * arrowDirection;
+    const fny = ( fdx / flen) * arrowDirection;
+
+    const ldx = last.x - penult.x;
+    const ldy = last.y - penult.y;
+    const llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+    const lnx = (-ldy / llen) * arrowDirection;
+    const lny = ( ldx / llen) * arrowDirection;
+
+    const ARROW_LEN = 3;
+    const LABEL_OFFSET = 5;
+    const tip0 = { x: first.x + fnx * ARROW_LEN, y: first.y + fny * ARROW_LEN };
+    const tipN = { x: last.x + lnx * ARROW_LEN,  y: last.y + lny * ARROW_LEN };
+    const lab0 = { x: tip0.x + fnx * LABEL_OFFSET, y: tip0.y + fny * LABEL_OFFSET };
+    const labN = { x: tipN.x + lnx * LABEL_OFFSET, y: tipN.y + lny * LABEL_OFFSET };
+
+    out.push(
+      `  <g data-section-overlay="${escapeAttr(sv.id)}" data-mode="stepped">` +
+      `\n    <polyline points="${pointsAttr}" fill="none" stroke="#000" stroke-width="0.7" stroke-dasharray="6 1.5 1.5 1.5" data-role="stepped-section-line" data-view-id="${escapeAttr(sv.id)}"/>` +
+      `\n    <circle cx="${tip0.x.toFixed(3)}" cy="${tip0.y.toFixed(3)}" r="0.8" fill="#000" stroke="none" data-role="arrowhead" data-terminus="V0"/>` +
+      `\n    <circle cx="${tipN.x.toFixed(3)}" cy="${tipN.y.toFixed(3)}" r="0.8" fill="#000" stroke="none" data-role="arrowhead" data-terminus="Vlast"/>` +
+      `\n    <text x="${lab0.x.toFixed(3)}" y="${lab0.y.toFixed(3)}" font-size="5" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">${escapeText(sv.label)}</text>` +
+      `\n    <text x="${labN.x.toFixed(3)}" y="${labN.y.toFixed(3)}" font-size="5" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">${escapeText(sv.label)}</text>` +
+      `\n  </g>`,
+    );
+  }
+  return out.join('\n');
 }
 
 function renderViewGroup(view: DrawingView): string {

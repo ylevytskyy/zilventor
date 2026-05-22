@@ -35,12 +35,104 @@ function arrowheadPath(tip: { x: number; y: number }, dir: { x: number; y: numbe
 
 export function SectionLineOverlay({ parentView, sectionView, zoom = 1 }: Props) {
   const { sectionLine, arrowDirection, label } = sectionView;
-  const { p0, p1 } = sectionLine;
 
   // Translate to parent-view coordinate space (account for parent view position)
   const ox = parentView.positionMm.x;
   const oy = parentView.positionMm.y;
   const scale = parentView.scale.numerator / parentView.scale.denominator;
+
+  // --- F1.2: stepped polyline branch (spec §7.1) ---
+  if (sectionView.mode === 'stepped' && sectionView.stepSegments && sectionView.stepSegments.length >= 2) {
+    const segs = sectionView.stepSegments;
+    const verts = [
+      segs[0]!.startSheet,
+      ...segs.map((s) => s.endSheet),
+    ];
+    const sheetVerts = verts.map((v) => ({ x: ox + v.x * scale, y: oy + v.y * scale }));
+    const pointsAttr = sheetVerts.map((v) => `${v.x},${v.y}`).join(' ');
+
+    // First-segment outward normal (for V0 arrowhead).
+    const first = sheetVerts[0]!;
+    const second = sheetVerts[1]!;
+    const fdx = second.x - first.x;
+    const fdy = second.y - first.y;
+    const flen = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+    const fux = fdx / flen;
+    const fuy = fdy / flen;
+    const fnx = -fuy * arrowDirection;
+    const fny = fux * arrowDirection;
+
+    // Last-segment outward normal (for V_last arrowhead).
+    const last = sheetVerts[sheetVerts.length - 1]!;
+    const penult = sheetVerts[sheetVerts.length - 2]!;
+    const ldx = last.x - penult.x;
+    const ldy = last.y - penult.y;
+    const llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+    const lux = ldx / llen;
+    const luy = ldy / llen;
+    const lnx = -luy * arrowDirection;
+    const lny = lux * arrowDirection;
+
+    const tip0 = { x: first.x + fnx * ARROW_LEN_MM, y: first.y + fny * ARROW_LEN_MM };
+    const tipN = { x: last.x + lnx * ARROW_LEN_MM,  y: last.y + lny * ARROW_LEN_MM };
+    const lx0 = tip0.x + fnx * LABEL_OFFSET_MM;
+    const ly0 = tip0.y + fny * LABEL_OFFSET_MM;
+    const lxN = tipN.x + lnx * LABEL_OFFSET_MM;
+    const lyN = tipN.y + lny * LABEL_OFFSET_MM;
+
+    const strokeWidth = LINE_WIDTH_MM / zoom;
+    const fontSize = FONT_SIZE_MM / zoom;
+
+    return (
+      <g data-section-overlay={sectionView.id} data-mode="stepped">
+        <polyline
+          points={pointsAttr}
+          fill="none"
+          stroke="black"
+          strokeWidth={strokeWidth}
+          strokeDasharray="6 1.5 1.5 1.5"
+          data-role="stepped-section-line"
+        />
+        <path
+          d={arrowheadPath(tip0, { x: fnx, y: fny })}
+          fill="black"
+          stroke="none"
+          data-role="arrowhead"
+          data-terminus="V0"
+        />
+        <path
+          d={arrowheadPath(tipN, { x: lnx, y: lny })}
+          fill="black"
+          stroke="none"
+          data-role="arrowhead"
+          data-terminus="Vlast"
+        />
+        <text
+          x={lx0}
+          y={ly0}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={fontSize}
+          fontFamily="sans-serif"
+        >
+          {label}
+        </text>
+        <text
+          x={lxN}
+          y={lyN}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={fontSize}
+          fontFamily="sans-serif"
+        >
+          {label}
+        </text>
+      </g>
+    );
+  }
+
+  // --- Existing full / half single-line branch ---
+  const { p0, p1 } = sectionLine;
 
   // Section line endpoints in sheet space
   const sp0 = { x: ox + p0.x * scale, y: oy + p0.y * scale };
