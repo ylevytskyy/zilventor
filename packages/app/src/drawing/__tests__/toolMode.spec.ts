@@ -687,3 +687,27 @@ describe('stepped-section tool — enterSteppedSectionMode (SS-TM-1)', () => {
     expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
   });
 });
+
+describe('stepped-section tool — steppedPickParent (SS-TM-2)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('SS-TM-2: steppedPickParent("bv-1") → stage="placing", vertices=[], lockedAxis=undefined', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    const s = useToolModeStore.getState().steppedSectionState;
+    expect(s.stage).toBe('placing');
+    if (s.stage === 'placing') {
+      expect(s.parentViewId).toBe('bv-1');
+      expect(s.vertices).toEqual([]);
+      expect(s.lockedAxis).toBeUndefined();
+    }
+  });
+
+  it('steppedPickParent from non-pickParent stage is a no-op (warn)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().steppedPickParent('bv-1');  // stage=idle
+    expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

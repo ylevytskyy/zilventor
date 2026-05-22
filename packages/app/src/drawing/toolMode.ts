@@ -128,6 +128,7 @@ interface ToolModeState {
 
   // Stepped-section tool actions (Drawing F1.2)
   enterSteppedSectionMode(): void;
+  steppedPickParent(viewId: string): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -177,6 +178,22 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
 
   enterSteppedSectionMode() {
     set({ mode: 'pickSteppedSection', steppedSectionState: { stage: 'pickParent' } });
+  },
+
+  steppedPickParent(viewId) {
+    const { steppedSectionState } = get();
+    if (steppedSectionState.stage !== 'pickParent') {
+      console.warn('steppedPickParent: expected stage=pickParent, got', steppedSectionState.stage);
+      return;
+    }
+    set({
+      steppedSectionState: {
+        stage: 'placing',
+        parentViewId: viewId,
+        vertices: [],
+        // lockedAxis omitted (exactOptionalPropertyTypes); set on first vertex click.
+      },
+    });
   },
 
   sectionPickParent(viewId) {
