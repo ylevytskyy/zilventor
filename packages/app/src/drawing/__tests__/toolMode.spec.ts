@@ -711,3 +711,32 @@ describe('stepped-section tool — steppedPickParent (SS-TM-2)', () => {
     warn.mockRestore();
   });
 });
+
+describe('stepped-section tool — steppedClickVertex first vertex (SS-TM-3)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  function gotoPlacing() {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+  }
+
+  it('SS-TM-3: first steppedClickVertex({x:0,y:30}) → vertices=[{x:0,y:30}], lockedAxis="x"', () => {
+    gotoPlacing();
+    useToolModeStore.getState().steppedClickVertex({ x: 0, y: 30 });
+    const s = useToolModeStore.getState().steppedSectionState;
+    expect(s.stage).toBe('placing');
+    if (s.stage === 'placing') {
+      expect(s.vertices).toEqual([{ x: 0, y: 30 }]);
+      expect(s.lockedAxis).toBe('x');
+      expect(s.parentViewId).toBe('bv-1');
+    }
+  });
+
+  it('steppedClickVertex from non-placing stage is a no-op (warn)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    useToolModeStore.getState().steppedClickVertex({ x: 0, y: 30 });
+    expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

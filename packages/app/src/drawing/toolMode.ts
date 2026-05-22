@@ -129,6 +129,7 @@ interface ToolModeState {
   // Stepped-section tool actions (Drawing F1.2)
   enterSteppedSectionMode(): void;
   steppedPickParent(viewId: string): void;
+  steppedClickVertex(point: { x: number; y: number }): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -192,6 +193,37 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
         parentViewId: viewId,
         vertices: [],
         // lockedAxis omitted (exactOptionalPropertyTypes); set on first vertex click.
+      },
+    });
+  },
+
+  steppedClickVertex(point) {
+    const { steppedSectionState } = get();
+    if (steppedSectionState.stage !== 'placing') {
+      console.warn('steppedClickVertex: expected stage=placing, got', steppedSectionState.stage);
+      return;
+    }
+    const { vertices, lockedAxis, parentViewId } = steppedSectionState;
+    if (vertices.length === 0) {
+      // First vertex: commit as-is; default lockedAxis = 'x'.
+      set({
+        steppedSectionState: {
+          stage: 'placing',
+          parentViewId,
+          vertices: [point],
+          lockedAxis: 'x',
+        },
+      });
+      return;
+    }
+    // Subsequent vertices land in Task 4.4 (snap-project + axis flip).
+    // Until then: append as-is.
+    set({
+      steppedSectionState: {
+        stage: 'placing',
+        parentViewId,
+        vertices: [...vertices, point],
+        ...(lockedAxis !== undefined ? { lockedAxis } : {}),
       },
     });
   },
