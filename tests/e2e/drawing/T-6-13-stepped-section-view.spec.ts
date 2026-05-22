@@ -239,4 +239,157 @@ test.describe('T-6-13 — Stepped section view (F1.2)', () => {
     await expect(page.locator(`g[data-view-id="${redoSectionViewId}"]`)).toBeVisible({ timeout: 5_000 });
     await expect(page.locator(`[data-section-overlay="${redoSectionViewId}"] polyline[data-role="stepped-section-line"]`)).toHaveCount(1, { timeout: 5_000 });
   });
+
+  test('Case 2: 3-jog variant (4 segments) — len/hatch/polyline-points', async ({ page }) => {
+    page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+    page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+
+    await page.goto('/');
+    await waitForKernelReady(page);
+
+    // Same 100×60×40 fixture as Case 1.
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'New Part' }).click();
+    await page.getByRole('tab', { name: 'Sketch' }).click();
+    await page.getByRole('button', { name: '2D Sketch' }).click();
+    await page.getByRole('button', { name: 'Numeric rectangle…' }).click();
+    await page.getByLabel('x1').fill('0');
+    await page.getByLabel('y1').fill('0');
+    await page.getByLabel('x2').fill('100');
+    await page.getByLabel('y2').fill('60');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await page.getByRole('button', { name: 'Finish Sketch' }).click();
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'Extrude' }).click();
+    await page.getByLabel('Distance').fill('40');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await expect(page.getByText(/Extrusion1/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-triangle-count]')).toHaveAttribute('data-triangle-count', /[1-9]\d*/, { timeout: 15_000 });
+
+    const { sheetId, baseViewId } = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __zilventorStore: {
+          getState(): { activePart: { id: string } | null; kernel: { execute(partId: string): Promise<unknown> } | null };
+          setState(p: unknown): void;
+        };
+      };
+      const s = w.__zilventorStore.getState();
+      if (!s.activePart || !s.kernel) throw new Error('T-6-13 Case 2: kernel or activePart not ready');
+      await s.kernel.execute(s.activePart.id);
+
+      const partId = s.activePart.id;
+      const sheetId = `sheet-T613c2-${Date.now()}`;
+      const baseViewId = `base-T613c2-${Date.now()}`;
+      const drawingId = `drawing-T613c2-${Date.now()}`;
+      const frontViewMatrix = [1,0,0,-50, 0,1,0,-30, 0,0,1,-20, 0,0,0,1];
+
+      const baseView = {
+        id: baseViewId, kind: 'base',
+        positionMm: { x: 80, y: 80 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        viewMatrix: frontViewMatrix,
+        projection: {
+          visibleEdges: [{ id: 'e0', kind: 'outline', points: [[0,0],[100,0],[100,40],[0,40],[0,0]] }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 40 },
+        },
+        inputFingerprint: `fp-T613c2-${partId}`,
+      };
+
+      const drawing = {
+        id: drawingId, name: 'T-6-13 Case 2 Drawing', units: 'mm',
+        source: { partPath: `${partId}.zipt`, sourceKind: 'part' },
+        properties: {},
+        sheets: [{
+          id: sheetId, name: 'Sheet 1', size: { kind: 'iso', size: 'A3' },
+          orientation: 'landscape',
+          views: [baseView], dimensions: [], annotations: [], titleBlock: {},
+        }],
+        activeSheetId: sheetId,
+      };
+
+      w.__zilventorStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+        activeDrawing: drawing,
+      });
+
+      return { sheetId, baseViewId };
+    });
+
+    await page.getByRole('tab', { name: 'Drawing' }).click();
+    await expect(page.locator(`g[data-view-id="${baseViewId}"]`)).toBeVisible({ timeout: 10_000 });
+
+    // Dispatch with 4 segments (3 jogs). Segments alternate H/V/H/V, share endpoints,
+    // and each plane (y=10, x=40, y=30, x=60) cleanly cuts the 100×60×40 box interior.
+    const result = await page.evaluate(
+      async ({ sheetId, baseViewId }: { sheetId: string; baseViewId: string }) => {
+        const w = window as unknown as {
+          __zilventorStore: {
+            getState(): {
+              activeDocument: { kind: string; document: unknown } | null;
+              bus: { execute(cmd: { apply(): Promise<void>; revert(): Promise<void> }): Promise<void> };
+            };
+          };
+        };
+        const { AddSectionViewCommand } = await import('/src/commands/AddSectionViewCommand.ts');
+        const cmd = new AddSectionViewCommand({
+          drawingId: 'T-6-13-c2',
+          sheetId,
+          parentViewId: baseViewId,
+          p0: { x: -30, y: -20 },
+          p1: { x:  10, y:  10 },
+          arrowDirection: 1 as -1 | 1,
+          dropAt: { x: 260, y: 80 },
+          mode: 'stepped',
+          stepSegments: [
+            { startSheet: { x: -30, y: -20 }, endSheet: { x: -10, y: -20 } }, // H, plane y=10
+            { startSheet: { x: -10, y: -20 }, endSheet: { x: -10, y:  0  } }, // V, plane x=40
+            { startSheet: { x: -10, y:  0  }, endSheet: { x:  10, y:  0  } }, // H, plane y=30
+            { startSheet: { x:  10, y:  0  }, endSheet: { x:  10, y: 10  } }, // V, plane x=60
+          ],
+        });
+        try {
+          await w.__zilventorStore.getState().bus.execute(cmd);
+        } catch (e) {
+          return { ok: false, error: String(e) };
+        }
+        const s = w.__zilventorStore.getState();
+        const doc = s.activeDocument?.kind === 'drawing'
+          ? s.activeDocument.document as { sheets: Array<{ id: string; views: Array<{ id: string; kind: string; stepSegments?: unknown[]; hatchSegments?: unknown[] }> }> }
+          : null;
+        const sheet = doc?.sheets.find((sh) => sh.id === sheetId);
+        const sectionView = sheet?.views.find((v) => v.kind === 'section');
+        if (!sectionView) return { ok: false, error: 'no section view after bus.execute()' };
+        return {
+          ok: true,
+          sectionViewId: sectionView.id,
+          stepSegmentsLen: sectionView.stepSegments?.length ?? 0,
+          hatchCount: sectionView.hatchSegments?.length ?? 0,
+        };
+      },
+      { sheetId, baseViewId },
+    );
+
+    if (!result.ok) {
+      throw new Error(`AddSectionViewCommand (Case 2) dispatch failed: ${(result as { error?: string }).error ?? '(no error)'}`);
+    }
+    const sectionViewId = result.sectionViewId!;
+
+    // ---- view.stepSegments.length === 4 ----
+    expect(result.stepSegmentsLen).toBe(4);
+
+    // ---- hatchSegments.length > 0 ----
+    expect(result.hatchCount).toBeGreaterThan(0);
+
+    // ---- polyline points = 5 (N+1 vertices for N=4 segments) ----
+    const polyline = page.locator(`[data-section-overlay="${sectionViewId}"] polyline[data-role="stepped-section-line"]`);
+    await expect(polyline).toHaveCount(1, { timeout: 5_000 });
+
+    const pointsAttr = await polyline.getAttribute('points');
+    expect(pointsAttr).not.toBeNull();
+    // SVG `points` is a space- or comma-separated list of "x,y" pairs.
+    const numericPairs = pointsAttr!.trim().split(/\s+/).filter((p) => p.includes(','));
+    expect(numericPairs).toHaveLength(5);
+  });
 });
