@@ -145,15 +145,113 @@ function rectsOverlap(a: PlacedRect, b: PlacedRect): boolean {
 export type BBox2D = { minX: number; minY: number; maxX: number; maxY: number };
 
 // ---------------------------------------------------------------------------
-// greedyPlaceDims — placeholder; implemented in Task 1.3
+// greedyPlaceDims
 // ---------------------------------------------------------------------------
 
+/**
+ * Assign offsetMm to each candidate dimension using a greedy non-overlapping strategy.
+ *
+ * Strategy:
+ * - linear-h: stack above bbox (Y decreasing). Starting offset = max(bboxHeight*0.15, 3).
+ *   Subsequent increment:
+ *     bboxWidth < 50 → bboxWidth * 0.15 (small-bbox path, no clamp)
+ *     otherwise      → clamp(bboxWidth * 0.15, 8, 20)
+ * - linear-v: stack to the right of bbox (X increasing). Same scaling on height dimension.
+ * - aligned:  offset from midpoint at 3mm + N*8mm (fixed increment).
+ *
+ * Deterministic: candidates pre-sorted by (kind, from.edgeId, id) before placement.
+ *
+ * @param candidates  - Dims with offsetMm === 0 (placeholder).
+ * @param viewBboxMm  - View projection bbox.
+ * @returns Array of placed dims with offsetMm filled in; overlapping dims excluded.
+ */
 export function greedyPlaceDims(
   candidates: DrawingDimension[],
   viewBboxMm: BBox2D,
 ): DrawingDimension[] {
-  // Implemented in Task 1.3
-  void candidates;
-  void viewBboxMm;
-  return [];
+  if (candidates.length === 0) return [];
+
+  const bboxW = viewBboxMm.maxX - viewBboxMm.minX;
+  const bboxH = viewBboxMm.maxY - viewBboxMm.minY;
+
+  // Sort deterministically: by kind (alphabetical) then by id
+  const sorted = [...candidates].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
+  const placed: DrawingDimension[] = [];
+  const placedRects: PlacedRect[] = [];
+
+  // Per-kind stacking state
+  let hOffset = Math.max(bboxH * 0.15, 3);
+  let vOffset = Math.max(bboxW * 0.15, 3);
+  let alignOffset = 3;
+
+  // Increment helpers (spec §6.2)
+  const hIncrement = bboxW < 50
+    ? bboxW * 0.15
+    : Math.min(Math.max(bboxW * 0.15, 8), 20);
+  const vIncrement = bboxH < 50
+    ? bboxH * 0.15
+    : Math.min(Math.max(bboxH * 0.15, 8), 20);
+  const alignIncrement = 8;
+
+  // Font size used for overlap rect half-height
+  const halfFontSize = 3.5 / 2;
+
+  for (const dim of sorted) {
+    if (dim.kind === 'linear-h') {
+      const offset = hOffset;
+      // Dim line is above bbox: Y = viewBboxMm.minY - offset
+      const dimY = viewBboxMm.minY - offset;
+      const rect: PlacedRect = {
+        minX: viewBboxMm.minX,
+        maxX: viewBboxMm.maxX,
+        minY: dimY - halfFontSize,
+        maxY: dimY + halfFontSize,
+      };
+      const overlaps = placedRects.some((r) => rectsOverlap(rect, r));
+      if (!overlaps) {
+        placed.push({ ...dim, offsetMm: offset } as DrawingDimension);
+        placedRects.push(rect);
+      }
+      // Always increment so next candidate gets a fresh slot
+      hOffset += hIncrement;
+    } else if (dim.kind === 'linear-v') {
+      const offset = vOffset;
+      const dimX = viewBboxMm.maxX + offset;
+      const rect: PlacedRect = {
+        minX: dimX - halfFontSize,
+        maxX: dimX + halfFontSize,
+        minY: viewBboxMm.minY,
+        maxY: viewBboxMm.maxY,
+      };
+      const overlaps = placedRects.some((r) => rectsOverlap(rect, r));
+      if (!overlaps) {
+        placed.push({ ...dim, offsetMm: offset } as DrawingDimension);
+        placedRects.push(rect);
+      }
+      vOffset += vIncrement;
+    } else if (dim.kind === 'aligned') {
+      const offset = alignOffset;
+      const midX = (viewBboxMm.minX + viewBboxMm.maxX) / 2;
+      const midY = (viewBboxMm.minY + viewBboxMm.maxY) / 2;
+      const rect: PlacedRect = {
+        minX: midX - offset - halfFontSize,
+        maxX: midX + offset + halfFontSize,
+        minY: midY - offset - halfFontSize,
+        maxY: midY + offset + halfFontSize,
+      };
+      const overlaps = placedRects.some((r) => rectsOverlap(rect, r));
+      if (!overlaps) {
+        placed.push({ ...dim, offsetMm: offset } as DrawingDimension);
+        placedRects.push(rect);
+      }
+      alignOffset += alignIncrement;
+    }
+    // radial/diametric: not handled in v1 (AutoDimCommand never passes them)
+  }
+
+  return placed;
 }

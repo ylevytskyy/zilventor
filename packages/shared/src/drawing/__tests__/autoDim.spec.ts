@@ -177,3 +177,127 @@ describe('findMatchingEdge2D — HS-MATCH-5: non-line primitive returns null', (
     expect(result).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT helpers
+// ---------------------------------------------------------------------------
+
+import { greedyPlaceDims } from '../autoDim';
+
+/** Build a linear-h DrawingDimension candidate with offsetMm=0. */
+function makeLinearH(id: string): DrawingDimension {
+  return {
+    id,
+    kind: 'linear-h',
+    viewId: 'v1',
+    from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+    to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'end' },
+    offsetMm: 0,
+  } as DrawingDimension;
+}
+
+function makeLinearV(id: string): DrawingDimension {
+  return {
+    id,
+    kind: 'linear-v',
+    viewId: 'v1',
+    from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+    to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'end' },
+    offsetMm: 0,
+  } as DrawingDimension;
+}
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT-1: single horizontal dim → offset = 9mm (bbox 100×60)
+// ---------------------------------------------------------------------------
+
+describe('greedyPlaceDims — HS-LAYOUT-1: single linear-h dim', () => {
+  it('assigns starting offsetMm for a single horizontal candidate', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 60 };
+    const candidates = [makeLinearH('d1')];
+    const placed = greedyPlaceDims(candidates, bbox);
+    expect(placed).toHaveLength(1);
+    // Starting offset: max(bboxHeight*0.15, 3) = max(60*0.15, 3) = max(9,3) = 9
+    expect(placed[0]!.offsetMm).toBeCloseTo(9, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT-2: three non-overlapping horizontal dims → offsets 9, 24, 39
+// ---------------------------------------------------------------------------
+
+describe('greedyPlaceDims — HS-LAYOUT-2: three linear-h dims', () => {
+  it('stacks three horizontal dims with correct incremental offsets', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 60 };
+    const candidates = [makeLinearH('d1'), makeLinearH('d2'), makeLinearH('d3')];
+    const placed = greedyPlaceDims(candidates, bbox);
+    expect(placed).toHaveLength(3);
+    // Starting offset: max(bboxHeight*0.15, 3) = max(60*0.15=9, 3) = 9
+    // Increment: clamp(bboxWidth*0.15, 8, 20) = clamp(100*0.15=15, 8, 20) = 15
+    // Offsets: 9, 9+15=24, 24+15=39
+    expect(placed[0]!.offsetMm).toBeCloseTo(9, 5);
+    expect(placed[1]!.offsetMm).toBeCloseTo(24, 5);
+    expect(placed[2]!.offsetMm).toBeCloseTo(39, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT-3: overlap skip — empty input + two-same-kind dims get different offsets
+// ---------------------------------------------------------------------------
+
+describe('greedyPlaceDims — HS-LAYOUT-3: overlap skip', () => {
+  it('returns empty array for empty candidates', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 60 };
+    const placed = greedyPlaceDims([], bbox);
+    expect(placed).toHaveLength(0);
+  });
+
+  it('two same-kind dims get different offsetMm values (no overlap)', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 60 };
+    const candidates = [makeLinearH('d1'), makeLinearH('d2')];
+    const placed = greedyPlaceDims(candidates, bbox);
+    expect(placed).toHaveLength(2);
+    expect(placed[0]!.offsetMm).not.toBe(placed[1]!.offsetMm);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT-4: small-bbox scaling (bboxWidth < 50mm)
+// ---------------------------------------------------------------------------
+
+describe('greedyPlaceDims — HS-LAYOUT-4: small bbox scaling', () => {
+  it('scales increment to bboxWidth*0.15 when bboxWidth < 50mm', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 30, maxY: 20 };  // width=30, height=20 (both < 50)
+    const candidates = [makeLinearH('d1'), makeLinearH('d2')];
+    const placed = greedyPlaceDims(candidates, bbox);
+    expect(placed).toHaveLength(2);
+    // Starting offset: max(bboxHeight*0.15, 3) = max(20*0.15=3, 3) = 3
+    // Increment (small-bbox path, width<50): bboxWidth*0.15 = 30*0.15 = 4.5
+    expect(placed[0]!.offsetMm).toBeCloseTo(3, 5);
+    expect(placed[1]!.offsetMm).toBeCloseTo(3 + 4.5, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HS-LAYOUT-5: determinism — identical input → identical output
+// ---------------------------------------------------------------------------
+
+describe('greedyPlaceDims — HS-LAYOUT-5: deterministic re-run', () => {
+  it('produces byte-identical offsetMm values on two calls with the same input', () => {
+    const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 60 };
+    const candidates: DrawingDimension[] = [
+      makeLinearH('d1'),
+      makeLinearH('d2'),
+      makeLinearV('d3'),
+    ];
+
+    const run1 = greedyPlaceDims(candidates, bbox);
+    const run2 = greedyPlaceDims(candidates, bbox);
+
+    expect(run1).toHaveLength(run2.length);
+    for (let i = 0; i < run1.length; i++) {
+      expect(run1[i]!.id).toBe(run2[i]!.id);
+      expect(run1[i]!.offsetMm).toBe(run2[i]!.offsetMm);  // strict equality (same float bits)
+    }
+  });
+});
