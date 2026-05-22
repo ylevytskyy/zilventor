@@ -439,6 +439,78 @@ function composePoses(parent: LocalPose, child: LocalPose): LocalPose {
   };
 }
 
+// ---------------------------------------------------------------------------
+// cutByStepSegments (Drawing F1.2 — Stepped-section views)
+// ---------------------------------------------------------------------------
+//
+// Spec §5.2 reference pseudocode — see
+// docs/superpowers/specs/2026-05-22-drawing-f1.2-stepped-section-design.md
+//
+// function cutByStepSegments(oc, source, planes, arrowDirection):
+//     if planes.length < 2: throw 'stepped-section-invariant-violated' (count < 2)
+//     if planes.length > 8: throw 'stepped-section-invariant-violated' (count > 8)
+//
+//     running = source
+//     mergedTags = empty FaceTagMap
+//     anyCut = false
+//
+//     for i in 0 .. planes.length - 1:
+//         plane = planes[i]
+//         halfSpace = buildHalfSpace(oc, plane, arrowDirection)
+//         result = BRepAlgoAPI_Cut_3(running, halfSpace.handle)
+//         if !result.IsDone() or no solid in result:
+//             return { ok: false, reason: 'empty' }
+//
+//         next = result.Shape()
+//
+//         if abs(volume(next) - volume(running)) < 1e-6 * volume(running):
+//             // per-segment tangent: non-fatal — skip merge, keep running
+//             release(next); release(halfSpace); continue
+//
+//         for face in faces(next):
+//             key = hashFace(face)
+//             if classifyFace(face, plane) === 'cut-face':
+//                 mergedTags.set(key, { tag: 'cut-face', ..., planeSource: 'section' })
+//                 continue
+//             if mergedTags.has(key): continue   // preserve prior cut-face
+//             mergedTags.set(key, { tag: 'original-face', ... })
+//
+//         release(running) unless i === 0; running = next; release(halfSpace)
+//         anyCut = true
+//
+//     if !anyCut: return { ok: false, reason: 'empty' }
+//     return { ok: true, compound: running, faceTags: mergedTags }
+//
+// Face-tag contract (spec §5 / B2 axis): every cut face from every segment
+// carries planeSource: 'section' uniformly. The 'split' value (F1.1) is NEVER
+// emitted by this code path.
+
+/**
+ * Cut `source` compound by a polyline of N axis-aligned half-spaces, one per
+ * segment of an ANSI stepped section line. Runs N sequential BRepAlgoAPI_Cut_3
+ * calls, reusing F1's `buildHalfSpace` per segment. All faces classified as
+ * cut-faces by any segment carry `planeSource: 'section'`. See spec §5 for
+ * the full face-tag contract.
+ *
+ * Throws 'stepped-section-invariant-violated' when planes.length < 2 or > 8.
+ * Returns { ok: false, reason: 'empty' } when the cumulative cut produces no
+ * solid or every segment is tangent.
+ */
+export function cutByStepSegments(
+  oc: OcctInstance,
+  source: unknown /* TopoDS_Compound */,
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1,
+): Result {
+  if (planes.length < 2) {
+    throw new Error(`stepped-section-invariant-violated: planes.length=${planes.length} < 2 (clause 2)`);
+  }
+  // Tasks 2.2–2.5 will extend this body with the count-> 8 guard, the main
+  // BRepAlgoAPI_Cut_3 loop, the per-segment volume-tangent skip, the face
+  // classifier, and the empty-cut handler.
+  throw new Error('cutByStepSegments: loop body not yet implemented (Task 2.2)');
+}
+
 function flattenLeaves(
   asm: AssemblyDocument,
   lookupSubAsm: (path: string) => AssemblyDocument | undefined,

@@ -2,7 +2,14 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
-import { buildHalfSpace, buildQuarterBox, cutBySectionPlane, cutAssemblyBySectionPlane, type Plane } from './cutBySectionPlane';
+import {
+  buildHalfSpace,
+  buildQuarterBox,
+  cutBySectionPlane,
+  cutAssemblyBySectionPlane,
+  cutByStepSegments,                 // NEW (Drawing F1.2 Batch 2)
+  type Plane,
+} from './cutBySectionPlane';
 
 let oc: OcctInstance;
 beforeAll(async () => { oc = await loadOcct(); }, 60_000);
@@ -405,5 +412,18 @@ describe('cutAssemblyBySectionPlane — half-section propagation (HS-K-5)', () =
     expect(tags.filter(t => t.tag === 'cut-face' && t.planeSource === 'split').length).toBeGreaterThanOrEqual(2);
 
     disposeOcctShape(oc, result.compound);
+  });
+});
+
+describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
+  it('SS-K-4: 1-segment input throws stepped-section-invariant-violated (clause 2)', () => {
+    const cube = makeBox(oc, 50, 50, 30);
+    const compound = buildTestCompound(oc, cube);
+    const planes: Plane[] = [
+      { origin: { x: 0, y: 0, z: 15 }, normal: { x: 0, y: 0, z: 1 } },
+    ];
+    expect(() => cutByStepSegments(oc, compound, planes, 1))
+      .toThrow(/stepped-section-invariant-violated/);
+    disposeOcctShape(oc, compound);
   });
 });
