@@ -392,4 +392,129 @@ test.describe('T-6-13 — Stepped section view (F1.2)', () => {
     const numericPairs = pointsAttr!.trim().split(/\s+/).filter((p) => p.includes(','));
     expect(numericPairs).toHaveLength(5);
   });
+
+  test('Case 3: empty-cut error — command throws, sheet.views.length unchanged', async ({ page }) => {
+    page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+    page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+
+    await page.goto('/');
+    await waitForKernelReady(page);
+
+    // Same 100×60×40 fixture; same drawing seeding.
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'New Part' }).click();
+    await page.getByRole('tab', { name: 'Sketch' }).click();
+    await page.getByRole('button', { name: '2D Sketch' }).click();
+    await page.getByRole('button', { name: 'Numeric rectangle…' }).click();
+    await page.getByLabel('x1').fill('0');
+    await page.getByLabel('y1').fill('0');
+    await page.getByLabel('x2').fill('100');
+    await page.getByLabel('y2').fill('60');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await page.getByRole('button', { name: 'Finish Sketch' }).click();
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'Extrude' }).click();
+    await page.getByLabel('Distance').fill('40');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await expect(page.getByText(/Extrusion1/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-triangle-count]')).toHaveAttribute('data-triangle-count', /[1-9]\d*/, { timeout: 15_000 });
+
+    const { sheetId, baseViewId, viewsLenBefore } = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __zilventorStore: {
+          getState(): { activePart: { id: string } | null; kernel: { execute(partId: string): Promise<unknown> } | null };
+          setState(p: unknown): void;
+        };
+      };
+      const s = w.__zilventorStore.getState();
+      if (!s.activePart || !s.kernel) throw new Error('T-6-13 Case 3: kernel or activePart not ready');
+      await s.kernel.execute(s.activePart.id);
+
+      const partId = s.activePart.id;
+      const sheetId = `sheet-T613c3-${Date.now()}`;
+      const baseViewId = `base-T613c3-${Date.now()}`;
+      const drawingId = `drawing-T613c3-${Date.now()}`;
+      const frontViewMatrix = [1,0,0,-50, 0,1,0,-30, 0,0,1,-20, 0,0,0,1];
+
+      const baseView = {
+        id: baseViewId, kind: 'base',
+        positionMm: { x: 80, y: 80 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        viewMatrix: frontViewMatrix,
+        projection: {
+          visibleEdges: [{ id: 'e0', kind: 'outline', points: [[0,0],[100,0],[100,40],[0,40],[0,0]] }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 40 },
+        },
+        inputFingerprint: `fp-T613c3-${partId}`,
+      };
+
+      const drawing = {
+        id: drawingId, name: 'T-6-13 Case 3 Drawing', units: 'mm',
+        source: { partPath: `${partId}.zipt`, sourceKind: 'part' },
+        properties: {},
+        sheets: [{
+          id: sheetId, name: 'Sheet 1', size: { kind: 'iso', size: 'A3' },
+          orientation: 'landscape',
+          views: [baseView], dimensions: [], annotations: [], titleBlock: {},
+        }],
+        activeSheetId: sheetId,
+      };
+
+      w.__zilventorStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+        activeDrawing: drawing,
+      });
+
+      return { sheetId, baseViewId, viewsLenBefore: 1 };
+    });
+
+    await page.getByRole('tab', { name: 'Drawing' }).click();
+    await expect(page.locator(`g[data-view-id="${baseViewId}"]`)).toBeVisible({ timeout: 10_000 });
+
+    // Dispatch with stepSegments entirely outside the 100×60×40 part. Sheet coords
+    // (500,500)..(600,600) map to world planes at y=530, x=650 — both miss the box
+    // (world x∈[0,100], y∈[0,60]) so kernel returns ok:false; command throws.
+    const errorReport = await page.evaluate(
+      async ({ sheetId, baseViewId }: { sheetId: string; baseViewId: string }) => {
+        const { AddSectionViewCommand } = await import('/src/commands/AddSectionViewCommand.ts');
+        const cmd = new AddSectionViewCommand({
+          drawingId: 'T-6-13-c3',
+          sheetId,
+          parentViewId: baseViewId,
+          p0: { x: 500, y: 500 },
+          p1: { x: 600, y: 600 },
+          arrowDirection: 1 as -1 | 1,
+          dropAt: { x: 260, y: 80 },
+          mode: 'stepped',
+          stepSegments: [
+            { startSheet: { x: 500, y: 500 }, endSheet: { x: 600, y: 500 } }, // H
+            { startSheet: { x: 600, y: 500 }, endSheet: { x: 600, y: 600 } }, // V
+          ],
+        });
+        let thrown: string | null = null;
+        try {
+          await cmd.apply();
+        } catch (e) {
+          thrown = String(e);
+        }
+
+        const w = window as unknown as { __zilventorStore: { getState(): { activeDocument: { kind: string; document: unknown } | null } } };
+        const doc = w.__zilventorStore.getState().activeDocument?.kind === 'drawing'
+          ? (w.__zilventorStore.getState().activeDocument!.document as { sheets: Array<{ id: string; views: unknown[] }> })
+          : null;
+        const sheet = doc?.sheets.find((sh) => sh.id === sheetId);
+        return { thrown, viewsLenAfter: sheet?.views.length ?? -1 };
+      },
+      { sheetId, baseViewId },
+    );
+
+    // Command threw with the expected stepped-section-empty-cut message
+    expect(errorReport.thrown).not.toBeNull();
+    expect(errorReport.thrown).toMatch(/stepped-section-empty-cut/);
+
+    // sheet.views.length unchanged — no partial SectionView was added.
+    expect(errorReport.viewsLenAfter).toBe(viewsLenBefore);
+  });
 });
