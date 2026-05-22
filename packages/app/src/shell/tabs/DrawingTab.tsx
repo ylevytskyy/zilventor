@@ -147,6 +147,16 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => setMode('addRadial')}>Radial</button>
         <button type="button" className="text-xs hover:text-white" aria-label="Diametric"
           onClick={() => setMode('addDiametric')}>Diametric</button>
+        {/* Auto-Dim: Drawing F4 — place parametric dims from base sketch */}
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Auto-Dim"
+          title="Place parametric dimensions from base sketch parameters — click a view after enabling"
+          onClick={() => setMode('autoDim')}
+        >
+          Auto-Dim
+        </button>
       </RibbonPanel>
 
       {/* Annotate panel */}
