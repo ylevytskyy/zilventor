@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/dimensionMath.spec.ts
 import { describe, it, expect } from 'vitest';
-import { intersectLines, subtendedAngle } from '../dimensionMath';
+import { intersectLines, subtendedAngle, formatAngleDeg } from '../dimensionMath';
 
 describe('intersectLines — HS-MATH-1: perpendicular lines', () => {
   it('returns intersection of horizontal and vertical line', () => {
@@ -70,5 +70,39 @@ describe('subtendedAngle — HS-MATH-7: opposite directions (180°)', () => {
     const result = subtendedAngle({ x: 1, y: 0 }, { x: -1, y: 0 });
     expect(result.insideRad).toBeCloseTo(Math.PI, 5);
     expect(result.outsideRad).toBeCloseTo(Math.PI, 5);
+  });
+});
+
+describe('formatAngleDeg — HS-FMT-1: exact integer', () => {
+  it('formats π/4 rad as "45°"', () => {
+    expect(formatAngleDeg(Math.PI / 4)).toBe('45°');
+  });
+});
+
+describe('formatAngleDeg — HS-FMT-2: one decimal', () => {
+  it('formats 30.5 degrees without trailing zeros', () => {
+    expect(formatAngleDeg(30.5 * Math.PI / 180)).toBe('30.5°');
+  });
+});
+
+describe('formatAngleDeg — HS-FMT-3: three decimal max', () => {
+  it('caps at 3 decimals', () => {
+    // 1/3 degrees = 0.3333... → trimmed to "0.333°"
+    const rad = (1 / 3) * Math.PI / 180;
+    const result = formatAngleDeg(rad);
+    expect(result).toBe('0.333°');
+  });
+});
+
+describe('formatAngleDeg — HS-FMT-4: explicit decimals param', () => {
+  it('respects explicit decimals=1 override', () => {
+    // π/6 = 30.000° → with decimals=1 → "30°"
+    expect(formatAngleDeg(Math.PI / 6, 1)).toBe('30°');
+  });
+});
+
+describe('formatAngleDeg — HS-FMT-5: zero radians', () => {
+  it('formats 0 radians as "0°"', () => {
+    expect(formatAngleDeg(0)).toBe('0°');
   });
 });

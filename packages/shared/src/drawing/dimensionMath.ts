@@ -47,3 +47,15 @@ export function subtendedAngle(
   const insideRad = Math.acos(Math.max(-1, Math.min(1, cosA)));  // clamp against floating-point overshoot
   return { insideRad, outsideRad: 2 * Math.PI - insideRad };
 }
+
+/**
+ * Converts radians to a human-readable degree string, e.g. "45°", "30.5°".
+ * Trailing zeros after the decimal are trimmed. Maximum `decimals` digits (default 3).
+ */
+export function formatAngleDeg(rad: number, decimals = 3): string {
+  const deg = rad * (180 / Math.PI);
+  const formatted = deg.toFixed(decimals);
+  // Remove trailing zeros and optional trailing dot
+  const trimmed = formatted.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  return `${trimmed}°`;
+}
