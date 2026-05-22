@@ -88,3 +88,114 @@ describe('MoveDrawingDimensionCommand', () => {
     expect(dim.offsetMm).toBe(10);
   });
 });
+
+import type { DimensionGroup } from '@zilventor/shared/src/drawing/types';
+
+describe('MoveDrawingDimensionCommand — F5 new kinds', () => {
+  function makeDocWithBaseline(): DrawingDocument {
+    const group: DimensionGroup = {
+      kind: 'baseline', id: 'bg1', viewId: 'v1',
+      datum: { kind: 'edge-endpoint', edgeId: 'e0', end: 'start' },
+      direction: 'h', baseOffsetMm: 20, spacingMm: 10,
+    };
+    const mem: DrawingDimension = {
+      id: 'bm0', kind: 'baseline', viewId: 'v1', groupId: 'bg1', slot: 0,
+      to: { kind: 'edge-endpoint', edgeId: 'e1', end: 'end' },
+    } as unknown as DrawingDimension;
+    return {
+      id: 'dw1', name: 'Test', units: 'mm',
+      source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+      properties: {}, activeSheetId: 'sh1',
+      sheets: [{
+        id: 'sh1', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [], dimensions: [mem], dimensionGroups: [group], annotations: [], titleBlock: {},
+      }],
+    };
+  }
+
+  function makeDocWithOrdinate(axis: 'x' | 'y'): DrawingDocument {
+    const group: DimensionGroup = {
+      kind: 'ordinate', id: 'og1', viewId: 'v1',
+      origin: { kind: 'edge-endpoint', edgeId: 'e0', end: 'start' },
+      xColumnOffsetMm: 30, yColumnOffsetMm: 25,
+    };
+    const mem: DrawingDimension = {
+      id: 'om0', kind: 'ordinate', viewId: 'v1', groupId: 'og1', axis,
+      to: { kind: 'edge-endpoint', edgeId: 'e1', end: 'end' },
+    } as unknown as DrawingDimension;
+    return {
+      id: 'dw1', name: 'Test', units: 'mm',
+      source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+      properties: {}, activeSheetId: 'sh1',
+      sheets: [{
+        id: 'sh1', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [], dimensions: [mem], dimensionGroups: [group], annotations: [], titleBlock: {},
+      }],
+    };
+  }
+
+  it('(a) baseline drag mutates group.baseOffsetMm', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithBaseline() } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'bm0', offsetMm: 35 });
+    await cmd.apply();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { baseOffsetMm: number };
+    expect(group.baseOffsetMm).toBe(35);
+  });
+
+  it('(b) baseline drag revert restores group.baseOffsetMm', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithBaseline() } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'bm0', offsetMm: 35 });
+    await cmd.apply();
+    await cmd.revert();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { baseOffsetMm: number };
+    expect(group.baseOffsetMm).toBe(20);
+  });
+
+  it('(c) ordinate axis=x drag mutates group.xColumnOffsetMm', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithOrdinate('x') } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'om0', offsetMm: 50 });
+    await cmd.apply();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { xColumnOffsetMm: number; yColumnOffsetMm: number };
+    expect(group.xColumnOffsetMm).toBe(50);
+    expect(group.yColumnOffsetMm).toBe(25); // unchanged
+  });
+
+  it('(d) ordinate axis=y drag mutates group.yColumnOffsetMm', async () => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDocWithOrdinate('y') } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'om0', offsetMm: 60 });
+    await cmd.apply();
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const group = doc.sheets[0]!.dimensionGroups[0]! as unknown as { yColumnOffsetMm: number };
+    expect(group.yColumnOffsetMm).toBe(60);
+  });
+
+  it('(e) angular drag mutates dim.offsetMm directly', async () => {
+    const angularDim: DrawingDimension = {
+      id: 'ang1', kind: 'angular', viewId: 'v1',
+      ref: { kind: 'two-edges', edge1: { viewId: 'v1', edgeId: 'e1' }, edge2: { viewId: 'v1', edgeId: 'e2' } },
+      arcSide: 'inside', offsetMm: 15,
+    } as unknown as DrawingDimension;
+    const doc: DrawingDocument = {
+      id: 'dw1', name: 'Test', units: 'mm',
+      source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+      properties: {}, activeSheetId: 'sh1',
+      sheets: [{
+        id: 'sh1', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [], dimensions: [angularDim], dimensionGroups: [], annotations: [], titleBlock: {},
+      }],
+    };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: doc } } as never);
+    const cmd = new MoveDrawingDimensionCommand({ sheetId: 'sh1', dimId: 'ang1', offsetMm: 30 });
+    await cmd.apply();
+    const state = useAppStore.getState();
+    const doc2 = (state.activeDocument as unknown as DrawingActive).document;
+    const dim = doc2.sheets[0]!.dimensions[0]! as unknown as { offsetMm: number };
+    expect(dim.offsetMm).toBe(30);
+  });
+});
