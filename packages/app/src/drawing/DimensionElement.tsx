@@ -81,7 +81,10 @@ function LinearDimension({ dim, view }: { dim: LinearDim; view: DrawingView }) {
     // Mode 1: user override — render verbatim
     displayText = dim.textOverride;
   } else if ('sourceParameterName' in dim && typeof dim.sourceParameterName === 'string') {
-    // Mode 2: parametric — look up live parameter value from store
+    // Mode 2: parametric — look up live parameter value from store.
+    // Uses getState() (snapshot read) NOT useStore subscription on purpose: this
+    // component re-renders whenever the parent DrawingCanvas re-renders on any
+    // store change, so a subscription would be redundant and add render churn.
     const paramName = dim.sourceParameterName;
     const activePart = useAppStore.getState().activePart;
     const param = activePart?.parameters[paramName];
