@@ -663,3 +663,27 @@ describe('detail tool — stage transitions', () => {
     expect(useToolModeStore.getState().mode).toBe('idle');
   });
 });
+
+// --- Stepped-section tool state (Drawing F1.2) ---
+
+describe('stepped-section tool — enterSteppedSectionMode (SS-TM-1)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  it('SS-TM-1: enterSteppedSectionMode() → mode === "pickSteppedSection", stage === "pickParent"', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    const s = useToolModeStore.getState();
+    expect(s.mode).toBe('pickSteppedSection');
+    expect(s.steppedSectionState).toEqual({ stage: 'pickParent' });
+  });
+
+  it('reset() from pickSteppedSection clears mode + state', () => {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().reset();
+    expect(useToolModeStore.getState().mode).toBe('idle');
+    expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
+  });
+
+  it('default steppedSectionState is { stage: "idle" }', () => {
+    expect(useToolModeStore.getState().steppedSectionState).toEqual({ stage: 'idle' });
+  });
+});

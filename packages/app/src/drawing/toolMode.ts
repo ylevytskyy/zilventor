@@ -21,7 +21,8 @@ export type ToolMode =
   | 'autoDim'   // Drawing F4 — auto-dimensioning from sketch parameters
   | 'baseline'  // Drawing F5 — baseline dimension group (manual)
   | 'ordinate'  // Drawing F5 — ordinate dimension group (manual)
-  | 'angular';  // Drawing F5 — angular dimension (two-edges or arc)
+  | 'angular'   // Drawing F5 — angular dimension (two-edges or arc)
+  | 'pickSteppedSection';  // Drawing F1.2 — stepped section authoring
 
 export type PendingViewParams =
   | {
@@ -88,6 +89,19 @@ export type SectionToolState =
       pendingCutSide: -1 | 1;
     };
 
+// ---------------------------------------------------------------------------
+// Stepped section tool sub-state (Drawing F1.2 — spec §6.1)
+// ---------------------------------------------------------------------------
+export type SteppedSectionToolState =
+  | { stage: 'idle' }
+  | { stage: 'pickParent' }
+  | {
+      stage: 'placing';
+      parentViewId: string;
+      vertices: readonly { x: number; y: number }[];   // grows on each click
+      lockedAxis?: 'x' | 'y';                          // present once vertices.length >= 1
+    };
+
 interface ToolModeState {
   mode: ToolMode;
   pendingViewParams: PendingViewParams | null;
@@ -95,6 +109,7 @@ interface ToolModeState {
   detailState: DetailToolState;
   breakState: BreakToolState;
   sectionMode: 'full' | 'half';
+  steppedSectionState: SteppedSectionToolState;
 
   setMode(mode: ToolMode): void;
   setPendingViewParams(p: PendingViewParams | null): void;
@@ -110,6 +125,9 @@ interface ToolModeState {
   sectionCommitCutSide(onDispatch: (cutSide: -1 | 1, dropAt: { x: number; y: number }) => void): void;
   sectionCancel(): void;
   setSectionMode(m: 'full' | 'half'): void;
+
+  // Stepped-section tool actions (Drawing F1.2)
+  enterSteppedSectionMode(): void;
 
   // Break tool actions
   enterBreakMode(): void;
@@ -135,6 +153,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   detailState: { stage: 'idle' },
   breakState: { stage: 'idle' },
   sectionMode: 'full',
+  steppedSectionState: { stage: 'idle' },
 
   setMode(mode) {
     set({ mode });
@@ -145,7 +164,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   },
 
   reset() {
-    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' }, sectionMode: 'full' });
+    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' }, sectionMode: 'full', steppedSectionState: { stage: 'idle' } });
   },
 
   setSectionMode(m) {
@@ -154,6 +173,10 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
 
   enterSectionMode() {
     set({ mode: 'section', sectionState: { stage: 'idle' } });
+  },
+
+  enterSteppedSectionMode() {
+    set({ mode: 'pickSteppedSection', steppedSectionState: { stage: 'pickParent' } });
   },
 
   sectionPickParent(viewId) {
