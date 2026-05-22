@@ -173,6 +173,21 @@ export function DimensionElement({ dim, view }: DimensionElementProps) {
     case 'radial':
     case 'diametric':
       return <RadialOrDiametricDimension dim={dim} view={view} />;
+    case 'baseline':
+    case 'ordinate':
+    case 'angular':
+      // Rendering delegated to renderDrawingSvg.ts (Batch 1+3).
+      // Cascade text is resolved via resolveF5DimText (DimensionElementF5Utils.ts)
+      // when those renderers run.
+      //
+      // STRUCTURAL DEPENDENCY: Do NOT add useStore subscriptions here or in
+      // resolveF5DimText. This component re-renders whenever the parent
+      // DrawingCanvas re-renders on any store change (DrawingCanvas is not
+      // wrapped in React.memo). Adding a subscription would be redundant and
+      // would add render churn. If React.memo is ever added to DrawingCanvas,
+      // this dependency MUST be re-evaluated. See F4 cascade gotcha documented
+      // in DimensionElement.tsx lines 85-91 and next_session_resume.md.
+      return null;
     default:
       return null;
   }
