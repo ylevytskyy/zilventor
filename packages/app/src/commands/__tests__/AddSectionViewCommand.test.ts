@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AddSectionViewCommand } from '../AddSectionViewCommand';
 import { useAppStore } from '../../store/useAppStore';
-import type { DrawingDocument, DrawingSheet, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, SectionView, StepSegment } from '@zilventor/shared';
 
 // ── Kernel / cache mocks ──────────────────────────────────────────────────
 vi.mock('../../kernel/cutBySectionPlane', () => ({
@@ -306,5 +306,38 @@ describe('AddSectionViewCommand.apply() — half-section mode (HS-CMD-1)', () =>
     expect(sv.mode).toBe('full');
     expect(sv.cutSide).toBeUndefined();
     expect(sv.splitPlane).toBeUndefined();
+  });
+});
+
+// ── F1.2: stepped-section payload type extension ─────────────────────────
+describe('AddSectionViewPayload — stepped mode type extension (F1.2)', () => {
+  const segments: readonly StepSegment[] = [
+    { startSheet: { x: 0, y: 0 },  endSheet: { x: 60, y: 0 } },
+    { startSheet: { x: 60, y: 0 }, endSheet: { x: 60, y: 30 } },
+    { startSheet: { x: 60, y: 30 }, endSheet: { x: 120, y: 30 } },
+  ];
+
+  it('payload accepts mode="stepped" with stepSegments array', () => {
+    // Type-level assertion: this must compile. The instantiation also runs.
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped' as const,
+      stepSegments: segments,
+    });
+    expect(cmd).toBeInstanceOf(AddSectionViewCommand);
+  });
+
+  it('payload still accepts mode="full" without stepSegments (regression)', () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' as const });
+    expect(cmd).toBeInstanceOf(AddSectionViewCommand);
+  });
+
+  it('payload still accepts mode="half" with cutSide (regression)', () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'half' as const,
+      cutSide: 1 as const,
+    });
+    expect(cmd).toBeInstanceOf(AddSectionViewCommand);
   });
 });
