@@ -13,6 +13,11 @@ import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
 import { AddDetailViewCommand } from '../commands/AddDetailViewCommand';
 import { AddBreakCommand } from '../commands/AddBreakCommand';
 import { AutoDimCommand } from '../commands/AutoDimCommand';
+import { AddDimensionGroupCommand } from '../commands/AddDimensionGroupCommand';
+import { AddBaselineMemberCommand } from '../commands/AddBaselineMemberCommand';
+import { AddOrdinateMemberCommand } from '../commands/AddOrdinateMemberCommand';
+import { AddAngularDimCommand } from '../commands/AddAngularDimCommand';
+import { DeleteDimensionGroupCommand } from '../commands/DeleteDimensionGroupCommand';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { HalfSectionSidePreview } from './HalfSectionSidePreview';
@@ -90,6 +95,21 @@ export function DrawingCanvas() {
   const svgRef = useRef<SVGSVGElement>(null);
   const middleDragRef = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null);
 
+  // F5 session refs — useRef to avoid triggering re-render on phase transitions
+  type BaselineSession =
+    | { phase: 'pick-datum' }
+    | { phase: 'pick-members'; groupId: string; viewId: string; memberCount: number };
+  type OrdinateSession =
+    | { phase: 'pick-origin' }
+    | { phase: 'pick-members'; groupId: string; viewId: string; memberCount: number; originSheetPt: { x: number; y: number } };
+  type AngularSession =
+    | { phase: 'pick-edge-1' }
+    | { phase: 'pick-edge-2'; viewId: string; edge1: { viewId: string; edgeId: string } };
+
+  const baselineSessionRef = useRef<BaselineSession>({ phase: 'pick-datum' });
+  const ordinateSessionRef = useRef<OrdinateSession>({ phase: 'pick-origin' });
+  const angularSessionRef = useRef<AngularSession>({ phase: 'pick-edge-1' });
+
   // Tool-mode click accumulation (up to 2 clicks for linear dims / centerline)
   const [clickAccum, setClickAccum] = useState<ClickPoint[]>([]);
   const [addBreakDialogOpen, setAddBreakDialogOpen] = useState(false);
@@ -120,6 +140,28 @@ export function DrawingCanvas() {
     setStaleViews(stale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id]);
+
+  // F5: Reset sessions when toolMode changes away from them
+  useEffect(() => {
+    if (toolMode !== 'baseline') {
+      const s = baselineSessionRef.current;
+      if (s.phase === 'pick-members' && s.memberCount === 0) {
+        void bus.execute(new DeleteDimensionGroupCommand({ sheetId, groupId: s.groupId }));
+      }
+      baselineSessionRef.current = { phase: 'pick-datum' };
+    }
+    if (toolMode !== 'ordinate') {
+      const s = ordinateSessionRef.current;
+      if (s.phase === 'pick-members' && s.memberCount === 0) {
+        void bus.execute(new DeleteDimensionGroupCommand({ sheetId, groupId: s.groupId }));
+      }
+      ordinateSessionRef.current = { phase: 'pick-origin' };
+    }
+    if (toolMode !== 'angular') {
+      angularSessionRef.current = { phase: 'pick-edge-1' };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolMode]);
 
   // ESC / Enter / Arrow keys for section/detail/break tool
   useEffect(() => {
@@ -165,6 +207,24 @@ export function DrawingCanvas() {
         useToolModeStore.getState().sectionCancel();
         useToolModeStore.getState().detailCancel();
         useToolModeStore.getState().breakCancel();
+        // F5 — cancel active sessions
+        const liveDrwEsc = useAppStore.getState().activeDrawing;
+        const liveSheetEsc = liveDrwEsc?.sheets.find((s) => s.id === liveDrwEsc.activeSheetId) ?? liveDrwEsc?.sheets[0];
+        const bSess = baselineSessionRef.current;
+        if (bSess.phase === 'pick-members' && bSess.memberCount === 0 && liveSheetEsc) {
+          void bus.execute(new DeleteDimensionGroupCommand({ sheetId: liveSheetEsc.id, groupId: bSess.groupId }));
+        }
+        baselineSessionRef.current = { phase: 'pick-datum' };
+        const oSess = ordinateSessionRef.current;
+        if (oSess.phase === 'pick-members' && oSess.memberCount === 0 && liveSheetEsc) {
+          void bus.execute(new DeleteDimensionGroupCommand({ sheetId: liveSheetEsc.id, groupId: oSess.groupId }));
+        }
+        ordinateSessionRef.current = { phase: 'pick-origin' };
+        angularSessionRef.current = { phase: 'pick-edge-1' };
+        const liveMode = useToolModeStore.getState().mode;
+        if (liveMode === 'baseline' || liveMode === 'ordinate' || liveMode === 'angular') {
+          useToolModeStore.getState().setMode('idle');
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown);
@@ -399,6 +459,153 @@ export function DrawingCanvas() {
         }));
         useToolModeStore.getState().setMode('idle');
       }
+      return;
+    }
+
+    if (toolMode === 'baseline') {
+      // CRITICAL: read live state to avoid stale closure (see F1.1 pattern)
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+
+      const clickedEdgeId = (e.target as SVGElement).getAttribute('data-edge-id') ?? undefined;
+      const clickedViewId = (e.target as SVGElement).getAttribute('data-view-id') ?? undefined;
+      if (!clickedEdgeId) return; // require edge click
+
+      const sess = baselineSessionRef.current;
+
+      if (sess.phase === 'pick-datum') {
+        const hitViewId = getViewAtPoint(liveSheet.views, { x: svgX, y: svgY }, clickedViewId);
+        if (!hitViewId) return;
+
+        const groupId = crypto.randomUUID();
+        const group = {
+          kind: 'baseline' as const,
+          id: groupId,
+          viewId: hitViewId,
+          datum: { kind: 'edge-endpoint' as const, edgeId: clickedEdgeId, end: 'start' as const },
+          direction: 'h' as const,
+          baseOffsetMm: 20,
+          spacingMm: 10,
+        };
+        void bus.execute(new AddDimensionGroupCommand({ sheetId: liveSheet.id, group }));
+        baselineSessionRef.current = { phase: 'pick-members', groupId, viewId: hitViewId, memberCount: 0 };
+        return;
+      }
+
+      if (sess.phase === 'pick-members') {
+        const memberTo = { kind: 'edge-endpoint' as const, edgeId: clickedEdgeId, end: 'start' as const };
+        void bus.execute(new AddBaselineMemberCommand({ sheetId: liveSheet.id, groupId: sess.groupId, to: memberTo }));
+        baselineSessionRef.current = { ...sess, memberCount: sess.memberCount + 1 };
+        return;
+      }
+
+      return;
+    }
+
+    if (toolMode === 'ordinate') {
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+
+      const clickedEdgeId = (e.target as SVGElement).getAttribute('data-edge-id') ?? undefined;
+      const clickedViewId = (e.target as SVGElement).getAttribute('data-view-id') ?? undefined;
+      if (!clickedEdgeId) return;
+
+      const sess = ordinateSessionRef.current;
+
+      if (sess.phase === 'pick-origin') {
+        const hitViewId = getViewAtPoint(liveSheet.views, { x: svgX, y: svgY }, clickedViewId);
+        if (!hitViewId) return;
+
+        const groupId = crypto.randomUUID();
+        const group = {
+          kind: 'ordinate' as const,
+          id: groupId,
+          viewId: hitViewId,
+          origin: { kind: 'edge-endpoint' as const, edgeId: clickedEdgeId, end: 'start' as const },
+          xColumnOffsetMm: 20,
+          yColumnOffsetMm: 20,
+        };
+        void bus.execute(new AddDimensionGroupCommand({ sheetId: liveSheet.id, group }));
+        ordinateSessionRef.current = {
+          phase: 'pick-members',
+          groupId,
+          viewId: hitViewId,
+          memberCount: 0,
+          originSheetPt: { x: svgX, y: svgY },
+        };
+        return;
+      }
+
+      if (sess.phase === 'pick-members') {
+        // Axis inference: greater absolute delta determines axis direction
+        const dx = Math.abs(svgX - sess.originSheetPt.x);
+        const dy = Math.abs(svgY - sess.originSheetPt.y);
+        // Shift-click flips the inferred axis
+        let axis: 'x' | 'y' = dx > dy ? 'y' : 'x';
+        if (e.shiftKey) axis = axis === 'x' ? 'y' : 'x';
+
+        const memberTo = { kind: 'edge-endpoint' as const, edgeId: clickedEdgeId, end: 'start' as const };
+        void bus.execute(new AddOrdinateMemberCommand({ sheetId: liveSheet.id, groupId: sess.groupId, to: memberTo, axis }));
+        ordinateSessionRef.current = { ...sess, memberCount: sess.memberCount + 1 };
+        return;
+      }
+
+      return;
+    }
+
+    if (toolMode === 'angular') {
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+
+      const clickedEdgeId = (e.target as SVGElement).getAttribute('data-edge-id') ?? undefined;
+      const clickedViewId = (e.target as SVGElement).getAttribute('data-view-id') ?? undefined;
+      const clickedEdgeKind = (e.target as SVGElement).getAttribute('data-edge-kind') ?? 'outline';
+      if (!clickedEdgeId) return;
+
+      const hitViewId = getViewAtPoint(liveSheet.views, { x: svgX, y: svgY }, clickedViewId);
+      if (!hitViewId) return;
+
+      const sess = angularSessionRef.current;
+
+      if (sess.phase === 'pick-edge-1') {
+        if (clickedEdgeKind === 'arc') {
+          // Single-arc shortcut: immediate dispatch
+          void bus.execute(new AddAngularDimCommand({
+            sheetId: liveSheet.id,
+            viewId: hitViewId,
+            ref: { kind: 'arc', edge: { viewId: hitViewId, edgeId: clickedEdgeId } },
+          }));
+          angularSessionRef.current = { phase: 'pick-edge-1' };
+          useToolModeStore.getState().setMode('idle');
+          return;
+        }
+        // Line edge: store edge1 and advance to pick-edge-2
+        angularSessionRef.current = {
+          phase: 'pick-edge-2',
+          viewId: hitViewId,
+          edge1: { viewId: hitViewId, edgeId: clickedEdgeId },
+        };
+        return;
+      }
+
+      if (sess.phase === 'pick-edge-2') {
+        void bus.execute(new AddAngularDimCommand({
+          sheetId: liveSheet.id,
+          viewId: sess.viewId,
+          ref: {
+            kind: 'two-edges',
+            edge1: sess.edge1,
+            edge2: { viewId: hitViewId, edgeId: clickedEdgeId },
+          },
+        }));
+        angularSessionRef.current = { phase: 'pick-edge-1' };
+        useToolModeStore.getState().setMode('idle');
+        return;
+      }
+
       return;
     }
 
