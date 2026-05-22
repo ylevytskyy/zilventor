@@ -1,6 +1,7 @@
 // packages/app/src/drawing/DimensionElement.tsx
 import type { DrawingDimension, DrawingView } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
+import { useAppStore } from '../store/useAppStore';
 
 // Resolve a PointRef to sheet-space mm coords within the view's projection.
 function resolvePoint(ref: PointRef, view: DrawingView): { x: number; y: number } | null {
@@ -73,7 +74,24 @@ function LinearDimension({ dim, view }: { dim: LinearDim; view: DrawingView }) {
 
   const midX = (dimFrom.x + dimTo.x) / 2;
   const midY = (dimFrom.y + dimTo.y) / 2 - 1.5;
-  const textVal = Math.round(measuredVal * 10) / 10;
+
+  // F4: parametric text resolution — three-mode cascade (spec §7.1)
+  let displayText: string;
+  if ('textOverride' in dim && typeof dim.textOverride === 'string') {
+    // Mode 1: user override — render verbatim
+    displayText = dim.textOverride;
+  } else if ('sourceParameterName' in dim && typeof dim.sourceParameterName === 'string') {
+    // Mode 2: parametric — look up live parameter value from store
+    const paramName = dim.sourceParameterName;
+    const activePart = useAppStore.getState().activePart;
+    const param = activePart?.parameters[paramName];
+    displayText = param !== undefined
+      ? String(Math.round(param.value * 10) / 10)
+      : String(Math.round(measuredVal * 10) / 10);  // orphan fallback (F4.5)
+  } else {
+    // Mode 3: geometric (existing behavior, unchanged)
+    displayText = String(Math.round(measuredVal * 10) / 10);
+  }
 
   return (
     <g data-dim-id={dim.id}>
@@ -91,7 +109,7 @@ function LinearDimension({ dim, view }: { dim: LinearDim; view: DrawingView }) {
       {/* Text */}
       <text x={midX} y={midY} textAnchor="middle" fontSize={3.5} fill="#111"
         data-dim-text>
-        {String(textVal)}
+        {displayText}
       </text>
     </g>
   );
