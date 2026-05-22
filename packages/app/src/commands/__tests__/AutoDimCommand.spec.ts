@@ -404,3 +404,196 @@ describe('AutoDimCommand', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// F5-T19: AutoDimCommand dim-angle branch
+// ---------------------------------------------------------------------------
+
+describe('AutoDimCommand — F5-T19: dim-angle branch', () => {
+  function makeDocWithAngularView(): DrawingDocument {
+    return {
+      id: 'dw1', name: 'Test Drawing', units: 'mm',
+      source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+      properties: {}, activeSheetId: 'sh1',
+      sheets: [{
+        id: 'sh1', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [{
+          id: 'view1', kind: 'base' as const,
+          positionMm: { x: 0, y: 0 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const, showHidden: false,
+          projection: {
+            visibleEdges: [
+              { id: 'edge-line1', kind: 'feature' as const, points: [[-25, -15], [25, -15]] as ReadonlyArray<readonly [number, number]> },
+              { id: 'edge-line2', kind: 'feature' as const, points: [[-25, -15], [-25, 15]] as ReadonlyArray<readonly [number, number]> },
+            ],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 50, maxY: 30 },
+          },
+        }],
+        dimensions: [], dimensionGroups: [], annotations: [], titleBlock: {},
+      }],
+    };
+  }
+
+  function makePartWithAngle(): PartDocument {
+    const sketchFeature: Feature = {
+      kind: 'sketch', id: 'sketch1',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [
+        { id: 'prim-line1', kind: 'line', x1: 0, y1: 0, x2: 50, y2: 0 },
+        { id: 'prim-line2', kind: 'line', x1: 0, y1: 0, x2: 0,  y2: 30 },
+      ],
+      constraints: [
+        {
+          id: 'dc-angle', kind: 'dim-angle' as const,
+          line1: 'prim-line1', line2: 'prim-line2',
+          paramName: 'cornerAngle',
+          value: { kind: 'param' as const, paramName: 'cornerAngle' },
+        },
+      ],
+    };
+    const extrudeFeature: Feature = {
+      kind: 'extrude', id: 'extrude1', sketchRef: 'sketch1',
+      distanceParam: 'depth', direction: 'forward', operation: 'new',
+    };
+    return {
+      id: 'part1', name: 'Angled', units: 'mm',
+      parameters: {
+        cornerAngle: { name: 'cornerAngle', expression: '90', value: 90, unit: 'deg' },
+        depth:       { name: 'depth',       expression: '20', value: 20, unit: 'mm'  },
+      },
+      featureTree: [sketchFeature, extrudeFeature],
+      properties: {}, materials: [], hardware: [],
+    } as unknown as PartDocument;
+  }
+
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: makeDocWithAngularView() },
+      activeDrawing:  makeDocWithAngularView(),
+      activePart:     makePartWithAngle(),
+    } as never);
+  });
+
+  it('(a) places one angular dim candidate from dim-angle constraint', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const sheet = doc.sheets[0]!;
+    expect(sheet.dimensions.some((d) => d.kind === 'angular')).toBe(true);
+  });
+
+  it('(b) angular candidate has sourceParameterName === paramName', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const angularDims = doc.sheets[0]!.dimensions.filter((d) => d.kind === 'angular');
+    expect(angularDims).toHaveLength(1);
+    const angDim = angularDims[0]! as unknown as { sourceParameterName: string };
+    expect(angDim.sourceParameterName).toBe('cornerAngle');
+  });
+
+  it('(c) angular candidate has ref.kind === two-edges with correct edgeIds', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const angDim = doc.sheets[0]!.dimensions.find((d) => d.kind === 'angular')! as unknown as {
+      ref: { kind: string; edge1: { edgeId: string }; edge2: { edgeId: string } };
+    };
+    expect(angDim.ref.kind).toBe('two-edges');
+    const edgeIds = [angDim.ref.edge1.edgeId, angDim.ref.edge2.edgeId];
+    expect(edgeIds).toContain('edge-line1');
+    expect(edgeIds).toContain('edge-line2');
+  });
+
+  it('(d) angular dim has arcSide=inside and offsetMm=max(15, bboxH*0.1)', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const angDim = doc.sheets[0]!.dimensions.find((d) => d.kind === 'angular')! as unknown as {
+      arcSide: string; offsetMm: number;
+    };
+    expect(angDim.arcSide).toBe('inside');
+    // bbox height = 30, 30*0.1=3, max(15,3)=15
+    expect(angDim.offsetMm).toBe(15);
+  });
+
+  it('(e) revert removes the angular dim', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+    await cmd.revert();
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    expect(doc.sheets[0]!.dimensions.filter((d) => d.kind === 'angular')).toHaveLength(0);
+  });
+
+  it('(f) silent skip when line1 primitive not found', async () => {
+    const partBadLine: PartDocument = {
+      ...makePartWithAngle(),
+      featureTree: [
+        {
+          kind: 'sketch' as const, id: 'sketch1',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
+          primitives: [{ id: 'prim-line2', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 30 }],
+          constraints: [{
+            id: 'dc-angle', kind: 'dim-angle' as const,
+            line1: 'prim-line1-MISSING', line2: 'prim-line2',
+            paramName: 'cornerAngle',
+            value: { kind: 'literal' as const, value: 90 },
+          }],
+        },
+        {
+          kind: 'extrude' as const, id: 'extrude1', sketchRef: 'sketch1',
+          distanceParam: 'depth', direction: 'forward' as const, operation: 'new' as const,
+        },
+      ],
+    } as unknown as PartDocument;
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: makeDocWithAngularView() },
+      activeDrawing:  makeDocWithAngularView(),
+      activePart:     partBadLine,
+    } as never);
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply(); // must NOT throw
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    expect(doc.sheets[0]!.dimensions.filter((d) => d.kind === 'angular')).toHaveLength(0);
+  });
+
+  // F5-T21: cascade integration test
+  it('(g) cascade: after parameter edit, resolveF5DimText returns new value', async () => {
+    const cmd = new AutoDimCommand({ drawingId: 'dw1', sheetId: 'sh1', viewId: 'view1' });
+    await cmd.apply();
+
+    const state1 = useAppStore.getState();
+    const doc1 = (state1.activeDocument as { kind: 'drawing'; document: DrawingDocument }).document;
+    const angDim = doc1.sheets[0]!.dimensions.find((d) => d.kind === 'angular')! as unknown as {
+      sourceParameterName: string;
+    };
+
+    // Verify initial resolved text is '90' (from cornerAngle=90)
+    const { resolveF5DimText } = await import('../../drawing/DimensionElementF5Utils');
+    const initial = resolveF5DimText({ sourceParameterName: angDim.sourceParameterName }, 45);
+    expect(initial).toBe('90');
+
+    // Edit parameter: cornerAngle → 60
+    useAppStore.setState({
+      activePart: {
+        ...state1.activePart!,
+        parameters: {
+          ...state1.activePart!.parameters,
+          cornerAngle: { name: 'cornerAngle', expression: '60', value: 60, unit: 'deg' },
+        },
+      },
+    } as never);
+
+    const updated = resolveF5DimText({ sourceParameterName: angDim.sourceParameterName }, 45);
+    expect(updated).toBe('60');
+  });
+});

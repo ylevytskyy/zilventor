@@ -66,10 +66,10 @@ export class AutoDimCommand implements Command {
       return;
     }
 
-    // Filter parametric dimension constraints
+    // Filter parametric dimension constraints (F5: added 'dim-angle')
     const dimConstraints = (sketchFeature.constraints as DimensionConstraint[]).filter(
       (c): c is DimensionConstraint =>
-        c.kind === 'dim-length' || c.kind === 'dim-distance',
+        c.kind === 'dim-length' || c.kind === 'dim-distance' || c.kind === 'dim-angle',
     );
 
     if (dimConstraints.length === 0) {
@@ -137,14 +137,50 @@ export class AutoDimCommand implements Command {
           offsetMm: 0,
           sourceParameterName: c.paramName,
         } as DrawingDimension);
+      } else if (c.kind === 'dim-angle') {
+        // F5-T19: dim-angle → angular dim (bypasses greedyPlaceDims)
+        // Silent skip on missing primitive or unmatched edge (spec §AutoDim)
+        const line1 = sketchFeature.primitives.find((p) => p.id === c.line1);
+        const line2 = sketchFeature.primitives.find((p) => p.id === c.line2);
+        if (!line1 || !line2) continue;
+
+        const edge1 = findMatchingEdge2D(line1, extrudeDepth, viewOrientation, view);
+        const edge2 = findMatchingEdge2D(line2, extrudeDepth, viewOrientation, view);
+        if (!edge1 || !edge2) continue;
+
+        const bboxH = view.projection!.bbox.maxY - view.projection!.bbox.minY;
+        const offsetMm = Math.max(15, bboxH * 0.1);
+
+        // Angular candidates use 'angular' kind — typed via unknown cast
+        // (Batch 1 types are already on the union; this cast satisfies the array type)
+        candidates.push({
+          id: '',
+          kind: 'angular' as unknown as never,
+          viewId: this.payload.viewId,
+          ref: {
+            kind: 'two-edges',
+            edge1: { viewId: this.payload.viewId, edgeId: edge1.id },
+            edge2: { viewId: this.payload.viewId, edgeId: edge2.id },
+          },
+          arcSide: 'inside',
+          offsetMm,
+          sourceParameterName: c.paramName,
+        } as unknown as DrawingDimension);
       }
     }
 
-    // Run greedy placement to assign offsetMm
-    const placed = greedyPlaceDims(candidates, view.projection.bbox);
+    // Separate angular candidates — they bypass greedyPlaceDims (have pre-computed offsetMm)
+    const linearCandidates = candidates.filter((c) => c.kind !== 'angular');
+    const angularCandidates = candidates.filter((c) => c.kind === 'angular');
+
+    // Run greedy placement to assign offsetMm for linear dims only
+    const placed = greedyPlaceDims(linearCandidates, view.projection.bbox);
+
+    // Combine: placed linear + angular with their pre-computed offsetMm
+    const allPlaced = [...placed, ...angularCandidates];
 
     // Assign stable IDs
-    const placedDims: DrawingDimension[] = placed.map((d) => ({
+    const placedDims: DrawingDimension[] = allPlaced.map((d) => ({
       ...d,
       id: crypto.randomUUID(),
     }));
