@@ -3197,22 +3197,24 @@ w.__zilventorAutoDimMs = async (n = 50) => {
   });
 
   const samples: number[] = [];
-  for (let i = 0; i < n; i++) {
-    // Reset dimensions between iterations to avoid accumulation slowing revert.
-    useAppStore.setState({
-      activeDocument: {
-        kind: 'drawing',
-        document: { ...syntheticDrawing, sheets: [{ ...syntheticSheet, dimensions: [] }] },
-      },
-    });
-    const cmd = new AutoDimCommand({ drawingId: 'perf-drawing', sheetId: 'perf-sheet', viewId: 'perf-view' });
-    const t0 = performance.now();
-    await cmd.apply();
-    samples.push(performance.now() - t0);
+  try {
+    for (let i = 0; i < n; i++) {
+      // Reset dimensions between iterations to avoid accumulation slowing revert.
+      useAppStore.setState({
+        activeDocument: {
+          kind: 'drawing',
+          document: { ...syntheticDrawing, sheets: [{ ...syntheticSheet, dimensions: [] }] },
+        },
+      });
+      const cmd = new AutoDimCommand({ drawingId: 'perf-drawing', sheetId: 'perf-sheet', viewId: 'perf-view' });
+      const t0 = performance.now();
+      await cmd.apply();
+      samples.push(performance.now() - t0);
+    }
+  } finally {
+    // Restore prior store state EVEN IF apply() throws mid-iteration.
+    useAppStore.setState(prevState);
   }
-
-  // Restore prior store state.
-  useAppStore.setState(prevState);
 
   samples.sort((a, b) => a - b);
   const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
