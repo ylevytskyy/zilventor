@@ -12,6 +12,7 @@ import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCom
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
 import { AddDetailViewCommand } from '../commands/AddDetailViewCommand';
 import { AddBreakCommand } from '../commands/AddBreakCommand';
+import { AutoDimCommand } from '../commands/AutoDimCommand';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { HalfSectionSidePreview } from './HalfSectionSidePreview';
@@ -380,6 +381,24 @@ export function DrawingCanvas() {
         return;
       }
 
+      return;
+    }
+
+    if (toolMode === 'autoDim') {
+      // CRITICAL: read live state (avoids stale-closure bug, per F1.1 pattern)
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+      const sheetPt = { x: svgX, y: svgY };
+      const hitViewId = getViewAtPoint(liveSheet.views, sheetPt, viewId);
+      if (hitViewId) {
+        void bus.execute(new AutoDimCommand({
+          drawingId: liveDrw.id,
+          sheetId: liveSheet.id,
+          viewId: hitViewId,
+        }));
+        useToolModeStore.getState().setMode('idle');
+      }
       return;
     }
 
