@@ -537,6 +537,23 @@ export function cutByStepSegments(
       return { ok: false, reason: 'empty' };
     }
 
+    // Spec §5.2 / §5.4 — "if !result.IsDone() or no solid in result: return empty".
+    // IsDone was already checked above; now check for at least one solid.
+    const solidExp = new oc.TopExp_Explorer_2(
+      next as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+    );
+    const hasSolid = solidExp.More();
+    solidExp.delete();
+    if (!hasSolid) {
+      (next as unknown as { delete?(): void }).delete?.();
+      if (running !== source) {
+        (running as unknown as { delete?(): void }).delete?.();
+      }
+      return { ok: false, reason: 'empty' };
+    }
+
     // Walk faces of `next`; classify against this segment's plane.
     const faceExp = new oc.TopExp_Explorer_2(
       next as never,

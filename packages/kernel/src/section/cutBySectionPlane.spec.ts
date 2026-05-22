@@ -505,4 +505,47 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
 
     disposeOcctShape(oc, result.compound);
   });
+
+  it('SS-K-3: 8-segment max-jog cut does not throw, returns ok:true', () => {
+    const box = makeBox(oc, 200, 60, 80);
+    const compound = buildTestCompound(oc, box);
+
+    // 8 alternating axis-aligned planes, each carving a thin slab — together they
+    // form a staircase across the 200mm length. Geometry survives at every step.
+    const planes: Plane[] = [
+      { origin: { x: 0,   y: 0, z: 70 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 175, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 0,   y: 0, z: 60 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 150, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 0,   y: 0, z: 50 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 125, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 0,   y: 0, z: 40 }, normal: { x: 0, y: 0, z: 1 } },
+      { origin: { x: 100, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } },
+    ];
+
+    const result = cutByStepSegments(oc, compound, planes, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(shapeVolumePublic(oc, result.compound)).toBeGreaterThan(0);
+
+    disposeOcctShape(oc, result.compound);
+  });
+
+  it('SS-K-9: segments entirely outside part → ok:false, reason:"empty"', () => {
+    const box = makeBox(oc, 100, 60, 40);
+    const compound = buildTestCompound(oc, box);
+    // Planes at x=500..600 — far outside the 100mm box. With arrowDirection=-1
+    // these half-spaces remove the +X side (which contains the entire part), so
+    // the cumulative cut wipes everything to zero solids.
+    const planes: Plane[] = [
+      { origin: { x: 500, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 600, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 } },
+    ];
+    const result = cutByStepSegments(oc, compound, planes, -1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('empty');
+    }
+    disposeOcctShape(oc, compound);
+  });
 });
