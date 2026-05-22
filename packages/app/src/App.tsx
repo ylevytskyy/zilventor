@@ -648,6 +648,142 @@ export default function App() {
         const p95ms = autoDimSamples[Math.floor(autoDimSamples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      // Drawing F5 — dimension-styles perf probe.
+      // Fixture: 30 dims (10 baseline + 10 ordinate + 10 angular two-edges).
+      // Budget: p95 < 200 ms. Pure SVG render path — no kernel call.
+      (w as unknown as { __zilventorDimensionStylesMs: (n?: number) => Promise<{ p95ms: number }> }).__zilventorDimensionStylesMs = async (n = 50) => {
+        const { renderDrawingSvg } = await import('./drawing/renderDrawingSvg');
+        type Edge2D = import('@zilventor/shared').Edge2D;
+        type DimensionGroup = import('@zilventor/shared').DimensionGroup;
+        type DrawingDimension = import('@zilventor/shared').DrawingDimension;
+
+        const GROUP_BASELINE = 'perf-group-baseline';
+        const GROUP_ORDINATE = 'perf-group-ordinate';
+        const VIEW_ID = 'perf-view-f5';
+
+        const syntheticEdges: Edge2D[] = [
+          { id: 'e-datum', kind: 'outline', points: [[-50, -15] as readonly [number, number], [-50, 15] as readonly [number, number]] as ReadonlyArray<readonly [number, number]> },
+          { id: 'e-origin', kind: 'outline', points: [[-50, 0] as readonly [number, number], [0, 0] as readonly [number, number]] as ReadonlyArray<readonly [number, number]> },
+          ...Array.from({ length: 10 }, (_, i): Edge2D => ({
+            id: `e-bm-${i}`,
+            kind: 'outline',
+            points: [[(i + 1) * 10 - 50, -15] as readonly [number, number], [(i + 1) * 10 - 50, 15] as readonly [number, number]] as ReadonlyArray<readonly [number, number]>,
+          })),
+          ...Array.from({ length: 10 }, (_, i): Edge2D => ({
+            id: `e-om-${i}`,
+            kind: 'outline',
+            points: [[(i < 5 ? (i + 1) * 10 : 0) - 25, i < 5 ? 0 : (i - 4) * 5 - 15] as readonly [number, number], [(i < 5 ? (i + 1) * 10 : 5) - 25, i < 5 ? 5 : (i - 4) * 5 - 10] as readonly [number, number]] as ReadonlyArray<readonly [number, number]>,
+          })),
+          ...Array.from({ length: 20 }, (_, i): Edge2D => ({
+            id: `e-ang-${i}`,
+            kind: 'outline',
+            points: [[0, 0] as readonly [number, number], [i % 2 === 0 ? 20 : 0, i % 2 === 0 ? 0 : 20] as readonly [number, number]] as ReadonlyArray<readonly [number, number]>,
+          })),
+        ];
+
+        const baselineGroup: DimensionGroup = {
+          kind: 'baseline',
+          id: GROUP_BASELINE,
+          viewId: VIEW_ID,
+          datum: { kind: 'edge-endpoint', edgeId: 'e-datum', end: 'start' },
+          direction: 'h',
+          baseOffsetMm: 20,
+          spacingMm: 10,
+        };
+
+        const ordinateGroup: DimensionGroup = {
+          kind: 'ordinate',
+          id: GROUP_ORDINATE,
+          viewId: VIEW_ID,
+          origin: { kind: 'edge-endpoint', edgeId: 'e-origin', end: 'start' },
+          xColumnOffsetMm: 20,
+          yColumnOffsetMm: 20,
+        };
+
+        const baselineDims: DrawingDimension[] = Array.from({ length: 10 }, (_, i) => ({
+          kind: 'baseline' as const,
+          id: `d-bm-${i}`,
+          viewId: VIEW_ID,
+          groupId: GROUP_BASELINE,
+          slot: i,
+          to: { kind: 'edge-endpoint' as const, edgeId: `e-bm-${i}`, end: 'start' as const },
+        }));
+
+        const ordinateDims: DrawingDimension[] = Array.from({ length: 10 }, (_, i) => ({
+          kind: 'ordinate' as const,
+          id: `d-om-${i}`,
+          viewId: VIEW_ID,
+          groupId: GROUP_ORDINATE,
+          axis: i < 5 ? ('x' as const) : ('y' as const),
+          to: { kind: 'edge-endpoint' as const, edgeId: `e-om-${i}`, end: 'start' as const },
+        }));
+
+        const angularDims: DrawingDimension[] = Array.from({ length: 10 }, (_, i) => ({
+          kind: 'angular' as const,
+          id: `d-ang-${i}`,
+          viewId: VIEW_ID,
+          ref: {
+            kind: 'two-edges' as const,
+            edge1: { viewId: VIEW_ID, edgeId: `e-ang-${i * 2}` },
+            edge2: { viewId: VIEW_ID, edgeId: `e-ang-${i * 2 + 1}` },
+          },
+          arcSide: 'inside' as const,
+          offsetMm: 15,
+        }));
+
+        const syntheticSheet = {
+          id: 'perf-sheet-f5',
+          name: 'Perf F5',
+          size: { kind: 'iso' as const, size: 'A4' as const },
+          orientation: 'landscape' as const,
+          views: [{
+            id: VIEW_ID,
+            kind: 'base' as const,
+            positionMm: { x: 0, y: 0 },
+            scale: { numerator: 1, denominator: 1 },
+            orientation: 'front',
+            showHidden: false,
+            projection: {
+              visibleEdges: syntheticEdges,
+              hiddenEdges: [] as Edge2D[],
+              bbox: { minX: -50, minY: -15, maxX: 150, maxY: 30 },
+            },
+            inputFingerprint: 'fp-f5-perf',
+          }],
+          dimensions: [...baselineDims, ...ordinateDims, ...angularDims] as DrawingDimension[],
+          dimensionGroups: [baselineGroup, ordinateGroup] as DimensionGroup[],
+          annotations: [],
+          titleBlock: {},
+        };
+
+        const syntheticPart = {
+          id: 'perf-part-f5',
+          name: 'PerfF5Part',
+          units: 'mm',
+          parameters: {},
+          featureTree: [],
+        };
+
+        const syntheticDrawingF5 = {
+          id: 'perf-drawing-f5', name: 'Perf F5 Drawing', units: 'mm' as const,
+          source: { partPath: 'perf-part-f5.zipt', sourceKind: 'part' as const },
+          properties: {},
+          sheets: [syntheticSheet],
+          activeSheetId: syntheticSheet.id,
+        };
+
+        const dimStyleSamples: number[] = [];
+        for (let iter = 0; iter < n; iter++) {
+          const t0 = performance.now();
+          renderDrawingSvg(syntheticDrawingF5 as never, syntheticSheet as never, syntheticPart as never);
+          dimStyleSamples.push(performance.now() - t0);
+        }
+
+        dimStyleSamples.sort((a, b) => a - b);
+        const p95ms = dimStyleSamples[Math.floor(dimStyleSamples.length * 0.95)] ?? 0;
+        return { p95ms };
+      };
     }
   }, []);
 
