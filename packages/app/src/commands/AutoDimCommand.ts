@@ -151,11 +151,9 @@ export class AutoDimCommand implements Command {
         const bboxH = view.projection!.bbox.maxY - view.projection!.bbox.minY;
         const offsetMm = Math.max(15, bboxH * 0.1);
 
-        // Angular candidates use 'angular' kind — typed via unknown cast
-        // (Batch 1 types are already on the union; this cast satisfies the array type)
-        candidates.push({
+        const angularCandidate: Extract<DrawingDimension, { kind: 'angular' }> = {
           id: '',
-          kind: 'angular' as unknown as never,
+          kind: 'angular',
           viewId: this.payload.viewId,
           ref: {
             kind: 'two-edges',
@@ -165,7 +163,8 @@ export class AutoDimCommand implements Command {
           arcSide: 'inside',
           offsetMm,
           sourceParameterName: c.paramName,
-        } as unknown as DrawingDimension);
+        };
+        candidates.push(angularCandidate);
       }
     }
 
