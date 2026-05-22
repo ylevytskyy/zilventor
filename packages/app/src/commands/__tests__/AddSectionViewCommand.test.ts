@@ -565,3 +565,67 @@ describe('AddSectionViewCommand.apply() — stepped cache key (SS-CMD-5)', () =>
     expect(sectionCache.put).not.toHaveBeenCalled();
   });
 });
+
+describe('AddSectionViewCommand.revert() — stepped cache eviction (SS-CMD-4)', () => {
+  const segments: readonly StepSegment[] = [
+    { startSheet: { x: 0,   y: 0 },  endSheet: { x: 60,  y: 0 } },
+    { startSheet: { x: 60,  y: 0 },  endSheet: { x: 60,  y: 30 } },
+    { startSheet: { x: 60,  y: 30 }, endSheet: { x: 120, y: 30 } },
+  ];
+
+  it('SS-CMD-4a: apply stepped → revert → sectionCache.delete called once with the stepped cacheKey', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+
+    const putCall = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0];
+    const steppedKey = putCall?.[0] as string;
+    expect(steppedKey).toBeDefined();
+    expect(steppedKey.endsWith('::stepped')).toBe(true);
+
+    vi.clearAllMocks();
+    await cmd.revert();
+
+    expect(sectionCache.delete).toHaveBeenCalledTimes(1);
+    expect(sectionCache.delete).toHaveBeenCalledWith(steppedKey);
+  });
+
+  it('SS-CMD-4b: apply stepped → revert → sheet.views.length restored to pre-apply count', async () => {
+    const before = useAppStore.getState().activeDocument;
+    if (!before || before.kind !== 'drawing') throw new Error('no drawing');
+    const initialCount = before.document.sheets.find((s) => s.id === 's1')!.views.length;
+
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+
+    // Sanity: a stepped SectionView was actually added.
+    const afterApply = useAppStore.getState().activeDocument;
+    if (!afterApply || afterApply.kind !== 'drawing') throw new Error('no drawing');
+    expect(afterApply.document.sheets.find((s) => s.id === 's1')!.views.length).toBe(initialCount + 1);
+
+    await cmd.revert();
+
+    const afterRevert = useAppStore.getState().activeDocument;
+    if (!afterRevert || afterRevert.kind !== 'drawing') throw new Error('no drawing');
+    expect(afterRevert.document.sheets.find((s) => s.id === 's1')!.views.length).toBe(initialCount);
+  });
+
+  it('SS-CMD-4c: apply stepped → revert → deep-equal store snapshot', async () => {
+    const snapshot = JSON.parse(JSON.stringify(useAppStore.getState().activeDocument));
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeDocument).toEqual(snapshot);
+  });
+});
