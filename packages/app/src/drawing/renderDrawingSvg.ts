@@ -1,8 +1,9 @@
 import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView } from '@zilventor/shared';
-import type { DrawingDimension } from '@zilventor/shared';
+import type { DrawingDimension, DimensionGroup } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
+import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
   A0: { w: 1189, h: 841 },
@@ -36,7 +37,7 @@ export function renderDrawingSvg(
 
   const viewGroups = sheet.views.map((v) => renderViewGroup(v)).join('\n');
   const calloutGroups = renderDetailCalloutGroups(sheet.views);
-  const dimGroups = sheet.dimensions.map((d) => renderDimensionGroup(d, sheet.views)).join('\n');
+  const dimGroups = sheet.dimensions.map((d) => renderDimensionGroup(d, sheet.views, sheet.dimensionGroups)).join('\n');
   const annGroups = sheet.annotations.map((a) => renderAnnotationGroup(a)).join('\n');
   const titleBlockSvg = renderTitleBlockSvg(
     {
@@ -157,11 +158,12 @@ function renderPolyline(
 function renderDimensionGroup(
   dim: DrawingDimension,
   views: readonly DrawingView[],
+  dimensionGroups: readonly DimensionGroup[],
 ): string {
   const view = views.find((v) => v.id === dim.viewId);
-  if (!view?.projection) return '';
 
   if (dim.kind === 'linear-h' || dim.kind === 'linear-v' || dim.kind === 'aligned') {
+    if (!view?.projection) return '';
     const p1 = resolvePointRef(dim.from, view.projection);
     const p2 = resolvePointRef(dim.to, view.projection);
     if (!p1 || !p2) return '';
@@ -193,7 +195,246 @@ function renderDimensionGroup(
     </g>`;
     }
   }
+
+  if (dim.kind === 'baseline') {
+    const group = dimensionGroups.find((g) => g.id === dim.groupId);
+    if (!group || group.kind !== 'baseline') return '';
+    if (!view?.projection) return '';
+
+    const datumPt = resolvePointRef(group.datum, view.projection);
+    const toPt    = resolvePointRef(dim.to, view.projection);
+    if (!datumPt || !toPt) return '';
+
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const dx = vx + datumPt[0] * vScale;
+    const dy = vy + datumPt[1] * vScale;
+    const tx = vx + toPt[0] * vScale;
+    const ty = vy + toPt[1] * vScale;
+
+    const offset = group.baseOffsetMm + dim.slot * group.spacingMm;
+    const midX = (dx + tx) / 2;
+
+    if (group.direction === 'h') {
+      const dimY = dy - offset;
+      const distMm = Math.round(Math.abs(toPt[0] - datumPt[0]));
+      return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="baseline" data-group-id="${escapeAttr(dim.groupId)}" data-slot="${dim.slot}" stroke="#00c" stroke-width="0.2" fill="none">
+      <line x1="${dx}" y1="${dimY}" x2="${tx}" y2="${dimY}"/>
+      <line x1="${dx}" y1="${dy}" x2="${dx}" y2="${dimY}"/>
+      <line x1="${tx}" y1="${ty}" x2="${tx}" y2="${dimY}"/>
+      <text x="${midX}" y="${dimY - 1}" font-size="3.5" text-anchor="middle" fill="#00c" stroke="none">${distMm}</text>
+    </g>`;
+    } else {
+      const dimX = dx + offset;
+      const midY = (dy + ty) / 2;
+      const distMm = Math.round(Math.abs(toPt[1] - datumPt[1]));
+      return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="baseline" data-group-id="${escapeAttr(dim.groupId)}" data-slot="${dim.slot}" stroke="#00c" stroke-width="0.2" fill="none">
+      <line x1="${dimX}" y1="${dy}" x2="${dimX}" y2="${ty}"/>
+      <line x1="${dx}" y1="${dy}" x2="${dimX}" y2="${dy}"/>
+      <line x1="${tx}" y1="${ty}" x2="${dimX}" y2="${ty}"/>
+      <text x="${dimX + 1}" y="${midY}" font-size="3.5" fill="#00c" stroke="none">${distMm}</text>
+    </g>`;
+    }
+  }
+
+  if (dim.kind === 'ordinate') {
+    const group = dimensionGroups.find((g) => g.id === dim.groupId);
+    if (!group || group.kind !== 'ordinate') return '';
+    if (!view?.projection) return '';
+
+    const originPt = resolvePointRef(group.origin, view.projection);
+    const toPt     = resolvePointRef(dim.to, view.projection);
+    if (!originPt || !toPt) return '';
+
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const ox = vx + originPt[0] * vScale;
+    const oy = vy + originPt[1] * vScale;
+    const tx = vx + toPt[0] * vScale;
+    const ty = vy + toPt[1] * vScale;
+
+    let leg1x1: number, leg1y1: number, leg1x2: number, leg1y2: number;
+    let leg2x1: number, leg2y1: number, leg2x2: number, leg2y2: number;
+    let textX: number, textY: number;
+    let delta: number;
+
+    if (dim.axis === 'x') {
+      // Vertical leg: from feature point up/down to column line Y
+      const colY = oy + group.xColumnOffsetMm;
+      leg1x1 = tx; leg1y1 = ty; leg1x2 = tx; leg1y2 = colY;
+      // Horizontal leg: from elbow to text position
+      leg2x1 = tx; leg2y1 = colY; leg2x2 = ox; leg2y2 = colY;
+      textX = ox - 1; textY = colY - 1;
+      delta = toPt[0] - originPt[0];
+    } else {
+      // Horizontal leg: from feature point left/right to column line X
+      const colX = ox + group.yColumnOffsetMm;
+      leg1x1 = tx; leg1y1 = ty; leg1x2 = colX; leg1y2 = ty;
+      // Vertical leg: from elbow to text position
+      leg2x1 = colX; leg2y1 = ty; leg2x2 = colX; leg2y2 = oy;
+      textX = colX + 1; textY = oy - 1;
+      delta = toPt[1] - originPt[1];
+    }
+
+    const label = `${Math.abs(delta).toFixed(2)}`;
+    return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="ordinate" data-group-id="${escapeAttr(dim.groupId)}" data-axis="${dim.axis}" stroke="#00c" stroke-width="0.2" fill="none">
+      <line x1="${leg1x1}" y1="${leg1y1}" x2="${leg1x2}" y2="${leg1y2}"/>
+      <line x1="${leg2x1}" y1="${leg2y1}" x2="${leg2x2}" y2="${leg2y2}"/>
+      <text x="${textX}" y="${textY}" font-size="3.5" fill="#00c" stroke="none">${label}</text>
+    </g>`;
+  }
+
+  if (dim.kind === 'angular') {
+    if (!view?.projection) return '';
+
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    if (dim.ref.kind === 'arc') {
+      // Arc edge: sweep angle of the arc itself
+      const arcEdge = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge.edgeId)
+        ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge.edgeId);
+      if (!arcEdge || arcEdge.points.length < 3) return '';
+
+      // Estimate arc center, radius, start/end angles from first, mid, last polyline points
+      const pts = arcEdge.points;
+      const pStart = pts[0]!;
+      const pEnd   = pts[pts.length - 1]!;
+      const pMid   = pts[Math.floor(pts.length / 2)]!;
+
+      // Arc center via circumcircle of 3 points
+      const cx_arc = circumcenterX(pStart, pMid, pEnd);
+      const cy_arc = circumcenterY(pStart, pMid, pEnd);
+      const r_arc = Math.sqrt((pStart[0] - cx_arc) ** 2 + (pStart[1] - cy_arc) ** 2);
+
+      const startAngle = Math.atan2(pStart[1] - cy_arc, pStart[0] - cx_arc);
+      const endAngle   = Math.atan2(pEnd[1]   - cy_arc, pEnd[0]   - cx_arc);
+
+      const arcR = r_arc + dim.offsetMm;  // outward from edge
+      const sweepRad = normalizeAngle(endAngle - startAngle);
+
+      const asx = vx + (cx_arc + arcR * Math.cos(startAngle)) * vScale;
+      const asy = vy + (cy_arc + arcR * Math.sin(startAngle)) * vScale;
+      const aex = vx + (cx_arc + arcR * Math.cos(endAngle)) * vScale;
+      const aey = vy + (cy_arc + arcR * Math.sin(endAngle)) * vScale;
+      const largeArc = sweepRad > Math.PI ? 1 : 0;
+      const arcRScaled = arcR * vScale;
+
+      const midAngle = startAngle + sweepRad / 2;
+      const textX = vx + (cx_arc + (arcR + 1.5) * Math.cos(midAngle)) * vScale;
+      const textY = vy + (cy_arc + (arcR + 1.5) * Math.sin(midAngle)) * vScale;
+      const label = formatAngleDeg(sweepRad);
+
+      return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="angular" data-arc-side="${dim.arcSide}" stroke="#00c" stroke-width="0.2" fill="none">
+      <path d="M ${asx} ${asy} A ${arcRScaled} ${arcRScaled} 0 ${largeArc} 1 ${aex} ${aey}"/>
+      <text x="${textX}" y="${textY}" font-size="3.5" text-anchor="middle" fill="#00c" stroke="none">${label}</text>
+    </g>`;
+    }
+
+    // two-edges case
+    const edge1 = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge1.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge1.edgeId);
+    const edge2 = view.projection.visibleEdges.find((e) => e.id === dim.ref.edge2.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.ref.edge2.edgeId);
+    if (!edge1 || !edge2 || edge1.points.length < 2 || edge2.points.length < 2) return '';
+
+    const e1p0 = { x: edge1.points[0]![0], y: edge1.points[0]![1] };
+    const e1p1 = { x: edge1.points[edge1.points.length - 1]![0], y: edge1.points[edge1.points.length - 1]![1] };
+    const e2p0 = { x: edge2.points[0]![0], y: edge2.points[0]![1] };
+    const e2p1 = { x: edge2.points[edge2.points.length - 1]![0], y: edge2.points[edge2.points.length - 1]![1] };
+
+    const apex = intersectLines({ p0: e1p0, p1: e1p1 }, { p0: e2p0, p1: e2p1 });
+
+    if (!apex) {
+      // Parallel edges fallback: text "—" at midpoint of bounding box
+      const midX = vx + ((e1p0.x + e1p1.x + e2p0.x + e2p1.x) / 4) * vScale;
+      const midY = vy + ((e1p0.y + e1p1.y + e2p0.y + e2p1.y) / 4) * vScale;
+      return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="angular" data-arc-side="${dim.arcSide}" stroke="#00c" stroke-width="0.2" fill="none">
+      <text x="${midX}" y="${midY}" font-size="3.5" text-anchor="middle" fill="#00c" stroke="none">—</text>
+    </g>`;
+    }
+
+    // Direction vectors from apex toward each edge's far endpoint
+    const d1 = unitVec({ x: e1p1.x - apex.x, y: e1p1.y - apex.y });
+    const d2 = unitVec({ x: e2p1.x - apex.x, y: e2p1.y - apex.y });
+
+    const { insideRad, outsideRad } = subtendedAngle(d1, d2);
+    const sweepRad = dim.arcSide === 'inside' ? insideRad : outsideRad;
+    const label = formatAngleDeg(sweepRad);
+
+    const startAngle = Math.atan2(d1.y, d1.x);
+    const endAngle   = Math.atan2(d2.y, d2.x);
+    const arcR = dim.offsetMm;
+    const arcRScaled = arcR * vScale;
+
+    const apexSvgX = vx + apex.x * vScale;
+    const apexSvgY = vy + apex.y * vScale;
+
+    const asx = apexSvgX + arcRScaled * Math.cos(startAngle);
+    const asy = apexSvgY + arcRScaled * Math.sin(startAngle);
+    const aex = apexSvgX + arcRScaled * Math.cos(endAngle);
+    const aey = apexSvgY + arcRScaled * Math.sin(endAngle);
+
+    const largeArc = sweepRad > Math.PI ? 1 : 0;
+    // sweep-flag: 1 = counter-clockwise in SVG coordinates (y-down), matching the
+    // angle from d1 to d2 going counter-clockwise.
+    const sweepFlag = dim.arcSide === 'inside' ? 1 : 0;
+
+    const midAngle = startAngle + (dim.arcSide === 'inside' ? insideRad : outsideRad) / 2;
+    const textR = arcR + 1.5;
+    const textX = apexSvgX + textR * vScale * Math.cos(midAngle);
+    const textY = apexSvgY + textR * vScale * Math.sin(midAngle);
+
+    return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="angular" data-arc-side="${dim.arcSide}" stroke="#00c" stroke-width="0.2" fill="none">
+      <path d="M ${asx} ${asy} A ${arcRScaled} ${arcRScaled} 0 ${largeArc} ${sweepFlag} ${aex} ${aey}"/>
+      <text x="${textX}" y="${textY}" font-size="3.5" text-anchor="middle" fill="#00c" stroke="none">${label}</text>
+    </g>`;
+  }
+
   return '';
+}
+
+function unitVec(v: { x: number; y: number }): { x: number; y: number } {
+  const len = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (len < 1e-12) return { x: 1, y: 0 };
+  return { x: v.x / len, y: v.y / len };
+}
+
+function normalizeAngle(a: number): number {
+  let r = a % (2 * Math.PI);
+  if (r < 0) r += 2 * Math.PI;
+  return r;
+}
+
+function circumcenterX(
+  p0: readonly [number, number],
+  p1: readonly [number, number],
+  p2: readonly [number, number],
+): number {
+  const ax = p0[0], ay = p0[1];
+  const bx = p1[0], by = p1[1];
+  const cx = p2[0], cy = p2[1];
+  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(D) < 1e-12) return (ax + bx + cx) / 3;
+  return ((ax*ax + ay*ay) * (by - cy) + (bx*bx + by*by) * (cy - ay) + (cx*cx + cy*cy) * (ay - by)) / D;
+}
+
+function circumcenterY(
+  p0: readonly [number, number],
+  p1: readonly [number, number],
+  p2: readonly [number, number],
+): number {
+  const ax = p0[0], ay = p0[1];
+  const bx = p1[0], by = p1[1];
+  const cx = p2[0], cy = p2[1];
+  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(D) < 1e-12) return (ay + by + cy) / 3;
+  return ((ax*ax + ay*ay) * (cx - bx) + (bx*bx + by*by) * (ax - cx) + (cx*cx + cy*cy) * (bx - ax)) / D;
 }
 
 function renderAnnotationGroup(ann: DrawingAnnotation): string {
