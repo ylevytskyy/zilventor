@@ -1,6 +1,8 @@
 // tests/e2e/drawing/T-6-13-stepped-section-view.spec.ts
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from '../helpers/buildBox';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * T-6-13 — Stepped section view (Drawing F1.2): drive AddSectionViewCommand with
@@ -516,5 +518,156 @@ test.describe('T-6-13 — Stepped section view (F1.2)', () => {
 
     // sheet.views.length unchanged — no partial SectionView was added.
     expect(errorReport.viewsLenAfter).toBe(viewsLenBefore);
+  });
+
+  test('Case 4: SVG byte-size verification gate + canvas DOM polyline count', async ({ page }) => {
+    page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
+    page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
+
+    await page.goto('/');
+    await waitForKernelReady(page);
+
+    // Same fixture as Case 1.
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'New Part' }).click();
+    await page.getByRole('tab', { name: 'Sketch' }).click();
+    await page.getByRole('button', { name: '2D Sketch' }).click();
+    await page.getByRole('button', { name: 'Numeric rectangle…' }).click();
+    await page.getByLabel('x1').fill('0');
+    await page.getByLabel('y1').fill('0');
+    await page.getByLabel('x2').fill('100');
+    await page.getByLabel('y2').fill('60');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await page.getByRole('button', { name: 'Finish Sketch' }).click();
+    await page.getByRole('tab', { name: 'Model' }).click();
+    await page.getByRole('button', { name: 'Extrude' }).click();
+    await page.getByLabel('Distance').fill('40');
+    await page.getByRole('button', { name: 'OK' }).click();
+    await expect(page.getByText(/Extrusion1/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-triangle-count]')).toHaveAttribute('data-triangle-count', /[1-9]\d*/, { timeout: 15_000 });
+
+    const { sheetId, baseViewId } = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __zilventorStore: {
+          getState(): { activePart: { id: string } | null; kernel: { execute(partId: string): Promise<unknown> } | null };
+          setState(p: unknown): void;
+        };
+      };
+      const s = w.__zilventorStore.getState();
+      if (!s.activePart || !s.kernel) throw new Error('T-6-13 Case 4: kernel or activePart not ready');
+      await s.kernel.execute(s.activePart.id);
+
+      const partId = s.activePart.id;
+      const sheetId = `sheet-T613c4-${Date.now()}`;
+      const baseViewId = `base-T613c4-${Date.now()}`;
+      const drawingId = `drawing-T613c4-${Date.now()}`;
+      const frontViewMatrix = [1,0,0,-50, 0,1,0,-30, 0,0,1,-20, 0,0,0,1];
+
+      const baseView = {
+        id: baseViewId, kind: 'base',
+        positionMm: { x: 80, y: 80 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        viewMatrix: frontViewMatrix,
+        projection: {
+          visibleEdges: [{ id: 'e0', kind: 'outline', points: [[0,0],[100,0],[100,40],[0,40],[0,0]] }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 40 },
+        },
+        inputFingerprint: `fp-T613c4-${partId}`,
+      };
+
+      const drawing = {
+        id: drawingId, name: 'T-6-13 Case 4 Drawing', units: 'mm',
+        source: { partPath: `${partId}.zipt`, sourceKind: 'part' },
+        properties: {},
+        sheets: [{
+          id: sheetId, name: 'Sheet 1', size: { kind: 'iso', size: 'A3' },
+          orientation: 'landscape',
+          views: [baseView], dimensions: [], annotations: [], titleBlock: {},
+        }],
+        activeSheetId: sheetId,
+      };
+
+      w.__zilventorStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+        activeDrawing: drawing,
+      });
+
+      return { sheetId, baseViewId };
+    });
+
+    await page.getByRole('tab', { name: 'Drawing' }).click();
+    await expect(page.locator(`g[data-view-id="${baseViewId}"]`)).toBeVisible({ timeout: 10_000 });
+
+    // Dispatch the canonical Case 1 payload (deterministic for byte-size compare).
+    await page.evaluate(
+      async ({ sheetId, baseViewId }: { sheetId: string; baseViewId: string }) => {
+        const w = window as unknown as {
+          __zilventorStore: {
+            getState(): {
+              bus: { execute(cmd: { apply(): Promise<void>; revert(): Promise<void> }): Promise<void> };
+            };
+          };
+        };
+        const { AddSectionViewCommand } = await import('/src/commands/AddSectionViewCommand.ts');
+        const cmd = new AddSectionViewCommand({
+          drawingId: 'T-6-13-c4',
+          sheetId,
+          parentViewId: baseViewId,
+          p0: { x: -30, y: -20 },
+          p1: { x:  30, y:  10 },
+          arrowDirection: 1 as -1 | 1,
+          dropAt: { x: 260, y: 80 },
+          mode: 'stepped',
+          stepSegments: [
+            { startSheet: { x: -30, y: -20 }, endSheet: { x:  0, y: -20 } },
+            { startSheet: { x:   0, y: -20 }, endSheet: { x:  0, y:  10 } },
+            { startSheet: { x:   0, y:  10 }, endSheet: { x: 30, y:  10 } },
+          ],
+        });
+        await w.__zilventorStore.getState().bus.execute(cmd);
+      },
+      { sheetId, baseViewId },
+    );
+
+    // Wait for the rendered polyline (Batch 4's overlay emitter) before screenshotting.
+    await expect(page.locator('polyline[data-role="stepped-section-line"]')).toHaveCount(1, { timeout: 5_000 });
+
+    // ---- Screenshot #1 — full canvas at default scroll/zoom. ----
+    const screenshotDir = '/tmp';
+    const path1 = join(screenshotDir, `T-6-13-stepped-c4-shot1-${Date.now()}.png`);
+    await page.screenshot({ path: path1, fullPage: true });
+    const size1 = statSync(path1).size;
+    console.log(`[T-6-13 Case 4] screenshot #1: ${path1} = ${size1} bytes`);
+    expect(size1).toBeGreaterThan(5 * 1024); // > 5 KB sanity gate
+
+    // ---- Screenshot #2 — wheel-zoom the SVG canvas to force a different rendered
+    //                     region (DrawingCanvas onWheel updates zoom + re-renders). ----
+    const svg = page.locator('svg').first();
+    const box = await svg.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // Multiple wheel ticks to push zoom far enough that the rendered viewport
+      // shifts noticeably (and the polyline scales).
+      await page.mouse.wheel(0, -400);
+      await page.mouse.wheel(0, -400);
+    }
+    // Allow the canvas re-render to settle.
+    await page.waitForTimeout(300);
+
+    const path2 = join(screenshotDir, `T-6-13-stepped-c4-shot2-${Date.now()}.png`);
+    await page.screenshot({ path: path2, fullPage: true });
+    const size2 = statSync(path2).size;
+    console.log(`[T-6-13 Case 4] screenshot #2: ${path2} = ${size2} bytes (Δ=${size2 - size1})`);
+    expect(size2).toBeGreaterThan(5 * 1024); // > 5 KB sanity gate
+
+    // ---- Byte-size delta: the two screenshots must differ. Equal bytes implies a
+    // cached/stale frame (or the wheel didn't take). |delta| > 0 is the minimum. ----
+    expect(Math.abs(size2 - size1)).toBeGreaterThan(0);
+
+    // ---- Final: canvas DOM polyline count === 1 (spec §10.2 Case 4 explicit) ----
+    const polylineCount = await page.locator('[data-role="stepped-section-line"]').count();
+    expect(polylineCount).toBe(1);
   });
 });
