@@ -36,6 +36,7 @@ function makeDrawing(): DrawingDocument {
       dimensions: [],
       annotations: [],
       titleBlock: {},
+      dimensionGroups: [],
     }],
     activeSheetId: 'sheet-1',
   };

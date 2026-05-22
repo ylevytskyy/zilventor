@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/dimensionGroups.spec.ts
 import { describe, it, expect } from 'vitest';
-import type { DimensionGroup, DrawingDimension } from '../types';
+import type { DimensionGroup, DrawingDimension, DrawingSheet } from '../types';
 
 describe('DimensionGroup type — HS-DG-1: baseline group shape', () => {
   it('can construct a baseline DimensionGroup literal', () => {
@@ -88,5 +88,22 @@ describe('DrawingDimension — HS-DD-4: angular kind (arc)', () => {
       offsetMm: 8,
     };
     expect(d.kind).toBe('angular');
+  });
+});
+
+describe('DrawingSheet — HS-DS-1: dimensionGroups field present', () => {
+  it('DrawingSheet type accepts dimensionGroups field', () => {
+    const sheet: DrawingSheet = {
+      id: 's1',
+      name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+    };
+    expect(sheet.dimensionGroups).toHaveLength(0);
   });
 });

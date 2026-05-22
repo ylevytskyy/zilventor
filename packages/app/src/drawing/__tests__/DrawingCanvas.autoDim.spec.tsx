@@ -61,6 +61,7 @@ function makeSheet(): DrawingSheet {
     dimensions: [],
     annotations: [],
     titleBlock: {},
+    dimensionGroups: [],
   };
 }
 

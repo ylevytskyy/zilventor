@@ -21,7 +21,7 @@ const seedDrawing = (): DrawingDocument => ({
           orientation: 'front', showHidden: true,
         },
       ],
-      dimensions: [], annotations: [], titleBlock: {},
+      dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
     },
   ],
   activeSheetId: 'sh1',

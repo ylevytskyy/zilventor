@@ -335,6 +335,7 @@ export type DrawingSheet = {
   readonly dimensions: readonly DrawingDimension[];
   readonly annotations: readonly DrawingAnnotation[];
   readonly titleBlock: TitleBlockOverrides;
+  readonly dimensionGroups: readonly DimensionGroup[];   // F5: additive on v18; defaults to [] on load
 };
 
 // ---------------------------------------------------------------------------

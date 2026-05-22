@@ -23,6 +23,7 @@ function seedDrawing(): DrawingDocument {
         dimensions: [],
         annotations: [],
         titleBlock: {},
+        dimensionGroups: [],
       },
     ],
     activeSheetId: 'sh1',

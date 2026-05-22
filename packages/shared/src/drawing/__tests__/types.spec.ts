@@ -132,6 +132,7 @@ describe('drawing/types — discriminator round-trips', () => {
           dimensions: [],
           annotations: [],
           titleBlock: {},
+          dimensionGroups: [],
         },
       ],
       activeSheetId: 's1',

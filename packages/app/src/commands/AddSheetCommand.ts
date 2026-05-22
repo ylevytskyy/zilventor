@@ -33,6 +33,7 @@ export class AddSheetCommand implements Command {
       dimensions: [],
       annotations: [],
       titleBlock: {},
+      dimensionGroups: [],
     };
 
     const next: DrawingDocument = {

@@ -14,6 +14,7 @@ const sheet = (): DrawingSheet => ({
   dimensions: [],
   annotations: [],
   titleBlock: {},
+  dimensionGroups: [],
 });
 
 const drawing = (): DrawingDocument => ({

@@ -35,6 +35,7 @@ export class CreateDrawingCommand implements Command {
       dimensions: [],
       annotations: [],
       titleBlock: {},
+      dimensionGroups: [],
     };
 
     const doc: DrawingDocument = {

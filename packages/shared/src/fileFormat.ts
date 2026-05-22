@@ -337,6 +337,17 @@ function backfillAssembly4b(m: AnyManifest): AnyManifest {
   return { ...m, document: doc } as AnyManifest;
 }
 
+function backfillDrawingF5(m: AnyManifest): AnyManifest {
+  const anyM = m as { kind?: string; document?: { sheets?: Array<Record<string, unknown>> } };
+  if (anyM.kind !== 'drawing' || !anyM.document?.sheets) return m;
+  for (const sheet of anyM.document.sheets) {
+    if (!Array.isArray(sheet['dimensionGroups'])) {
+      sheet['dimensionGroups'] = [];
+    }
+  }
+  return m;
+}
+
 function migrateSketchPlanes(m: AnyManifest): AnyManifest {
   const anyM = m as { kind?: string; document?: { featureTree?: Array<Record<string, unknown>> } };
   if (anyM.kind !== 'part') return m;
@@ -379,5 +390,5 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
       throw new Error(`migration from formatVersion ${priorVersion} did not advance the version`);
     }
   }
-  return migrateSketchPlanes(injectOriginFeatures(backfillAssembly4b(normalizeKind(current))));
+  return backfillDrawingF5(migrateSketchPlanes(injectOriginFeatures(backfillAssembly4b(normalizeKind(current)))));
 }

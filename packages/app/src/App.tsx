@@ -602,6 +602,7 @@ export default function App() {
           dimensions: [],
           annotations: [],
           titleBlock: {},
+          dimensionGroups: [],
         };
 
         const syntheticDrawing = {
@@ -2581,7 +2582,7 @@ export default function App() {
             bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
           },
         })),
-        dimensions: [], annotations: [], titleBlock: {},
+        dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
       });
       return Array.from({ length: 4 }, (_, i) => makeSheet(`s${i}`));
     })();

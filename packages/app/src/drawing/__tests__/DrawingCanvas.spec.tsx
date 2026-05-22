@@ -25,6 +25,7 @@ const makeSheet = (): DrawingSheet => ({
   dimensions: [],
   annotations: [],
   titleBlock: {},
+  dimensionGroups: [],
 });
 
 const makeDrawing = (): DrawingDocument => ({
@@ -108,6 +109,7 @@ describe('DrawingCanvas — section tool mode', () => {
     dimensions: [],
     annotations: [],
     titleBlock: {},
+    dimensionGroups: [],
   });
 
   beforeEach(() => {
@@ -224,6 +226,7 @@ function makeSheetWithViews(views: DrawingSheet['views']): DrawingSheet {
     dimensions: [],
     annotations: [],
     titleBlock: {},
+    dimensionGroups: [],
   };
 }
 
@@ -323,7 +326,7 @@ const makeDetailViewSheet = (): DrawingSheet => ({
       inputFingerprint: 'fp-base',
     },
   ],
-  dimensions: [], annotations: [], titleBlock: {},
+  dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
 });
 
 describe('DrawingCanvas — detail tool mode', () => {
@@ -508,7 +511,7 @@ const makeBreakViewSheet = (): DrawingSheet => ({
       inputFingerprint: 'fp-bv1',
     },
   ],
-  dimensions: [], annotations: [], titleBlock: {},
+  dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
 });
 
 describe('DrawingCanvas — break tool mode click dispatch', () => {
@@ -647,7 +650,7 @@ describe('DrawingCanvas — stale banner with breaks', () => {
           breaks: [{ id: 'br1', axis: 'x' as const, coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' as const }],
         },
       ],
-      dimensions: [], annotations: [], titleBlock: {},
+      dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
     };
     useToolModeStore.setState({ mode: 'idle', breakState: { stage: 'idle' }, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, pendingViewParams: null } as never);
     useAppStore.setState({
@@ -674,7 +677,7 @@ describe('DrawingCanvas — stale banner with breaks', () => {
           breaks: [{ id: 'br1', axis: 'x' as const, coordA: 50, coordB: 100, gapMm: 5, style: 'zigzag' as const }],
         },
       ],
-      dimensions: [], annotations: [], titleBlock: {},
+      dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
     };
     useToolModeStore.setState({ mode: 'idle', breakState: { stage: 'idle' }, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, pendingViewParams: null } as never);
     useAppStore.setState({

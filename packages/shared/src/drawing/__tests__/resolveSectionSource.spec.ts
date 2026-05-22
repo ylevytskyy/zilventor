@@ -27,7 +27,7 @@ describe('resolveSectionSource', () => {
           showHidden: false,
         },
       ],
-      dimensions: [], annotations: [], titleBlock: {},
+      dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
     }],
     activeSheetId: 's1',
   };

@@ -44,6 +44,7 @@ function makeFixtureSheet(id: string, name: string, viewCount = 1): DrawingSheet
     dimensions: [],
     annotations: [],
     titleBlock: {},
+    dimensionGroups: [],
   };
 }
 
@@ -150,6 +151,7 @@ export function makeFixtureDrawingWithParentAndDetail(): DrawingDocument {
       dimensions: [],
       annotations: [],
       titleBlock: {},
+      dimensionGroups: [],
     }],
     activeSheetId: sheetId,
   };

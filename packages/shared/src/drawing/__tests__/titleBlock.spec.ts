@@ -46,6 +46,7 @@ const sheet: DrawingSheet = {
   dimensions: [],
   annotations: [],
   titleBlock: {},
+  dimensionGroups: [],
 };
 
 const CREATED_AT = '2026-05-05T10:00:00Z';

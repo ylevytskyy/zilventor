@@ -23,7 +23,7 @@ function makeDrawingDoc(): DrawingDocument {
     sheets: [{
       id: 'sh1', name: 'Sheet 1',
       size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-      views: [], dimensions: [dim1], annotations: [], titleBlock: {},
+      views: [], dimensions: [dim1], annotations: [], titleBlock: {}, dimensionGroups: [],
     }],
   };
 }
@@ -56,7 +56,7 @@ describe('MoveDrawingDimensionCommand', () => {
           sheets: [{
             id: 'sh1', name: 'Sheet 1',
             size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
-            views: [], dimensions: [radialDim], annotations: [], titleBlock: {},
+            views: [], dimensions: [radialDim], annotations: [], titleBlock: {}, dimensionGroups: [],
           }],
         },
       },
