@@ -216,14 +216,26 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       });
       return;
     }
-    // Subsequent vertices land in Task 4.4 (snap-project + axis flip).
-    // Until then: append as-is.
+    // Apply axis-lock projection per spec §6.3 step 3.
+    const prev = vertices[vertices.length - 1]!;
+    let snapped: { x: number; y: number };
+    if (lockedAxis === 'x') {
+      // X-locked → snap y to prev.y (motion only in X)
+      snapped = { x: point.x, y: prev.y };
+    } else if (lockedAxis === 'y') {
+      // Y-locked → snap x to prev.x (motion only in Y)
+      snapped = { x: prev.x, y: point.y };
+    } else {
+      snapped = point;  // unreachable in practice
+    }
+    // Flip axis-lock for the next segment.
+    const nextLock: 'x' | 'y' = lockedAxis === 'x' ? 'y' : 'x';
     set({
       steppedSectionState: {
         stage: 'placing',
         parentViewId,
-        vertices: [...vertices, point],
-        ...(lockedAxis !== undefined ? { lockedAxis } : {}),
+        vertices: [...vertices, snapped],
+        lockedAxis: nextLock,
       },
     });
   },

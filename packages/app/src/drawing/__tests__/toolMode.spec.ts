@@ -740,3 +740,61 @@ describe('stepped-section tool — steppedClickVertex first vertex (SS-TM-3)', (
     warn.mockRestore();
   });
 });
+
+describe('stepped-section tool — steppedClickVertex axis-snap (SS-TM-4)', () => {
+  beforeEach(() => { useToolModeStore.getState().reset(); });
+
+  function gotoFirstVertex(v0: { x: number; y: number } = { x: 0, y: 30 }) {
+    useToolModeStore.getState().enterSteppedSectionMode();
+    useToolModeStore.getState().steppedPickParent('bv-1');
+    useToolModeStore.getState().steppedClickVertex(v0);
+  }
+
+  it('SS-TM-4: second click with non-axis-locked y is snapped to V0.y; lockedAxis flips to "y"', () => {
+    gotoFirstVertex({ x: 0, y: 30 });
+    // Click 2 at (60, 45) — y!=30, should snap to y=30 (X-lock)
+    useToolModeStore.getState().steppedClickVertex({ x: 60, y: 45 });
+    const s = useToolModeStore.getState().steppedSectionState;
+    expect(s.stage).toBe('placing');
+    if (s.stage === 'placing') {
+      expect(s.vertices).toEqual([
+        { x: 0,  y: 30 },
+        { x: 60, y: 30 },  // y snapped from 45 → 30
+      ]);
+      expect(s.lockedAxis).toBe('y');
+    }
+  });
+
+  it('SS-TM-4b: third click with lockedAxis="y" snaps x to V1.x; lockedAxis flips back to "x"', () => {
+    gotoFirstVertex({ x: 0, y: 30 });
+    useToolModeStore.getState().steppedClickVertex({ x: 60, y: 30 });  // V1
+    // Click 3 at (75, 60) — x!=60, should snap to x=60 (Y-lock)
+    useToolModeStore.getState().steppedClickVertex({ x: 75, y: 60 });
+    const s = useToolModeStore.getState().steppedSectionState;
+    if (s.stage === 'placing') {
+      expect(s.vertices).toEqual([
+        { x: 0,  y: 30 },
+        { x: 60, y: 30 },
+        { x: 60, y: 60 },  // x snapped from 75 → 60
+      ]);
+      expect(s.lockedAxis).toBe('x');
+    }
+  });
+
+  it('SS-TM-4c: 4-click canonical 3-segment polyline matches spec §3 worked example', () => {
+    gotoFirstVertex({ x: 0, y: 30 });
+    useToolModeStore.getState().steppedClickVertex({ x: 60, y: 99 });  // snaps to (60,30)
+    useToolModeStore.getState().steppedClickVertex({ x: 99, y: 60 });  // snaps to (60,60)
+    useToolModeStore.getState().steppedClickVertex({ x: 120, y: 88 }); // snaps to (120,60)
+    const s = useToolModeStore.getState().steppedSectionState;
+    if (s.stage === 'placing') {
+      expect(s.vertices).toEqual([
+        { x: 0,   y: 30 },
+        { x: 60,  y: 30 },
+        { x: 60,  y: 60 },
+        { x: 120, y: 60 },
+      ]);
+      expect(s.lockedAxis).toBe('y');  // 4 verts → 3 segs → next would be Y-lock
+    }
+  });
+});
