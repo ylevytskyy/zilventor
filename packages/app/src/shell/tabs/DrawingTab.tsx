@@ -157,6 +157,36 @@ export default function DrawingTab(): JSX.Element {
         >
           Auto-Dim
         </button>
+        {/* Baseline: Drawing F5 — baseline group from datum + stacked members */}
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Baseline"
+          title="Place a baseline dimension group — click datum, then click features"
+          onClick={() => setMode('baseline')}
+        >
+          Baseline
+        </button>
+        {/* Ordinate: Drawing F5 — ordinate group from origin + L-leader members */}
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Ordinate"
+          title="Place an ordinate dimension group — click origin, then click features"
+          onClick={() => setMode('ordinate')}
+        >
+          Ordinate
+        </button>
+        {/* Angular: Drawing F5 — angular dim from two edges or arc edge */}
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Angular"
+          title="Place an angular dimension — click two edges (or one arc edge)"
+          onClick={() => setMode('angular')}
+        >
+          Angular
+        </button>
       </RibbonPanel>
 
       {/* Annotate panel */}
