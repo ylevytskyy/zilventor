@@ -11,9 +11,10 @@
 import { projectView } from './projector';
 import type { ProjectorInput } from './projector';
 import type { ProjectedGeometry, Edge2D } from './projectedGeometry';
-import type { HatchSegment, Vec2 } from './types';
+import type { HatchSegment, SectionView, Vec2 } from './types';
 import type { Mat4, Vec3 } from './viewMatrix';
 import { generateHatchSegments } from './hatchGenerator';
+import { validateSteppedInvariant } from './sectionPlane';
 
 // ---------------------------------------------------------------------------
 // FaceTag — per-face metadata from the OCCT section cut pipeline.
@@ -91,11 +92,26 @@ export function projectSectionView(
   scale: number,
   getHatchSpec?: (materialId: string) => { angleDeg: number; spacingMm: number },
   sectionViewMatrix?: Mat4,
+  view?: SectionView,    // NEW in F1.2 — for the α-invariant layer-3 guard
 ): {
   edges: Edge2D[];
   hatchSegments: HatchSegment[];
   fingerprint: string;
 } {
+  // ── F1.2 layer-3 α-invariant guard ───────────────────────────────────────
+  // If the caller passes a SectionView whose `mode === 'stepped'`, validate the
+  // stepSegments shape BEFORE any projection work. This catches corrupt manifest
+  // reads (the helper layer caught programmatic misuse; the command layer caught
+  // malformed UI payloads; this layer is the last line of defence).
+  if (view && view.mode === 'stepped') {
+    validateSteppedInvariant({
+      mode: view.mode,
+      stepSegments: view.stepSegments,
+      cutSide: view.cutSide,
+      splitPlane: view.splitPlane,
+    });
+  }
+
   // 1. Project geometry using the front orientation as the canonical section view
   //    direction. The caller is expected to provide geometry already transformed
   //    into section-view space (cut compound in world coords relative to the

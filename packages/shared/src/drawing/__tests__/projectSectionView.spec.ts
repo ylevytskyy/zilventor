@@ -104,3 +104,54 @@ describe('projectSectionView — full vs half (HS-PR-1..HS-PR-4)', () => {
     expect(half.hatchSegments.length).toBeLessThanOrEqual(full.hatchSegments.length);
   });
 });
+
+// ─── F1.2: stepped α-invariant (layer 3 — projector) ────────────────────────
+import type { SectionView } from '../types';
+
+describe('projectSectionView — stepped α-invariant (layer 3) (F1.2)', () => {
+  const emptyInput: ProjectorInput = {
+    triangles: [] as unknown as ProjectorInput['triangles'],
+    edges: [] as unknown as ProjectorInput['edges'],
+    bbox: [0, 0, 0, 0, 0, 0],
+  } as unknown as ProjectorInput;
+  const emptyFTM: FaceTagMap = new Map();
+  const noHatch = (_id: string) => ({ angleDeg: 45, spacingMm: 5 });
+
+  it('SS-PR-1: throws when SectionView has mode="stepped" but stepSegments=undefined', () => {
+    const view = {
+      mode: 'stepped' as const,
+      // intentionally no stepSegments — simulates a corrupt manifest read
+    } as unknown as SectionView;
+    expect(() => projectSectionView(emptyInput, emptyFTM, 1, noHatch, undefined, view))
+      .toThrow(/stepped-section-invariant-violated/);
+  });
+
+  it('SS-PR-2: throws when stepped view has only 1 segment (clause 2)', () => {
+    const view = {
+      mode: 'stepped' as const,
+      stepSegments: [
+        { startSheet: { x: 0, y: 0 }, endSheet: { x: 60, y: 0 } },
+      ],
+    } as unknown as SectionView;
+    expect(() => projectSectionView(emptyInput, emptyFTM, 1, noHatch, undefined, view))
+      .toThrow(/stepped-section-invariant-violated/);
+  });
+
+  it('SS-PR-3: does NOT throw for a valid stepped view (regression)', () => {
+    const view = {
+      mode: 'stepped' as const,
+      stepSegments: [
+        { startSheet: { x: 0,  y: 0 },  endSheet: { x: 60, y: 0 } },
+        { startSheet: { x: 60, y: 0 },  endSheet: { x: 60, y: 30 } },
+        { startSheet: { x: 60, y: 30 }, endSheet: { x: 120, y: 30 } },
+      ],
+    } as unknown as SectionView;
+    expect(() => projectSectionView(emptyInput, emptyFTM, 1, noHatch, undefined, view))
+      .not.toThrow();
+  });
+
+  it('SS-PR-4: does NOT throw for mode="full" without view parameter (backward-compat)', () => {
+    expect(() => projectSectionView(emptyInput, emptyFTM, 1, noHatch))
+      .not.toThrow();
+  });
+});

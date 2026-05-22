@@ -146,6 +146,18 @@ export function fingerprintSectionView(
       ].join(',')
     : 'full';
 
+  // F1.2 §9.3 — stepped extension:
+  //   For stepped views, append `|stepped|<v0.x>,<v0.y>;<v1.x>,<v1.y>;...` with coordinates
+  //   rounded to 1e-3 mm. Vertex moves of ≥ 1 µm change the hash; moves < 1 nm do not.
+  //   Encoded OUTSIDE the existing `.join('|')` so full/half fingerprints remain
+  //   byte-identical to F1/F1.1 (steppedFp is the empty string for those modes).
+  const steppedFp = (view.mode === 'stepped' && view.stepSegments && view.stepSegments.length >= 2)
+    ? '|stepped|' + [
+        view.stepSegments[0]!.startSheet,
+        ...view.stepSegments.map((s) => s.endSheet),
+      ].map((v) => `${v.x.toFixed(3)},${v.y.toFixed(3)}`).join(';')
+    : '';
+
   const payload = [
     parentSourceFingerprint,
     planeFp,
@@ -158,6 +170,6 @@ export function fingerprintSectionView(
     view.sectionLine.p1.y.toFixed(3),
     view.mode,
     splitFp,
-  ].join('|');
+  ].join('|') + steppedFp;
   return djb2(payload);
 }
