@@ -340,12 +340,17 @@ function backfillAssembly4b(m: AnyManifest): AnyManifest {
 function backfillDrawingF5(m: AnyManifest): AnyManifest {
   const anyM = m as { kind?: string; document?: { sheets?: Array<Record<string, unknown>> } };
   if (anyM.kind !== 'drawing' || !anyM.document?.sheets) return m;
-  for (const sheet of anyM.document.sheets) {
-    if (!Array.isArray(sheet['dimensionGroups'])) {
-      sheet['dimensionGroups'] = [];
-    }
-  }
-  return m;
+  // Immutable spread — mirrors backfillAssembly4b pattern.
+  // Each sheet is spread into a new object; dimensionGroups is only added when absent.
+  const newSheets = anyM.document.sheets.map((sheet) =>
+    Array.isArray(sheet['dimensionGroups'])
+      ? { ...sheet }
+      : { ...sheet, dimensionGroups: [] }
+  );
+  return {
+    ...m,
+    document: { ...anyM.document, sheets: newSheets },
+  } as AnyManifest;
 }
 
 function migrateSketchPlanes(m: AnyManifest): AnyManifest {

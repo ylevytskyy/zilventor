@@ -572,4 +572,55 @@ describe('migrateManifest 4c backfill', () => {
   });
 });
 
+// ── HIGH #3: backfillDrawingF5 must not mutate input ─────────────────────────
+describe('backfillDrawingF5 — immutability', () => {
+  function makeV18DrawingWithoutGroups() {
+    return {
+      formatVersion: 18 as const,
+      kind: 'drawing' as const,
+      document: {
+        id: 'drw1', name: 'D', units: 'mm' as const,
+        source: { partPath: 'p.zipt', sourceKind: 'part' as const },
+        properties: {}, activeSheetId: 's1',
+        sheets: [
+          { id: 's1', name: 'S1', size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [], dimensions: [], annotations: [], titleBlock: {} },
+          { id: 's2', name: 'S2', size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+            views: [], dimensions: [], annotations: [], titleBlock: {} },
+        ],
+      },
+    } as unknown as AnyManifest;
+  }
+
+  it('returned object is not === input', () => {
+    const input = makeV18DrawingWithoutGroups();
+    const output = migrateManifest(input);
+    expect(output).not.toBe(input);
+  });
+
+  it('input sheets still lack dimensionGroups after migrate (original not mutated)', () => {
+    const input = makeV18DrawingWithoutGroups();
+    const inputSheets = (input as any).document.sheets as Array<Record<string, unknown>>;
+    migrateManifest(input);
+    // If backfill mutated in place, inputSheets[0] would now have dimensionGroups
+    expect('dimensionGroups' in inputSheets[0]!).toBe(false);
+    expect('dimensionGroups' in inputSheets[1]!).toBe(false);
+  });
+
+  it('output sheets have dimensionGroups: [] on both sheets', () => {
+    const input = makeV18DrawingWithoutGroups();
+    const output = migrateManifest(input) as any;
+    const sheets = output.document.sheets as Array<Record<string, unknown>>;
+    expect(sheets[0]!['dimensionGroups']).toEqual([]);
+    expect(sheets[1]!['dimensionGroups']).toEqual([]);
+  });
+
+  it('does not overwrite existing dimensionGroups value', () => {
+    const input = makeV18DrawingWithoutGroups() as any;
+    input.document.sheets[0].dimensionGroups = [{ id: 'grp1', kind: 'baseline', viewId: 'v1', dimIds: [], baseOffsetMm: 5, spacingMm: 5 }];
+    const output = migrateManifest(input) as any;
+    expect(output.document.sheets[0].dimensionGroups).toHaveLength(1);
+  });
+});
+
 
