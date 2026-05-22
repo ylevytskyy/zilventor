@@ -221,14 +221,46 @@ test('T-6-12: Dimension styles — baseline/ordinate/angular dims, cascade text'
   expect(angularResult.ok).toBe(true);
   expect(angularResult.dimId).not.toBeNull();
 
+  // Wait for React to render F5 dims in the canvas DOM
+  await page.waitForTimeout(500);
+
+  // ── Assertion 4a: canvas DOM — baseline dim rendered in React tree ────────
+  // Task A (fix) added BaselineDimension/OrdinateDimension/AngularDimension
+  // to DimensionElement switch. These assertions verify the LIVE CANVAS DOM
+  // (not renderDrawingSvg export path) contains rendered F5 dim elements.
+  const baselineInCanvas = page.locator('[data-dim-kind="baseline"]');
+  await expect(baselineInCanvas.first()).toBeVisible({ timeout: 5_000 });
+  const baselineCount = await baselineInCanvas.count();
+  expect(baselineCount).toBeGreaterThanOrEqual(3);  // 3 members dispatched above
+  console.log(`[T-6-12] baseline dims in canvas DOM: ${baselineCount}`);
+
+  // ── Assertion 4b: canvas DOM — ordinate dim rendered ─────────────────────
+  const ordinateInCanvas = page.locator('[data-dim-kind="ordinate"]');
+  await expect(ordinateInCanvas.first()).toBeVisible({ timeout: 5_000 });
+  const ordinateCount = await ordinateInCanvas.count();
+  expect(ordinateCount).toBeGreaterThanOrEqual(3);  // 3 members dispatched above
+  console.log(`[T-6-12] ordinate dims in canvas DOM: ${ordinateCount}`);
+
+  // ── Assertion 4c: canvas DOM — angular dim rendered with arc path ─────────
+  const angularInCanvas = page.locator('[data-dim-kind="angular"]');
+  await expect(angularInCanvas.first()).toBeVisible({ timeout: 5_000 });
+  const angularCount = await angularInCanvas.count();
+  expect(angularCount).toBeGreaterThanOrEqual(1);
+  // Verify the arc path has an arc SVG command ('A')
+  const angularPath = angularInCanvas.first().locator('path').first();
+  const pathD = await angularPath.getAttribute('d');
+  expect(pathD).toContain('A');
+  console.log(`[T-6-12] angular dims in canvas DOM: ${angularCount}, arc path: ${pathD?.slice(0, 30)}…`);
+
   // ── Mid-flight screenshot ─────────────────────────────────────────────────
   await page.screenshot({ path: '/tmp/drawing-dim-styles-proof.png' });
   console.log('[T-6-12] proof screenshot saved to /tmp/drawing-dim-styles-proof.png');
 
   // ──────────────────────────────────────────────────────────────────────────
   // 5. Cascade: edit 'angle' parameter, angular dim text should update.
-  //    Note: F5 dims are rendered via renderDrawingSvg (SVG string), not React tree.
-  //    We verify the cascade by checking store state after parameter update.
+  //    F5 dims are now rendered via React tree (DimensionElement + AngularDimension
+  //    added in Task A fix). Canvas DOM cascade text update is verified by checking
+  //    store state after parameter update (DrawingCanvas re-renders on store change).
   // ──────────────────────────────────────────────────────────────────────────
   const cascadeResult = await page.evaluate(({ partId, dimId }: { partId: string; dimId: string | null }) => {
     const w = window as unknown as {
