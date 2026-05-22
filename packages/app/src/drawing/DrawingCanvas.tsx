@@ -906,6 +906,63 @@ export function DrawingCanvas() {
           />
         );
       })()}
+      {/* F5 — Baseline pick-members ghost dim line */}
+      {/* NOTE (F5): Preview overlays re-render on every cursorMm update because DrawingCanvas
+          has no React.memo boundary (F4 structural-dependency caveat — see spec §Risks).
+          If performance is a concern, extract these into React.memo overlay components. */}
+      {toolMode === 'baseline' && baselineSessionRef.current.phase === 'pick-members' && cursorMm && (() => {
+        return (
+          <line
+            key="baseline-dim-preview"
+            data-role="dim-preview"
+            x1={0}
+            y1={cursorMm.y - 20}
+            x2={sheetW}
+            y2={cursorMm.y - 20}
+            stroke="rgba(30,100,255,0.5)"
+            strokeWidth={0.35}
+            strokeDasharray="2 1.5"
+          />
+        );
+      })()}
+
+      {/* F5 — Ordinate pick-members ghost L-leader */}
+      {toolMode === 'ordinate' && ordinateSessionRef.current.phase === 'pick-members' && cursorMm && (() => {
+        const sess = ordinateSessionRef.current;
+        if (sess.phase !== 'pick-members') return null;
+        const colX = sess.originSheetPt.x + 20;
+        return (
+          <path
+            key="ordinate-leader-preview"
+            data-role="dim-preview"
+            d={`M ${cursorMm.x} ${cursorMm.y} L ${colX} ${cursorMm.y} L ${colX} ${sess.originSheetPt.y}`}
+            fill="none"
+            stroke="rgba(30,100,255,0.5)"
+            strokeWidth={0.35}
+            strokeDasharray="2 1.5"
+          />
+        );
+      })()}
+
+      {/* F5 — Angular pick-edge-2 ghost arc */}
+      {toolMode === 'angular' && angularSessionRef.current.phase === 'pick-edge-2' && cursorMm && (() => {
+        // Ghost: small dashed circle at cursor position, radius 15mm
+        const r = 15;
+        return (
+          <circle
+            key="angular-arc-preview"
+            data-role="dim-preview"
+            cx={cursorMm.x}
+            cy={cursorMm.y}
+            r={r}
+            fill="none"
+            stroke="rgba(30,100,255,0.5)"
+            strokeWidth={0.35}
+            strokeDasharray="2 1.5"
+          />
+        );
+      })()}
+
       {/* Half-section cut-side picker overlay — rendered inside SVG in sheet-space mm */}
       {toolMode === 'section' && sectionState.stage === 'pickCutSide' && (
         <HalfSectionSidePreview
