@@ -268,4 +268,37 @@ describe('validateSteppedInvariant — α-invariant clauses (SS-SP-4)', () => {
     };
     expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*segments must be axis-aligned/);
   });
+
+  // SS-SP-4e — clause 5: consecutive segments share an endpoint
+  it('SS-SP-4e: throws when two axis-aligned segments do not share an endpoint', () => {
+    // seg0 is horizontal (H), seg1 is vertical (V) — different axes, so clause 6 won't catch.
+    // Both axis-aligned (clause 4 passes). Length 2 (clauses 2,3 pass). They DO NOT touch:
+    // seg0 ends at (10,0); seg1 starts at (20,5).
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 10, y:  0 } }, // H, ends at (10,0)
+        { startSheet: { x: 20, y: 5 }, endSheet: { x: 20, y: 15 } }, // V, starts at (20,5)
+      ],
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*consecutive segments must share an endpoint/);
+  });
+
+  // SS-SP-4f — clause 6: consecutive segments alternate axes (H-V-H-V-...)
+  it('SS-SP-4f: throws when two consecutive segments are both on the same axis', () => {
+    // Both segments horizontal, share endpoint at (10,0) — clauses 1-5 all pass.
+    // Equivalent to a single H segment from (0,0) to (20,0) — invalid (no jog).
+    const view: SteppedValidatorInput = {
+      mode: 'stepped',
+      stepSegments: [
+        { startSheet: { x:  0, y: 0 }, endSheet: { x: 10, y: 0 } }, // H
+        { startSheet: { x: 10, y: 0 }, endSheet: { x: 20, y: 0 } }, // H — same axis as previous
+      ],
+      cutSide: undefined,
+      splitPlane: undefined,
+    };
+    expect(() => validateSteppedInvariant(view)).toThrow(/stepped-section-invariant-violated:.*consecutive segments must alternate axes/);
+  });
 });

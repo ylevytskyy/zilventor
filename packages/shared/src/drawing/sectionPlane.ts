@@ -304,4 +304,34 @@ export function validateSteppedInvariant(
       );
     }
   }
+  // Clause 5 — consecutive segments share an endpoint.
+  // segments[i].endSheet must equal segments[i+1].startSheet (within 1e-9 mm).
+  for (let i = 0; i + 1 < view.stepSegments.length; i++) {
+    const a = view.stepSegments[i]!;
+    const b = view.stepSegments[i + 1]!;
+    const dx = a.endSheet.x - b.startSheet.x;
+    const dy = a.endSheet.y - b.startSheet.y;
+    if (Math.abs(dx) > 1e-9 || Math.abs(dy) > 1e-9) {
+      throw new Error(
+        'stepped-section-invariant-violated: consecutive segments must share an endpoint ' +
+          '(segment ' + i + '.endSheet (' + a.endSheet.x + ',' + a.endSheet.y +
+          ') != segment ' + (i + 1) + '.startSheet (' + b.startSheet.x + ',' + b.startSheet.y + '))',
+      );
+    }
+  }
+  // Clause 6 — consecutive segments alternate axes (H-V-H-V or V-H-V-H).
+  // axisOf returns 'x' if the segment is horizontal (dy ≈ 0), else 'y'. Pre-clause-4
+  // pass guarantees one of dx/dy is ≈ 0 and the other is not — so axisOf is well-defined.
+  const axisOf = (seg: StepSegment): 'x' | 'y' =>
+    Math.abs(seg.endSheet.y - seg.startSheet.y) < 1e-9 ? 'x' : 'y';
+  for (let i = 0; i + 1 < view.stepSegments.length; i++) {
+    const axA = axisOf(view.stepSegments[i]!);
+    const axB = axisOf(view.stepSegments[i + 1]!);
+    if (axA === axB) {
+      throw new Error(
+        'stepped-section-invariant-violated: consecutive segments must alternate axes ' +
+          '(segment ' + i + ' and segment ' + (i + 1) + ' are both on the ' + axA + ' axis)',
+      );
+    }
+  }
 }
