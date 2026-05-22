@@ -487,3 +487,81 @@ describe('AddSectionViewCommand.apply() — stepped α-invariant guards (SS-CMD-
     expect(sheetAfter?.views.length).toBe(initialViewCount);
   });
 });
+
+describe('AddSectionViewCommand.apply() — stepped cache key (SS-CMD-5)', () => {
+  const segments: readonly StepSegment[] = [
+    { startSheet: { x: 0,   y: 0 },  endSheet: { x: 60,  y: 0 } },
+    { startSheet: { x: 60,  y: 0 },  endSheet: { x: 60,  y: 30 } },
+    { startSheet: { x: 60,  y: 30 }, endSheet: { x: 120, y: 30 } },
+  ];
+
+  it('SS-CMD-5a: cache key matches spec §9.2 template — ends with "::stepped"', async () => {
+    const cmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd.apply();
+    const putCall = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0];
+    const cacheKey = putCall?.[0] as string;
+    expect(cacheKey).toBeDefined();
+    expect(cacheKey.endsWith('::stepped')).toBe(true);
+    // The key must contain N=3 plane fingerprints (deriveStepPlanes mock returns 3 planes).
+    // Each fingerprint is separated by '::'. Header is `${sourceId}`, trailer is `::stepped`.
+    // So the count of '::' is N + 1 (sourceId, fp0, fp1, fp2, stepped → 4 separators).
+    const separatorCount = (cacheKey.match(/::/g) ?? []).length;
+    expect(separatorCount).toBe(4);
+  });
+
+  it('SS-CMD-5b: stepped cache key differs from full-section key on the same parent', async () => {
+    const fullCmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await fullCmd.apply();
+    const fullKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    vi.clearAllMocks();
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (cutBySectionPlane as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, compound: {}, faceTags: new Map() });
+    (cutByStepSegments as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, compound: {}, faceTags: new Map() });
+
+    const steppedCmd = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await steppedCmd.apply();
+    const steppedKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    expect(fullKey).toBeDefined();
+    expect(steppedKey).toBeDefined();
+    expect(steppedKey).not.toBe(fullKey);
+  });
+
+  it('SS-CMD-5c: two identical stepped applies → second uses cache hit; cutByStepSegments NOT re-invoked', async () => {
+    // First apply: cache miss, cut runs.
+    const cmd1 = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd1.apply();
+    expect(cutByStepSegments).toHaveBeenCalledTimes(1);
+    const cacheKey = (sectionCache.put as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(cacheKey).toBeDefined();
+
+    // Reset call counters but seed cache.get to RETURN a cached entry for this key.
+    vi.clearAllMocks();
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockImplementation(async (k: string) =>
+      k === cacheKey ? { brep: {}, faceTags: new Map() } : null,
+    );
+
+    // Second apply with identical payload: cache hit, cut MUST NOT be re-invoked.
+    const cmd2 = new AddSectionViewCommand({
+      ...basePayload,
+      mode: 'stepped',
+      stepSegments: segments,
+    });
+    await cmd2.apply();
+    expect(cutByStepSegments).not.toHaveBeenCalled();
+    expect(sectionCache.put).not.toHaveBeenCalled();
+  });
+});
