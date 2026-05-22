@@ -59,3 +59,26 @@ export function formatAngleDeg(rad: number, decimals = 3): string {
   const trimmed = formatted.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   return `${trimmed}°`;
 }
+
+/**
+ * Computes the perpendicular offset (mm) for a baseline dimension member.
+ * offset = baseOffsetMm + slot * spacingMm
+ */
+export function computeBaselineMemberOffset(
+  baseOffsetMm: number,
+  slot: number,
+  spacingMm: number,
+): number {
+  return baseOffsetMm + slot * spacingMm;
+}
+
+/**
+ * Returns the next slot index to assign when adding a new baseline member.
+ * Spec invariant: slot = max(existing slots, -1) + 1
+ * This means first member gets slot 0; subsequent members get max+1.
+ * Holes from undo are intentional — slot reuse is not performed.
+ */
+export function nextBaselineSlot(existingSlots: readonly number[]): number {
+  if (existingSlots.length === 0) return 0;
+  return Math.max(...existingSlots) + 1;
+}

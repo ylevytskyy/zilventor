@@ -1,6 +1,6 @@
 // packages/shared/src/drawing/__tests__/dimensionMath.spec.ts
 import { describe, it, expect } from 'vitest';
-import { intersectLines, subtendedAngle, formatAngleDeg } from '../dimensionMath';
+import { intersectLines, subtendedAngle, formatAngleDeg, computeBaselineMemberOffset, nextBaselineSlot } from '../dimensionMath';
 
 describe('intersectLines — HS-MATH-1: perpendicular lines', () => {
   it('returns intersection of horizontal and vertical line', () => {
@@ -104,5 +104,42 @@ describe('formatAngleDeg — HS-FMT-4: explicit decimals param', () => {
 describe('formatAngleDeg — HS-FMT-5: zero radians', () => {
   it('formats 0 radians as "0°"', () => {
     expect(formatAngleDeg(0)).toBe('0°');
+  });
+});
+
+describe('computeBaselineMemberOffset — HS-OFF-1: first member (slot=0)', () => {
+  it('returns baseOffsetMm + 0 * spacingMm for slot 0', () => {
+    expect(computeBaselineMemberOffset(20, 0, 10)).toBe(20);
+  });
+});
+
+describe('computeBaselineMemberOffset — HS-OFF-2: third member (slot=2)', () => {
+  it('returns 20 + 2 * 10 = 40 for slot 2', () => {
+    expect(computeBaselineMemberOffset(20, 2, 10)).toBe(40);
+  });
+});
+
+describe('nextBaselineSlot — HS-SLOT-1: empty group', () => {
+  it('returns 0 when no existing slots', () => {
+    expect(nextBaselineSlot([])).toBe(0);
+  });
+});
+
+describe('nextBaselineSlot — HS-SLOT-2: existing slots [0, 1, 2]', () => {
+  it('returns 3 for slots [0, 1, 2]', () => {
+    expect(nextBaselineSlot([0, 1, 2])).toBe(3);
+  });
+});
+
+describe('nextBaselineSlot — HS-SLOT-3: non-contiguous slots after undo', () => {
+  it('returns max+1 even when slots have gaps', () => {
+    // slots [0, 2] (slot 1 was undone) → next = 3
+    expect(nextBaselineSlot([0, 2])).toBe(3);
+  });
+});
+
+describe('nextBaselineSlot — HS-SLOT-4: single slot [5]', () => {
+  it('returns 6 for slots [5]', () => {
+    expect(nextBaselineSlot([5])).toBe(6);
   });
 });
