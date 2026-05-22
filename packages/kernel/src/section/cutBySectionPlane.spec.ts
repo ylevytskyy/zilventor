@@ -426,4 +426,43 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
       .toThrow(/stepped-section-invariant-violated/);
     disposeOcctShape(oc, compound);
   });
+
+  it('SS-K-5: 9-segment input throws stepped-section-invariant-violated (clause 3)', () => {
+    const cube = makeBox(oc, 50, 50, 30);
+    const compound = buildTestCompound(oc, cube);
+    const planes: Plane[] = Array.from({ length: 9 }, (_, i) => ({
+      origin: { x: i, y: 0, z: 15 },
+      normal: { x: i % 2 === 0 ? 0 : 1, y: 0, z: i % 2 === 0 ? 1 : 0 },
+    }));
+    expect(() => cutByStepSegments(oc, compound, planes, 1))
+      .toThrow(/stepped-section-invariant-violated/);
+    disposeOcctShape(oc, compound);
+  });
+
+  it('SS-K-1: canonical 2-segment cut on 100×60×40 box — both planes contribute, all faces tagged "section"', () => {
+    const box = makeBox(oc, 100, 60, 40);
+    const compound = buildTestCompound(oc, box);
+    const planes: Plane[] = [
+      { origin: { x: 0,  y: 0, z: 20 }, normal: { x: 0, y: 0, z: 1 } }, // segment 1: horizontal cut
+      { origin: { x: 50, y: 0, z: 0  }, normal: { x: 1, y: 0, z: 0 } }, // segment 2: vertical cut (one jog)
+    ];
+    const result = cutByStepSegments(oc, compound, planes, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tags = [...result.faceTags.values()];
+    const cutFaces = tags.filter(t => t.tag === 'cut-face');
+    // Each segment contributes at least one cut face on a box; total >= 2.
+    expect(cutFaces.length).toBeGreaterThanOrEqual(2);
+
+    // Face-tag contract: every cut face from any segment is 'section' (B2 axis).
+    // The 'split' value from F1.1 must NEVER appear in stepped cuts.
+    for (const face of cutFaces) {
+      expect((face as { planeSource?: string }).planeSource).toBe('section');
+    }
+    const splitFaces = tags.filter(t => (t as { planeSource?: string }).planeSource === 'split');
+    expect(splitFaces).toHaveLength(0);
+
+    disposeOcctShape(oc, result.compound);
+  });
 });

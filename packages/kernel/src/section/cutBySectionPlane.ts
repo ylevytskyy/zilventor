@@ -505,10 +505,72 @@ export function cutByStepSegments(
   if (planes.length < 2) {
     throw new Error(`stepped-section-invariant-violated: planes.length=${planes.length} < 2 (clause 2)`);
   }
-  // Tasks 2.2–2.5 will extend this body with the count-> 8 guard, the main
-  // BRepAlgoAPI_Cut_3 loop, the per-segment volume-tangent skip, the face
-  // classifier, and the empty-cut handler.
-  throw new Error('cutByStepSegments: loop body not yet implemented (Task 2.2)');
+  if (planes.length > 8) {
+    throw new Error(`stepped-section-invariant-violated: planes.length=${planes.length} > 8 (clause 3)`);
+  }
+
+  let running: unknown = source;
+  const mergedTags: FaceTagMap = new Map();
+
+  for (let i = 0; i < planes.length; i += 1) {
+    const plane = planes[i]!;
+    const halfSpace = buildHalfSpace(oc, plane, arrowDirection);
+
+    const rA = new oc.Message_ProgressRange_1();
+    const rB = new oc.Message_ProgressRange_1();
+    let next: unknown;
+    let ok = false;
+    try {
+      const cutter = new oc.BRepAlgoAPI_Cut_3(running as never, halfSpace.handle as never, rA);
+      cutter.Build(rB);
+      if (cutter.IsDone()) {
+        next = cutter.Shape();
+        ok = true;
+      }
+      cutter.delete();
+    } finally {
+      rA.delete();
+      rB.delete();
+      (halfSpace.handle as unknown as { delete(): void }).delete();
+    }
+    if (!ok) {
+      return { ok: false, reason: 'empty' };
+    }
+
+    // Walk faces of `next`; classify against this segment's plane.
+    const faceExp = new oc.TopExp_Explorer_2(
+      next as never,
+      oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+    );
+    while (faceExp.More()) {
+      const face = faceExp.Current();
+      const key = hashFace(oc, face);
+      if (classifyFace(oc, face, plane) === 'cut-face') {
+        const polygon3D = extractFaceBoundary3D(oc, face);
+        mergedTags.set(key, {
+          tag: 'cut-face',
+          partId: '',
+          materialId: '',
+          planeSource: 'section',
+          ...(polygon3D.length ? { polygon3D } : {}),
+        });
+      } else {
+        // NOTE: this naive set may overwrite a prior segment's cut-face tag —
+        // Task 2.3 adds the preserve-prior-cut-face guard.
+        mergedTags.set(key, { tag: 'original-face', partId: '', materialId: '' });
+      }
+      faceExp.Next();
+    }
+    faceExp.delete();
+
+    if (i > 0) {
+      (running as unknown as { delete?(): void }).delete?.();
+    }
+    running = next;
+  }
+
+  return { ok: true, compound: running, faceTags: mergedTags };
 }
 
 function flattenLeaves(
