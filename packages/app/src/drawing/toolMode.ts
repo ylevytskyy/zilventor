@@ -17,7 +17,8 @@ export type ToolMode =
   | 'addBalloon'
   | 'section'
   | 'detail'
-  | 'break';     // NEW — Drawing F3
+  | 'break'      // Drawing F3
+  | 'autoDim';   // Drawing F4 — auto-dimensioning from sketch parameters
 
 export type PendingViewParams =
   | {
