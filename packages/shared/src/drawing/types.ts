@@ -230,7 +230,39 @@ export type DrawingDimension =
       readonly textOverride?: string;
     }
   | { readonly id: string; readonly kind: 'radial';    readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number }
-  | { readonly id: string; readonly kind: 'diametric'; readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number };
+  | { readonly id: string; readonly kind: 'diametric'; readonly viewId: string; readonly edgeId: string; readonly offsetMm: number; readonly angleDeg: number }
+  | {
+      readonly kind: 'baseline';
+      readonly id: string;
+      readonly viewId: string;
+      readonly groupId: string;
+      readonly slot: number;
+      readonly to: PointRef;
+      readonly sourceParameterName?: string;
+      readonly textOverride?: string;
+    }
+  | {
+      readonly kind: 'ordinate';
+      readonly id: string;
+      readonly viewId: string;
+      readonly groupId: string;
+      readonly to: PointRef;
+      readonly axis: 'x' | 'y';
+      readonly sourceParameterName?: string;
+      readonly textOverride?: string;
+    }
+  | {
+      readonly kind: 'angular';
+      readonly id: string;
+      readonly viewId: string;
+      readonly ref:
+        | { readonly kind: 'two-edges'; readonly edge1: EdgeRef; readonly edge2: EdgeRef }
+        | { readonly kind: 'arc';       readonly edge: EdgeRef };
+      readonly arcSide: 'inside' | 'outside';
+      readonly offsetMm: number;
+      readonly sourceParameterName?: string;
+      readonly textOverride?: string;
+    };
 
 // ---------------------------------------------------------------------------
 // EdgeRef — used by angular/radial/diametric dimensions to reference edges

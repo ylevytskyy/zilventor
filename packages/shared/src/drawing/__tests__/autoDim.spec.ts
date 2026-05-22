@@ -3,6 +3,10 @@ import { findMatchingEdge2D } from '../autoDim';
 import type { DrawingView, BaseView, DrawingDimension } from '../types';
 import type { Edge2D } from '../projectedGeometry';
 
+// Helper: narrow a DrawingDimension (post-F5 union) to the linear subset that has offsetMm.
+type LinearDim = Extract<DrawingDimension, { readonly offsetMm: number }>;
+function asLinear(d: DrawingDimension): LinearDim { return d as LinearDim; }
+
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------
@@ -218,7 +222,7 @@ describe('greedyPlaceDims — HS-LAYOUT-1: single linear-h dim', () => {
     const placed = greedyPlaceDims(candidates, bbox);
     expect(placed).toHaveLength(1);
     // Starting offset: max(bboxHeight*0.15, 3) = max(60*0.15, 3) = max(9,3) = 9
-    expect(placed[0]!.offsetMm).toBeCloseTo(9, 5);
+    expect(asLinear(placed[0]!).offsetMm).toBeCloseTo(9, 5);
   });
 });
 
@@ -235,9 +239,9 @@ describe('greedyPlaceDims — HS-LAYOUT-2: three linear-h dims', () => {
     // Starting offset: max(bboxHeight*0.15, 3) = max(60*0.15=9, 3) = 9
     // Increment: clamp(bboxWidth*0.15, 8, 20) = clamp(100*0.15=15, 8, 20) = 15
     // Offsets: 9, 9+15=24, 24+15=39
-    expect(placed[0]!.offsetMm).toBeCloseTo(9, 5);
-    expect(placed[1]!.offsetMm).toBeCloseTo(24, 5);
-    expect(placed[2]!.offsetMm).toBeCloseTo(39, 5);
+    expect(asLinear(placed[0]!).offsetMm).toBeCloseTo(9, 5);
+    expect(asLinear(placed[1]!).offsetMm).toBeCloseTo(24, 5);
+    expect(asLinear(placed[2]!).offsetMm).toBeCloseTo(39, 5);
   });
 });
 
@@ -257,7 +261,7 @@ describe('greedyPlaceDims — HS-LAYOUT-3: overlap skip', () => {
     const candidates = [makeLinearH('d1'), makeLinearH('d2')];
     const placed = greedyPlaceDims(candidates, bbox);
     expect(placed).toHaveLength(2);
-    expect(placed[0]!.offsetMm).not.toBe(placed[1]!.offsetMm);
+    expect(asLinear(placed[0]!).offsetMm).not.toBe(asLinear(placed[1]!).offsetMm);
   });
 });
 
@@ -273,8 +277,8 @@ describe('greedyPlaceDims — HS-LAYOUT-4: small bbox scaling', () => {
     expect(placed).toHaveLength(2);
     // Starting offset: max(bboxHeight*0.15, 3) = max(20*0.15=3, 3) = 3
     // Increment (small-bbox path, width<50): bboxWidth*0.15 = 30*0.15 = 4.5
-    expect(placed[0]!.offsetMm).toBeCloseTo(3, 5);
-    expect(placed[1]!.offsetMm).toBeCloseTo(3 + 4.5, 5);
+    expect(asLinear(placed[0]!).offsetMm).toBeCloseTo(3, 5);
+    expect(asLinear(placed[1]!).offsetMm).toBeCloseTo(3 + 4.5, 5);
   });
 });
 
@@ -297,7 +301,7 @@ describe('greedyPlaceDims — HS-LAYOUT-5: deterministic re-run', () => {
     expect(run1).toHaveLength(run2.length);
     for (let i = 0; i < run1.length; i++) {
       expect(run1[i]!.id).toBe(run2[i]!.id);
-      expect(run1[i]!.offsetMm).toBe(run2[i]!.offsetMm);  // strict equality (same float bits)
+      expect(asLinear(run1[i]!).offsetMm).toBe(asLinear(run2[i]!).offsetMm);  // strict equality (same float bits)
     }
   });
 });
