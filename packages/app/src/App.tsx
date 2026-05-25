@@ -784,6 +784,118 @@ export default function App() {
         const p95ms = dimStyleSamples[Math.floor(dimStyleSamples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      // Drawing F6 — hole-table perf probe.
+      // Fixture: 20 holes (10 × dia=8 + 10 × dia=12), 16-point circle approximation each.
+      // Budget: p95 < 50 ms. Pure 2D geometry — no kernel call.
+      (w as unknown as { __zilventorHoleTableMs: (n?: number) => Promise<{ p95ms: number }> }).__zilventorHoleTableMs = async (n = 100) => {
+        const { computeHoleTableRows } = await import('@zilventor/shared/src/drawing/holeTable');
+        type Edge2D = import('@zilventor/shared').Edge2D;
+
+        const N_HOLES = 20;
+
+        // Build a 16-point circle polyline around (cx, cy) with radius r.
+        function circlePoints(cx: number, cy: number, r: number): ReadonlyArray<readonly [number, number]> {
+          const pts: Array<readonly [number, number]> = [];
+          for (let i = 0; i <= 16; i++) {
+            const angle = (i / 16) * 2 * Math.PI;
+            pts.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
+          }
+          return pts as ReadonlyArray<readonly [number, number]>;
+        }
+
+        // 10 holes dia=8, 10 holes dia=12.
+        const holeFeatures = Array.from({ length: N_HOLES }, (_, i) => {
+          const paramName = i < 10 ? 'd_small' : 'd_large';
+          return {
+            id: `PH${i}`,
+            kind: 'hole' as const,
+            placement: { kind: 'fromSketch' as const, sketchId: 'sk1' },
+            profile: { kind: 'simple' as const, diameter: { kind: 'param' as const, paramName } },
+            termination: { kind: 'throughAll' as const },
+            flipAxis: false,
+          };
+        });
+
+        const syntheticPart = {
+          id: 'perf-part-holes',
+          name: 'PerfHolePart',
+          units: 'mm' as const,
+          parameters: {
+            d_small: { value: 8 },
+            d_large: { value: 12 },
+          },
+          featureTree: holeFeatures,
+          properties: {},
+          materials: [],
+          hardware: [],
+        };
+
+        // Datum edge at (0,0) — start endpoint resolves to part-mm [0,0].
+        const datumEdge: Edge2D = {
+          id: 'perf-datum',
+          kind: 'outline',
+          points: [[0, 0], [10, 0]] as ReadonlyArray<readonly [number, number]>,
+          sourceFaceIds: [],
+        };
+
+        // 20 circle edges, each carrying sourceFaceIds for the corresponding hole.
+        const circleEdges: Edge2D[] = Array.from({ length: N_HOLES }, (_, i) => {
+          const cx = ((i % 5) * 20 + 10);
+          const cy = (Math.floor(i / 5) * 20 + 10);
+          const r = i < 10 ? 4 : 6;
+          return {
+            id: `perf-h${i}-circle`,
+            kind: 'feature' as const,
+            points: circlePoints(cx, cy, r),
+            sourceFaceIds: [`PH${i}|hole|0`, `PF${i}|face|0`] as string[],
+          };
+        });
+
+        const syntheticView = {
+          id: 'perf-view-holes',
+          kind: 'base' as const,
+          positionMm: { x: 0, y: 0 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [datumEdge, ...circleEdges],
+            hiddenEdges: [] as Edge2D[],
+            bbox: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+          },
+          inputFingerprint: 'fp-perf-holes',
+        };
+
+        const syntheticAnnotation = {
+          kind: 'holeTable' as const,
+          id: 'perf-hole-table',
+          viewId: 'perf-view-holes',
+          datum: { kind: 'edge-endpoint' as const, edgeId: 'perf-datum', end: 'start' as const },
+          positionMm: { x: 0, y: 120 },
+          entries: [] as ReadonlyArray<{ readonly holeFeatureId: string; readonly tag: string }>,
+        };
+
+        const resolveParam = (p: { kind: string; value?: number; paramName?: string }) =>
+          p.kind === 'literal'
+            ? (p.value ?? 0)
+            : (syntheticPart.parameters as Record<string, { value: number }>)[p.paramName ?? '']?.value ?? 0;
+
+        const samples: number[] = [];
+        for (let i = 0; i < n; i++) {
+          const t0 = performance.now();
+          computeHoleTableRows(
+            syntheticAnnotation as never,
+            syntheticView as never,
+            syntheticPart as never,
+            resolveParam as never,
+          );
+          samples.push(performance.now() - t0);
+        }
+        samples.sort((a, b) => a - b);
+        const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
+        return { p95ms };
+      };
     }
   }, []);
 
