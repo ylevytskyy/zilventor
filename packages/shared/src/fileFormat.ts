@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 18 as const;
+export const CURRENT_FORMAT_VERSION = 19 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -260,13 +260,47 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 18 };
   },
+
+  // v18 → v19: back-fill kind:'circle' on all DetailView.regionParent values in
+  // drawing documents. Pre-F2.1 files store regionParent as a flat {center, radiusMm}
+  // object without a kind discriminator. Idempotent: if kind is already present,
+  // the spread is a no-op. (Drawing F2.1 — rectangular detail region)
+  18: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as {
+      kind?: string;
+      document?: {
+        sheets?: Array<{
+          views?: Array<Record<string, unknown>>;
+        }>;
+      };
+    };
+    if (anyM.kind === 'drawing' && anyM.document?.sheets) {
+      for (const sheet of anyM.document.sheets) {
+        if (!Array.isArray(sheet.views)) continue;
+        for (const view of sheet.views) {
+          if (view['kind'] !== 'detail') continue;
+          const rp = view['regionParent'] as Record<string, unknown> | undefined;
+          if (rp !== undefined && rp['kind'] === undefined) {
+            view['regionParent'] = {
+              kind: 'circle',
+              center: rp['center'],
+              radiusMm: rp['radiusMm'],
+            };
+          }
+        }
+      }
+    }
+    return { ...m, formatVersion: 19 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
   if (
     (m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 ||
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
-     m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18) &&
+     m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18 ||
+     m.formatVersion === 19) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
