@@ -227,6 +227,17 @@ export default function DrawingTab(): JSX.Element {
         >
           Balloon
         </button>
+        {/* Hole Table: Drawing F6 */}
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Hole Table"
+          disabled={!hasProjectedView}
+          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          onClick={() => useToolModeStore.getState().enterHoleTableMode()}
+        >
+          Hole Table
+        </button>
       </RibbonPanel>
 
       {/* Export panel */}
