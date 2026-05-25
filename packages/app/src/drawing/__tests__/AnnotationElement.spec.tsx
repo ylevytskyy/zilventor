@@ -1,8 +1,19 @@
 // packages/app/src/drawing/__tests__/AnnotationElement.spec.tsx
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { AnnotationElement } from '../AnnotationElement';
-import type { DrawingAnnotation, DrawingView, ProjectedGeometry } from '@zilventor/shared';
+import type { DrawingAnnotation, DrawingView, ProjectedGeometry, HoleTableAnnotation } from '@zilventor/shared';
+
+// Stub HoleTableElement so Task 3.3 test can verify routing without rendering the full element
+vi.mock('../HoleTableElement', () => ({
+  HoleTableElement: ({ ann }: { ann: HoleTableAnnotation }) => (
+    <g data-testid="hole-table-stub" data-ann-id={ann.id} />
+  ),
+}));
+// Stub computeHoleTableRows and store (used transitively by HoleTableElement mock)
+vi.mock('@zilventor/shared/src/drawing/holeTable', () => ({
+  computeHoleTableRows: vi.fn(() => []),
+}));
 
 const mockProj = (): ProjectedGeometry => ({
   visibleEdges: [
@@ -80,5 +91,33 @@ describe('AnnotationElement — leader', () => {
   it('renders text content for leader', () => {
     render(<svg><AnnotationElement ann={ann} view={mockView()} /></svg>);
     expect(document.querySelector('[data-ann-text]')?.textContent).toBe('Sharp edge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 3.3 — holeTable case routing
+// ---------------------------------------------------------------------------
+
+const htAnn: HoleTableAnnotation = {
+  kind: 'holeTable',
+  id: 'ht-ann-1',
+  viewId: 'v-1',
+  datum: { kind: 'edge-endpoint', edgeId: 'e-1', end: 'start' },
+  positionMm: { x: 200, y: 50 },
+  entries: [],
+};
+const dummyView = {
+  id: 'v-1',
+  projection: { visibleEdges: [], hiddenEdges: [], bbox: {} },
+} as unknown as DrawingView;
+
+describe('AnnotationElement — holeTable case', () => {
+  it('renders HoleTableElement for a holeTable annotation', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={htAnn as DrawingAnnotation} view={dummyView} />
+      </svg>,
+    );
+    expect(container.querySelector('[data-testid="hole-table-stub"]')).not.toBeNull();
   });
 });

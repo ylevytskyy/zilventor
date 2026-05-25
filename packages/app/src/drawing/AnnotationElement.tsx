@@ -1,5 +1,6 @@
 // packages/app/src/drawing/AnnotationElement.tsx
 import type { DrawingAnnotation, DrawingView } from '@zilventor/shared';
+import { HoleTableElement } from './HoleTableElement';
 
 function edgeCenter(edgeId: string, view: DrawingView): { x: number; y: number } | null {
   const proj = view.projection;
@@ -90,6 +91,9 @@ export function AnnotationElement({ ann, view }: AnnotationElementProps) {
         </g>
       );
     }
+
+    case 'holeTable':
+      return <HoleTableElement ann={ann} view={view} />;
 
     default:
       return null;
