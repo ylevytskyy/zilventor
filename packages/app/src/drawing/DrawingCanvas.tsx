@@ -702,6 +702,9 @@ export function DrawingCanvas() {
               tag,
             }));
 
+            // No holes detected in this view — skip command so no empty table enters undo history.
+            if (entries.length === 0) return;
+
             const ann: import('@zilventor/shared').HoleTableAnnotation = {
               kind: 'holeTable',
               id: crypto.randomUUID(),

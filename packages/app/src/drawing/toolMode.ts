@@ -704,7 +704,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       set({ holeTableState: { stage: 'idle' } });
       return;
     }
-    if (holeTableState.stage === 'idle' && mode === 'holeTable') {
+    if (mode === 'holeTable') {
       // Second ESC (or ESC from fresh idle in holeTable mode): exit the tool.
       set({ mode: 'idle', holeTableState: { stage: 'idle' } });
     }
