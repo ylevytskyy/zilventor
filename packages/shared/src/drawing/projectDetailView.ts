@@ -5,6 +5,8 @@
 
 import type { Edge2D, ProjectedGeometry } from './projectedGeometry';
 import { clipEdgesToCircle } from './clipEdgesToCircle';
+import { clipEdgesToRect } from './clipEdgesToRect';
+import type { RegionParent } from './types';
 
 // ---------------------------------------------------------------------------
 // Types (spec §6.1)
@@ -15,10 +17,7 @@ export type DetailViewInput = {
     readonly scale: { readonly numerator: number; readonly denominator: number };
     readonly projection: ProjectedGeometry;
   };
-  readonly regionParent: {
-    readonly center: { x: number; y: number };
-    readonly radiusMm: number;
-  };
+  readonly regionParent: RegionParent;
   readonly detailScale: { readonly numerator: number; readonly denominator: number };
   readonly showHidden: boolean;
 };
@@ -66,16 +65,35 @@ function computeBbox(
   return { minX, minY, maxX, maxY };
 }
 
+/**
+ * Clip edges against the regionParent boundary, dispatching on kind.
+ * circle → clipEdgesToCircle; rect → clipEdgesToRect.
+ * The translate (center→origin) and scale steps are shared — both shapes are center-based.
+ */
+function clipEdges(
+  edges: readonly Edge2D[],
+  regionParent: RegionParent,
+): Edge2D[] {
+  if (regionParent.kind === 'circle') {
+    return clipEdgesToCircle(edges, regionParent.center, regionParent.radiusMm);
+  }
+  // kind === 'rect'
+  return clipEdgesToRect(edges, {
+    center: regionParent.center,
+    widthMm: regionParent.widthMm,
+    heightMm: regionParent.heightMm,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Main entry (spec §6.1)
 // ---------------------------------------------------------------------------
 
 /**
- * Clips the parent view's projected edges against the circular region and
- * transforms the clipped edges to detail-local mm space.
+ * Clips the parent view's projected edges against the region and transforms
+ * the clipped edges to detail-local mm space.
  *
- * Step 1: Clip parent edges (already in parent-local mm) against
- *         (center=regionParent.center, radius=regionParent.radiusMm).
+ * Step 1: Clip parent edges against regionParent (circle or rect).
  * Step 2: Translate clipped points by -regionParent.center (center → origin).
  * Step 3: Scale by detailScaleFactor =
  *         (detailScale.num/detailScale.den) / (parentScale.num/parentScale.den).
@@ -83,16 +101,12 @@ function computeBbox(
  */
 export function projectDetailView(input: DetailViewInput): DetailViewOutput {
   const { parentView, regionParent, detailScale, showHidden } = input;
-  const { center, radiusMm } = regionParent;
+  const { center } = regionParent;
 
   // Step 1: Clip
-  const clippedVisible = clipEdgesToCircle(
-    parentView.projection.visibleEdges,
-    center,
-    radiusMm,
-  );
+  const clippedVisible = clipEdges(parentView.projection.visibleEdges, regionParent);
   const clippedHidden = showHidden
-    ? clipEdgesToCircle(parentView.projection.hiddenEdges, center, radiusMm)
+    ? clipEdges(parentView.projection.hiddenEdges, regionParent)
     : [];
 
   // Step 2 + 3: Translate to origin then scale to detail-local mm
