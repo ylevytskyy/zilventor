@@ -154,6 +154,7 @@ pnpm --filter app exec playwright test tests/e2e/drawing/T-6-17-projection-pipel
 // packages/app/src/store/__tests__/activeDrawingSourcePartId.spec.ts
 import { describe, it, expect } from 'vitest';
 import { useAppStore } from '../useAppStore';
+import { drawingDocState } from '../drawingDocState';
 
 describe('activeDrawingSourcePartId + activeDrawingSourceFingerprint store slots', () => {
   it('activeDrawingSourcePartId defaults to null', () => {
@@ -182,7 +183,6 @@ describe('activeDrawingSourcePartId + activeDrawingSourceFingerprint store slots
   });
 
   it('drawingDocState resets both slots to null', () => {
-    const { drawingDocState } = require('../drawingDocState') as typeof import('../drawingDocState');
     useAppStore.setState({ activeDrawingSourcePartId: 'some-id', activeDrawingSourceFingerprint: 'some-fp' } as never);
     const fakeDoc = { id: 'd1', name: 'D', units: 'mm', source: { partPath: 'p.zipt', sourceKind: 'part' }, properties: {}, sheets: [], activeSheetId: 's1' };
     const patch = drawingDocState(fakeDoc as never);
@@ -253,7 +253,7 @@ Run: `pnpm --filter app test:unit -- --run src/store/__tests__/activeDrawingSour
 Expected GREEN: 3 tests pass.
 
 Run full suite: `pnpm --filter app test:unit`
-Expected GREEN (the `drawingDocState` spec at `packages/app/src/store/__tests__/drawingDocState.spec.ts` may now fail because it doesn't expect the new field — update it to also assert `patch.activeDrawingSourcePartId === null`).
+Expected GREEN (the `drawingDocState` spec at `packages/app/src/store/__tests__/drawingDocState.spec.ts` uses per-property assertions — `expect(slice.activePart).toBeNull()` — so adding `activeDrawingSourcePartId: null` and `activeDrawingSourceFingerprint: null` to the returned object does NOT break it; no update needed).
 
 **Commit:** `feat(projection-pipeline): B0.1 — activeDrawingSourcePartId store slot + drawingDocState reset`
 
@@ -646,7 +646,7 @@ export class CreateDrawingCommand implements Command {
     if (this.opts.sourceKind === 'part') {
       try {
         const { loadDrawingSource, _clearLoadDrawingSourceCache } = await import('../drawing/loadDrawingSource');
-        const { Opfs } = await import('../storage/Opfs');
+        const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
         const kernel = useAppStore.getState().kernel;
         if (kernel) {
           const opfs = await Opfs.forNavigator();
@@ -1848,7 +1848,9 @@ function makeView(id: string, opts: { hasProjection?: boolean; inputFingerprint?
 }
 
 describe('computeStaleViewIds', () => {
-  it('returns empty set when activeDrawingSourceFingerprint is null (no source loaded)', () => {
+  it('returns empty set when activeDrawingSourceFingerprint is null (source not loaded yet) — even for a view WITH a fingerprint', () => {
+    // View has inputFingerprint 'fp-a' but we cannot compare it to null source fp → no stale.
+    // When the source part hasn't been loaded yet, we cannot determine staleness: no-op.
     const views = [makeView('v1', { hasProjection: true, inputFingerprint: 'fp-a' })];
     expect(computeStaleViewIds(views, null)).toEqual(new Set());
   });
@@ -1974,7 +1976,7 @@ const activeDrawingSourceFingerprint = useAppStore(
 );
 ```
 
-Remove the no-longer-needed `source` selector (`activePart ?? activeAssembly`) if it was added solely for the staleness fingerprint. (Keep it if other parts of `DrawingCanvas` need it.) Remove the `fingerprintPartState` import if it is no longer used in `DrawingCanvas.tsx`.
+**KEEP** `const source = useAppStore((s) => s.activePart ?? s.activeAssembly)` at `DrawingCanvas.tsx:127` — it is used by `<TitleBlock source={source} />` at `DrawingCanvas.tsx:1103`. Do NOT remove it. Remove the `fingerprintPartState` import if it is no longer used in `DrawingCanvas.tsx`.
 
 Run: `pnpm --filter app test:unit -- --run src/drawing/__tests__/drawingCanvasStaleness.spec.ts`
 Expected GREEN: 6 tests pass (condition (b) now fires on source-fingerprint mismatch).
@@ -2016,13 +2018,15 @@ const _syntheticPart: import('@zilventor/shared').PartDocument = {
   properties: {}, materials: [], hardware: [],
 };
 
+// Add at the top of App.tsx alongside other static imports (NOT inside the useEffect):
+// import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
+// Then reference _fpFn inside the probe closure:
+
 w.__zilventorFingerprintPartStateMs = (n: number): number => {
-  const { fingerprintPartState: fpFn } = require('./drawing/fingerprintPartState') as
-    typeof import('./drawing/fingerprintPartState');
   const samples: number[] = [];
   for (let i = 0; i < n; i++) {
     const t0 = performance.now();
-    fpFn(_syntheticPart);
+    _fpFn(_syntheticPart);
     samples.push(performance.now() - t0);
   }
   samples.sort((a, b) => a - b);
@@ -2350,9 +2354,11 @@ Expected GREEN (after all B1–B5 changes are in place).
 // call the real kernel worker. The kernel RPC cost is excluded (it runs off-thread via
 // Comlink and varies with WASM load). The 2000ms budget is for the pure projectView
 // computation only; real kernel RPC adds variable latency.
+// Add at the top of App.tsx alongside other static imports:
+// import { projectView as _pvFn } from '@zilventor/shared/src/drawing/projector';
+// Then reference _pvFn inside the probe closure:
+
 w.__zilventorProjectionRoundTripMs = (n: number): number => {
-  const { projectView: pvFn } = require('@zilventor/shared/src/drawing/projector') as
-    typeof import('@zilventor/shared/src/drawing/projector');
   const synthInput: import('@zilventor/shared').ProjectorInput = {
     triangles: Array.from({ length: 100 }, (_, i) => {
       const bx = (i % 10) * 10; const bz = Math.floor(i / 10) * 10;
@@ -2369,7 +2375,7 @@ w.__zilventorProjectionRoundTripMs = (n: number): number => {
   const samples: number[] = [];
   for (let i = 0; i < n; i++) {
     const t0 = performance.now();
-    pvFn(synthInput, 'front');
+    _pvFn(synthInput, 'front');
     samples.push(performance.now() - t0);
   }
   samples.sort((a, b) => a - b);
@@ -2472,5 +2478,5 @@ The plan is grounded in verified source code. All key signatures confirmed by re
 1. `Opfs.forNavigator()` inside `CreateDrawingCommand.apply()` — browser-only. Mitigated by `if (kernel)` guard + `vi.mock` in spec. Must keep the mock in place.
 2. `loadDrawingSource` module-level cache: `vi.resetModules()` + dynamic re-import clears it between tests. Implementer must follow this pattern. `_clearLoadDrawingSourceCache()` exported for explicit reset.
 3. `handleRegenerate` for projected views requires finding the base view — if it was removed by undo, silently falls through. Acceptable for this pass.
-4. The perfProbe for `__zilventorFingerprintPartStateMs` uses `require()` inside an effect — use static import instead.
+4. The perfProbe for `__zilventorFingerprintPartStateMs` uses a static import (`import { fingerprintPartState as _fpFn }`) at the top of `App.tsx`, referenced inside the probe closure — no `require()`. Likewise `__zilventorProjectionRoundTripMs` uses a static import of `projectView as _pvFn`.
 5. Assembly-sourced drawings get `activeDrawingSourcePartId = null` and will throw `PART_NOT_IN_STORE`. Out of scope, documented.
