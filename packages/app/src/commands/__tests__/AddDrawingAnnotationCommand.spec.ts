@@ -68,9 +68,11 @@ describe('AddDrawingAnnotationCommand', () => {
     expect(anns).toHaveLength(1);
     const balloon = anns[0] as Extract<DrawingAnnotation, { kind: 'balloon' }>;
     expect(balloon.itemNumber).toBe(1);
-    // Verify itemNumber=1 is present in the assembly's bomItemNumbers values
-    const asm = useAppStore.getState().activeAssembly!;
-    const bomValues = Object.values(asm.bomItemNumbers);
+    // Verify itemNumber=1 is present in the source assembly's bomItemNumbers values.
+    // Read from the fixture, not the live store: adding a drawing annotation now
+    // correctly clears activeAssembly (drawingDocState mirrors setActiveDocument's
+    // derivation — a drawing is the active doc, so activeAssembly is null).
+    const bomValues = Object.values(makeActiveAssembly().bomItemNumbers);
     expect(bomValues).toContain(balloon.itemNumber);
   });
 
