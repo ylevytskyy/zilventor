@@ -12,3 +12,7 @@ export { AddBreakCommand } from './AddBreakCommand';
 export type { AddBreakOpts } from './AddBreakCommand';
 export { DeleteBreakCommand } from './DeleteBreakCommand';
 export type { DeleteBreakOpts } from './DeleteBreakCommand';
+
+// Re-exports for edit-detail-region command (Drawing F2.4).
+export { EditDetailRegionCommand } from './EditDetailRegionCommand';
+export type { EditDetailRegionOpts } from './EditDetailRegionCommand';
