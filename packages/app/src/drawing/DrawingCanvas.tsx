@@ -20,7 +20,10 @@ import { AddAngularDimCommand } from '../commands/AddAngularDimCommand';
 import { DeleteDimensionGroupCommand } from '../commands/DeleteDimensionGroupCommand';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
+import { DetailRegionEditHandles } from './DetailRegionEditHandles';
 import { HalfSectionSidePreview } from './HalfSectionSidePreview';
+import { EditDetailRegionCommand } from '../commands/EditDetailRegionCommand';
+import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
 
@@ -87,6 +90,7 @@ export function DrawingCanvas() {
   const sectionMode = useToolModeStore((s) => s.sectionMode);
   const detailState = useToolModeStore((s) => s.detailState);
   const breakState = useToolModeStore((s) => s.breakState);
+  const editDetailRegionState = useToolModeStore((s) => s.editDetailRegionState);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -207,6 +211,29 @@ export function DrawingCanvas() {
         useToolModeStore.getState().sectionCancel();
         useToolModeStore.getState().detailCancel();
         useToolModeStore.getState().breakCancel();
+
+        // F2.4 — ESC during editDetailRegion:
+        // Per spec §5.3, a mid-drag ESC must revert the live document preview to startRegion
+        // BEFORE calling editDetailCancel() (which only resets tool state, not the document).
+        const liveEditState = useToolModeStore.getState().editDetailRegionState;
+        if (
+          liveEditState.stage === 'draggingCenter' ||
+          liveEditState.stage === 'draggingRadius'
+        ) {
+          // Read the live drawing to find the active sheet
+          const liveDrawing = useAppStore.getState().activeDrawing;
+          const liveSheet = liveDrawing?.sheets.find((s) => s.id === liveDrawing.activeSheetId)
+            ?? liveDrawing?.sheets[0];
+          if (liveSheet) {
+            // Revert document preview to startRegion (cancels the in-progress drag)
+            useAppStore.getState().updateDetailRegionLive(
+              liveSheet.id,
+              liveEditState.detailViewId,
+              liveEditState.startRegion,
+            );
+          }
+        }
+        useToolModeStore.getState().editDetailCancel();
         // F5 — cancel active sessions
         const liveDrwEsc = useAppStore.getState().activeDrawing;
         const liveSheetEsc = liveDrwEsc?.sheets.find((s) => s.id === liveDrwEsc.activeSheetId) ?? liveDrwEsc?.sheets[0];
@@ -743,6 +770,36 @@ export function DrawingCanvas() {
               parentView={parent as BaseView | ProjectedView | IsoView | SectionView}
               detailView={dv}
               zoom={zoom}
+            />
+          );
+        })}
+
+      {/* Edit-detail-region handles — shown only in editDetailRegion mode (Drawing F2.4) */}
+      {toolMode === 'editDetailRegion' && sheet.views
+        .filter((v): v is DetailView => v.kind === 'detail')
+        .map((dv) => {
+          const parent = sheet.views.find((v) => v.id === dv.parentViewId);
+          if (!parent || !parent.projection) return null;
+          return (
+            <DetailRegionEditHandles
+              key={`edit-handles-${dv.id}`}
+              parentView={parent as (BaseView | ProjectedView | IsoView | SectionView) & { projection: NonNullable<(BaseView | ProjectedView | IsoView | SectionView)['projection']> }}
+              detailView={dv}
+              zoom={zoom}
+              onUpdateLive={(region: Region) => {
+                useAppStore.getState().updateDetailRegionLive(sheet.id, dv.id, region);
+              }}
+              onCommit={(prevRegion: Region, newRegion: Region) => {
+                void bus.execute(new EditDetailRegionCommand({
+                  sheetId: sheet.id,
+                  detailViewId: dv.id,
+                  prevRegion,
+                  newRegion,
+                }));
+              }}
+              svgRef={svgRef}
+              sheetW={sheetW}
+              sheetH={sheetH}
             />
           );
         })}
