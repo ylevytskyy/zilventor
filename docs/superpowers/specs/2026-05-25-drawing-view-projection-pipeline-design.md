@@ -52,6 +52,34 @@ fixtures) plus a projection round-trip perf check.
 
 ## Architecture
 
+### Source-geometry loading on drawing activation (NEW — added after plan-1 review)
+
+The store is single-active-document and `drawingDocState()` (the helper shipped
+in the activeDrawing audit) deliberately **nulls `activePart`** when a drawing
+activates. So in the real app there is no loaded source part and its geometry is
+not guaranteed to be in the kernel's `namedShapeCache` — only test fixtures
+inject `activePart` and pre-warm the cache. `getProjectorInput` **throws**
+(`partId "..." not in cache`) when the part isn't cached, and the drawing's
+`source.id` is not a kernel UUID, so projection cannot resolve a `partId` on its
+own.
+
+Fix: when a drawing activates, ensure its source part is loaded + executed into
+the kernel and record the kernel id in a **new store slot**
+`activeDrawingSourcePartId: string | null` (NOT by repopulating `activePart` —
+that would undo the audit's intent that drawing commands see no stale
+`activePart`). Reuse the existing assembly-component load pattern
+(`App.tsx:3180-3189`): `opfs.read(source.partPath) → kernel.loadFromBytes(bytes)
+→ kernel.execute(partId)`, cached by `partPath` to avoid reloading when the
+geometry is already warm. `projectViewFromSource` reads
+`activeDrawingSourcePartId` as the `partId`.
+
+- **In scope:** the "create a drawing from the currently-open part → switch to
+  the drawing → place views with real geometry" workflow.
+- **Out of scope (separate TODO):** drawing **file-reopen** (`FileTab.tsx:95` is
+  unimplemented). Batch 1 must also pin down `source.partPath` semantics (tests
+  use `${partId}.zipt`, not a real OPFS path) and how it resolves to OPFS bytes
+  in the real create-from-part flow.
+
 ### Shared projection helper (NEW)
 
 `packages/app/src/drawing/projectViewFromSource.ts`
@@ -62,11 +90,10 @@ async projectViewFromSource(orientation: ViewOrientation):
 
   state    = useAppStore.getState()
   kernel   = state.kernel                                  // Comlink proxy; throw if absent
-  kernelId = state.activeAssembly?.id
-             ?? state.activePart?.id
-             ?? <drawing>.source.id                        // mirrors AddSectionViewCommand:115
-  input    = await kernel.getProjectorInput({ kind: 'part', partId: kernelId })
-             // → null if partId not in the kernel's namedShapeCache → throw a clear error
+  partId   = state.activeDrawingSourcePartId               // set on drawing activation (above)
+             // throw a clear error (PART_NOT_IN_STORE) if absent
+  input    = await kernel.getProjectorInput({ kind: 'part', partId })
+             // getProjectorInput THROWS if partId not in namedShapeCache → wrap as GEOMETRY_NOT_CACHED
   projection       = projectView(input, orientation)       // pure JS, synchronous
   inputFingerprint = fingerprintPartState(<source part doc>)  // cheap, no kernel — see Staleness
   return { projection, inputFingerprint }
@@ -78,12 +105,9 @@ fingerprint" logic.
 
 `getProjectorInput` contract (kernel): args
 `{ kind: 'part'; partId: string } | { kind: 'assembly'; components: [...] }`,
-returns `{ triangles, edges, bbox } | null`. `null` when the part isn't in the
-kernel cache. The source part is **not guaranteed loaded** in the kernel unless
-it was `execute()`d — but when a drawing is active its source part rides along
-as `activePart`, the same condition under which section views already cut
-successfully. The helper surfaces a clear error if the source geometry is
-absent.
+returns `{ triangles, edges, bbox }` and **throws** when the part isn't in the
+kernel cache (it does not return null). The source part's presence in the cache
+is guaranteed by the activation-time load step above.
 
 ### Command changes (all → async `apply()`)
 
@@ -169,18 +193,20 @@ Plus a perf check on the `getProjectorInput` + `projectView` round-trip (budget
 to be set against existing drawing perf thresholds; tessellation is heavier than
 the pure-2D drawing ops, so expect a larger but bounded budget).
 
-## Rough batch plan (~6)
+## Rough batch plan (~7)
 
-1. **B1** — shared `projectViewFromSource` helper + `AddBaseViewCommand` async projection + placeBase canvas wiring. (TDD: command produces empty projection → produces real projection.)
-2. **B2** — `deriveProjectedOrientation` third-angle table + `AddProjectedViewCommand` async projection + projected placement wiring.
-3. **B3** — iso corner→orientation mapping + `AddIsoViewCommand` async projection + iso placement wiring.
-4. **B4** — Regenerate wiring (`handleRegenerate` → helper → `RegenerateViewCommand`) for base/projected/iso.
-5. **B5** — staleness: `fingerprintPartState` + activation-time recompute/compare → mark stale.
-6. **B6** — real-geometry Playwright e2e + projection round-trip perf check.
+1. **B0** — source-geometry load on drawing activation: new `activeDrawingSourcePartId` store slot + load/execute the source part (reuse the assembly pattern) + resolve `source.partPath`. Pin down partPath semantics here.
+2. **B1** — `fingerprintPartState` + shared `projectViewFromSource` helper (reads `activeDrawingSourcePartId`) + `AddBaseViewCommand` async projection + placeBase canvas wiring.
+3. **B2** — `deriveProjectedOrientation` third-angle table + `AddProjectedViewCommand` async projection + projected placement wiring (direction comes from the dialog radios, no click inference).
+4. **B3** — iso corner→orientation mapping + `AddIsoViewCommand` async projection + iso placement wiring.
+5. **B4** — Regenerate wiring (`handleRegenerate` → helper → `RegenerateViewCommand`) for base/projected/iso.
+6. **B5** — staleness: activation-time `fingerprintPartState` recompute/compare → mark stale.
+7. **B6** — real-geometry Playwright e2e (drives the real create→place flow) + projection round-trip perf check.
 
 ## Risks / open items
 
-- **R1** — exact part-doc field for `fingerprintPartState` (resolved in B1; see verification item above).
-- **R2** — projected placement UX: inferring `direction` from click position vs. base bbox; if it proves fiddly, fall back to a discrete side-picker (does not change the projection logic).
-- **R3** — source part not loaded in the kernel cache when its drawing activates; the helper throws a clear error, and the e2e must seed the part via `kernel.execute`. Confirm the live load path guarantees this (or load on demand).
+- **R1** — exact part-doc field for `fingerprintPartState` (resolved in B0/B1; hash featureTree + parameters, excluding cached geometry/materials/hardware).
+- **R2** — projected placement: `direction` is captured by `AddViewDialog` radios (confirmed), so no click-position inference is needed.
+- **R3** — source part load on activation (now B0). `source.partPath`→OPFS-bytes resolution must be pinned down in B0; tests use `${partId}.zipt` which may not be a real path. Drawing file-reopen stays a separate TODO.
 - **R4** — async `apply()` undo/redo: confirm the bus + revert behave with async creation (precedent: `AddSectionViewCommand`).
+- **R5** — `RegenerateViewCommand` constructor is `{ sheetId, viewId, projection, inputFingerprint }`; the Regenerate handler must locate the view's sheet + orientation (and, for projected, its base view) at call time.
