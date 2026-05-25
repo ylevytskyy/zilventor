@@ -1,35 +1,33 @@
 // packages/app/src/commands/reprojectDetailRegion.ts
 import { projectDetailView, fingerprintDetailView } from '@zilventor/shared';
-import type { DetailView, DrawingView } from '@zilventor/shared';
-
-type Region = { center: { x: number; y: number }; radiusMm: number };
+import type { DetailView, DrawingView, RegionParent } from '@zilventor/shared';
 
 /**
- * Recompute a DetailView's projection + fingerprint for a new region.
+ * Recompute a DetailView's projection + fingerprint for a new region (circle or rect).
  * Pure: returns a new DetailView object; does NOT touch the store.
  * Mirrors the logic in AddDetailViewCommand.apply().
  */
 export function reprojectDetailRegion(
   detail: DetailView,
   parentView: DrawingView & { projection: NonNullable<DrawingView['projection']> },
-  region: Region,
+  region: RegionParent,
 ): DetailView {
   const projection = projectDetailView({
     parentView: parentView as Parameters<typeof projectDetailView>[0]['parentView'],
-    regionParent: { center: region.center, radiusMm: region.radiusMm },
+    regionParent: region,
     detailScale: detail.scale,
     showHidden: detail.showHidden,
   });
 
   const inputFingerprint = fingerprintDetailView(
     (parentView as { inputFingerprint?: string }).inputFingerprint ?? '',
-    { center: region.center, radiusMm: region.radiusMm },
+    region,
     detail.scale,
   );
 
   return {
     ...detail,
-    regionParent: { center: region.center, radiusMm: region.radiusMm },
+    regionParent: region,
     projection,
     inputFingerprint,
   };

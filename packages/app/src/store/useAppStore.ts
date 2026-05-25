@@ -169,7 +169,7 @@ type AppState = {
   updateDetailRegionLive(
     sheetId: string,
     detailViewId: string,
-    region: { center: { x: number; y: number }; radiusMm: number },
+    region: import('@zilventor/shared').RegionParent,
   ): void;
   setStatus(msg: string): void;
   setSelectedFeature(id: string | null): void;

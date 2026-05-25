@@ -1,19 +1,33 @@
 // packages/app/src/commands/__tests__/reprojectDetailRegion.test.ts
 import { describe, it, expect, vi } from 'vitest';
+import type { RegionParent } from '@zilventor/shared';
 
-// Mock @zilventor/shared BEFORE importing reprojectDetailRegion
 vi.mock('@zilventor/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@zilventor/shared')>();
   return {
     ...actual,
-    projectDetailView: vi.fn().mockReturnValue({
-      visibleEdges: [
-        { id: 'rr-e1', kind: 'outline' as const, points: [[1, 0], [5, 0]] as [number,number][], sourceFaceIds: [] },
-      ],
-      hiddenEdges: [],
-      bbox: { minX: 1, minY: 0, maxX: 5, maxY: 0 },
-    }),
-    fingerprintDetailView: vi.fn().mockReturnValue('fp-rr-mock'),
+    projectDetailView: vi.fn().mockImplementation(
+      (input: { regionParent: RegionParent }) => ({
+        visibleEdges: [
+          {
+            id: input.regionParent.kind === 'circle'
+              ? `rr-circle-${input.regionParent.radiusMm}`
+              : `rr-rect-${(input.regionParent as Extract<RegionParent, { kind: 'rect' }>).widthMm}`,
+            kind: 'outline' as const,
+            points: [[0, 0], [1, 0]] as [number, number][],
+            sourceFaceIds: [],
+          },
+        ],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 1, maxY: 0 },
+      }),
+    ),
+    fingerprintDetailView: vi.fn().mockImplementation(
+      (_pFp: string, region: RegionParent) =>
+        region.kind === 'circle'
+          ? `fp-circle-${region.radiusMm}`
+          : `fp-rect-${(region as Extract<RegionParent, { kind: 'rect' }>).widthMm}`,
+    ),
   };
 });
 
@@ -28,11 +42,6 @@ const PARENT_PROJ = {
   bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
 };
 
-// `satisfies` (not `: BaseView`) so the inferred type keeps `projection` as a
-// present, required property — assignable to reprojectDetailRegion's
-// `parentView: DrawingView & { projection: NonNullable<...> }` param under
-// exactOptionalPropertyTypes (a plain `BaseView` annotation makes projection
-// optional and fails to assign).
 const PARENT_VIEW = {
   id: 'pv1',
   kind: 'base',
@@ -44,72 +53,100 @@ const PARENT_VIEW = {
   inputFingerprint: 'parent-fp-123',
 } satisfies BaseView;
 
-const DETAIL_VIEW: DetailView = {
-  id: 'dv1',
+const DETAIL_CIRCLE: DetailView = {
+  id: 'dv-circle',
   kind: 'detail',
   parentViewId: 'pv1',
-  regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+  regionParent: { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 8 },
   label: 'A',
   positionMm: { x: 200, y: 100 },
   scale: { numerator: 2, denominator: 1 },
   showHidden: false,
-  projection: {
-    visibleEdges: [],
-    hiddenEdges: [],
-    bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
-  },
-  inputFingerprint: 'old-fp',
+  projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+  inputFingerprint: 'old-fp-circle',
 };
 
-describe('reprojectDetailRegion', () => {
-  it('returns a new DetailView with updated regionParent.center', () => {
-    const newRegion = { center: { x: 30, y: 25 }, radiusMm: 8 };
-    const result = reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(result.regionParent.center).toEqual({ x: 30, y: 25 });
-    expect(result.regionParent.radiusMm).toBe(8);
+const DETAIL_RECT: DetailView = {
+  id: 'dv-rect',
+  kind: 'detail',
+  parentViewId: 'pv1',
+  regionParent: { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 12, heightMm: 8 },
+  label: 'B',
+  positionMm: { x: 300, y: 100 },
+  scale: { numerator: 2, denominator: 1 },
+  showHidden: false,
+  projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+  inputFingerprint: 'old-fp-rect',
+};
+
+describe('reprojectDetailRegion — circle region', () => {
+  it('returns new DetailView with updated circle regionParent', () => {
+    const newRegion: RegionParent = { kind: 'circle', center: { x: 30, y: 25 }, radiusMm: 8 };
+    const result = reprojectDetailRegion(DETAIL_CIRCLE, PARENT_VIEW, newRegion);
+    expect(result.regionParent).toEqual(newRegion);
+    expect(result.id).toBe('dv-circle');
   });
 
-  it('returns a new DetailView with updated radiusMm', () => {
-    const newRegion = { center: { x: 20, y: 15 }, radiusMm: 12 };
-    const result = reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(result.regionParent.radiusMm).toBe(12);
+  it('circle: recomputes projection (mock returns kind-tagged id)', () => {
+    const newRegion: RegionParent = { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 12 };
+    const result = reprojectDetailRegion(DETAIL_CIRCLE, PARENT_VIEW, newRegion);
+    expect(result.projection?.visibleEdges[0]?.id).toBe('rr-circle-12');
   });
 
-  it('recomputes projection (calls projectDetailView)', async () => {
-    const { projectDetailView } = vi.mocked(await import('@zilventor/shared'));
-    const newRegion = { center: { x: 30, y: 25 }, radiusMm: 8 };
-    reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(projectDetailView).toHaveBeenCalled();
+  it('circle: recomputes fingerprint via mock', () => {
+    const newRegion: RegionParent = { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 12 };
+    const result = reprojectDetailRegion(DETAIL_CIRCLE, PARENT_VIEW, newRegion);
+    expect(result.inputFingerprint).toBe('fp-circle-12');
   });
 
-  it('recomputes fingerprint (calls fingerprintDetailView)', async () => {
-    const { fingerprintDetailView } = vi.mocked(await import('@zilventor/shared'));
-    const newRegion = { center: { x: 30, y: 25 }, radiusMm: 8 };
-    reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(fingerprintDetailView).toHaveBeenCalled();
+  it('does not mutate the original DETAIL_CIRCLE', () => {
+    const newRegion: RegionParent = { kind: 'circle', center: { x: 50, y: 50 }, radiusMm: 5 };
+    reprojectDetailRegion(DETAIL_CIRCLE, PARENT_VIEW, newRegion);
+    expect(DETAIL_CIRCLE.regionParent).toEqual({ kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 8 });
   });
 
-  it('preserves all other DetailView fields (id, label, positionMm, scale, showHidden, parentViewId)', () => {
-    const newRegion = { center: { x: 5, y: 5 }, radiusMm: 3 };
-    const result = reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(result.id).toBe('dv1');
+  it('preserves all other DetailView fields', () => {
+    const newRegion: RegionParent = { kind: 'circle', center: { x: 5, y: 5 }, radiusMm: 3 };
+    const result = reprojectDetailRegion(DETAIL_CIRCLE, PARENT_VIEW, newRegion);
+    expect(result.id).toBe('dv-circle');
     expect(result.label).toBe('A');
     expect(result.positionMm).toEqual({ x: 200, y: 100 });
     expect(result.scale).toEqual({ numerator: 2, denominator: 1 });
     expect(result.showHidden).toBe(false);
     expect(result.parentViewId).toBe('pv1');
   });
+});
 
-  it('empty-region (center near edge, zero edges in result) — no throw, empty projection', async () => {
-    const { projectDetailView } = vi.mocked(await import('@zilventor/shared'));
-    projectDetailView.mockReturnValueOnce({
-      visibleEdges: [],
-      hiddenEdges: [],
-      bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
-    });
-    const newRegion = { center: { x: 999, y: 999 }, radiusMm: 1 };
-    const result = reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
-    expect(result.projection!.visibleEdges).toHaveLength(0);
-    expect(result.projection!.bbox).toEqual({ minX: 0, minY: 0, maxX: 0, maxY: 0 });
+describe('reprojectDetailRegion — rect region', () => {
+  it('returns new DetailView with updated rect regionParent', () => {
+    const newRegion: RegionParent = { kind: 'rect', center: { x: 40, y: 30 }, widthMm: 12, heightMm: 8 };
+    const result = reprojectDetailRegion(DETAIL_RECT, PARENT_VIEW, newRegion);
+    expect(result.regionParent).toEqual(newRegion);
+    expect(result.id).toBe('dv-rect');
+  });
+
+  it('rect: recomputes projection (mock returns kind-tagged id with widthMm)', () => {
+    const newRegion: RegionParent = { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 20, heightMm: 8 };
+    const result = reprojectDetailRegion(DETAIL_RECT, PARENT_VIEW, newRegion);
+    expect(result.projection?.visibleEdges[0]?.id).toBe('rr-rect-20');
+  });
+
+  it('rect: recomputes fingerprint via mock', () => {
+    const newRegion: RegionParent = { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 20, heightMm: 8 };
+    const result = reprojectDetailRegion(DETAIL_RECT, PARENT_VIEW, newRegion);
+    expect(result.inputFingerprint).toBe('fp-rect-20');
+  });
+
+  it('rect: does not mutate original DETAIL_RECT', () => {
+    const newRegion: RegionParent = { kind: 'rect', center: { x: 99, y: 99 }, widthMm: 1, heightMm: 1 };
+    reprojectDetailRegion(DETAIL_RECT, PARENT_VIEW, newRegion);
+    expect(DETAIL_RECT.regionParent).toEqual({ kind: 'rect', center: { x: 30, y: 20 }, widthMm: 12, heightMm: 8 });
+  });
+
+  it('rect→rect: region kind is preserved (no circle fields on result)', () => {
+    const newRegion: RegionParent = { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 15, heightMm: 6 };
+    const result = reprojectDetailRegion(DETAIL_RECT, PARENT_VIEW, newRegion);
+    expect(result.regionParent.kind).toBe('rect');
+    expect('radiusMm' in result.regionParent).toBe(false);
   });
 });
