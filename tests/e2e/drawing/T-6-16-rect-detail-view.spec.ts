@@ -188,35 +188,60 @@ test('T-6-16: Rect Detail View — inject, border/callout visible, corner edit, 
   expect(widthAfterResize).toBe(30);
 
   // ── 10. Dispatch EditDetailRegionCommand via real bus ─────────────────────
-  await page.evaluate(
-    ({ sheetId, detailViewId }: { sheetId: string; detailViewId: string }) => {
+  //    Dynamic import mirrors T-6-14: no global window.EditDetailRegionCommand
+  //    exists; importing the module directly is the only reliable path.
+  //    prevRegion = original injected region (widthMm=20), newRegion = widthMm=30.
+  const dispatchResult = await page.evaluate(
+    async ({ sheetId, detailViewId }: { sheetId: string; detailViewId: string }) => {
       const w = window as unknown as {
         __zilventorStore: {
-          getState(): { bus?: { execute(cmd: object): Promise<void> } };
+          getState(): {
+            activeDocument: { kind: string; document: { sheets: Array<{ id: string; views: Array<{ id: string; kind: string; regionParent?: { kind: string; center: { x: number; y: number }; widthMm?: number; heightMm?: number } }> }> } } | null;
+            bus: { execute(cmd: { apply(): Promise<void>; revert(): Promise<void> }): Promise<void> };
+          };
         };
-        EditDetailRegionCommand?: new (opts: object) => object;
       };
-      const state = w.__zilventorStore.getState();
-      if (!state.bus || !w.EditDetailRegionCommand) return;
-      void state.bus.execute(new w.EditDetailRegionCommand({
+
+      const { EditDetailRegionCommand } = await import('/src/commands/EditDetailRegionCommand.ts');
+
+      const cmd = new EditDetailRegionCommand({
         sheetId,
         detailViewId,
         prevRegion: { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 20, heightMm: 12 },
         newRegion:  { kind: 'rect', center: { x: 35, y: 20 }, widthMm: 30, heightMm: 12 },
-      }));
+      });
+
+      try {
+        await w.__zilventorStore.getState().bus.execute(cmd);
+      } catch (e) {
+        return { ok: false, error: String(e), widthMm: null };
+      }
+
+      const s = w.__zilventorStore.getState();
+      const doc = s.activeDocument?.kind === 'drawing' ? s.activeDocument.document : null;
+      const sheet = doc?.sheets.find((sh) => sh.id === sheetId);
+      const dv = sheet?.views.find((v) => v.id === detailViewId && v.kind === 'detail');
+      return { ok: true, error: null, widthMm: dv?.regionParent?.widthMm ?? null };
     },
     { sheetId, detailViewId },
   );
 
-  // ── 11. Undo via bus.undo() ────────────────────────────────────────────────
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __zilventorStore: { getState(): { bus?: { undo(): Promise<void> } } };
-    };
-    void w.__zilventorStore.getState().bus?.undo();
-  });
+  // Command must succeed and store must reflect newRegion (widthMm=30).
+  if (!dispatchResult.ok) {
+    throw new Error(`EditDetailRegionCommand dispatch failed: ${dispatchResult.error}`);
+  }
+  expect(dispatchResult.widthMm).toBe(30);
 
-  // ── 12. Assert prevRegion restored ───────────────────────────────────────
+  // ── 11. Undo via bus.undo() ────────────────────────────────────────────────
+  const undoOk = await page.evaluate(async () => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { bus: { undo(): Promise<boolean> } } };
+    };
+    return w.__zilventorStore.getState().bus.undo();
+  });
+  expect(undoOk).toBe(true);
+
+  // ── 12. Assert prevRegion restored (exact-revert) ─────────────────────────
   const regionAfterUndo = await page.evaluate(
     ({ sheetId, detailViewId }: { sheetId: string; detailViewId: string }) => {
       const w = window as unknown as {
@@ -246,9 +271,9 @@ test('T-6-16: Rect Detail View — inject, border/callout visible, corner edit, 
     },
     { sheetId, detailViewId },
   );
-  // After undo: region kind must be 'rect' and widthMm must be a number
+  // After undo: kind='rect' AND widthMm reverted to original 20 (exact revert, not just "is a number").
   expect(regionAfterUndo?.kind).toBe('rect');
-  expect(typeof regionAfterUndo?.widthMm).toBe('number');
+  expect(regionAfterUndo?.widthMm).toBe(20);
 
   // ── 13. Assert no stale banner ────────────────────────────────────────────
   await expect(page.locator('[data-stale-marker]')).toHaveCount(0, { timeout: 3_000 });
