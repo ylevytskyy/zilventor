@@ -3,6 +3,7 @@ import {
   makeFixtureDrawing,
   makeFixturePart,
   makeFixtureDrawingWithParentAndDetail,
+  makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
 
 /**
@@ -118,5 +119,44 @@ describe('renderDrawingPngForSheet — detail view', () => {
     const sheet = drawing.sheets[0]!;
     const blob = await renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 });
     expect(blob.size).toBeGreaterThan(0);
+  });
+});
+
+describe('renderDrawingPngForSheet — rect detail view (F2.1)', () => {
+  beforeEach(() => {
+    mockCanvasWidth = 0;
+    mockCanvasHeight = 0;
+    vi.clearAllMocks();
+    (globalThis as unknown as Record<string, unknown>).OffscreenCanvas = MockOffscreenCanvas;
+  });
+
+  afterEach(() => {
+    delete (globalThis as unknown as Record<string, unknown>).OffscreenCanvas;
+  });
+
+  it('returns a Blob (type image/png) for a drawing with a rect detail view', async () => {
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    const blob = await renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 });
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('image/png');
+  });
+
+  it('PNG blob has non-zero size with rect detail view present', async () => {
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    const blob = await renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 });
+    expect(blob.size).toBeGreaterThan(0);
+  });
+
+  it('renderDrawingPngForSheet delegates to renderDrawingSvg (no throw for rect)', async () => {
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    await expect(
+      renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 })
+    ).resolves.toBeInstanceOf(Blob);
   });
 });
