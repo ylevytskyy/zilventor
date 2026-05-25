@@ -6,6 +6,7 @@ import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker'
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
 import { createCommandBus, type CommandBus } from '../commands/CommandBus';
+import { reprojectDetailRegion } from '../commands/reprojectDetailRegion';
 
 function omitColor(c: ComponentInstance): ComponentInstance {
   const { color: _color, ...rest } = c;
@@ -165,6 +166,11 @@ type AppState = {
   setActiveDocument(d: ActiveDocument | null): void;
   setActivePart(p: PartDocument | null): void;
   setActiveDrawing(d: DrawingDocument | null): void;
+  updateDetailRegionLive(
+    sheetId: string,
+    detailViewId: string,
+    region: { center: { x: number; y: number }; radiusMm: number },
+  ): void;
   setStatus(msg: string): void;
   setSelectedFeature(id: string | null): void;
   setViewport(v: ViewportRef | null): void;
@@ -346,6 +352,33 @@ export const useAppStore = create<AppState>((set) => ({
     activeAssembly: null,
     activeDrawing:  d,
   }),
+  updateDetailRegionLive(sheetId, detailViewId, region) {
+    const state = useAppStore.getState();
+    const doc = state.activeDocument;
+    if (!doc || doc.kind !== 'drawing') return;
+    const drawing = doc.document;
+    const sheet = drawing.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    const detail = sheet.views.find(v => v.id === detailViewId);
+    if (!detail || detail.kind !== 'detail') return;
+    const parentView = sheet.views.find(v => v.id === (detail as import('@zilventor/shared').DetailView).parentViewId);
+    if (!parentView || !parentView.projection) return;
+
+    const next = reprojectDetailRegion(
+      detail as import('@zilventor/shared').DetailView,
+      parentView as typeof parentView & { projection: NonNullable<typeof parentView['projection']> },
+      region,
+    );
+    const nextDoc: import('@zilventor/shared').DrawingDocument = {
+      ...drawing,
+      sheets: drawing.sheets.map(s =>
+        s.id === sheetId
+          ? { ...s, views: s.views.map(v => v.id === detailViewId ? next : v) }
+          : s
+      ),
+    };
+    set({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
+  },
   setActivePart: (p) => set({
     activeDocument: p ? { kind: 'part', document: p } : null,
     activePart: p,
