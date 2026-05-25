@@ -1,5 +1,6 @@
 // packages/app/src/drawing/toolMode.ts
 import { create } from 'zustand';
+import { MIN_DETAIL_RADIUS_MM } from './drawingConstants';
 
 export type ToolMode =
   | 'idle'
@@ -22,7 +23,8 @@ export type ToolMode =
   | 'baseline'  // Drawing F5 — baseline dimension group (manual)
   | 'ordinate'  // Drawing F5 — ordinate dimension group (manual)
   | 'angular'   // Drawing F5 — angular dimension (two-edges or arc)
-  | 'pickSteppedSection';  // Drawing F1.2 — stepped section authoring
+  | 'pickSteppedSection'  // Drawing F1.2 — stepped section authoring
+  | 'editDetailRegion'; // Drawing F2.4 — edit existing detail region
 
 export type PendingViewParams =
   | {
@@ -102,6 +104,27 @@ export type SteppedSectionToolState =
       lockedAxis?: 'x' | 'y';                          // present once vertices.length >= 1
     };
 
+// ---------------------------------------------------------------------------
+// Edit-detail-region tool sub-state (Drawing F2.4)
+// ---------------------------------------------------------------------------
+export type Region = { center: { x: number; y: number }; radiusMm: number };
+
+export type EditDetailRegionToolState =
+  | { stage: 'idle' }
+  | {
+      stage: 'draggingCenter';
+      detailViewId: string;
+      startRegion: Region;
+      anchor: { x: number; y: number };  // parent-local pointer-down point
+      center: { x: number; y: number };  // live center (updated on pointermove)
+    }
+  | {
+      stage: 'draggingRadius';
+      detailViewId: string;
+      startRegion: Region;
+      radiusMm: number;  // live radius (center fixed = startRegion.center)
+    };
+
 interface ToolModeState {
   mode: ToolMode;
   pendingViewParams: PendingViewParams | null;
@@ -153,6 +176,19 @@ interface ToolModeState {
   detailPickRadius(point: { x: number; y: number }): void;
   detailPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
   detailCancel(): void;
+
+  // Edit-detail-region tool actions (Drawing F2.4)
+  editDetailRegionState: EditDetailRegionToolState;
+  enterEditDetailRegionMode(): void;
+  editDragStart(
+    detailViewId: string,
+    handle: 'center' | 'radius',
+    startRegion: Region,
+    anchor: { x: number; y: number },
+  ): void;
+  editDragMove(point: { x: number; y: number }): Region | null;
+  editDragEnd(onDispatch: (prevRegion: Region, newRegion: Region) => void): void;
+  editDetailCancel(): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -163,6 +199,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   breakState: { stage: 'idle' },
   sectionMode: 'full',
   steppedSectionState: { stage: 'idle' },
+  editDetailRegionState: { stage: 'idle' },
 
   setMode(mode) {
     set({ mode });
@@ -173,7 +210,16 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   },
 
   reset() {
-    set({ mode: 'idle', pendingViewParams: null, sectionState: { stage: 'idle' }, detailState: { stage: 'idle' }, breakState: { stage: 'idle' }, sectionMode: 'full', steppedSectionState: { stage: 'idle' } });
+    set({
+      mode: 'idle',
+      pendingViewParams: null,
+      sectionState: { stage: 'idle' },
+      detailState: { stage: 'idle' },
+      breakState: { stage: 'idle' },
+      sectionMode: 'full',
+      steppedSectionState: { stage: 'idle' },
+      editDetailRegionState: { stage: 'idle' },
+    });
   },
 
   setSectionMode(m) {
@@ -514,6 +560,91 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     } else {
       // First ESC at any non-idle stage: back to idle, stay in detail mode
       set({ detailState: { stage: 'idle' } });
+    }
+  },
+
+  // Edit-detail-region tool actions (Drawing F2.4)
+  enterEditDetailRegionMode() {
+    set({ mode: 'editDetailRegion', editDetailRegionState: { stage: 'idle' } });
+  },
+
+  editDragStart(detailViewId, handle, startRegion, anchor) {
+    if (handle === 'center') {
+      set({
+        editDetailRegionState: {
+          stage: 'draggingCenter',
+          detailViewId,
+          startRegion,
+          anchor,
+          center: { x: startRegion.center.x, y: startRegion.center.y },
+        },
+      });
+    } else {
+      set({
+        editDetailRegionState: {
+          stage: 'draggingRadius',
+          detailViewId,
+          startRegion,
+          radiusMm: startRegion.radiusMm,
+        },
+      });
+    }
+  },
+
+  editDragMove(point) {
+    const { editDetailRegionState } = get();
+    if (editDetailRegionState.stage === 'draggingCenter') {
+      const { startRegion, anchor } = editDetailRegionState;
+      const newCenter = {
+        x: startRegion.center.x + (point.x - anchor.x),
+        y: startRegion.center.y + (point.y - anchor.y),
+      };
+      const liveRegion: Region = { center: newCenter, radiusMm: startRegion.radiusMm };
+      set({ editDetailRegionState: { ...editDetailRegionState, center: newCenter } });
+      return liveRegion;
+    }
+    if (editDetailRegionState.stage === 'draggingRadius') {
+      const { startRegion } = editDetailRegionState;
+      const dx = point.x - startRegion.center.x;
+      const dy = point.y - startRegion.center.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const radiusMm = Math.max(dist, MIN_DETAIL_RADIUS_MM);
+      const liveRegion: Region = { center: startRegion.center, radiusMm };
+      set({ editDetailRegionState: { ...editDetailRegionState, radiusMm } });
+      return liveRegion;
+    }
+    return null;
+  },
+
+  editDragEnd(onDispatch) {
+    const { editDetailRegionState } = get();
+    if (editDetailRegionState.stage === 'draggingCenter') {
+      const { startRegion, center } = editDetailRegionState;
+      const liveRegion: Region = { center, radiusMm: startRegion.radiusMm };
+      set({ editDetailRegionState: { stage: 'idle' } });
+      onDispatch(startRegion, liveRegion);
+      return;
+    }
+    if (editDetailRegionState.stage === 'draggingRadius') {
+      const { startRegion, radiusMm } = editDetailRegionState;
+      const liveRegion: Region = { center: startRegion.center, radiusMm };
+      set({ editDetailRegionState: { stage: 'idle' } });
+      onDispatch(startRegion, liveRegion);
+      return;
+    }
+    // idle: no-op
+  },
+
+  editDetailCancel() {
+    const { editDetailRegionState, mode } = get();
+    if (editDetailRegionState.stage === 'draggingCenter' || editDetailRegionState.stage === 'draggingRadius') {
+      // First Esc while dragging: cancel drag, go idle, stay in editDetailRegion mode
+      set({ editDetailRegionState: { stage: 'idle' } });
+      return;
+    }
+    if (editDetailRegionState.stage === 'idle' && mode === 'editDetailRegion') {
+      // Mirrors detailCancel: stage=idle + mode=editDetailRegion → exit mode
+      set({ mode: 'idle', editDetailRegionState: { stage: 'idle' } });
     }
   },
 }));
