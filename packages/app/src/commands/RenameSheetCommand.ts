@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class RenameSheetCommand implements Command {
   readonly name = 'RenameSheet';
@@ -24,7 +25,7 @@ export class RenameSheetCommand implements Command {
         s.id === this.opts.sheetId ? { ...s, name: this.opts.name } : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -39,7 +40,7 @@ export class RenameSheetCommand implements Command {
         s.id === this.opts.sheetId ? { ...s, name: this.prevName! } : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.prevName = null;
   }
 }

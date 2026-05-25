@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { SheetSize, DrawingDocument, DrawingSheet } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class AddSheetCommand implements Command {
   readonly name = 'AddSheet';
@@ -41,9 +42,7 @@ export class AddSheetCommand implements Command {
       sheets: [...doc.document.sheets, newSheet],
       activeSheetId: newId,
     };
-    useAppStore.setState({
-      activeDocument: { kind: 'drawing', document: next },
-    });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -57,9 +56,7 @@ export class AddSheetCommand implements Command {
       sheets: doc.document.sheets.filter(s => s.id !== this.newSheetId),
       activeSheetId: this.prevActiveSheetId ?? doc.document.sheets[0]!.id,
     };
-    useAppStore.setState({
-      activeDocument: { kind: 'drawing', document: next },
-    });
+    useAppStore.setState(drawingDocState(next));
     this.newSheetId = null;
   }
 }

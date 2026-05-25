@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class EditDrawingPropertiesCommand implements Command {
   readonly name = 'EditDrawingProperties';
@@ -16,7 +17,7 @@ export class EditDrawingPropertiesCommand implements Command {
 
     this.priorProperties = doc.document.properties;
     const next: DrawingDocument = { ...doc.document, properties: this.opts.properties };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -27,6 +28,6 @@ export class EditDrawingPropertiesCommand implements Command {
     if (!doc || doc.kind !== 'drawing') return;
 
     const next: DrawingDocument = { ...doc.document, properties: prior };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 }

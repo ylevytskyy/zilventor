@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, TitleBlockOverrides } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class EditTitleBlockCommand implements Command {
   readonly name = 'EditTitleBlock';
@@ -20,7 +21,7 @@ export class EditTitleBlockCommand implements Command {
       return { ...sh, titleBlock: this.opts.overrides };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -34,6 +35,6 @@ export class EditTitleBlockCommand implements Command {
       sh.id === this.opts.sheetId ? { ...sh, titleBlock: prior } : sh,
     );
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 }

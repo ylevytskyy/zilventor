@@ -17,6 +17,13 @@ import { DeleteDrawingAnnotationCommand } from '../DeleteDrawingAnnotationComman
 import { MoveDrawingAnnotationCommand } from '../MoveDrawingAnnotationCommand';
 import { AddDrawingDimensionCommand } from '../AddDrawingDimensionCommand';
 import { DeleteDrawingDimensionCommand } from '../DeleteDrawingDimensionCommand';
+import { AddSheetCommand } from '../AddSheetCommand';
+import { DeleteSheetCommand } from '../DeleteSheetCommand';
+import { RenameSheetCommand } from '../RenameSheetCommand';
+import { EditSheetSizeCommand } from '../EditSheetSizeCommand';
+import { EditDrawingPropertiesCommand } from '../EditDrawingPropertiesCommand';
+import { EditTitleBlockCommand } from '../EditTitleBlockCommand';
+import { SetActiveSheetCommand } from '../SetActiveSheetCommand';
 
 /** One minimal sheet. Override per case (views/dimensions/annotations/etc.). */
 function makeSheet(over: Partial<DrawingSheet> = {}): DrawingSheet {
@@ -280,6 +287,52 @@ const CASES: GuardCase[] = [
       };
       seedDrawing(makeDrawing({ sheets: [makeSheet({ dimensions: [dim] })] }));
       return new DeleteDrawingDimensionCommand({ sheetId: 'sheet-1', dimId: 'dA' });
+    },
+  },
+
+  // B3: 6 sheet/properties commands + SetActiveSheet inverse offender
+  {
+    name: 'AddSheetCommand',
+    make: () => { seedDrawing(makeDrawing()); return new AddSheetCommand({}); },
+  },
+  {
+    name: 'DeleteSheetCommand',
+    make: () => {
+      // precondition: ≥2 sheets (else throws LAST_SHEET)
+      const sheet2 = makeSheet({ id: 'sheet-2', name: 'Sheet 2' });
+      seedDrawing(makeDrawing({ sheets: [makeSheet(), sheet2], activeSheetId: 'sheet-1' }));
+      return new DeleteSheetCommand({ sheetId: 'sheet-2' });
+    },
+  },
+  {
+    name: 'RenameSheetCommand',
+    make: () => { seedDrawing(makeDrawing()); return new RenameSheetCommand({ sheetId: 'sheet-1', name: 'Renamed' }); },
+  },
+  {
+    name: 'EditSheetSizeCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      return new EditSheetSizeCommand({ sheetId: 'sheet-1', size: { kind: 'iso', size: 'A4' }, orientation: 'portrait' });
+    },
+  },
+  {
+    name: 'EditDrawingPropertiesCommand',
+    make: () => { seedDrawing(makeDrawing()); return new EditDrawingPropertiesCommand({ properties: { author: 'X' } }); },
+  },
+  {
+    name: 'EditTitleBlockCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      return new EditTitleBlockCommand({ sheetId: 'sheet-1', overrides: { drawingName: 'T' } });
+    },
+  },
+  {
+    name: 'SetActiveSheetCommand (inverse offender)',
+    make: () => {
+      // precondition: ≥2 sheets so switching is meaningful; seedDrawing sets activeDrawing correctly at baseline
+      const sheet2 = makeSheet({ id: 'sheet-2', name: 'Sheet 2' });
+      seedDrawing(makeDrawing({ sheets: [makeSheet(), sheet2], activeSheetId: 'sheet-1' }));
+      return new SetActiveSheetCommand({ sheetId: 'sheet-2' });
     },
   },
 ];

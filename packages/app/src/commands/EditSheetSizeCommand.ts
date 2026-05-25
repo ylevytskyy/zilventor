@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { SheetSize, DrawingDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class EditSheetSizeCommand implements Command {
   readonly name = 'EditSheetSize';
@@ -34,7 +35,7 @@ export class EditSheetSizeCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -51,7 +52,7 @@ export class EditSheetSizeCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.prevSize = null;
     this.prevOrientation = null;
   }
