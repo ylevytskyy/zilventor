@@ -1,9 +1,12 @@
 import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView, SectionView } from '@zilventor/shared';
 import type { DrawingDimension, DimensionGroup } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
+import type { HoleTableAnnotation } from '@zilventor/shared';
+import type { ParamOrLiteral } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
+import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
 
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
   A0: { w: 1189, h: 841 },
@@ -39,7 +42,9 @@ export function renderDrawingSvg(
   const calloutGroups = renderDetailCalloutGroups(sheet.views);
   const steppedSectionLineGroups = renderSteppedSectionLines(sheet.views);
   const dimGroups = sheet.dimensions.map((d) => renderDimensionGroup(d, sheet.views, sheet.dimensionGroups)).join('\n');
-  const annGroups = sheet.annotations.map((a) => renderAnnotationGroup(a)).join('\n');
+  const annGroups = sheet.annotations
+    .map((a) => renderAnnotationGroup(a, sheet, source))
+    .join('\n');
   const titleBlockSvg = renderTitleBlockSvg(
     {
       drawingName: titleBlock.drawingName,
@@ -543,7 +548,108 @@ function circumcenterY(
   return ((ax*ax + ay*ay) * (cx - bx) + (bx*bx + by*by) * (ax - cx) + (cx*cx + cy*cy) * (bx - ax)) / D;
 }
 
-function renderAnnotationGroup(ann: DrawingAnnotation): string {
+// ---------------------------------------------------------------------------
+// Drawing F6 — Hole Table annotation renderer (both render paths share computeHoleTableRows)
+// ---------------------------------------------------------------------------
+
+// Layout constants — mirrors HoleTableElement.tsx
+const HT_COL_TAG_W   = 12;
+const HT_COL_X_W     = 18;
+const HT_COL_Y_W     = 18;
+const HT_COL_DESC_W  = 45;
+const HT_ROW_H       = 6;
+const HT_BALLOON_R   = 3;
+const HT_FONT_SIZE   = 3.5;
+const HT_LEADER_COLOR = '#333';
+const HT_GRID_COLOR   = '#222';
+const HT_TABLE_W = HT_COL_TAG_W + HT_COL_X_W + HT_COL_Y_W + HT_COL_DESC_W;
+
+function renderHoleTableAnnotation(
+  ann: HoleTableAnnotation,
+  sheet: DrawingSheet,
+  source: PartDocument | AssemblyDocument,
+): string {
+  // Only PartDocument has featureTree; AssemblyDocument has `components` instead.
+  // NOTE: neither document has a `kind` discriminant (verified packages/shared/src/types.ts:67,94),
+  // so distinguish structurally via `'featureTree' in source`. Hole tables only apply to part drawings.
+  const part = 'featureTree' in source ? (source as PartDocument) : null;
+  if (!part) return '';
+
+  const resolveParam = (p: ParamOrLiteral): number =>
+    p.kind === 'literal'
+      ? p.value
+      : (part.parameters[p.paramName]?.value ?? 0);
+
+  const view = sheet.views.find((v) => v.id === ann.viewId);
+  if (!view) return '';
+
+  // computeHoleTableRows is imported at the top of this file (NOT inline — see reconciliation note 4)
+  const rows = computeHoleTableRows(ann, view, part, resolveParam);
+  if (rows.length === 0) return '';
+
+  const { x: tx, y: ty } = ann.positionMm;
+  const xTag  = tx;
+  const xX    = tx + HT_COL_TAG_W;
+  const xY    = tx + HT_COL_TAG_W + HT_COL_X_W;
+  const xDesc = tx + HT_COL_TAG_W + HT_COL_X_W + HT_COL_Y_W;
+
+  const rowCount = rows.length + 1;
+  const tableH   = rowCount * HT_ROW_H;
+
+  // Build grid lines
+  const gridParts: string[] = [];
+  gridParts.push(`    <rect x="${tx}" y="${ty}" width="${HT_TABLE_W}" height="${tableH}" fill="white" stroke="${HT_GRID_COLOR}" stroke-width="0.3"/>`);
+  // Header divider
+  gridParts.push(`    <line x1="${tx}" y1="${ty + HT_ROW_H}" x2="${tx + HT_TABLE_W}" y2="${ty + HT_ROW_H}" stroke="${HT_GRID_COLOR}" stroke-width="0.3"/>`);
+  // Row dividers
+  for (let i = 1; i < rows.length; i++) {
+    gridParts.push(`    <line x1="${tx}" y1="${ty + HT_ROW_H * (i + 1)}" x2="${tx + HT_TABLE_W}" y2="${ty + HT_ROW_H * (i + 1)}" stroke="${HT_GRID_COLOR}" stroke-width="0.15"/>`);
+  }
+  // Column dividers
+  [xX, xY, xDesc].forEach((colX) => {
+    gridParts.push(`    <line x1="${colX}" y1="${ty}" x2="${colX}" y2="${ty + tableH}" stroke="${HT_GRID_COLOR}" stroke-width="0.2"/>`);
+  });
+
+  // Header texts
+  const textY0 = ty + HT_ROW_H * 0.65;
+  gridParts.push(`    <text x="${xTag + 1}" y="${textY0}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}" font-weight="bold">TAG</text>`);
+  gridParts.push(`    <text x="${xX + 1}" y="${textY0}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}" font-weight="bold">XDIM</text>`);
+  gridParts.push(`    <text x="${xY + 1}" y="${textY0}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}" font-weight="bold">YDIM</text>`);
+  gridParts.push(`    <text x="${xDesc + 1}" y="${textY0}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}" font-weight="bold">DESCRIPTION</text>`);
+
+  // Data rows
+  rows.forEach((row, i) => {
+    const rowY = ty + HT_ROW_H * (i + 1);
+    const cellY = rowY + HT_ROW_H * 0.65;
+    gridParts.push(`    <text x="${xTag + 1}" y="${cellY}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}">${escapeText(row.tag)}</text>`);
+    gridParts.push(`    <text x="${xX + 1}" y="${cellY}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}">${escapeText((Math.round(row.xDim * 10) / 10).toFixed(1))}</text>`);
+    gridParts.push(`    <text x="${xY + 1}" y="${cellY}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}">${escapeText((Math.round(row.yDim * 10) / 10).toFixed(1))}</text>`);
+    gridParts.push(`    <text x="${xDesc + 1}" y="${cellY}" font-size="${HT_FONT_SIZE}" fill="${HT_GRID_COLOR}">${escapeText(row.description)}</text>`);
+  });
+
+  // Per-hole balloons + leaders
+  const BALLOON_OFFSET_Y = -8;
+  rows.forEach((row) => {
+    const bx = row.markerCenterSheetMm.x;
+    const by = row.markerCenterSheetMm.y + BALLOON_OFFSET_Y;
+    // Leader
+    gridParts.push(`    <line data-role="hole-leader" x1="${bx}" y1="${by + HT_BALLOON_R}" x2="${row.markerCenterSheetMm.x}" y2="${row.markerCenterSheetMm.y}" stroke="${HT_LEADER_COLOR}" stroke-width="0.25"/>`);
+    // Balloon
+    gridParts.push(`    <circle data-role="hole-balloon" cx="${bx}" cy="${by}" r="${HT_BALLOON_R}" fill="white" stroke="${HT_LEADER_COLOR}" stroke-width="0.3"/>`);
+    gridParts.push(`    <text x="${bx}" y="${by + 1.2}" font-size="${HT_FONT_SIZE - 0.5}" text-anchor="middle" fill="${HT_LEADER_COLOR}">${escapeText(row.tag)}</text>`);
+  });
+
+  return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="holeTable">\n${gridParts.join('\n')}\n  </g>`;
+}
+
+function renderAnnotationGroup(
+  ann: DrawingAnnotation,
+  sheet: DrawingSheet,
+  source: PartDocument | AssemblyDocument,
+): string {
+  if (ann.kind === 'holeTable') {
+    return renderHoleTableAnnotation(ann, sheet, source);
+  }
   if (ann.kind === 'balloon') {
     const r = 4;
     return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="balloon">
