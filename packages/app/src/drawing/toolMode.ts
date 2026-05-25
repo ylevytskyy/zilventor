@@ -18,6 +18,7 @@ export type ToolMode =
   | 'addBalloon'
   | 'section'
   | 'detail'
+  | 'detailRect' // Drawing F2.1 — rectangular detail region marquee picker
   | 'break'      // Drawing F3
   | 'autoDim'   // Drawing F4 — auto-dimensioning from sketch parameters
   | 'baseline'  // Drawing F5 — baseline dimension group (manual)

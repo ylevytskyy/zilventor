@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
 import type { ToolMode, PendingViewParams, SectionToolState, DetailToolState, BreakToolState } from '../toolMode';
+import { MIN_DETAIL_RECT_MM } from '../drawingConstants';
 
 describe('useToolModeStore', () => {
   beforeEach(() => {
@@ -913,5 +914,26 @@ describe('stepped-section tool — steppedCancel (SS-TM-7)', () => {
     const s = useToolModeStore.getState();
     expect(s.mode).toBe('idle');
     expect(s.steppedSectionState).toEqual({ stage: 'idle' });
+  });
+});
+
+// ── Task 3.1 additions ──────────────────────────────────────────────────────
+
+describe('MIN_DETAIL_RECT_MM constant', () => {
+  it('is 1.0', () => {
+    expect(MIN_DETAIL_RECT_MM).toBe(1.0);
+  });
+});
+
+describe('ToolMode union includes detailRect', () => {
+  it("setMode('detailRect') round-trips without TypeScript error", () => {
+    useToolModeStore.getState().setMode('detailRect');
+    expect(useToolModeStore.getState().mode).toBe('detailRect');
+  });
+
+  it("reset() after setMode('detailRect') → mode='idle'", () => {
+    useToolModeStore.getState().setMode('detailRect');
+    useToolModeStore.getState().reset();
+    expect(useToolModeStore.getState().mode).toBe('idle');
   });
 });
