@@ -91,6 +91,7 @@ export function DrawingCanvas() {
   const sectionState = useToolModeStore((s) => s.sectionState);
   const sectionMode = useToolModeStore((s) => s.sectionMode);
   const detailState = useToolModeStore((s) => s.detailState);
+  const detailRectState = useToolModeStore((s) => s.detailRectState);
   const breakState = useToolModeStore((s) => s.breakState);
   const editDetailRegionState = useToolModeStore((s) => s.editDetailRegionState);
 
@@ -212,6 +213,7 @@ export function DrawingCanvas() {
       if (e.key === 'Escape') {
         useToolModeStore.getState().sectionCancel();
         useToolModeStore.getState().detailCancel();
+        useToolModeStore.getState().detailRectCancel();
         useToolModeStore.getState().breakCancel();
 
         // F2.4 — ESC during editDetailRegion:
@@ -419,6 +421,55 @@ export function DrawingCanvas() {
             sheetId: sheet.id,
             parentViewId: ds.parentViewId,
             regionParent: { kind: 'circle', center: ds.center, radiusMm: ds.radiusMm },
+            dropAt: sheetPt,
+          }));
+        });
+        return;
+      }
+
+      return;
+    }
+
+    if (toolMode === 'detailRect') {
+      const drs = useToolModeStore.getState().detailRectState;
+      const sheetPt = { x: svgX, y: svgY };
+
+      if (drs.stage === 'idle') {
+        const hitViewId = getViewAtPoint(sheet.views, sheetPt, viewId);
+        if (hitViewId) {
+          useToolModeStore.getState().detailRectPickParent(hitViewId);
+        }
+        return;
+      }
+
+      if (drs.stage === 'pickFirstCorner') {
+        const parentView = sheet.views.find((v) => v.id === drs.parentViewId);
+        if (!parentView) return;
+        const localPt = sheetToParentLocal(sheetPt, parentView);
+        useToolModeStore.getState().detailRectPickFirstCorner(localPt);
+        return;
+      }
+
+      if (drs.stage === 'pickSecondCorner') {
+        const parentView = sheet.views.find((v) => v.id === drs.parentViewId);
+        if (!parentView) return;
+        const localPt = sheetToParentLocal(sheetPt, parentView);
+        useToolModeStore.getState().detailRectPickSecondCorner(localPt);
+        return;
+      }
+
+      if (drs.stage === 'pickDrop') {
+        useToolModeStore.getState().detailRectPickDrop(sheetPt, () => {
+          void bus.execute(new AddDetailViewCommand({
+            drawingId: drawing.id,
+            sheetId: sheet.id,
+            parentViewId: drs.parentViewId,
+            regionParent: {
+              kind: 'rect',
+              center: drs.center,
+              widthMm: drs.widthMm,
+              heightMm: drs.heightMm,
+            },
             dropAt: sheetPt,
           }));
         });
@@ -936,6 +987,60 @@ export function DrawingCanvas() {
             strokeDasharray="3 1.5"
             opacity={0.5}
             data-role="detail-drop-ghost"
+          />
+        );
+      })()}
+
+      {/* Rubber-band rect preview during pickSecondCorner (detailRect) */}
+      {/* [no-TDD: pure-visual, verified via Playwright in Batch 5] — jsdom getBoundingClientRect returns 0 for SVGSVGElement */}
+      {toolMode === 'detailRect' && detailRectState.stage === 'pickSecondCorner' && cursorMm && (() => {
+        const drs = detailRectState;
+        const parentView = sheet.views.find((v) => v.id === drs.parentViewId);
+        if (!parentView) return null;
+        const parentScale = parentView.scale.numerator / parentView.scale.denominator;
+        // firstCorner is in parent-local mm → convert to sheet space
+        const c1SheetX = parentView.positionMm.x + drs.firstCorner.x * parentScale;
+        const c1SheetY = parentView.positionMm.y + drs.firstCorner.y * parentScale;
+        const x = Math.min(c1SheetX, cursorMm.x);
+        const y = Math.min(c1SheetY, cursorMm.y);
+        const w = Math.abs(cursorMm.x - c1SheetX);
+        const h = Math.abs(cursorMm.y - c1SheetY);
+        return (
+          <rect
+            key="detail-rect-preview"
+            x={x}
+            y={y}
+            width={w}
+            height={h}
+            fill="none"
+            stroke="black"
+            strokeWidth={0.35}
+            strokeDasharray="2 1"
+            data-role="detail-rect-preview"
+          />
+        );
+      })()}
+
+      {/* Ghost bbox rect preview during pickDrop (detailRect) */}
+      {/* [no-TDD: pure-visual, verified via Playwright in Batch 5] — jsdom getBoundingClientRect returns 0 for SVGSVGElement */}
+      {toolMode === 'detailRect' && detailRectState.stage === 'pickDrop' && cursorMm && (() => {
+        const drs = detailRectState;
+        const detailScale = 2;
+        const w = drs.widthMm * detailScale;
+        const h = drs.heightMm * detailScale;
+        return (
+          <rect
+            key="detail-rect-drop-ghost"
+            x={cursorMm.x - w / 2}
+            y={cursorMm.y - h / 2}
+            width={w}
+            height={h}
+            fill="none"
+            stroke="black"
+            strokeWidth={0.35}
+            strokeDasharray="3 1.5"
+            opacity={0.5}
+            data-role="detail-rect-drop-ghost"
           />
         );
       })()}
