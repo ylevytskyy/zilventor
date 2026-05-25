@@ -5,6 +5,7 @@ import {
   extractHolesInView,
   assignHoleTags,
   formatHoleDescription,
+  computeHoleTableRows,
   type ExtractedHole,
 } from '../holeTable';
 import type { HoleFeature, PartDocument, ParamOrLiteral } from '../../types';
@@ -481,4 +482,184 @@ describe('formatHoleDescription — HT-DESC-8: countersink distance', () => {
     expect(formatHoleDescription(feature, resolve)).toBe('⌀8 ↧12 ⌵⌀14×82°');
   });
 });
+
+// ---------------------------------------------------------------------------
+// HT-ROWS-1: end-to-end — datum subtraction, markerCenterSheetMm transform
+// ---------------------------------------------------------------------------
+
+describe('computeHoleTableRows — HT-ROWS-1: single hole end-to-end', () => {
+  it('produces correct xDim/yDim and markerCenterSheetMm', () => {
+    // Datum point at part-mm (0, 0); hole center at part-mm (20, 15); scale 1:1
+    // Expected: xDim=20, yDim=15, markerCenter={x: 50+20=70, y: 30+15=45}
+    const holeCx = 20, holeCy = 15, holeR = 4;
+    const hole = makeSimpleHole('H1', holeR * 2); // dia=8
+    const part = makePart([hole]);
+
+    const view = makeBaseView([
+      // Datum edge: single-point edge at origin (no sourceFaceIds — not a hole edge)
+      { id: 'datum-edge', points: [[0, 0]] },
+      // Hole circle
+      {
+        id: 'e-hole',
+        points: circlePoints(holeCx, holeCy, holeR),
+        sourceFaceIds: ['H1|hole|0'],
+      },
+    ]);
+
+    const annotation: HoleTableAnnotation = {
+      kind: 'holeTable',
+      id: 'ht-1',
+      viewId: 'v1',
+      datum: { kind: 'edge-endpoint', edgeId: 'datum-edge', end: 'start' },
+      positionMm: { x: 10, y: 10 },
+      entries: [],
+    };
+
+    const resolveParam = (p: ParamOrLiteral): number =>
+      p.kind === 'literal' ? p.value : 0;
+
+    const rows = computeHoleTableRows(annotation, view, part, resolveParam);
+    expect(rows).toHaveLength(1);
+
+    const row = rows[0]!;
+    expect(row.tag).toBe('A1');
+    expect(row.xDim).toBeCloseTo(holeCx, 2);     // 20 - 0 = 20
+    expect(row.yDim).toBeCloseTo(holeCy, 2);     // 15 - 0 = 15
+    expect(row.description).toBe('⌀8 THRU'); // ⌀8 THRU
+
+    // markerCenter = view.positionMm + centerMm * scale (1:1)
+    // view.positionMm = {x:50, y:30}, scale=1
+    expect(row.markerCenterSheetMm.x).toBeCloseTo(50 + holeCx, 2); // 70
+    expect(row.markerCenterSheetMm.y).toBeCloseTo(30 + holeCy, 2); // 45
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-ROWS-2: two holes, different specs → sorted tags A1, B1
+// ---------------------------------------------------------------------------
+
+describe('computeHoleTableRows — HT-ROWS-2: two holes sorted by tag', () => {
+  it('returns two rows sorted by tag with correct dimensions', () => {
+    // hole A at (10, 5), hole B at (30, 5); datum at (0, 0); scale 2:1
+    const hA = makeSimpleHole('HA', 8);
+    const hB = makeSimpleHole('HB', 12); // different spec → different letter
+    const part = makePart([hA, hB]);
+
+    // Build view with scale 2:1
+    const viewWith2xScale: DrawingView = {
+      id: 'v1',
+      kind: 'base',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 2, denominator: 1 },
+      orientation: 'front',
+      showHidden: false,
+      projection: {
+        visibleEdges: [
+          { id: 'datum-edge', kind: 'feature', points: [[0, 0]] },
+          {
+            id: 'e-hA',
+            kind: 'feature',
+            points: circlePoints(10, 5, 4),
+            sourceFaceIds: ['HA|hole|0'],
+          },
+          {
+            id: 'e-hB',
+            kind: 'feature',
+            points: circlePoints(30, 5, 6),
+            sourceFaceIds: ['HB|hole|0'],
+          },
+        ],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 50, maxY: 20 },
+      },
+    };
+
+    const annotation: HoleTableAnnotation = {
+      kind: 'holeTable',
+      id: 'ht-2',
+      viewId: 'v1',
+      datum: { kind: 'edge-endpoint', edgeId: 'datum-edge', end: 'start' },
+      positionMm: { x: 0, y: 0 },
+      entries: [],
+    };
+
+    const resolveParam = (p: ParamOrLiteral): number =>
+      p.kind === 'literal' ? p.value : 0;
+
+    const rows = computeHoleTableRows(annotation, viewWith2xScale, part, resolveParam);
+    expect(rows).toHaveLength(2);
+
+    // Sorted by tag: A1 before B1
+    expect(rows[0]!.tag).toBe('A1');
+    expect(rows[1]!.tag).toBe('B1');
+
+    // xDim/yDim are in part-mm (NOT scaled)
+    expect(rows[0]!.xDim).toBeCloseTo(10, 2);
+    expect(rows[0]!.yDim).toBeCloseTo(5, 2);
+
+    // markerCenterSheetMm IS scaled: positionMm(0,0) + centerMm * scale(2)
+    expect(rows[0]!.markerCenterSheetMm.x).toBeCloseTo(20, 2); // 0 + 10*2
+    expect(rows[0]!.markerCenterSheetMm.y).toBeCloseTo(10, 2); // 0 + 5*2
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-ROWS-3: no projection → returns empty array
+// ---------------------------------------------------------------------------
+
+describe('computeHoleTableRows — HT-ROWS-3: no projection', () => {
+  it('returns [] when view has no projection', () => {
+    const viewNoProj: DrawingView = {
+      id: 'v-noproj',
+      kind: 'base',
+      positionMm: { x: 0, y: 0 },
+      scale: { numerator: 1, denominator: 1 },
+      orientation: 'front',
+      showHidden: false,
+    };
+    const annotation: HoleTableAnnotation = {
+      kind: 'holeTable',
+      id: 'ht-3',
+      viewId: 'v-noproj',
+      datum: { kind: 'edge-endpoint', edgeId: 'missing', end: 'start' },
+      positionMm: { x: 0, y: 0 },
+      entries: [],
+    };
+    const rows = computeHoleTableRows(annotation, viewNoProj, makePart([]), (p) =>
+      p.kind === 'literal' ? p.value : 0,
+    );
+    expect(rows).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-ROWS-4: datum edge missing → returns empty array
+// ---------------------------------------------------------------------------
+
+describe('computeHoleTableRows — HT-ROWS-4: datum edge not found', () => {
+  it('returns [] when the datum PointRef resolves to null', () => {
+    const hole = makeSimpleHole('H1', 8);
+    const part = makePart([hole]);
+    const view = makeBaseView([
+      {
+        id: 'e-hole',
+        points: circlePoints(20, 15, 4),
+        sourceFaceIds: ['H1|hole|0'],
+      },
+    ]);
+    const annotation: HoleTableAnnotation = {
+      kind: 'holeTable',
+      id: 'ht-4',
+      viewId: 'v1',
+      datum: { kind: 'edge-endpoint', edgeId: 'nonexistent-edge', end: 'start' },
+      positionMm: { x: 0, y: 0 },
+      entries: [],
+    };
+    const rows = computeHoleTableRows(annotation, view, part, (p) =>
+      p.kind === 'literal' ? p.value : 0,
+    );
+    expect(rows).toHaveLength(0);
+  });
+});
+
 
