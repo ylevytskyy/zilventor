@@ -325,6 +325,52 @@ describe('DrawingTab ribbon — Add Break button', () => {
   });
 });
 
+describe('DrawingTab ribbon — Detail (Rect) button', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+  });
+
+  it('renders "Detail (Rect)" button in Place Views panel', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /detail \(rect\)/i })).toBeInTheDocument();
+  });
+
+  it('"Detail (Rect)" button is disabled when no projected view exists', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    const btn = screen.getByRole('button', { name: /detail \(rect\)/i });
+    // seedDrawing() has no views, so hasProjectedView=false
+    expect(btn).toBeDisabled();
+  });
+
+  it('clicking "Detail (Rect)" calls enterDetailRectMode', () => {
+    // Seed a drawing with a base view that has a projection to enable the button
+    const drwWithProj: DrawingDocument = {
+      ...seedDrawing(),
+      sheets: [{
+        ...seedDrawing().sheets[0]!,
+        views: [{
+          id: 'bv1', kind: 'base' as const, positionMm: { x: 0, y: 0 },
+          scale: { numerator: 1, denominator: 1 }, orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [], hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
+          },
+          inputFingerprint: 'bv1-fp',
+        }],
+      }],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: drwWithProj });
+    render(<DrawingTab />);
+    const btn = screen.getByRole('button', { name: /detail \(rect\)/i });
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+    expect(useToolModeStore.getState().mode).toBe('detailRect');
+  });
+});
+
 describe('DrawingTab — non-drawing active doc', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);

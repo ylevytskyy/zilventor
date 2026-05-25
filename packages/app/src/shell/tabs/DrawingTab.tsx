@@ -131,6 +131,16 @@ export default function DrawingTab(): JSX.Element {
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Detail (Rect)"
+          disabled={!hasProjectedView}
+          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          onClick={() => useToolModeStore.getState().enterDetailRectMode()}
+        >
+          Detail (Rect)
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Edit Detail Region"
           disabled={!hasDetailView}
           title={!hasDetailView ? 'Add a detail view first' : undefined}
