@@ -450,7 +450,7 @@ export default function App() {
             bbox: { minX: 0, minY: 0, maxX: 50, maxY: 100 },
           },
         };
-        const regionParent = { center: { x: 25, y: 50 }, radiusMm: 20 };
+        const regionParent = { kind: 'circle' as const, center: { x: 25, y: 50 }, radiusMm: 20 };
         const detailScale = { numerator: 2, denominator: 1 };
         const samples: number[] = [];
         for (let i = 0; i < n; i++) {

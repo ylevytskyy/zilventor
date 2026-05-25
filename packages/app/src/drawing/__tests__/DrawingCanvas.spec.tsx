@@ -469,7 +469,7 @@ describe('DrawingCanvas — DetailRegionOverlay rendering', () => {
         {
           id: 'dv1', kind: 'detail' as const,
           parentViewId: 'bv1',
-          regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+          regionParent: { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 8 },
           label: 'A',
           positionMm: { x: 200, y: 150 },
           scale: { numerator: 2, denominator: 1 },

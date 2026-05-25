@@ -20,6 +20,10 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
 
   // Section views never show hidden edges per ANSI convention
   const showHidden = view.kind !== 'section' && view.showHidden;
+  // TODO(batch-4): add rect branch; for now circle arm only
+  const detailBorderR = view.kind === 'detail'
+    ? (view.regionParent.kind === 'circle' ? view.regionParent.radiusMm : 0)
+    : 0;
 
   return (
     <g
@@ -111,7 +115,7 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
           <circle
             cx={0}
             cy={0}
-            r={(view as DetailView).regionParent.radiusMm}
+            r={detailBorderR}
             fill="none"
             stroke="black"
             strokeWidth={0.35}

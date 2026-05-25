@@ -181,7 +181,8 @@ function renderViewGroup(view: DrawingView): string {
   let detailMarkup = '';
   if (view.kind === 'detail') {
     const dv = view as DetailView;
-    const borderR = dv.regionParent.radiusMm;
+    // TODO(batch-4): add rect branch; for now circle arm only
+    const borderR = dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0;
     detailMarkup += `\n    <circle cx="0" cy="0" r="${borderR}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-border" data-view-id="${escapeAttr(dv.id)}"/>`;
     if (projection) {
       const captionX = (projection.bbox.minX + projection.bbox.maxX) / 2;
@@ -208,7 +209,8 @@ function renderDetailCalloutGroups(views: readonly DrawingView[]): string {
     const parentScale = parent.scale.numerator / parent.scale.denominator;
     const cx = parent.positionMm.x + dv.regionParent.center.x * parentScale;
     const cy = parent.positionMm.y + dv.regionParent.center.y * parentScale;
-    const r = dv.regionParent.radiusMm * parentScale;
+    // TODO(batch-4): add rect branch; for now circle arm only
+    const r = (dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0) * parentScale;
     const COS45 = Math.SQRT1_2;
     const labelX = cx + (r + 5) * COS45;
     const labelY = cy - (r + 5) * COS45;

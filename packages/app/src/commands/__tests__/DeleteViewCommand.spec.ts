@@ -247,7 +247,7 @@ const BASE_FOR_DETAIL: BaseView = {
 const DETAIL_A: DetailView = {
   id: 'detail-a', kind: 'detail',
   parentViewId: 'base-d1',
-  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  regionParent: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
   label: 'A',
   positionMm: { x: 200, y: 200 },
   scale: { numerator: 2, denominator: 1 },
@@ -324,7 +324,7 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
     const detail_b: DetailView = {
       id: 'detail-b', kind: 'detail',
       parentViewId: 'base-d1',
-      regionParent: { center: { x: 30, y: 20 }, radiusMm: 8 },
+      regionParent: { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 8 },
       label: 'B',
       positionMm: { x: 300, y: 200 },
       scale: { numerator: 2, denominator: 1 },
@@ -381,7 +381,7 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
     const detail_b: DetailView = {
       id: 'detail-b', kind: 'detail',
       parentViewId: 'base-d1',
-      regionParent: { center: { x: 30, y: 20 }, radiusMm: 8 },
+      regionParent: { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 8 },
       label: 'B',
       positionMm: { x: 300, y: 200 },
       scale: { numerator: 2, denominator: 1 },

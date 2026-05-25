@@ -87,7 +87,7 @@ describe('renderDrawingSvg — detail view', () => {
     const detailWithHidden: DetailView = {
       id: 'detail-hidden', kind: 'detail',
       parentViewId: 'view-sheet-1-0',
-      regionParent: { center: { x: 25, y: 15 }, radiusMm: 10 },
+      regionParent: { kind: 'circle', center: { x: 25, y: 15 }, radiusMm: 10 },
       label: 'B',
       positionMm: { x: 200, y: 150 },
       scale: { numerator: 2, denominator: 1 },

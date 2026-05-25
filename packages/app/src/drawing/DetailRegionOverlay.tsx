@@ -14,7 +14,10 @@ const CIRCLE_STROKE_WIDTH = 0.35;
 
 export function DetailRegionOverlay({ parentView, detailView, zoom = 1 }: Props) {
   const parentScale = parentView.scale.numerator / parentView.scale.denominator;
-  const { center, radiusMm } = detailView.regionParent;
+  // TODO(batch-4): add rect branch; for now treat all as circle (circle arm only)
+  const rp = detailView.regionParent;
+  const center = rp.center;
+  const radiusMm = rp.kind === 'circle' ? rp.radiusMm : 0; // TODO(batch-4): rect ellipse/rect outline
 
   // Circle center in sheet space
   const cx = parentView.positionMm.x + center.x * parentScale;

@@ -37,7 +37,7 @@ const DETAIL_VIEW: DetailView = {
   id: 'dv1',
   kind: 'detail',
   parentViewId: 'pv1',
-  regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+  regionParent: { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 8 },
   label: 'A',
   positionMm: { x: 200, y: 100 },
   scale: { numerator: 2, denominator: 1 },

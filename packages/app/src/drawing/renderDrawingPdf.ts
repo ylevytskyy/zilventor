@@ -115,7 +115,8 @@ function drawSheetPdf(
     const parentScale = parent.scale.numerator / parent.scale.denominator;
     const cx = MARGIN + (parent.positionMm.x + dv.regionParent.center.x * parentScale) * scaleX;
     const cy = MARGIN + (parent.positionMm.y + dv.regionParent.center.y * parentScale) * scaleY;
-    const r = dv.regionParent.radiusMm * parentScale * scaleX;
+    // TODO(batch-4): add rect branch; for now circle arm only
+    const r = (dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0) * parentScale * scaleX;
     pdf.setDrawColor(0);
     pdf.setLineWidth(0.35);
     pdf.circle(cx, cy, r, 'S');
@@ -223,7 +224,8 @@ function drawViewPdf(
   // Detail-specific: border circle + caption.
   if (view.kind === 'detail') {
     const dv = view as DetailView;
-    const borderR = dv.regionParent.radiusMm * vScale * scaleX;
+    // TODO(batch-4): add rect branch; for now circle arm only
+    const borderR = (dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0) * vScale * scaleX;
     pdf.setDrawColor(0);
     pdf.setLineWidth(0.35);
     pdf.circle(vx, vy, borderR, 'S');

@@ -56,7 +56,10 @@ export function DetailRegionEditHandles({
   sheetH,
 }: Props) {
   const parentScale = parentView.scale.numerator / parentView.scale.denominator;
-  const { center, radiusMm } = detailView.regionParent;
+  // TODO(batch-4): add rect branch; for now treat all as circle (circle arm only)
+  const rp = detailView.regionParent;
+  const center = rp.center;
+  const radiusMm = rp.kind === 'circle' ? rp.radiusMm : 0; // TODO(batch-4): rect corner handles
 
   // Sheet-space callout circle (matches DetailRegionOverlay transform)
   const cx = parentView.positionMm.x + center.x * parentScale;
@@ -74,7 +77,8 @@ export function DetailRegionEditHandles({
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
 
-      const startRegion: Region = { center: { ...center }, radiusMm };
+      // TODO(batch-4): pass full RegionParent union; for now circle arm only
+      const startRegion: Region = { kind: 'circle', center: { ...center }, radiusMm };
       const svg = svgRef.current;
       const anchorSheet = screenToSheet(e.clientX, e.clientY, svg, sheetW, sheetH);
       const anchorLocal = sheetToParentLocal(anchorSheet, parentView);
@@ -114,7 +118,8 @@ export function DetailRegionEditHandles({
       e.stopPropagation(); // prevent body circle from also capturing
       e.currentTarget.setPointerCapture(e.pointerId);
 
-      const startRegion: Region = { center: { ...center }, radiusMm };
+      // TODO(batch-4): pass full RegionParent union; for now circle arm only
+      const startRegion: Region = { kind: 'circle', center: { ...center }, radiusMm };
       const svg = svgRef.current;
 
       useToolModeStore.getState().editDragStart(detailView.id, 'radius', startRegion, { x: cx + r, y: cy });

@@ -418,8 +418,7 @@ export function DrawingCanvas() {
             drawingId: drawing.id,
             sheetId: sheet.id,
             parentViewId: ds.parentViewId,
-            regionCenter: ds.center,
-            regionRadiusMm: ds.radiusMm,
+            regionParent: { kind: 'circle', center: ds.center, radiusMm: ds.radiusMm },
             dropAt: sheetPt,
           }));
         });

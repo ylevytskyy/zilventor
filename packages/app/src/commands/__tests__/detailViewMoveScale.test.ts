@@ -11,7 +11,7 @@ const DETAIL: DetailView = {
   id: 'dv1',
   kind: 'detail',
   parentViewId: 'base-v1',
-  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  regionParent: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
   label: 'A',
   positionMm: { x: 100, y: 100 },
   scale: { numerator: 2, denominator: 1 },
@@ -76,7 +76,7 @@ describe('MoveViewCommand — sanity on DetailView (no command code change)', ()
     const _ad = useAppStore.getState().activeDocument;
     if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
     const view = _ad.document.sheets[0]!.views[0]! as DetailView;
-    expect(view.regionParent).toEqual({ center: { x: 10, y: 8 }, radiusMm: 5 });
+    expect(view.regionParent).toEqual({ kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 });
     expect(view.label).toBe('A');
   });
 });
@@ -143,7 +143,7 @@ describe('EditViewScaleCommand — sanity on DetailView (no command code change)
     const _ad = useAppStore.getState().activeDocument;
     if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
     const view = _ad.document.sheets[0]!.views[0]! as DetailView;
-    expect(view.regionParent).toEqual({ center: { x: 10, y: 8 }, radiusMm: 5 });
+    expect(view.regionParent).toEqual({ kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 });
     expect(view.label).toBe('A');
   });
 });

@@ -156,7 +156,7 @@ const DETAIL_VIEW_STALE: DetailView = {
   id: 'detail-stale',
   kind: 'detail',
   parentViewId: 'parent-v1',
-  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  regionParent: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
   label: 'A',
   positionMm: { x: 200, y: 200 },
   scale: { numerator: 2, denominator: 1 },
@@ -205,7 +205,7 @@ describe('RegenerateViewCommand — detail view branch', () => {
     expect(view.inputFingerprint).toBe('fresh-detail-fp');
     // Confirm other fields are intact
     expect(view.label).toBe('A');
-    expect(view.regionParent).toEqual({ center: { x: 10, y: 8 }, radiusMm: 5 });
+    expect(view.regionParent).toEqual({ kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 });
   });
 
   it('revert restores stale projection and old fingerprint on a DetailView', async () => {
