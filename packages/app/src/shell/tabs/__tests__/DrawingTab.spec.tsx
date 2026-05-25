@@ -378,3 +378,66 @@ describe('DrawingTab — Stepped Section ribbon button (F1.2)', () => {
     expect(siblings.indexOf(stepped)).toBeGreaterThan(siblings.indexOf(half));
   });
 });
+
+describe('DrawingTab — Edit Detail Region ribbon button (F2.4)', () => {
+  const seedDrawingWithDetailView = (): DrawingDocument => ({
+    ...seedDrawing(),
+    sheets: [
+      {
+        ...seedDrawing().sheets[0]!,
+        views: [
+          {
+            id: 'bv1', kind: 'base' as const,
+            positionMm: { x: 20, y: 20 },
+            scale: { numerator: 1, denominator: 1 },
+            orientation: 'front' as const,
+            showHidden: false,
+            projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+            inputFingerprint: 'fp1',
+          },
+          {
+            id: 'dv1', kind: 'detail' as const,
+            parentViewId: 'bv1',
+            regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+            label: 'A',
+            positionMm: { x: 200, y: 100 },
+            scale: { numerator: 2, denominator: 1 },
+            showHidden: false,
+            projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+            inputFingerprint: 'fp-dv1',
+          },
+        ],
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+  });
+
+  it('renders an "Edit Detail Region" button in the Place Views panel', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: 'Edit Detail Region' })).toBeInTheDocument();
+  });
+
+  it('"Edit Detail Region" button is disabled when no detail views exist', () => {
+    // seedDrawing() has views: [] → no detail views
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: 'Edit Detail Region' })).toBeDisabled();
+  });
+
+  it('"Edit Detail Region" button is enabled when at least one detail view exists', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawingWithDetailView() });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: 'Edit Detail Region' })).not.toBeDisabled();
+  });
+
+  it('clicking "Edit Detail Region" enters editDetailRegion mode', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawingWithDetailView() });
+    render(<DrawingTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Detail Region' }));
+    expect(useToolModeStore.getState().mode).toBe('editDetailRegion');
+  });
+});

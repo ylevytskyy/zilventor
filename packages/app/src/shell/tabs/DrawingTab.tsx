@@ -22,6 +22,7 @@ export default function DrawingTab(): JSX.Element {
   const setMode = useToolModeStore.getState().setMode;
   const activeSheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
   const hasProjectedView = activeSheet?.views.some((v) => v.projection != null) ?? false;
+  const hasDetailView = activeSheet?.views.some((v) => v.kind === 'detail') ?? false;
   const hasBreakableProjection =
     activeSheet?.views.some(
       (v) =>
@@ -126,6 +127,16 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => useToolModeStore.getState().enterDetailMode()}
         >
           Detail
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Edit Detail Region"
+          disabled={!hasDetailView}
+          title={!hasDetailView ? 'Add a detail view first' : undefined}
+          onClick={() => useToolModeStore.getState().enterEditDetailRegionMode()}
+        >
+          Edit Detail Region
         </button>
         <button
           type="button"
