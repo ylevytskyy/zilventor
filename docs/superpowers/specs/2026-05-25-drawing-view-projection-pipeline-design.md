@@ -93,7 +93,7 @@ async projectViewFromSource(orientation: ViewOrientation):
   partId   = state.activeDrawingSourcePartId               // set on drawing activation (above)
              // throw a clear error (PART_NOT_IN_STORE) if absent
   input    = await kernel.getProjectorInput({ kind: 'part', partId })
-             // getProjectorInput THROWS if partId not in namedShapeCache → wrap as GEOMETRY_NOT_CACHED
+             // returns null if partId not in namedShapeCache → throw GEOMETRY_NOT_CACHED on null
   projection       = projectView(input, orientation)       // pure JS, synchronous
   inputFingerprint = fingerprintPartState(<source part doc>)  // cheap, no kernel — see Staleness
   return { projection, inputFingerprint }
@@ -103,11 +103,13 @@ The helper is the single orchestration point. Both the create commands' `apply()
 and the Regenerate handler call it; there is no duplicated "fetch + project +
 fingerprint" logic.
 
-`getProjectorInput` contract (kernel): args
+`getProjectorInput` contract (kernel, `api.ts:405`): args
 `{ kind: 'part'; partId: string } | { kind: 'assembly'; components: [...] }`,
-returns `{ triangles, edges, bbox }` and **throws** when the part isn't in the
-kernel cache (it does not return null). The source part's presence in the cache
-is guaranteed by the activation-time load step above.
+returns `ProjectorInput | null` — for `kind:'part'` it **returns null** when the
+part isn't in `namedShapeCache` (the adapter's "not in cache" throw is
+unreachable for the part path, guarded by `.has()`). The helper throws
+`GEOMETRY_NOT_CACHED` on null. The source part's presence in the cache is
+guaranteed by the activation-time load step above.
 
 ### Command changes (all → async `apply()`)
 
