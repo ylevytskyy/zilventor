@@ -1,6 +1,6 @@
 // packages/app/src/drawing/__tests__/DrawingCanvas.editDetailRegion.spec.tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { DrawingCanvas } from '../DrawingCanvas';
 import { useToolModeStore } from '../toolMode';
@@ -73,5 +73,33 @@ describe('DrawingCanvas — editDetailRegion mode renders handles', () => {
     useToolModeStore.getState().enterEditDetailRegionMode();
     const { getByTestId } = render(<DrawingCanvas />);
     expect(getByTestId('edit-handles-dv1')).toBeTruthy();
+  });
+});
+
+describe('DrawingCanvas — editDetailRegion ESC during draggingCorner', () => {
+  it('ESC while draggingCorner calls editDetailCancel without throwing', () => {
+    // Simulate toolMode store in draggingCorner state
+    useToolModeStore.setState({
+      mode: 'editDetailRegion',
+      editDetailRegionState: {
+        stage: 'draggingCorner',
+        detailViewId: 'dv1',
+        startRegion: {
+          kind: 'rect',
+          center: { x: 20, y: 15 },
+          widthMm: 30,
+          heightMm: 20,
+        },
+        oppositeCorner: { x: 30, y: 25 },
+        center: { x: 20, y: 15 },
+        widthMm: 30,
+        heightMm: 20,
+      } as never,
+    } as never);
+
+    render(<DrawingCanvas />);
+    // Should not throw; editDetailCancel resets state
+    expect(() => fireEvent.keyDown(document, { key: 'Escape' })).not.toThrow();
+    expect(useToolModeStore.getState().editDetailRegionState.stage).toBe('idle');
   });
 });

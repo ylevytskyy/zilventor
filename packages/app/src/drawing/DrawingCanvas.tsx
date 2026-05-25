@@ -222,7 +222,8 @@ export function DrawingCanvas() {
         const liveEditState = useToolModeStore.getState().editDetailRegionState;
         if (
           liveEditState.stage === 'draggingCenter' ||
-          liveEditState.stage === 'draggingRadius'
+          liveEditState.stage === 'draggingRadius' ||
+          liveEditState.stage === 'draggingCorner'
         ) {
           // Read the live drawing to find the active sheet
           const liveDrawing = useAppStore.getState().activeDrawing;
