@@ -1,6 +1,6 @@
 // packages/app/src/commands/AddDetailViewCommand.ts
 import type { Command } from './Command';
-import type { DrawingDocument, DetailView, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, DetailView, SectionView, RegionParent } from '@zilventor/shared';
 import { allocateCalloutLabel, projectDetailView, fingerprintDetailView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -8,9 +8,8 @@ export type AddDetailViewOpts = {
   drawingId: string;
   sheetId: string;
   parentViewId: string;
-  regionCenter: { x: number; y: number };   // parent-local mm (pre-scale)
-  regionRadiusMm: number;                    // parent-local mm (pre-scale)
-  dropAt: { x: number; y: number };          // sheet-space position mm
+  regionParent: RegionParent;   // circle or rect; built by ToolMode on commit
+  dropAt: { x: number; y: number };  // sheet-space position mm
 };
 
 export class AddDetailViewCommand implements Command {
@@ -53,7 +52,7 @@ export class AddDetailViewCommand implements Command {
     // 6. Clip parent edges → projectDetailView (pure 2D, no kernel).
     const projection = projectDetailView({
       parentView: parentView as typeof parentView & { projection: NonNullable<typeof parentView.projection> },
-      regionParent: { center: this.opts.regionCenter, radiusMm: this.opts.regionRadiusMm },
+      regionParent: this.opts.regionParent,
       detailScale: defaultScale,
       showHidden,
     });
@@ -61,7 +60,7 @@ export class AddDetailViewCommand implements Command {
     // 7. Compute fingerprint.
     const inputFingerprint = fingerprintDetailView(
       (parentView as { inputFingerprint?: string }).inputFingerprint ?? '',
-      { center: this.opts.regionCenter, radiusMm: this.opts.regionRadiusMm },
+      this.opts.regionParent,
       defaultScale,
     );
 
@@ -73,7 +72,7 @@ export class AddDetailViewCommand implements Command {
       id: newId,
       kind: 'detail',
       parentViewId: this.opts.parentViewId,
-      regionParent: { center: this.opts.regionCenter, radiusMm: this.opts.regionRadiusMm },
+      regionParent: this.opts.regionParent,
       label,
       positionMm: this.opts.dropAt,
       scale: defaultScale,
@@ -91,6 +90,7 @@ export class AddDetailViewCommand implements Command {
           : s
       ),
     };
+    // F6 gotcha: DrawingCanvas subscribes to activeDrawing — must set BOTH.
     useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
   }
 

@@ -21,8 +21,8 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
     }),
     projectDetailView: vi.fn().mockReturnValue({
       visibleEdges: [
-        { id: 'clip-e1', kind: 'outline', points: [[2, 1], [8, 1]], sourceFaceIds: [] },
-        { id: 'clip-e2', kind: 'outline', points: [[8, 1], [8, 7]], sourceFaceIds: [] },
+        { id: 'clip-e1', kind: 'outline' as const, points: [[2, 1], [8, 1]], sourceFaceIds: [] },
+        { id: 'clip-e2', kind: 'outline' as const, points: [[8, 1], [8, 7]], sourceFaceIds: [] },
       ],
       hiddenEdges: [],
       bbox: { minX: 2, minY: 1, maxX: 8, maxY: 7 },
@@ -79,8 +79,7 @@ const basePayload = {
   drawingId: 'd1',
   sheetId: 's1',
   parentViewId: 'v1',
-  regionCenter: { x: 10, y: 8 },
-  regionRadiusMm: 5,
+  regionParent: { kind: 'circle' as const, center: { x: 10, y: 8 }, radiusMm: 5 },
   dropAt: { x: 20, y: 150 },
 };
 
@@ -111,7 +110,7 @@ describe('AddDetailViewCommand.apply() — happy path', () => {
     expect(dv.parentViewId).toBe('v1');
     expect(dv.positionMm).toEqual({ x: 20, y: 150 });
     expect(dv.scale).toEqual({ numerator: 2, denominator: 1 });
-    expect(dv.regionParent).toEqual({ center: { x: 10, y: 8 }, radiusMm: 5 });
+    expect(dv.regionParent).toEqual({ kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 });
     expect(dv.projection).toBeDefined();
     expect(dv.projection!.visibleEdges.length).toBeGreaterThan(0);
     expect(dv.inputFingerprint).toBe('detail-fp-mock');
@@ -130,6 +129,16 @@ describe('AddDetailViewCommand.apply() — happy path', () => {
     if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
     const parent = doc.document.sheets[0]!.views.find(v => v.id === 'v1')!;
     expect(parent).toEqual(before);
+  });
+
+  it('apply sets BOTH activeDocument AND activeDrawing (F6 gotcha)', async () => {
+    const cmd = new AddDetailViewCommand(basePayload);
+    await cmd.apply();
+    const s = useAppStore.getState();
+    expect(s.activeDocument?.kind).toBe('drawing');
+    if (s.activeDocument?.kind === 'drawing') {
+      expect(s.activeDrawing).toBe(s.activeDocument.document);
+    }
   });
 });
 
@@ -297,7 +306,7 @@ describe('AddDetailViewCommand — shared callout label pool', () => {
     const detailC = {
       id: 'det-c', kind: 'detail' as const,
       parentViewId: 'v1',
-      regionParent: { center: { x: 5, y: 5 }, radiusMm: 3 },
+      regionParent: { kind: 'circle' as const, center: { x: 5, y: 5 }, radiusMm: 3 },
       label: 'C',
       positionMm: { x: 300, y: 150 },
       scale: { numerator: 2, denominator: 1 },
@@ -332,6 +341,53 @@ describe('AddDetailViewCommand — shared callout label pool', () => {
   });
 });
 
+describe('AddDetailViewCommand — rect region', () => {
+  const rectPayload = {
+    drawingId: 'd1',
+    sheetId: 's1',
+    parentViewId: 'v1',
+    regionParent: { kind: 'rect' as const, center: { x: 20, y: 15 }, widthMm: 12, heightMm: 8 },
+    dropAt: { x: 20, y: 150 },
+  };
+
+  it('apply writes kind=rect regionParent onto the new DetailView', async () => {
+    const cmd = new AddDetailViewCommand(rectPayload);
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sheet = doc.document.sheets.find(s => s.id === 's1')!;
+    const dv = sheet.views.find(v => v.kind === 'detail') as DetailView;
+    expect(dv.regionParent.kind).toBe('rect');
+    expect(dv.regionParent.center).toEqual({ x: 20, y: 15 });
+    if (dv.regionParent.kind === 'rect') {
+      expect(dv.regionParent.widthMm).toBe(12);
+      expect(dv.regionParent.heightMm).toBe(8);
+    }
+  });
+
+  it('apply sets BOTH activeDocument AND activeDrawing (F6 gotcha)', async () => {
+    const cmd = new AddDetailViewCommand(rectPayload);
+    await cmd.apply();
+    const s = useAppStore.getState();
+    expect(s.activeDocument?.kind).toBe('drawing');
+    if (s.activeDocument?.kind === 'drawing') {
+      expect(s.activeDrawing).toBe(s.activeDocument.document);
+    }
+  });
+
+  it('revert removes the rect detail view', async () => {
+    const cmd = new AddDetailViewCommand(rectPayload);
+    await cmd.apply();
+    await cmd.revert();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error('no drawing');
+    const sheet = doc.document.sheets.find(s => s.id === 's1')!;
+    expect(sheet.views.find(v => v.kind === 'detail')).toBeUndefined();
+  });
+});
+
 describe('AddDetailViewCommand — bus registration', () => {
   it('AddDetailViewCommand is importable from the commands index', async () => {
     // Dynamic import verifies the barrel export exists.
@@ -346,8 +402,7 @@ describe('AddDetailViewCommand — bus registration', () => {
       drawingId: 'd1',
       sheetId: 's1',
       parentViewId: 'v1',
-      regionCenter: { x: 5, y: 5 },
-      regionRadiusMm: 3,
+      regionParent: { kind: 'circle', center: { x: 5, y: 5 }, radiusMm: 3 },
       dropAt: { x: 10, y: 100 },
     };
     const cmd = new AddDetailViewCommand(opts);
