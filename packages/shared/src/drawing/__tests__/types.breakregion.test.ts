@@ -271,7 +271,7 @@ describe('DrawingView union — exhaustiveness check with breaks/rawProjection f
     const dv: DrawingView = {
       id: 'dv', kind: 'detail',
       parentViewId: 'bv',
-      regionParent: { center: { x: 0, y: 0 }, radiusMm: 5 },
+      regionParent: { kind: 'circle' as const, center: { x: 0, y: 0 }, radiusMm: 5 },
       label: 'A',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 2, denominator: 1 },

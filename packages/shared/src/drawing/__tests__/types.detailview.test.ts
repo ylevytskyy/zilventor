@@ -4,19 +4,20 @@ import type { RegionParent, DetailView, Vec2, ViewScale, DrawingView } from '../
 describe('RegionParent shape', () => {
   it('has center (Vec2) and radiusMm (number)', () => {
     const rp: RegionParent = {
+      kind: 'circle' as const,
       center: { x: 10, y: 8 },
       radiusMm: 5,
     };
     expect(rp.center.x).toBe(10);
     expect(rp.center.y).toBe(8);
-    expect(rp.radiusMm).toBe(5);
+    expect((rp as Extract<RegionParent, { kind: 'circle' }>).radiusMm).toBe(5);
   });
 
   it('survives JSON round-trip without drift', () => {
-    const rp: RegionParent = { center: { x: 25.5, y: 13.25 }, radiusMm: 7.5 };
+    const rp: RegionParent = { kind: 'circle' as const, center: { x: 25.5, y: 13.25 }, radiusMm: 7.5 };
     const parsed = JSON.parse(JSON.stringify(rp)) as RegionParent;
     expect(parsed.center.x).toBe(25.5);
-    expect(parsed.radiusMm).toBe(7.5);
+    expect((parsed as Extract<RegionParent, { kind: 'circle' }>).radiusMm).toBe(7.5);
   });
 });
 
@@ -28,7 +29,7 @@ describe('DetailView shape', () => {
       id: 'dv1',
       kind: 'detail',
       parentViewId: 'v1',
-      regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+      regionParent: { kind: 'circle' as const, center: { x: 10, y: 8 }, radiusMm: 5 },
       label: 'A',
       positionMm: { x: 50, y: 150 },
       scale,
@@ -42,7 +43,7 @@ describe('DetailView shape', () => {
       id: 'dv2',
       kind: 'detail',
       parentViewId: 'pv1',
-      regionParent: { center: { x: 0, y: 0 }, radiusMm: 12 },
+      regionParent: { kind: 'circle' as const, center: { x: 0, y: 0 }, radiusMm: 12 },
       label: 'B',
       positionMm: { x: 100, y: 200 },
       scale: { numerator: 2, denominator: 1 },
@@ -51,7 +52,7 @@ describe('DetailView shape', () => {
     const parsed = JSON.parse(JSON.stringify(dv)) as DetailView;
     expect(parsed.kind).toBe('detail');
     expect(parsed.parentViewId).toBe('pv1');
-    expect(parsed.regionParent.radiusMm).toBe(12);
+    expect((parsed.regionParent as Extract<RegionParent, { kind: 'circle' }>).radiusMm).toBe(12);
     expect(parsed.label).toBe('B');
     expect(parsed.scale.numerator).toBe(2);
     expect(parsed.showHidden).toBe(true);
@@ -62,7 +63,7 @@ describe('DetailView shape', () => {
       id: 'dv3',
       kind: 'detail',
       parentViewId: 'pv1',
-      regionParent: { center: { x: 5, y: 5 }, radiusMm: 3 },
+      regionParent: { kind: 'circle' as const, center: { x: 5, y: 5 }, radiusMm: 3 },
       label: 'C',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 1, denominator: 1 },
@@ -77,7 +78,7 @@ describe('DetailView shape', () => {
       id: 'dv4',
       kind: 'detail',
       parentViewId: 'pv2',
-      regionParent: { center: { x: 0, y: 0 }, radiusMm: 10 },
+      regionParent: { kind: 'circle' as const, center: { x: 0, y: 0 }, radiusMm: 10 },
       label: 'A',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 2, denominator: 1 },
@@ -114,7 +115,7 @@ describe('DrawingView union exhaustiveness — detail variant', () => {
       id: 'dv-union-test',
       kind: 'detail',
       parentViewId: 'pv1',
-      regionParent: { center: { x: 0, y: 0 }, radiusMm: 5 },
+      regionParent: { kind: 'circle' as const, center: { x: 0, y: 0 }, radiusMm: 5 },
       label: 'A',
       positionMm: { x: 0, y: 0 },
       scale: { numerator: 2, denominator: 1 },

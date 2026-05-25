@@ -178,13 +178,13 @@ export type SectionView = {
 };
 
 // ---------------------------------------------------------------------------
-// RegionParent — circular region in parent view's local mm space (pre-scale)
+// RegionParent — region in parent view's local mm space (pre-scale).
+// Discriminated union: circle (existing) or axis-aligned rect (F2.1).
 // ---------------------------------------------------------------------------
 
-export type RegionParent = {
-  readonly center: Vec2;      // in parent view's local mm space (pre-scale)
-  readonly radiusMm: number;  // in parent view's local mm space (pre-scale)
-};
+export type RegionParent =
+  | { readonly kind: 'circle'; readonly center: Vec2; readonly radiusMm: number }
+  | { readonly kind: 'rect';   readonly center: Vec2; readonly widthMm: number; readonly heightMm: number };
 
 // ---------------------------------------------------------------------------
 // DetailView — ANSI-style circular detail view clipped from a parent view
@@ -194,7 +194,7 @@ export type DetailView = {
   readonly id: string;
   readonly kind: 'detail';
   readonly parentViewId: string;
-  readonly regionParent: RegionParent;  // circular region in parent-local mm space
+  readonly regionParent: RegionParent;  // region in parent-local mm space (circle or rect)
   readonly label: string;               // auto-allocated from shared callout pool: 'A', 'B', …
   readonly positionMm: Vec2;            // sheet-space drop position
   readonly scale: ViewScale;            // default { numerator: 2, denominator: 1 } at create time
