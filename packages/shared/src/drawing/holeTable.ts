@@ -154,7 +154,7 @@ export function extractHolesInView(
   // Accumulate all edge points per featureId (for hole features only)
   const holePoints = new Map<string, Array<readonly [number, number]>>();
 
-  for (const edge of proj.visibleEdges) {
+  for (const edge of proj.visibleEdges) { // visible edges only — per F6 MVP spec §5.1 (hidden-edge holes deferred to F6.x)
     if (!edge.sourceFaceIds) continue;
 
     for (const faceKey of edge.sourceFaceIds) {
@@ -194,6 +194,30 @@ export function extractHolesInView(
 }
 
 // ---------------------------------------------------------------------------
+// Internal: number-formatting helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Quantize a number to 4 decimal places for use in grouping/signature keys.
+ * This ensures near-equal values (e.g. 8 vs 8.00000001 from float arithmetic)
+ * produce identical signature strings and are grouped into the same hole tag letter.
+ */
+function quantizeForSignature(v: number): number {
+  return Math.round(v * 1e4) / 1e4;
+}
+
+/**
+ * Format a resolved numeric parameter value for display in hole descriptions.
+ * Rounds to 3 decimal places then strips trailing zeros so:
+ *   16.666666667 → "16.667"
+ *   8.0          → "8"
+ *   8            → "8"
+ */
+function fmtNum(v: number): string {
+  return parseFloat(v.toFixed(3)).toString();
+}
+
+// ---------------------------------------------------------------------------
 // Internal: tag helpers
 // ---------------------------------------------------------------------------
 
@@ -216,27 +240,28 @@ function buildSpecSignature(
 ): string {
   const p = feature.profile;
   const t = feature.termination;
+  // Quantize depth for distance termination to avoid float-noise key splits
   const termStr =
-    t.kind === 'distance' ? `dist:${resolveParam(t.depth)}` : t.kind;
+    t.kind === 'distance' ? `dist:${quantizeForSignature(resolveParam(t.depth))}` : t.kind;
 
   if (p.kind === 'simple') {
-    return `simple:${resolveParam(p.diameter)}:${termStr}`;
+    return `simple:${quantizeForSignature(resolveParam(p.diameter))}:${termStr}`;
   }
   if (p.kind === 'counterbore') {
     return [
       'cbore',
-      resolveParam(p.diameter),
-      resolveParam(p.cboreDiameter),
-      resolveParam(p.cboreDepth),
+      quantizeForSignature(resolveParam(p.diameter)),
+      quantizeForSignature(resolveParam(p.cboreDiameter)),
+      quantizeForSignature(resolveParam(p.cboreDepth)),
       termStr,
     ].join(':');
   }
   // countersink
   return [
     'csk',
-    resolveParam(p.diameter),
-    resolveParam(p.cskDiameter),
-    resolveParam(p.cskAngle),
+    quantizeForSignature(resolveParam(p.diameter)),
+    quantizeForSignature(resolveParam(p.cskDiameter)),
+    quantizeForSignature(resolveParam(p.cskAngle)),
     termStr,
   ].join(':');
 }
@@ -325,7 +350,7 @@ function formatTermination(
   if (t.kind === 'throughAll' || t.kind === 'toFace' || t.kind === 'toNext') {
     return 'THRU';
   }
-  return `${DMAP}${resolveParam(t.depth)}`;
+  return `${DMAP}${fmtNum(resolveParam(t.depth))}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,21 +366,21 @@ export function formatHoleDescription(
   const termStr = formatTermination(termination, resolveParam);
 
   if (profile.kind === 'simple') {
-    const dia = resolveParam(profile.diameter);
+    const dia = fmtNum(resolveParam(profile.diameter));
     return `${DIA}${dia} ${termStr}`;
   }
 
   if (profile.kind === 'counterbore') {
-    const dia      = resolveParam(profile.diameter);
-    const cboreDia = resolveParam(profile.cboreDiameter);
-    const cboreD   = resolveParam(profile.cboreDepth);
+    const dia      = fmtNum(resolveParam(profile.diameter));
+    const cboreDia = fmtNum(resolveParam(profile.cboreDiameter));
+    const cboreD   = fmtNum(resolveParam(profile.cboreDepth));
     return `${DIA}${dia} ${termStr} ${CBORE}${DIA}${cboreDia} ${DMAP}${cboreD}`;
   }
 
   // countersink
-  const dia    = resolveParam(profile.diameter);
-  const cskDia = resolveParam(profile.cskDiameter);
-  const cskAng = resolveParam(profile.cskAngle);
+  const dia    = fmtNum(resolveParam(profile.diameter));
+  const cskDia = fmtNum(resolveParam(profile.cskDiameter));
+  const cskAng = fmtNum(resolveParam(profile.cskAngle));
   return `${DIA}${dia} ${termStr} ${CSK}${DIA}${cskDia}${TIMES}${cskAng}${DEG}`;
 }
 

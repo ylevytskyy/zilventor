@@ -662,4 +662,83 @@ describe('computeHoleTableRows — HT-ROWS-4: datum edge not found', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// HT-TAGS-5: float-noise grouping — near-equal resolved diameters must get same letter
+// ---------------------------------------------------------------------------
 
+describe('assignHoleTags — HT-TAGS-5: float-noise grouping', () => {
+  it('groups two holes whose resolved diameters differ by float noise (8 vs 8.00000001) into the same letter', () => {
+    const h1: HoleFeature = {
+      id: 'H1', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk1' },
+      profile: { kind: 'simple', diameter: { kind: 'param', paramName: 'exact' } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    const h2: HoleFeature = {
+      id: 'H2', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk1' },
+      profile: { kind: 'simple', diameter: { kind: 'param', paramName: 'noisy' } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    const holes: ExtractedHole[] = [
+      { featureId: 'H1', centerMm: [0, 0],  feature: h1 },
+      { featureId: 'H2', centerMm: [20, 0], feature: h2 },
+    ];
+    // H1 resolves to exact 8; H2 resolves to 8.00000001 (float noise from computed expr)
+    const resolveParam = (p: ParamOrLiteral): number => {
+      if (p.kind === 'param') {
+        if (p.paramName === 'exact') return 8;
+        if (p.paramName === 'noisy') return 8.00000001;
+      }
+      return p.kind === 'literal' ? p.value : 0;
+    };
+
+    const result = assignHoleTags(holes, new Map(), resolveParam);
+    const tag1 = result.get('H1')!;
+    const tag2 = result.get('H2')!;
+    // Both must share the same letter (same group)
+    expect(tag1[0]).toBe(tag2[0]); // same letter prefix
+    // Instance numbers must be 1 and 2 (same letter)
+    expect(new Set([tag1, tag2])).toEqual(new Set(['A1', 'A2']));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-9: float-value description — clean formatting (no float noise)
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-9: float-value formatting', () => {
+  it('formats a resolved diameter of 16.666666667 as "⌀16.667" (3 decimal, trimmed)', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'param', paramName: 'd' } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    // Simulate param = 50/3 → 16.666666...7
+    const resolveParam = (p: ParamOrLiteral): number =>
+      p.kind === 'param' ? 50 / 3 : (p.kind === 'literal' ? p.value : 0);
+
+    const desc = formatHoleDescription(feature, resolveParam);
+    expect(desc).toContain('⌀16.667');
+    expect(desc).not.toContain('16.666666');
+  });
+
+  it('formats an exact integer resolved diameter of 8 as "⌀8" (no trailing zeros)', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'param', paramName: 'd' } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    const resolveParam = (p: ParamOrLiteral): number =>
+      p.kind === 'param' ? 8 : (p.kind === 'literal' ? p.value : 0);
+
+    const desc = formatHoleDescription(feature, resolveParam);
+    expect(desc).toBe('⌀8 THRU');
+  });
+});
