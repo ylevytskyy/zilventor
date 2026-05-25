@@ -23,7 +23,7 @@ export class AddHoleTableCommand implements Command {
           : sh,
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next }, activeDrawing: next });
   }
 
   async revert(): Promise<void> {
@@ -39,6 +39,6 @@ export class AddHoleTableCommand implements Command {
           : sh,
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next }, activeDrawing: next });
   }
 }
