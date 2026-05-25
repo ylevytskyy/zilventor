@@ -10,10 +10,12 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
   return {
     ...actual,
     projectDetailView: vi.fn().mockImplementation(
-      (input: { regionParent: { center: { x: number; y: number }; radiusMm: number } }) => ({
+      (input: { regionParent: import('@zilventor/shared').RegionParent }) => ({
         visibleEdges: [
           {
-            id: `clip-${input.regionParent.center.x}`,
+            id: input.regionParent.kind === 'circle'
+              ? `clip-${input.regionParent.center.x}`
+              : `clip-rect-${input.regionParent.center.x}`,
             kind: 'outline' as const,
             points: [[input.regionParent.center.x, 0], [input.regionParent.center.x + 5, 0]] as [number,number][],
             sourceFaceIds: [],
@@ -29,8 +31,10 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
       }),
     ),
     fingerprintDetailView: vi.fn().mockImplementation(
-      (_pFp: string, region: { center: { x: number; y: number }; radiusMm: number }) =>
-        `fp-${region.center.x}-${region.center.y}-r${region.radiusMm}`,
+      (_pFp: string, region: import('@zilventor/shared').RegionParent) =>
+        region.kind === 'circle'
+          ? `fp-${region.center.x}-${region.center.y}-r${region.radiusMm}`
+          : `fp-rect-${region.center.x}-${region.widthMm}`,
     ),
   };
 });
@@ -59,7 +63,7 @@ const DETAIL_VIEW: DetailView = {
   id: 'dv1',
   kind: 'detail',
   parentViewId: 'pv1',
-  regionParent: { center: { x: 10, y: 8 }, radiusMm: 5 },
+  regionParent: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
   label: 'A',
   positionMm: { x: 200, y: 100 },
   scale: { numerator: 2, denominator: 1 },
@@ -115,8 +119,8 @@ describe('EditDetailRegionCommand — apply changes center', () => {
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv1',
-      prevRegion: { center: { x: 10, y: 8 }, radiusMm: 5 },
-      newRegion:  { center: { x: 30, y: 20 }, radiusMm: 5 },
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 5 },
     });
     await cmd.apply();
 
@@ -132,8 +136,8 @@ describe('EditDetailRegionCommand — apply changes center', () => {
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv1',
-      prevRegion: { center: { x: 10, y: 8 }, radiusMm: 5 },
-      newRegion:  { center: { x: 10, y: 8 }, radiusMm: 15 },
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 15 },
     });
     await cmd.apply();
 
@@ -141,15 +145,18 @@ describe('EditDetailRegionCommand — apply changes center', () => {
     if (doc?.kind !== 'drawing') return;
     const sheet = doc.document.sheets.find(s => s.id === 's1')!;
     const dv = sheet.views.find(v => v.id === 'dv1') as DetailView;
-    expect(dv.regionParent.radiusMm).toBe(15);
+    expect(dv.regionParent.kind).toBe('circle');
+    if (dv.regionParent.kind === 'circle') {
+      expect(dv.regionParent.radiusMm).toBe(15);
+    }
   });
 
   it('iii. apply recomputes projection (edge id reflects new center)', async () => {
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv1',
-      prevRegion: { center: { x: 10, y: 8 }, radiusMm: 5 },
-      newRegion:  { center: { x: 40, y: 20 }, radiusMm: 5 },
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 40, y: 20 }, radiusMm: 5 },
     });
     await cmd.apply();
 
@@ -163,20 +170,19 @@ describe('EditDetailRegionCommand — apply changes center', () => {
 
 describe('EditDetailRegionCommand — revert', () => {
   it('iv. revert restores prevRegion exactly (region + fingerprint)', async () => {
-    const snapshot = JSON.parse(JSON.stringify(useAppStore.getState().activeDocument));
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv1',
-      prevRegion: { center: { x: 10, y: 8 }, radiusMm: 5 },
-      newRegion:  { center: { x: 30, y: 20 }, radiusMm: 5 },
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 5 },
     });
     await cmd.apply();
     await cmd.revert();
 
     const after = useAppStore.getState().activeDocument;
-    if (after?.kind !== 'drawing' || snapshot?.document == null) return;
+    if (after?.kind !== 'drawing') return;
     const dvAfter = after.document.sheets.find(s => s.id === 's1')!.views.find(v => v.id === 'dv1') as DetailView;
-    expect(dvAfter.regionParent).toEqual({ center: { x: 10, y: 8 }, radiusMm: 5 });
+    expect(dvAfter.regionParent).toEqual({ kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 });
     expect(dvAfter.inputFingerprint).toBe('fp-10-8-r5');
   });
 
@@ -184,8 +190,8 @@ describe('EditDetailRegionCommand — revert', () => {
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv1',
-      prevRegion: { center: { x: 10, y: 8 }, radiusMm: 5 },
-      newRegion:  { center: { x: 30, y: 20 }, radiusMm: 5 },
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 5 },
     });
     await cmd.apply();
     await cmd.revert();
@@ -195,6 +201,23 @@ describe('EditDetailRegionCommand — revert', () => {
     if (doc?.kind !== 'drawing') return;
     const dv = doc.document.sheets.find(s => s.id === 's1')!.views.find(v => v.id === 'dv1') as DetailView;
     expect(dv.regionParent.center).toEqual({ x: 30, y: 20 });
+  });
+});
+
+describe('EditDetailRegionCommand — sets both activeDocument AND activeDrawing', () => {
+  it('apply with circle newRegion sets both activeDocument AND activeDrawing', async () => {
+    const cmd = new EditDetailRegionCommand({
+      sheetId: 's1',
+      detailViewId: 'dv1',
+      prevRegion: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      newRegion:  { kind: 'circle', center: { x: 30, y: 20 }, radiusMm: 5 },
+    });
+    await cmd.apply();
+    const s = useAppStore.getState();
+    expect(s.activeDocument?.kind).toBe('drawing');
+    if (s.activeDocument?.kind === 'drawing') {
+      expect(s.activeDrawing).toBe(s.activeDocument.document);
+    }
   });
 });
 
@@ -213,7 +236,7 @@ describe('EditDetailRegionCommand — guard: parent projection missing', () => {
       id: 'dv-noproj',
       kind: 'detail',
       parentViewId: 'pv-noproj',
-      regionParent: { center: { x: 5, y: 5 }, radiusMm: 3 },
+      regionParent: { kind: 'circle', center: { x: 5, y: 5 }, radiusMm: 3 },
       label: 'B',
       positionMm: { x: 200, y: 100 },
       scale: { numerator: 2, denominator: 1 },
@@ -238,11 +261,93 @@ describe('EditDetailRegionCommand — guard: parent projection missing', () => {
     const cmd = new EditDetailRegionCommand({
       sheetId: 's1',
       detailViewId: 'dv-noproj',
-      prevRegion: { center: { x: 5, y: 5 }, radiusMm: 3 },
-      newRegion:  { center: { x: 50, y: 50 }, radiusMm: 10 },
+      prevRegion: { kind: 'circle', center: { x: 5, y: 5 }, radiusMm: 3 },
+      newRegion:  { kind: 'circle', center: { x: 50, y: 50 }, radiusMm: 10 },
     });
     await cmd.apply(); // must not throw; must be no-op
     expect(useAppStore.getState().activeDocument).toEqual(snapshot);
+  });
+});
+
+describe('EditDetailRegionCommand — rect region', () => {
+  const RECT_DETAIL_VIEW: DetailView = {
+    id: 'dv-rect',
+    kind: 'detail',
+    parentViewId: 'pv1',
+    regionParent: { kind: 'rect', center: { x: 20, y: 20 }, widthMm: 10, heightMm: 8 },
+    label: 'B',
+    positionMm: { x: 300, y: 100 },
+    scale: { numerator: 2, denominator: 1 },
+    showHidden: false,
+    projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 } },
+    inputFingerprint: 'fp-rect-20-10',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          ...makeDrawing(),
+          sheets: [{
+            ...makeSheet(),
+            views: [PARENT_VIEW, { ...RECT_DETAIL_VIEW }],
+          }],
+        },
+      },
+      activePart: null,
+      activeAssembly: null,
+    } as never);
+  });
+
+  it('apply with rect newRegion updates regionParent.kind to rect', async () => {
+    const cmd = new EditDetailRegionCommand({
+      sheetId: 's1',
+      detailViewId: 'dv-rect',
+      prevRegion: { kind: 'rect', center: { x: 20, y: 20 }, widthMm: 10, heightMm: 8 },
+      newRegion:  { kind: 'rect', center: { x: 40, y: 30 }, widthMm: 10, heightMm: 8 },
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (doc?.kind !== 'drawing') return;
+    const dv = doc.document.sheets.find(s => s.id === 's1')!.views.find(v => v.id === 'dv-rect') as DetailView;
+    expect(dv.regionParent.kind).toBe('rect');
+    expect(dv.regionParent.center).toEqual({ x: 40, y: 30 });
+  });
+
+  it('apply with rect newRegion sets both activeDocument AND activeDrawing', async () => {
+    const cmd = new EditDetailRegionCommand({
+      sheetId: 's1',
+      detailViewId: 'dv-rect',
+      prevRegion: { kind: 'rect', center: { x: 20, y: 20 }, widthMm: 10, heightMm: 8 },
+      newRegion:  { kind: 'rect', center: { x: 40, y: 30 }, widthMm: 10, heightMm: 8 },
+    });
+    await cmd.apply();
+
+    const s = useAppStore.getState();
+    expect(s.activeDocument?.kind).toBe('drawing');
+    if (s.activeDocument?.kind === 'drawing') {
+      expect(s.activeDrawing).toBe(s.activeDocument.document);
+    }
+  });
+
+  it('revert with rect prevRegion restores center', async () => {
+    const cmd = new EditDetailRegionCommand({
+      sheetId: 's1',
+      detailViewId: 'dv-rect',
+      prevRegion: { kind: 'rect', center: { x: 20, y: 20 }, widthMm: 10, heightMm: 8 },
+      newRegion:  { kind: 'rect', center: { x: 40, y: 30 }, widthMm: 10, heightMm: 8 },
+    });
+    await cmd.apply();
+    await cmd.revert();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (doc?.kind !== 'drawing') return;
+    const dv = doc.document.sheets.find(s => s.id === 's1')!.views.find(v => v.id === 'dv-rect') as DetailView;
+    expect(dv.regionParent.center).toEqual({ x: 20, y: 20 });
+    expect(dv.regionParent.kind).toBe('rect');
   });
 });
 

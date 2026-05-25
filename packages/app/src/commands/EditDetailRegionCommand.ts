@@ -1,14 +1,14 @@
 // packages/app/src/commands/EditDetailRegionCommand.ts
 import type { Command } from './Command';
-import type { DetailView, DrawingDocument } from '@zilventor/shared';
+import type { DetailView, DrawingDocument, RegionParent } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { reprojectDetailRegion } from './reprojectDetailRegion';
 
 export type EditDetailRegionOpts = {
   sheetId: string;
   detailViewId: string;
-  prevRegion: { center: { x: number; y: number }; radiusMm: number };
-  newRegion:  { center: { x: number; y: number }; radiusMm: number };
+  prevRegion: RegionParent;
+  newRegion:  RegionParent;
 };
 
 export class EditDetailRegionCommand implements Command {
@@ -24,7 +24,7 @@ export class EditDetailRegionCommand implements Command {
     this._write(this.opts.prevRegion);
   }
 
-  private _write(region: EditDetailRegionOpts['newRegion']): void {
+  private _write(region: RegionParent): void {
     const state = useAppStore.getState();
     const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
@@ -54,6 +54,7 @@ export class EditDetailRegionCommand implements Command {
           : s
       ),
     };
+    // F6 gotcha: DrawingCanvas subscribes to activeDrawing — must set BOTH.
     useAppStore.setState({ activeDocument: { kind: 'drawing', document: nextDoc }, activeDrawing: nextDoc });
   }
 }
