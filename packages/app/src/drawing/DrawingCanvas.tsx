@@ -18,6 +18,8 @@ import { AddBaselineMemberCommand } from '../commands/AddBaselineMemberCommand';
 import { AddOrdinateMemberCommand } from '../commands/AddOrdinateMemberCommand';
 import { AddAngularDimCommand } from '../commands/AddAngularDimCommand';
 import { DeleteDimensionGroupCommand } from '../commands/DeleteDimensionGroupCommand';
+import { AddHoleTableCommand } from '../commands/AddHoleTableCommand';
+import { extractHolesInView, assignHoleTags } from '@zilventor/shared/src/drawing/holeTable';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { DetailRegionEditHandles } from './DetailRegionEditHandles';
@@ -251,6 +253,10 @@ export function DrawingCanvas() {
         const liveMode = useToolModeStore.getState().mode;
         if (liveMode === 'baseline' || liveMode === 'ordinate' || liveMode === 'angular') {
           useToolModeStore.getState().setMode('idle');
+        }
+        // F6 — holeTable ESC
+        if (liveMode === 'holeTable') {
+          useToolModeStore.getState().holeTableCancel();
         }
       }
     }
@@ -630,6 +636,83 @@ export function DrawingCanvas() {
         }));
         angularSessionRef.current = { phase: 'pick-edge-1' };
         useToolModeStore.getState().setMode('idle');
+        return;
+      }
+
+      return;
+    }
+
+    if (toolMode === 'holeTable') {
+      // CRITICAL: read live state to avoid stale-closure bug (per F1.1 pattern)
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId)
+        ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+
+      const hs = useToolModeStore.getState().holeTableState;
+      const sheetPt = { x: svgX, y: svgY };
+
+      if (hs.stage === 'idle') {
+        // First click: require an edge click inside a projected view to establish datum.
+        const clickedEdgeId = (e.target as SVGElement).getAttribute('data-edge-id') ?? undefined;
+        const clickedViewId = (e.target as SVGElement).getAttribute('data-view-id') ?? undefined;
+        if (!clickedEdgeId || !clickedViewId) return;
+
+        const targetView = liveSheet.views.find((v) => v.id === clickedViewId);
+        if (!targetView || !targetView.projection) return; // must be a projected view
+
+        // Collect all edges from the view projection
+        const allEdges = [
+          ...targetView.projection.visibleEdges,
+          ...targetView.projection.hiddenEdges,
+        ];
+        const clickedEdge = allEdges.find((ed) => ed.id === clickedEdgeId);
+        if (!clickedEdge) return;
+
+        // Use arc-center for feature edges (likely hole circles), edge-endpoint otherwise.
+        const datum: import('@zilventor/shared/src/drawing/types').PointRef =
+          clickedEdge.kind === 'feature'
+            ? { kind: 'arc-center', edgeId: clickedEdgeId }
+            : { kind: 'edge-endpoint', edgeId: clickedEdgeId, end: 'start' };
+
+        useToolModeStore.getState().holeTablePickDatum(clickedViewId, datum);
+        return;
+      }
+
+      if (hs.stage === 'pickDatum') {
+        // Second click: any sheet point → commit the table.
+        useToolModeStore.getState().holeTablePickPlacement(
+          sheetPt,
+          (viewId, datum, posMm) => {
+            const part = useAppStore.getState().activePart;
+            if (!part) return;
+
+            const targetView = liveSheet.views.find((v) => v.id === viewId);
+            if (!targetView) return;
+
+            const resolveParam = (p: import('@zilventor/shared').ParamOrLiteral): number =>
+              p.kind === 'literal'
+                ? p.value
+                : (part.parameters[p.paramName]?.value ?? 0);
+
+            const holes = extractHolesInView(targetView, part);
+            const tagMap = assignHoleTags(holes, new Map(), resolveParam);
+            const entries = Array.from(tagMap.entries()).map(([holeFeatureId, tag]) => ({
+              holeFeatureId,
+              tag,
+            }));
+
+            const ann: import('@zilventor/shared').HoleTableAnnotation = {
+              kind: 'holeTable',
+              id: crypto.randomUUID(),
+              viewId,
+              datum,
+              positionMm: posMm,
+              entries,
+            };
+            void bus.execute(new AddHoleTableCommand({ sheetId: liveSheet.id, ann }));
+          },
+        );
         return;
       }
 
