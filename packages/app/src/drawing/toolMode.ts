@@ -1,6 +1,6 @@
 // packages/app/src/drawing/toolMode.ts
 import { create } from 'zustand';
-import { MIN_DETAIL_RADIUS_MM } from './drawingConstants';
+import { MIN_DETAIL_RADIUS_MM, MIN_DETAIL_RECT_MM } from './drawingConstants';
 
 export type ToolMode =
   | 'idle'
@@ -118,9 +118,30 @@ export type HoleTableToolState =
     };
 
 // ---------------------------------------------------------------------------
+// Detail-rect tool sub-state (Drawing F2.1)
+// ---------------------------------------------------------------------------
+export type DetailRectToolState =
+  | { stage: 'idle' }
+  | { stage: 'pickFirstCorner'; parentViewId: string }
+  | {
+      stage: 'pickSecondCorner';
+      parentViewId: string;
+      firstCorner: { x: number; y: number };
+    }
+  | {
+      stage: 'pickDrop';
+      parentViewId: string;
+      center: { x: number; y: number };
+      widthMm: number;
+      heightMm: number;
+    };
+
+// ---------------------------------------------------------------------------
 // Edit-detail-region tool sub-state (Drawing F2.4)
 // ---------------------------------------------------------------------------
-export type Region = { center: { x: number; y: number }; radiusMm: number };
+export type Region =
+  | { readonly kind: 'circle'; readonly center: { x: number; y: number }; readonly radiusMm: number }
+  | { readonly kind: 'rect';   readonly center: { x: number; y: number }; readonly widthMm: number; readonly heightMm: number };
 
 export type EditDetailRegionToolState =
   | { stage: 'idle' }
@@ -132,10 +153,21 @@ export type EditDetailRegionToolState =
       center: { x: number; y: number };  // live center (updated on pointermove)
     }
   | {
+      // Circle arm: east-edge drag resizes radius
       stage: 'draggingRadius';
       detailViewId: string;
-      startRegion: Region;
+      startRegion: Extract<Region, { kind: 'circle' }>;  // narrowed
       radiusMm: number;  // live radius (center fixed = startRegion.center)
+    }
+  | {
+      // Rect arm: one of 4 corners dragged; opposite corner is fixed
+      stage: 'draggingCorner';
+      detailViewId: string;
+      startRegion: Extract<Region, { kind: 'rect' }>;  // narrowed
+      oppositeCorner: { x: number; y: number };  // fixed corner in parent-local mm
+      center: { x: number; y: number };           // live center
+      widthMm: number;                            // live width
+      heightMm: number;                           // live height
     };
 
 interface ToolModeState {
@@ -190,6 +222,15 @@ interface ToolModeState {
   detailPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
   detailCancel(): void;
 
+  // Detail-rect tool state + actions (Drawing F2.1)
+  detailRectState: DetailRectToolState;
+  enterDetailRectMode(): void;
+  detailRectPickParent(viewId: string): void;
+  detailRectPickFirstCorner(point: { x: number; y: number }): void;
+  detailRectPickSecondCorner(point: { x: number; y: number }): void;
+  detailRectPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
+  detailRectCancel(): void;
+
   // Hole Table tool state + actions (Drawing F6)
   holeTableState: HoleTableToolState;
   enterHoleTableMode(): void;
@@ -205,7 +246,7 @@ interface ToolModeState {
   enterEditDetailRegionMode(): void;
   editDragStart(
     detailViewId: string,
-    handle: 'center' | 'radius',
+    handle: 'center' | 'radius' | 'corner-NE' | 'corner-SE' | 'corner-SW' | 'corner-NW',
     startRegion: Region,
     anchor: { x: number; y: number },
   ): void;
@@ -219,6 +260,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   pendingViewParams: null,
   sectionState: { stage: 'idle' },
   detailState: { stage: 'idle' },
+  detailRectState: { stage: 'idle' },
   breakState: { stage: 'idle' },
   sectionMode: 'full',
   steppedSectionState: { stage: 'idle' },
@@ -239,6 +281,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       pendingViewParams: null,
       sectionState: { stage: 'idle' },
       detailState: { stage: 'idle' },
+      detailRectState: { stage: 'idle' },
       breakState: { stage: 'idle' },
       sectionMode: 'full',
       steppedSectionState: { stage: 'idle' },
@@ -588,6 +631,78 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     }
   },
 
+  // Detail-rect tool actions (Drawing F2.1)
+  enterDetailRectMode() {
+    set({ mode: 'detailRect', detailRectState: { stage: 'idle' } });
+  },
+
+  detailRectPickParent(viewId) {
+    const { detailRectState } = get();
+    if (detailRectState.stage !== 'idle') {
+      console.warn('detailRectPickParent: expected stage=idle, got', detailRectState.stage);
+      return;
+    }
+    set({ detailRectState: { stage: 'pickFirstCorner', parentViewId: viewId } });
+  },
+
+  detailRectPickFirstCorner(point) {
+    const { detailRectState } = get();
+    if (detailRectState.stage !== 'pickFirstCorner') {
+      console.warn('detailRectPickFirstCorner: expected stage=pickFirstCorner, got', detailRectState.stage);
+      return;
+    }
+    set({
+      detailRectState: {
+        stage: 'pickSecondCorner',
+        parentViewId: detailRectState.parentViewId,
+        firstCorner: point,
+      },
+    });
+  },
+
+  detailRectPickSecondCorner(point) {
+    const { detailRectState } = get();
+    if (detailRectState.stage !== 'pickSecondCorner') {
+      console.warn('detailRectPickSecondCorner: expected stage=pickSecondCorner, got', detailRectState.stage);
+      return;
+    }
+    const { firstCorner, parentViewId } = detailRectState;
+    const cx = (firstCorner.x + point.x) / 2;
+    const cy = (firstCorner.y + point.y) / 2;
+    const widthMm  = Math.max(Math.abs(point.x - firstCorner.x), MIN_DETAIL_RECT_MM);
+    const heightMm = Math.max(Math.abs(point.y - firstCorner.y), MIN_DETAIL_RECT_MM);
+    set({
+      detailRectState: {
+        stage: 'pickDrop',
+        parentViewId,
+        center: { x: cx, y: cy },
+        widthMm,
+        heightMm,
+      },
+    });
+  },
+
+  detailRectPickDrop(_point, onDispatch) {
+    const { detailRectState } = get();
+    if (detailRectState.stage !== 'pickDrop') {
+      console.warn('detailRectPickDrop: expected stage=pickDrop, got', detailRectState.stage);
+      return;
+    }
+    onDispatch();
+    set({ mode: 'idle', detailRectState: { stage: 'idle' } });
+  },
+
+  detailRectCancel() {
+    const { detailRectState, mode } = get();
+    if (detailRectState.stage === 'idle' && mode === 'detailRect') {
+      // Second ESC (or fresh idle): exit tool entirely
+      set({ mode: 'idle', detailRectState: { stage: 'idle' } });
+    } else {
+      // Any non-idle stage: reset to idle, stay in detailRect mode
+      set({ detailRectState: { stage: 'idle' } });
+    }
+  },
+
   // Edit-detail-region tool actions (Drawing F2.4)
   enterEditDetailRegionMode() {
     set({ mode: 'editDetailRegion', editDetailRegionState: { stage: 'idle' } });
@@ -604,7 +719,13 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
           center: { x: startRegion.center.x, y: startRegion.center.y },
         },
       });
-    } else {
+      return;
+    }
+    if (handle === 'radius') {
+      if (startRegion.kind !== 'circle') {
+        console.warn('editDragStart: radius handle requires circle region');
+        return;
+      }
       set({
         editDetailRegionState: {
           stage: 'draggingRadius',
@@ -613,7 +734,36 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
           radiusMm: startRegion.radiusMm,
         },
       });
+      return;
     }
+    // Corner handles: rect only
+    if (startRegion.kind !== 'rect') {
+      console.warn('editDragStart: corner handle requires rect region');
+      return;
+    }
+    const { center, widthMm, heightMm } = startRegion;
+    const hw = widthMm / 2;
+    const hh = heightMm / 2;
+    // Compute opposite corner (fixed during drag)
+    const oppositeCorner: { x: number; y: number } = (() => {
+      switch (handle) {
+        case 'corner-NE': return { x: center.x - hw, y: center.y + hh }; // opposite = SW
+        case 'corner-NW': return { x: center.x + hw, y: center.y + hh }; // opposite = SE
+        case 'corner-SE': return { x: center.x - hw, y: center.y - hh }; // opposite = NW
+        case 'corner-SW': return { x: center.x + hw, y: center.y - hh }; // opposite = NE
+      }
+    })();
+    set({
+      editDetailRegionState: {
+        stage: 'draggingCorner',
+        detailViewId,
+        startRegion,
+        oppositeCorner,
+        center: { x: startRegion.center.x, y: startRegion.center.y },
+        widthMm,
+        heightMm,
+      },
+    });
   },
 
   editDragMove(point) {
@@ -624,7 +774,12 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
         x: startRegion.center.x + (point.x - anchor.x),
         y: startRegion.center.y + (point.y - anchor.y),
       };
-      const liveRegion: Region = { center: newCenter, radiusMm: startRegion.radiusMm };
+      let liveRegion: Region;
+      if (startRegion.kind === 'circle') {
+        liveRegion = { kind: 'circle', center: newCenter, radiusMm: startRegion.radiusMm };
+      } else {
+        liveRegion = { kind: 'rect', center: newCenter, widthMm: startRegion.widthMm, heightMm: startRegion.heightMm };
+      }
       set({ editDetailRegionState: { ...editDetailRegionState, center: newCenter } });
       return liveRegion;
     }
@@ -634,8 +789,20 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       const dy = point.y - startRegion.center.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const radiusMm = Math.max(dist, MIN_DETAIL_RADIUS_MM);
-      const liveRegion: Region = { center: startRegion.center, radiusMm };
+      const liveRegion: Region = { kind: 'circle', center: startRegion.center, radiusMm };
       set({ editDetailRegionState: { ...editDetailRegionState, radiusMm } });
+      return liveRegion;
+    }
+    if (editDetailRegionState.stage === 'draggingCorner') {
+      const { startRegion, oppositeCorner } = editDetailRegionState;
+      const widthMm  = Math.max(Math.abs(point.x - oppositeCorner.x), MIN_DETAIL_RECT_MM);
+      const heightMm = Math.max(Math.abs(point.y - oppositeCorner.y), MIN_DETAIL_RECT_MM);
+      const newCenter = {
+        x: (point.x + oppositeCorner.x) / 2,
+        y: (point.y + oppositeCorner.y) / 2,
+      };
+      const liveRegion: Region = { kind: 'rect', center: newCenter, widthMm, heightMm };
+      set({ editDetailRegionState: { ...editDetailRegionState, center: newCenter, widthMm, heightMm } });
       return liveRegion;
     }
     return null;
@@ -645,14 +812,26 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     const { editDetailRegionState } = get();
     if (editDetailRegionState.stage === 'draggingCenter') {
       const { startRegion, center } = editDetailRegionState;
-      const liveRegion: Region = { center, radiusMm: startRegion.radiusMm };
+      let liveRegion: Region;
+      if (startRegion.kind === 'circle') {
+        liveRegion = { kind: 'circle', center, radiusMm: startRegion.radiusMm };
+      } else {
+        liveRegion = { kind: 'rect', center, widthMm: startRegion.widthMm, heightMm: startRegion.heightMm };
+      }
       set({ editDetailRegionState: { stage: 'idle' } });
       onDispatch(startRegion, liveRegion);
       return;
     }
     if (editDetailRegionState.stage === 'draggingRadius') {
       const { startRegion, radiusMm } = editDetailRegionState;
-      const liveRegion: Region = { center: startRegion.center, radiusMm };
+      const liveRegion: Region = { kind: 'circle', center: startRegion.center, radiusMm };
+      set({ editDetailRegionState: { stage: 'idle' } });
+      onDispatch(startRegion, liveRegion);
+      return;
+    }
+    if (editDetailRegionState.stage === 'draggingCorner') {
+      const { startRegion, center, widthMm, heightMm } = editDetailRegionState;
+      const liveRegion: Region = { kind: 'rect', center, widthMm, heightMm };
       set({ editDetailRegionState: { stage: 'idle' } });
       onDispatch(startRegion, liveRegion);
       return;
@@ -662,7 +841,11 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
 
   editDetailCancel() {
     const { editDetailRegionState, mode } = get();
-    if (editDetailRegionState.stage === 'draggingCenter' || editDetailRegionState.stage === 'draggingRadius') {
+    if (
+      editDetailRegionState.stage === 'draggingCenter' ||
+      editDetailRegionState.stage === 'draggingRadius' ||
+      editDetailRegionState.stage === 'draggingCorner'
+    ) {
       // First Esc while dragging: cancel drag, go idle, stay in editDetailRegion mode
       set({ editDetailRegionState: { stage: 'idle' } });
       return;
