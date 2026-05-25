@@ -28,7 +28,12 @@ const PARENT_PROJ = {
   bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
 };
 
-const PARENT_VIEW: BaseView = {
+// `satisfies` (not `: BaseView`) so the inferred type keeps `projection` as a
+// present, required property — assignable to reprojectDetailRegion's
+// `parentView: DrawingView & { projection: NonNullable<...> }` param under
+// exactOptionalPropertyTypes (a plain `BaseView` annotation makes projection
+// optional and fails to assign).
+const PARENT_VIEW = {
   id: 'pv1',
   kind: 'base',
   positionMm: { x: 10, y: 10 },
@@ -37,7 +42,7 @@ const PARENT_VIEW: BaseView = {
   showHidden: false,
   projection: PARENT_PROJ,
   inputFingerprint: 'parent-fp-123',
-};
+} satisfies BaseView;
 
 const DETAIL_VIEW: DetailView = {
   id: 'dv1',
@@ -71,14 +76,14 @@ describe('reprojectDetailRegion', () => {
   });
 
   it('recomputes projection (calls projectDetailView)', async () => {
-    const { projectDetailView } = await import('@zilventor/shared') as { projectDetailView: ReturnType<typeof vi.fn> };
+    const { projectDetailView } = vi.mocked(await import('@zilventor/shared'));
     const newRegion = { center: { x: 30, y: 25 }, radiusMm: 8 };
     reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
     expect(projectDetailView).toHaveBeenCalled();
   });
 
   it('recomputes fingerprint (calls fingerprintDetailView)', async () => {
-    const { fingerprintDetailView } = await import('@zilventor/shared') as { fingerprintDetailView: ReturnType<typeof vi.fn> };
+    const { fingerprintDetailView } = vi.mocked(await import('@zilventor/shared'));
     const newRegion = { center: { x: 30, y: 25 }, radiusMm: 8 };
     reprojectDetailRegion(DETAIL_VIEW, PARENT_VIEW, newRegion);
     expect(fingerprintDetailView).toHaveBeenCalled();
