@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { DrawingDocument, DrawingView, DrawingDimension, DrawingAnnotation, SectionView, DetailView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { sectionCache } from '../drawing/sectionCache';
+import { drawingDocState } from '../store/drawingDocState';
 
 type Snapshot = {
   views: DrawingView[];
@@ -114,7 +115,7 @@ export class DeleteViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -147,7 +148,7 @@ export class DeleteViewCommand implements Command {
         return { ...s, views, dimensions, annotations };
       }),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.snapshot = null;
   }
 }

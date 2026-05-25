@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ViewScale } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class EditViewScaleCommand implements Command {
   readonly name = 'EditViewScale';
@@ -48,7 +49,7 @@ export class EditViewScaleCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -75,7 +76,7 @@ export class EditViewScaleCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.applied = false;
   }
 }

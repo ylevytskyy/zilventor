@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ViewScale, BaseView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 type BaseOrient = 'front' | 'top' | 'right' | 'back' | 'bottom' | 'left';
 
@@ -43,7 +44,7 @@ export class AddBaseViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -60,7 +61,7 @@ export class AddBaseViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.newViewId = null;
   }
 }

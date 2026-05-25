@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { DrawingDocument, ProjectedGeometry, BreakRegion } from '@zilventor/shared';
 import { applyBreaks, fingerprintBreaksArray } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class RegenerateViewCommand implements Command {
   readonly name = 'RegenerateView';
@@ -78,7 +79,7 @@ export class RegenerateViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -117,7 +118,7 @@ export class RegenerateViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.applied = false;
   }
 }

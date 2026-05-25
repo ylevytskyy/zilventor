@@ -4,6 +4,14 @@ import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
 import type { DimensionGroup } from '@zilventor/shared/src/drawing/types';
 import { useAppStore } from '../../store/useAppStore';
 import { AddDimensionGroupCommand } from '../AddDimensionGroupCommand';
+import { AddBaseViewCommand } from '../AddBaseViewCommand';
+import { AddProjectedViewCommand } from '../AddProjectedViewCommand';
+import { AddIsoViewCommand } from '../AddIsoViewCommand';
+import { DeleteViewCommand } from '../DeleteViewCommand';
+import { RegenerateViewCommand } from '../RegenerateViewCommand';
+import { MoveViewCommand } from '../MoveViewCommand';
+import { EditViewScaleCommand } from '../EditViewScaleCommand';
+import { ToggleHiddenLinesCommand } from '../ToggleHiddenLinesCommand';
 
 /** One minimal sheet. Override per case (views/dimensions/annotations/etc.). */
 function makeSheet(over: Partial<DrawingSheet> = {}): DrawingSheet {
@@ -65,6 +73,144 @@ const CASES: GuardCase[] = [
         sheetId: 'sheet-1',
         group: baselineGroup,
       });
+    },
+  },
+
+  // B1: 8 view commands
+  {
+    name: 'AddBaseViewCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      return new AddBaseViewCommand({
+        sheetId: 'sheet-1',
+        positionMm: { x: 50, y: 60 },
+        orientation: 'front',
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+      });
+    },
+  },
+  {
+    name: 'AddProjectedViewCommand',
+    make: () => {
+      // precondition: a base view present (else BASE_VIEW_NOT_FOUND)
+      const baseView = {
+        id: 'base-1', kind: 'base' as const,
+        positionMm: { x: 100, y: 100 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [baseView] })] }));
+      return new AddProjectedViewCommand({
+        sheetId: 'sheet-1',
+        baseViewId: 'base-1',
+        direction: 'right',
+        positionMm: { x: 200, y: 100 },
+      });
+    },
+  },
+  {
+    name: 'AddIsoViewCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      return new AddIsoViewCommand({
+        sheetId: 'sheet-1',
+        positionMm: { x: 200, y: 200 },
+        corner: 'NE',
+        scale: { numerator: 1, denominator: 1 },
+      });
+    },
+  },
+  {
+    name: 'DeleteViewCommand',
+    make: () => {
+      // precondition: view must exist (else no-ops with no setState)
+      const view = {
+        id: 'v1', kind: 'base' as const,
+        positionMm: { x: 10, y: 10 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: false,
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
+      return new DeleteViewCommand({ sheetId: 'sheet-1', viewId: 'v1' });
+    },
+  },
+  {
+    name: 'RegenerateViewCommand',
+    make: () => {
+      // precondition: view must exist (else no-ops with no setState)
+      const view = {
+        id: 'view-1', kind: 'base' as const,
+        positionMm: { x: 50, y: 50 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+        projection: {
+          visibleEdges: [{ id: 'e1', kind: 'outline' as const, points: [[0, 0], [100, 0]] as [number, number][], sourceFaceIds: [] }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 0 },
+        },
+        inputFingerprint: 'old-fp',
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
+      return new RegenerateViewCommand({
+        sheetId: 'sheet-1',
+        viewId: 'view-1',
+        projection: {
+          visibleEdges: [{ id: 'e2', kind: 'outline' as const, points: [[0, 0], [120, 0]] as [number, number][], sourceFaceIds: [] }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 120, maxY: 60 },
+        },
+        inputFingerprint: 'new-fp',
+      });
+    },
+  },
+  {
+    name: 'MoveViewCommand',
+    make: () => {
+      // precondition: view must exist (else no-ops with no setState)
+      const view = {
+        id: 'view-1', kind: 'base' as const,
+        positionMm: { x: 50, y: 50 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
+      return new MoveViewCommand({ sheetId: 'sheet-1', viewId: 'view-1', positionMm: { x: 150, y: 200 } });
+    },
+  },
+  {
+    name: 'EditViewScaleCommand',
+    make: () => {
+      // precondition: view must exist (else no-ops with no setState)
+      const view = {
+        id: 'view-1', kind: 'base' as const,
+        positionMm: { x: 50, y: 50 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+        inputFingerprint: 'fp-old',
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
+      return new EditViewScaleCommand({ sheetId: 'sheet-1', viewId: 'view-1', scale: { numerator: 1, denominator: 2 } });
+    },
+  },
+  {
+    name: 'ToggleHiddenLinesCommand',
+    make: () => {
+      // precondition: view must exist (else no-ops with no setState)
+      const view = {
+        id: 'view-1', kind: 'base' as const,
+        positionMm: { x: 50, y: 50 },
+        orientation: 'front' as const,
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: true,
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
+      return new ToggleHiddenLinesCommand({ sheetId: 'sheet-1', viewId: 'view-1', showHidden: false });
     },
   },
 ];

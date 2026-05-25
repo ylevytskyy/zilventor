@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ViewScale, IsoView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class AddIsoViewCommand implements Command {
   readonly name = 'AddIsoView';
@@ -41,7 +42,7 @@ export class AddIsoViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -58,7 +59,7 @@ export class AddIsoViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.newViewId = null;
   }
 }

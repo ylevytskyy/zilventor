@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class ToggleHiddenLinesCommand implements Command {
   readonly name = 'ToggleHiddenLines';
@@ -42,7 +43,7 @@ export class ToggleHiddenLinesCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -66,7 +67,7 @@ export class ToggleHiddenLinesCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.prevShowHidden = null;
   }
 }

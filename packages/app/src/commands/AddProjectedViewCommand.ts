@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ProjectedView, BaseView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class AddProjectedViewCommand implements Command {
   readonly name = 'AddProjectedView';
@@ -51,7 +52,7 @@ export class AddProjectedViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -68,7 +69,7 @@ export class AddProjectedViewCommand implements Command {
           : s
       ),
     };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
     this.newViewId = null;
   }
 }
