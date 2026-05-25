@@ -4,6 +4,7 @@ import type { HoleTableAnnotation, DrawingAnnotation, DrawingView } from '../typ
 import {
   extractHolesInView,
   assignHoleTags,
+  formatHoleDescription,
   type ExtractedHole,
 } from '../holeTable';
 import type { HoleFeature, PartDocument, ParamOrLiteral } from '../../types';
@@ -317,3 +318,167 @@ describe('assignHoleTags — HT-TAGS-4: param vs literal grouping', () => {
     expect(tag5).toBe('A2');
   });
 });
+
+// ---------------------------------------------------------------------------
+// formatHoleDescription tests
+// ---------------------------------------------------------------------------
+
+const resolve = (p: ParamOrLiteral): number =>
+  p.kind === 'literal' ? p.value : 0;
+
+// ---------------------------------------------------------------------------
+// HT-DESC-1: simple + throughAll
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-1: simple throughAll', () => {
+  it('produces "⌀8 THRU"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'literal', value: 8 } },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 THRU');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-2: simple + distance
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-2: simple distance', () => {
+  it('produces "⌀8 ↧12"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'literal', value: 8 } },
+      termination: { kind: 'distance', depth: { kind: 'literal', value: 12 } },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 ↧12');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-3: simple + toFace (MVP → THRU)
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-3: simple toFace (MVP THRU)', () => {
+  it('produces "⌀8 THRU" for toFace (MVP)', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'literal', value: 8 } },
+      termination: { kind: 'toFace', targetFaceName: { featureId: 'F1', role: 'face' } },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 THRU');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-4: simple + toNext (MVP → THRU)
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-4: simple toNext (MVP THRU)', () => {
+  it('produces "⌀8 THRU" for toNext (MVP)', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: { kind: 'simple', diameter: { kind: 'literal', value: 8 } },
+      termination: { kind: 'toNext' },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 THRU');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-5: counterbore + throughAll
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-5: counterbore throughAll', () => {
+  it('produces "⌀8 THRU ⌴⌀14 ↧6"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: {
+        kind: 'counterbore',
+        diameter: { kind: 'literal', value: 8 },
+        cboreDiameter: { kind: 'literal', value: 14 },
+        cboreDepth: { kind: 'literal', value: 6 },
+      },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 THRU ⌴⌀14 ↧6');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-6: counterbore + distance
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-6: counterbore distance', () => {
+  it('produces "⌀8 ↧12 ⌴⌀14 ↧6"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: {
+        kind: 'counterbore',
+        diameter: { kind: 'literal', value: 8 },
+        cboreDiameter: { kind: 'literal', value: 14 },
+        cboreDepth: { kind: 'literal', value: 6 },
+      },
+      termination: { kind: 'distance', depth: { kind: 'literal', value: 12 } },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 ↧12 ⌴⌀14 ↧6');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-7: countersink + throughAll
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-7: countersink throughAll', () => {
+  it('produces "⌀8 THRU ⌵⌀14×82°"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: {
+        kind: 'countersink',
+        diameter: { kind: 'literal', value: 8 },
+        cskDiameter: { kind: 'literal', value: 14 },
+        cskAngle: { kind: 'literal', value: 82 },
+      },
+      termination: { kind: 'throughAll' },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 THRU ⌵⌀14×82°');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HT-DESC-8: countersink + distance
+// ---------------------------------------------------------------------------
+
+describe('formatHoleDescription — HT-DESC-8: countersink distance', () => {
+  it('produces "⌀8 ↧12 ⌵⌀14×82°"', () => {
+    const feature: HoleFeature = {
+      id: 'H', kind: 'hole',
+      placement: { kind: 'fromSketch', sketchId: 'sk' },
+      profile: {
+        kind: 'countersink',
+        diameter: { kind: 'literal', value: 8 },
+        cskDiameter: { kind: 'literal', value: 14 },
+        cskAngle: { kind: 'literal', value: 82 },
+      },
+      termination: { kind: 'distance', depth: { kind: 'literal', value: 12 } },
+      flipAxis: false,
+    };
+    expect(formatHoleDescription(feature, resolve)).toBe('⌀8 ↧12 ⌵⌀14×82°');
+  });
+});
+
