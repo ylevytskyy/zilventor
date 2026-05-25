@@ -334,3 +334,97 @@ describe('ViewElement — detail view', () => {
     expect(container.querySelectorAll('polyline[data-edge-kind="hidden"]')).toHaveLength(0);
   });
 });
+
+const RECT_DETAIL_VIEW_FIXTURE: DetailView = {
+  id: 'dv-rect',
+  kind: 'detail',
+  parentViewId: 'pv1',
+  regionParent: { kind: 'rect', center: { x: 0, y: 0 }, widthMm: 40, heightMm: 25 },
+  label: 'B',
+  positionMm: { x: 200, y: 100 },
+  scale: { numerator: 2, denominator: 1 },
+  showHidden: false,
+  projection: {
+    visibleEdges: [
+      { id: 'rve1', kind: 'outline', points: [[0, 0], [20, 0], [20, 12], [0, 12], [0, 0]] },
+    ],
+    hiddenEdges: [],
+    bbox: { minX: -20, minY: -12, maxX: 20, maxY: 12 },
+  },
+  inputFingerprint: 'fp-rect-detail',
+};
+
+describe('ViewElement — detail view rect branch', () => {
+  it('renders <rect data-role="detail-border"> for rect regionParent', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const border = container.querySelector('rect[data-role="detail-border"]');
+    expect(border).not.toBeNull();
+  });
+
+  it('does NOT render <circle data-role="detail-border"> when regionParent.kind is rect', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelector('circle[data-role="detail-border"]')).toBeNull();
+  });
+
+  it('rect border is centered at origin: x = -widthMm/2, y = -heightMm/2', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const border = container.querySelector('rect[data-role="detail-border"]')!;
+    // widthMm=40 → x = -20; heightMm=25 → y = -12.5
+    expect(parseFloat(border.getAttribute('x')!)).toBeCloseTo(-20, 3);
+    expect(parseFloat(border.getAttribute('y')!)).toBeCloseTo(-12.5, 3);
+  });
+
+  it('rect border width/height match regionParent widthMm/heightMm', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const border = container.querySelector('rect[data-role="detail-border"]')!;
+    expect(parseFloat(border.getAttribute('width')!)).toBeCloseTo(40, 3);
+    expect(parseFloat(border.getAttribute('height')!)).toBeCloseTo(25, 3);
+  });
+
+  it('rect border stroke-width is 0.35 (matches circle border)', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const border = container.querySelector('rect[data-role="detail-border"]')!;
+    expect(parseFloat(border.getAttribute('stroke-width')!)).toBeCloseTo(0.35, 3);
+  });
+
+  it('renders <text data-role="detail-caption"> with "DETAIL B"', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={RECT_DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const caption = container.querySelector('text[data-role="detail-caption"]');
+    expect(caption).not.toBeNull();
+    expect(caption!.textContent).toContain('DETAIL B');
+  });
+
+  it('circle branch still renders <circle data-role="detail-border"> (regression guard)', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelector('circle[data-role="detail-border"]')).not.toBeNull();
+    expect(container.querySelector('rect[data-role="detail-border"]')).toBeNull();
+  });
+});

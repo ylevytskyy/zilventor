@@ -20,10 +20,6 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
 
   // Section views never show hidden edges per ANSI convention
   const showHidden = view.kind !== 'section' && view.showHidden;
-  // TODO(batch-4): add rect branch; for now circle arm only
-  const detailBorderR = view.kind === 'detail'
-    ? (view.regionParent.kind === 'circle' ? view.regionParent.radiusMm : 0)
-    : 0;
 
   return (
     <g
@@ -109,40 +105,58 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
       )}
 
       {/* Detail view border + caption */}
-      {view.kind === 'detail' && (
-        <>
-          {/* Circle border in detail-local mm (ViewElement's scale() maps to sheet mm) */}
-          <circle
-            cx={0}
-            cy={0}
-            r={detailBorderR}
-            fill="none"
-            stroke="black"
-            strokeWidth={0.35}
-            data-role="detail-border"
-          />
-          {/* Caption: "DETAIL A" + scale ratio on second line */}
-          {proj && (
-            <text
-              x={(proj.bbox.minX + proj.bbox.maxX) / 2}
-              y={proj.bbox.maxY + 5 / sheetZoom}
-              textAnchor="middle"
-              fontSize={4 / sheetZoom}
-              fontFamily="sans-serif"
-              data-role="detail-caption"
-            >
-              {`DETAIL ${(view as DetailView).label}`}
-              <tspan
+      {view.kind === 'detail' && (() => {
+        const dv = view as DetailView;
+        const rp = dv.regionParent;
+        const border =
+          rp.kind === 'circle' ? (
+            <circle
+              cx={0}
+              cy={0}
+              r={rp.radiusMm}
+              fill="none"
+              stroke="black"
+              strokeWidth={0.35}
+              data-role="detail-border"
+            />
+          ) : (
+            <rect
+              x={-rp.widthMm / 2}
+              y={-rp.heightMm / 2}
+              width={rp.widthMm}
+              height={rp.heightMm}
+              fill="none"
+              stroke="black"
+              strokeWidth={0.35}
+              data-role="detail-border"
+            />
+          );
+        return (
+          <>
+            {border}
+            {/* Caption: "DETAIL A" + scale ratio on second line */}
+            {proj && (
+              <text
                 x={(proj.bbox.minX + proj.bbox.maxX) / 2}
-                dy={5 / sheetZoom}
-                fontSize={3.5 / sheetZoom}
+                y={proj.bbox.maxY + 5 / sheetZoom}
+                textAnchor="middle"
+                fontSize={4 / sheetZoom}
+                fontFamily="sans-serif"
+                data-role="detail-caption"
               >
-                {`${view.scale.numerator}:${view.scale.denominator}`}
-              </tspan>
-            </text>
-          )}
-        </>
-      )}
+                {`DETAIL ${dv.label}`}
+                <tspan
+                  x={(proj.bbox.minX + proj.bbox.maxX) / 2}
+                  dy={5 / sheetZoom}
+                  fontSize={3.5 / sheetZoom}
+                >
+                  {`${view.scale.numerator}:${view.scale.denominator}`}
+                </tspan>
+              </text>
+            )}
+          </>
+        );
+      })()}
 
       {/* Stale banner: 16×16 mm warning marker, top-left of view (in view-local coords) */}
       {isStale && (
