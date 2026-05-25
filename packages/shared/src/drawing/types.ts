@@ -317,6 +317,22 @@ export type DimensionGroup =
     };
 
 // ---------------------------------------------------------------------------
+// HoleTableAnnotation — F6 Hole Tables (additive; no manifest bump)
+// ---------------------------------------------------------------------------
+
+export type HoleTableAnnotation = {
+  readonly kind: 'holeTable';
+  readonly id: string;
+  readonly viewId: string;
+  readonly datum: PointRef;                                          // user-picked origin
+  readonly positionMm: { readonly x: number; readonly y: number };  // table top-left on sheet, mm
+  readonly entries: ReadonlyArray<{
+    readonly holeFeatureId: string;
+    readonly tag: string;
+  }>;
+};
+
+// ---------------------------------------------------------------------------
 // DrawingAnnotation union
 // ---------------------------------------------------------------------------
 
@@ -324,7 +340,8 @@ export type DrawingAnnotation =
   | { readonly id: string; readonly kind: 'centerline';  readonly viewId: string; readonly edgeIdA: string; readonly edgeIdB: string }
   | { readonly id: string; readonly kind: 'center-mark'; readonly viewId: string; readonly edgeId: string }
   | { readonly id: string; readonly kind: 'leader';      readonly viewId: string; readonly targetMm: { readonly x: number; readonly y: number }; readonly textPosMm: { readonly x: number; readonly y: number }; readonly text: string }
-  | { readonly id: string; readonly kind: 'balloon';     readonly viewId: string; readonly targetMm: { readonly x: number; readonly y: number }; readonly textPosMm: { readonly x: number; readonly y: number }; readonly itemNumber: number };
+  | { readonly id: string; readonly kind: 'balloon';     readonly viewId: string; readonly targetMm: { readonly x: number; readonly y: number }; readonly textPosMm: { readonly x: number; readonly y: number }; readonly itemNumber: number }
+  | HoleTableAnnotation;
 
 // ---------------------------------------------------------------------------
 // TitleBlockOverrides — all fields optional; blanks fall back to auto-derived
