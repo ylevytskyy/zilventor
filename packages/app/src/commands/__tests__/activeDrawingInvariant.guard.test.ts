@@ -12,6 +12,11 @@ import { RegenerateViewCommand } from '../RegenerateViewCommand';
 import { MoveViewCommand } from '../MoveViewCommand';
 import { EditViewScaleCommand } from '../EditViewScaleCommand';
 import { ToggleHiddenLinesCommand } from '../ToggleHiddenLinesCommand';
+import { AddDrawingAnnotationCommand } from '../AddDrawingAnnotationCommand';
+import { DeleteDrawingAnnotationCommand } from '../DeleteDrawingAnnotationCommand';
+import { MoveDrawingAnnotationCommand } from '../MoveDrawingAnnotationCommand';
+import { AddDrawingDimensionCommand } from '../AddDrawingDimensionCommand';
+import { DeleteDrawingDimensionCommand } from '../DeleteDrawingDimensionCommand';
 
 /** One minimal sheet. Override per case (views/dimensions/annotations/etc.). */
 function makeSheet(over: Partial<DrawingSheet> = {}): DrawingSheet {
@@ -211,6 +216,70 @@ const CASES: GuardCase[] = [
       };
       seedDrawing(makeDrawing({ sheets: [makeSheet({ views: [view] })] }));
       return new ToggleHiddenLinesCommand({ sheetId: 'sheet-1', viewId: 'view-1', showHidden: false });
+    },
+  },
+
+  // B2: 5 annotation/dimension commands
+  {
+    name: 'AddDrawingAnnotationCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      const ann = {
+        id: 'ann1', kind: 'leader' as const, viewId: 'v1',
+        targetMm: { x: 50, y: 50 }, textPosMm: { x: 80, y: 30 }, text: 'Note A',
+      };
+      return new AddDrawingAnnotationCommand({ sheetId: 'sheet-1', ann });
+    },
+  },
+  {
+    name: 'DeleteDrawingAnnotationCommand',
+    make: () => {
+      // precondition: annotation must exist (else no-op, no setState)
+      const ann = {
+        id: 'annA', kind: 'leader' as const, viewId: 'v1',
+        targetMm: { x: 50, y: 50 }, textPosMm: { x: 80, y: 30 }, text: 'Note A',
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ annotations: [ann] })] }));
+      return new DeleteDrawingAnnotationCommand({ sheetId: 'sheet-1', annId: 'annA' });
+    },
+  },
+  {
+    name: 'MoveDrawingAnnotationCommand',
+    make: () => {
+      // precondition: annotation must exist (else no-op, priorAnn never set)
+      const ann = {
+        id: 'ann1', kind: 'leader' as const, viewId: 'v1',
+        targetMm: { x: 50, y: 50 }, textPosMm: { x: 80, y: 30 }, text: 'Note A',
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ annotations: [ann] })] }));
+      return new MoveDrawingAnnotationCommand({ sheetId: 'sheet-1', annId: 'ann1', textPosMm: { x: 120, y: 60 } });
+    },
+  },
+  {
+    name: 'AddDrawingDimensionCommand',
+    make: () => {
+      seedDrawing(makeDrawing());
+      const dim = {
+        id: 'dim1', kind: 'linear-h' as const, viewId: 'v1',
+        from: { kind: 'edge-endpoint' as const, edgeId: 'e1', end: 'start' as const },
+        to:   { kind: 'edge-endpoint' as const, edgeId: 'e1', end: 'end' as const },
+        offsetMm: 10,
+      };
+      return new AddDrawingDimensionCommand({ sheetId: 'sheet-1', dim });
+    },
+  },
+  {
+    name: 'DeleteDrawingDimensionCommand',
+    make: () => {
+      // precondition: dimension must exist (else no-op, no setState)
+      const dim = {
+        id: 'dA', kind: 'linear-h' as const, viewId: 'v1',
+        from: { kind: 'edge-endpoint' as const, edgeId: 'e1', end: 'start' as const },
+        to:   { kind: 'edge-endpoint' as const, edgeId: 'e1', end: 'end' as const },
+        offsetMm: 10,
+      };
+      seedDrawing(makeDrawing({ sheets: [makeSheet({ dimensions: [dim] })] }));
+      return new DeleteDrawingDimensionCommand({ sheetId: 'sheet-1', dimId: 'dA' });
     },
   },
 ];

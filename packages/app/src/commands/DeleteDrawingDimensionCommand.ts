@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, DrawingDimension } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class DeleteDrawingDimensionCommand implements Command {
   readonly name = 'DeleteDrawingDimension';
@@ -26,7 +27,7 @@ export class DeleteDrawingDimensionCommand implements Command {
       return { ...sh, dimensions };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -44,6 +45,6 @@ export class DeleteDrawingDimensionCommand implements Command {
       return { ...sh, dimensions: dims };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 }

@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, DrawingAnnotation } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 type Vec2 = { x: number; y: number };
 
@@ -38,7 +39,7 @@ export class MoveDrawingAnnotationCommand implements Command {
       return { ...sh, annotations };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -54,6 +55,6 @@ export class MoveDrawingAnnotationCommand implements Command {
       return { ...sh, annotations };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 }

@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { DrawingDocument, DrawingAnnotation } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { drawingDocState } from '../store/drawingDocState';
 
 export class DeleteDrawingAnnotationCommand implements Command {
   readonly name = 'DeleteDrawingAnnotation';
@@ -25,7 +26,7 @@ export class DeleteDrawingAnnotationCommand implements Command {
       return { ...sh, annotations };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 
   async revert(): Promise<void> {
@@ -42,6 +43,6 @@ export class DeleteDrawingAnnotationCommand implements Command {
       return { ...sh, annotations: anns };
     });
     const next: DrawingDocument = { ...doc.document, sheets };
-    useAppStore.setState({ activeDocument: { kind: 'drawing', document: next } });
+    useAppStore.setState(drawingDocState(next));
   }
 }
