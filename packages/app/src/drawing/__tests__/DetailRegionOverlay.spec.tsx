@@ -1,6 +1,7 @@
 // packages/app/src/drawing/__tests__/DetailRegionOverlay.spec.tsx
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
+import React from 'react';
 import { DetailRegionOverlay } from '../DetailRegionOverlay';
 import type { BaseView, DetailView } from '@zilventor/shared';
 
@@ -118,5 +119,126 @@ describe('DetailRegionOverlay', () => {
     const sw1 = parseFloat(c1.querySelector('circle[data-role="detail-callout-label"]')!.getAttribute('stroke-width')!);
     const sw2 = parseFloat(c2.querySelector('circle[data-role="detail-callout-label"]')!.getAttribute('stroke-width')!);
     expect(sw1).toBeCloseTo(sw2, 3);
+  });
+});
+
+// ─── Rect branch tests ───────────────────────────────────────────────────────
+
+const PARENT_VIEW_2: BaseView = {
+  id: 'pv2',
+  kind: 'base',
+  positionMm: { x: 50, y: 40 },
+  scale: { numerator: 1, denominator: 5 },  // parentScale = 0.2
+  orientation: 'front',
+  showHidden: false,
+};
+
+const RECT_DETAIL_VIEW: DetailView = {
+  id: 'dv-rect',
+  kind: 'detail',
+  parentViewId: 'pv2',
+  regionParent: { kind: 'rect', center: { x: 20, y: 10 }, widthMm: 30, heightMm: 20 },
+  label: 'B',
+  positionMm: { x: 200, y: 150 },
+  scale: { numerator: 2, denominator: 1 },
+  showHidden: false,
+};
+
+describe('DetailRegionOverlay — rect branch', () => {
+  it('renders a <rect> element with data-role="detail-callout-label"', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const rect = container.querySelector('rect[data-role="detail-callout-label"]');
+    expect(rect).not.toBeNull();
+  });
+
+  it('does NOT render a circle when regionParent.kind is rect', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    expect(container.querySelector('circle[data-role="detail-callout-label"]')).toBeNull();
+  });
+
+  it('rect x, y are in sheet space: positionMm + (center − w/2) * parentScale', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const rect = container.querySelector('rect[data-role="detail-callout-label"]')!;
+    // x = 50 + (20 - 15) * 0.2 = 50 + 1 = 51
+    // y = 40 + (10 - 10) * 0.2 = 40 + 0 = 40
+    expect(parseFloat(rect.getAttribute('x')!)).toBeCloseTo(51, 3);
+    expect(parseFloat(rect.getAttribute('y')!)).toBeCloseTo(40, 3);
+  });
+
+  it('rect width/height = widthMm/heightMm * parentScale', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const rect = container.querySelector('rect[data-role="detail-callout-label"]')!;
+    // width = 30 * 0.2 = 6, height = 20 * 0.2 = 4
+    expect(parseFloat(rect.getAttribute('width')!)).toBeCloseTo(6, 3);
+    expect(parseFloat(rect.getAttribute('height')!)).toBeCloseTo(4, 3);
+  });
+
+  it('renders <text data-role="detail-callout-label"> with the label letter', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const text = container.querySelector('text[data-role="detail-callout-label"]');
+    expect(text).not.toBeNull();
+    expect(text!.textContent).toBe('B');
+  });
+
+  it('label x is at upper-right corner of rect + 5 mm diagonal offset', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const text = container.querySelector('text[data-role="detail-callout-label"]')!;
+    // labelX = 50 + (20 + 15) * 0.2 + 5 * cos45 = 50 + 7 + 5*cos45
+    const expectedX = 50 + (20 + 15) * 0.2 + 5 * (Math.SQRT2 / 2);
+    expect(parseFloat(text.getAttribute('x')!)).toBeCloseTo(expectedX, 2);
+  });
+
+  it('rect stroke-width is 0.35 mm', () => {
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={RECT_DETAIL_VIEW} />
+      </svg>,
+    );
+    const rect = container.querySelector('rect[data-role="detail-callout-label"]')!;
+    expect(parseFloat(rect.getAttribute('stroke-width')!)).toBeCloseTo(0.35, 3);
+  });
+
+  it('circle branch still works after refactor (regression guard)', () => {
+    const circleDetailView: DetailView = {
+      id: 'dv-circle-rg',
+      kind: 'detail',
+      parentViewId: 'pv2',
+      regionParent: { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 },
+      label: 'A',
+      positionMm: { x: 200, y: 150 },
+      scale: { numerator: 2, denominator: 1 },
+      showHidden: false,
+    };
+    const { container } = render(
+      <svg>
+        <DetailRegionOverlay parentView={PARENT_VIEW_2} detailView={circleDetailView} />
+      </svg>,
+    );
+    expect(container.querySelector('circle[data-role="detail-callout-label"]')).not.toBeNull();
+    expect(container.querySelector('rect[data-role="detail-callout-label"]')).toBeNull();
   });
 });

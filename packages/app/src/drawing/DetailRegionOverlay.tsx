@@ -10,38 +10,68 @@ interface Props {
 }
 
 const LABEL_FONT_SIZE_MM = 5;
-const CIRCLE_STROKE_WIDTH = 0.35;
+const STROKE_WIDTH = 0.35;
 
 export function DetailRegionOverlay({ parentView, detailView, zoom = 1 }: Props) {
   const parentScale = parentView.scale.numerator / parentView.scale.denominator;
-  // TODO(batch-4): add rect branch; for now treat all as circle (circle arm only)
   const rp = detailView.regionParent;
-  const center = rp.center;
-  const radiusMm = rp.kind === 'circle' ? rp.radiusMm : 0; // TODO(batch-4): rect ellipse/rect outline
-
-  // Circle center in sheet space
-  const cx = parentView.positionMm.x + center.x * parentScale;
-  const cy = parentView.positionMm.y + center.y * parentScale;
-  // Circle radius in sheet space
-  const r = radiusMm * parentScale;
-
-  // Label position: 5 mm upper-right of the circle's perimeter
+  const fontSize = LABEL_FONT_SIZE_MM / zoom;
   const cos45 = Math.SQRT2 / 2;
   const sin45 = Math.SQRT2 / 2;
-  const labelX = cx + (r + 5) * cos45;
-  const labelY = cy - (r + 5) * sin45;
 
-  const fontSize = LABEL_FONT_SIZE_MM / zoom;
+  if (rp.kind === 'circle') {
+    const cx = parentView.positionMm.x + rp.center.x * parentScale;
+    const cy = parentView.positionMm.y + rp.center.y * parentScale;
+    const r  = rp.radiusMm * parentScale;
+    const labelX = cx + (r + 5) * cos45;
+    const labelY = cy - (r + 5) * sin45;
+
+    return (
+      <g data-detail-callout-overlay={detailView.id}>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke="black"
+          strokeWidth={STROKE_WIDTH}
+          data-role="detail-callout-label"
+        />
+        <text
+          x={labelX}
+          y={labelY}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={fontSize}
+          fontFamily="sans-serif"
+          data-role="detail-callout-label"
+        >
+          {detailView.label}
+        </text>
+      </g>
+    );
+  }
+
+  // kind === 'rect'
+  const { center, widthMm, heightMm } = rp;
+  const rx = parentView.positionMm.x + (center.x - widthMm / 2) * parentScale;
+  const ry = parentView.positionMm.y + (center.y - heightMm / 2) * parentScale;
+  const rw = widthMm  * parentScale;
+  const rh = heightMm * parentScale;
+  // Label: upper-right corner of the rect + 5 mm diagonal offset
+  const labelX = parentView.positionMm.x + (center.x + widthMm / 2) * parentScale + 5 * cos45;
+  const labelY = parentView.positionMm.y + (center.y - heightMm / 2) * parentScale - 5 * sin45;
 
   return (
     <g data-detail-callout-overlay={detailView.id}>
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
+      <rect
+        x={rx}
+        y={ry}
+        width={rw}
+        height={rh}
         fill="none"
         stroke="black"
-        strokeWidth={CIRCLE_STROKE_WIDTH}
+        strokeWidth={STROKE_WIDTH}
         data-role="detail-callout-label"
       />
       <text
