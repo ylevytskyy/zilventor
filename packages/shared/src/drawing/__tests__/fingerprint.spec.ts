@@ -1,7 +1,7 @@
 // packages/shared/src/drawing/__tests__/fingerprint.spec.ts
 import { describe, it, expect } from 'vitest';
 import { computeViewFingerprint, computeSourceGeometryHash, fingerprintDetailView, fingerprintBreaksArray } from '../fingerprint';
-import type { BreakRegion } from '../types';
+import type { BreakRegion, RegionParent } from '../types';
 import type { ProjectorInput } from '../projector';
 
 const BASE_INPUT: ProjectorInput = {
@@ -68,8 +68,8 @@ describe('computeViewFingerprint', () => {
   });
 });
 
-describe('fingerprintDetailView', () => {
-  const region = { center: { x: 10, y: 8 }, radiusMm: 5 };
+describe('fingerprintDetailView — circle arm', () => {
+  const region: RegionParent = { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 };
   const scale = { numerator: 2, denominator: 1 };
   const parentFp = 'abc123parent';
 
@@ -79,7 +79,7 @@ describe('fingerprintDetailView', () => {
     expect(fp1).toBe(fp2);
   });
 
-  it('result is a non-empty hex string', () => {
+  it('result is a non-empty 8-char hex string', () => {
     const fp = fingerprintDetailView(parentFp, region, scale);
     expect(fp).toMatch(/^[0-9a-f]{8}$/);
   });
@@ -91,15 +91,14 @@ describe('fingerprintDetailView', () => {
   });
 
   it('center.x changed by 0.001 mm → different fingerprint', () => {
-    const regionB = { center: { x: 10.001, y: 8 }, radiusMm: 5 };
+    const regionB: RegionParent = { kind: 'circle', center: { x: 10.001, y: 8 }, radiusMm: 5 };
     const fp1 = fingerprintDetailView(parentFp, region, scale);
     const fp2 = fingerprintDetailView(parentFp, regionB, scale);
     expect(fp1).not.toBe(fp2);
   });
 
   it('center.x changed by 0.0001 mm → same fingerprint (below 1e-3 threshold)', () => {
-    // 10.000 and 10.0001 both round to "10.000" via .toFixed(3)
-    const regionB = { center: { x: 10.0001, y: 8 }, radiusMm: 5 };
+    const regionB: RegionParent = { kind: 'circle', center: { x: 10.0001, y: 8 }, radiusMm: 5 };
     const fp1 = fingerprintDetailView(parentFp, region, scale);
     const fp2 = fingerprintDetailView(parentFp, regionB, scale);
     expect(fp1).toBe(fp2);
@@ -113,10 +112,78 @@ describe('fingerprintDetailView', () => {
   });
 
   it('different radiusMm → different fingerprint', () => {
-    const regionB = { center: { x: 10, y: 8 }, radiusMm: 6 };
+    const regionB: RegionParent = { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 6 };
     const fp1 = fingerprintDetailView(parentFp, region, scale);
     const fp2 = fingerprintDetailView(parentFp, regionB, scale);
     expect(fp1).not.toBe(fp2);
+  });
+
+  // kind is now included in the payload
+  it('circle region includes "circle" in the payload — distinct from a rect with same center bbox', () => {
+    const circleRegion: RegionParent = { kind: 'circle', center: { x: 10, y: 8 }, radiusMm: 5 };
+    // A rect that has the same bounding box (width = height = 2*radius = 10mm)
+    const rectRegion: RegionParent = { kind: 'rect', center: { x: 10, y: 8 }, widthMm: 10, heightMm: 10 };
+    const fpCircle = fingerprintDetailView(parentFp, circleRegion, scale);
+    const fpRect = fingerprintDetailView(parentFp, rectRegion, scale);
+    expect(fpCircle).not.toBe(fpRect);
+  });
+});
+
+describe('fingerprintDetailView — rect arm', () => {
+  const parentFp = 'abc123parent';
+  const scale = { numerator: 2, denominator: 1 };
+
+  it('same rect inputs twice → identical string', () => {
+    const region: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const fp1 = fingerprintDetailView(parentFp, region, scale);
+    const fp2 = fingerprintDetailView(parentFp, region, scale);
+    expect(fp1).toBe(fp2);
+  });
+
+  it('result is an 8-char hex string', () => {
+    const region: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const fp = fingerprintDetailView(parentFp, region, scale);
+    expect(fp).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('different widthMm → different fingerprint', () => {
+    const r1: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const r2: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 31, heightMm: 20 };
+    expect(fingerprintDetailView(parentFp, r1, scale)).not.toBe(fingerprintDetailView(parentFp, r2, scale));
+  });
+
+  it('different heightMm → different fingerprint', () => {
+    const r1: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const r2: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 21 };
+    expect(fingerprintDetailView(parentFp, r1, scale)).not.toBe(fingerprintDetailView(parentFp, r2, scale));
+  });
+
+  it('widthMm delta < 0.001 mm → same fingerprint (1e-3 rounding)', () => {
+    const r1: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30,      heightMm: 20 };
+    const r2: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30.0001, heightMm: 20 };
+    expect(fingerprintDetailView(parentFp, r1, scale)).toBe(fingerprintDetailView(parentFp, r2, scale));
+  });
+
+  it('different center.y → different fingerprint', () => {
+    const r1: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const r2: RegionParent = { kind: 'rect', center: { x: 50, y: 41 }, widthMm: 30, heightMm: 20 };
+    expect(fingerprintDetailView(parentFp, r1, scale)).not.toBe(fingerprintDetailView(parentFp, r2, scale));
+  });
+
+  it('different parentFp → different fingerprint', () => {
+    const region: RegionParent = { kind: 'rect', center: { x: 50, y: 40 }, widthMm: 30, heightMm: 20 };
+    const fp1 = fingerprintDetailView('fp-A', region, scale);
+    const fp2 = fingerprintDetailView('fp-B', region, scale);
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it('circle and rect with identical center and same-diameter dimensions → different fingerprints (kind discriminates)', () => {
+    const circ: RegionParent = { kind: 'circle', center: { x: 25, y: 25 }, radiusMm: 15 };
+    // rect with width=height=2*radius (same bounding box)
+    const rect: RegionParent = { kind: 'rect', center: { x: 25, y: 25 }, widthMm: 30, heightMm: 30 };
+    const fpC = fingerprintDetailView(parentFp, circ, scale);
+    const fpR = fingerprintDetailView(parentFp, rect, scale);
+    expect(fpC).not.toBe(fpR);
   });
 });
 

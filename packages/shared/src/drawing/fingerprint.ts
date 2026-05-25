@@ -3,7 +3,7 @@
 import type { ProjectorInput, EdgeMesh3D } from './projector';
 import type { ViewOrientation } from './viewMatrix';
 import { fingerprintPlane } from './planeFingerprint';
-import type { SectionView, BreakRegion } from './types';
+import type { SectionView, BreakRegion, RegionParent } from './types';
 
 export type ViewSpec = {
   readonly orientation: ViewOrientation;
@@ -89,23 +89,42 @@ function djb2(str: string): string {
 
 /**
  * Synchronous djb2 fingerprint for a DetailView.
- * Incorporates the parent view's source fingerprint, the region definition, and the scale.
- * Matches the fingerprintSectionView pattern in this file.
+ * Accepts the RegionParent discriminated union (F2.1).
+ * Payload layout:
+ *   circle: parentFp|kind|center.x|center.y|radiusMm|num|den
+ *   rect:   parentFp|kind|center.x|center.y|widthMm|heightMm|num|den
  * Floats rounded to 1e-3 mm via .toFixed(3) for determinism.
+ * Including `kind` in the payload ensures a circle and a rect with the
+ * same bounding box produce distinct fingerprints.
  */
 export function fingerprintDetailView(
   parentInputFingerprint: string,
-  regionParent: { center: { x: number; y: number }; radiusMm: number },
+  regionParent: RegionParent,
   scale: { numerator: number; denominator: number },
 ): string {
-  const payload = [
-    parentInputFingerprint,
-    regionParent.center.x.toFixed(3),
-    regionParent.center.y.toFixed(3),
-    regionParent.radiusMm.toFixed(3),
-    scale.numerator,
-    scale.denominator,
-  ].join('|');
+  let payload: string;
+  if (regionParent.kind === 'circle') {
+    payload = [
+      parentInputFingerprint,
+      'circle',
+      regionParent.center.x.toFixed(3),
+      regionParent.center.y.toFixed(3),
+      regionParent.radiusMm.toFixed(3),
+      scale.numerator,
+      scale.denominator,
+    ].join('|');
+  } else {
+    payload = [
+      parentInputFingerprint,
+      'rect',
+      regionParent.center.x.toFixed(3),
+      regionParent.center.y.toFixed(3),
+      regionParent.widthMm.toFixed(3),
+      regionParent.heightMm.toFixed(3),
+      scale.numerator,
+      scale.denominator,
+    ].join('|');
+  }
   return djb2(payload);
 }
 
