@@ -62,10 +62,10 @@ export function clipLineToRect(
     } else {
       const t = qi / pi;
       if (pi < 0) {
-        // p[i] < 0: segment travels from inside to outside → t is an entry bound.
+        // p[i] < 0: ray enters this half-plane (outside → inside) → t is an entry bound.
         if (t > tEnter) tEnter = t;
       } else {
-        // p[i] > 0: segment travels from outside to inside → t is an exit bound.
+        // p[i] > 0: ray leaves this half-plane (inside → outside) → t is an exit bound.
         if (t < tExit) tExit = t;
       }
     }
