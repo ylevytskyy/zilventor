@@ -24,7 +24,8 @@ export type ToolMode =
   | 'ordinate'  // Drawing F5 — ordinate dimension group (manual)
   | 'angular'   // Drawing F5 — angular dimension (two-edges or arc)
   | 'pickSteppedSection'  // Drawing F1.2 — stepped section authoring
-  | 'editDetailRegion'; // Drawing F2.4 — edit existing detail region
+  | 'editDetailRegion' // Drawing F2.4 — edit existing detail region
+  | 'holeTable';       // Drawing F6 — hole table placement
 
 export type PendingViewParams =
   | {
@@ -105,6 +106,17 @@ export type SteppedSectionToolState =
     };
 
 // ---------------------------------------------------------------------------
+// Hole Table tool sub-state (Drawing F6)
+// ---------------------------------------------------------------------------
+export type HoleTableToolState =
+  | { stage: 'idle' }
+  | {
+      stage: 'pickDatum';
+      viewId: string;
+      datum: import('@zilventor/shared/src/drawing/types').PointRef;
+    };
+
+// ---------------------------------------------------------------------------
 // Edit-detail-region tool sub-state (Drawing F2.4)
 // ---------------------------------------------------------------------------
 export type Region = { center: { x: number; y: number }; radiusMm: number };
@@ -177,6 +189,16 @@ interface ToolModeState {
   detailPickDrop(point: { x: number; y: number }, onDispatch: () => void): void;
   detailCancel(): void;
 
+  // Hole Table tool state + actions (Drawing F6)
+  holeTableState: HoleTableToolState;
+  enterHoleTableMode(): void;
+  holeTablePickDatum(viewId: string, datum: import('@zilventor/shared/src/drawing/types').PointRef): void;
+  holeTablePickPlacement(
+    posMm: { x: number; y: number },
+    onDispatch: (viewId: string, datum: import('@zilventor/shared/src/drawing/types').PointRef, posMm: { x: number; y: number }) => void,
+  ): void;
+  holeTableCancel(): void;
+
   // Edit-detail-region tool actions (Drawing F2.4)
   editDetailRegionState: EditDetailRegionToolState;
   enterEditDetailRegionMode(): void;
@@ -200,6 +222,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
   sectionMode: 'full',
   steppedSectionState: { stage: 'idle' },
   editDetailRegionState: { stage: 'idle' },
+  holeTableState: { stage: 'idle' } as HoleTableToolState,
 
   setMode(mode) {
     set({ mode });
@@ -219,6 +242,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       sectionMode: 'full',
       steppedSectionState: { stage: 'idle' },
       editDetailRegionState: { stage: 'idle' },
+      holeTableState: { stage: 'idle' },
     });
   },
 
@@ -645,6 +669,44 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
     if (editDetailRegionState.stage === 'idle' && mode === 'editDetailRegion') {
       // Mirrors detailCancel: stage=idle + mode=editDetailRegion → exit mode
       set({ mode: 'idle', editDetailRegionState: { stage: 'idle' } });
+    }
+  },
+
+  // Hole Table tool actions (Drawing F6)
+  enterHoleTableMode() {
+    set({ mode: 'holeTable', holeTableState: { stage: 'idle' } });
+  },
+
+  holeTablePickDatum(viewId, datum) {
+    const { holeTableState } = get();
+    if (holeTableState.stage !== 'idle') {
+      console.warn('holeTablePickDatum: expected stage=idle, got', holeTableState.stage);
+      return;
+    }
+    set({ holeTableState: { stage: 'pickDatum', viewId, datum } });
+  },
+
+  holeTablePickPlacement(posMm, onDispatch) {
+    const { holeTableState } = get();
+    if (holeTableState.stage !== 'pickDatum') {
+      console.warn('holeTablePickPlacement: expected stage=pickDatum, got', holeTableState.stage);
+      return;
+    }
+    const { viewId, datum } = holeTableState;
+    set({ mode: 'idle', holeTableState: { stage: 'idle' } });
+    onDispatch(viewId, datum, posMm);
+  },
+
+  holeTableCancel() {
+    const { holeTableState, mode } = get();
+    if (holeTableState.stage !== 'idle') {
+      // First ESC from any non-idle stage: clear the state, stay in holeTable mode.
+      set({ holeTableState: { stage: 'idle' } });
+      return;
+    }
+    if (holeTableState.stage === 'idle' && mode === 'holeTable') {
+      // Second ESC (or ESC from fresh idle in holeTable mode): exit the tool.
+      set({ mode: 'idle', holeTableState: { stage: 'idle' } });
     }
   },
 }));
