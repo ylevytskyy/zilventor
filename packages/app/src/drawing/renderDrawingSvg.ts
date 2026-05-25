@@ -177,13 +177,20 @@ function renderViewGroup(view: DrawingView): string {
     ? `<text x="0" y="-2" font-size="3" fill="red" data-stale-marker="${escapeAttr(view.id)}">&#x26A0; Source changed</text>`
     : '';
 
-  // Detail-specific: border circle + caption.
+  // Detail-specific: border shape + caption.
   let detailMarkup = '';
   if (view.kind === 'detail') {
     const dv = view as DetailView;
-    // TODO(batch-5): add rect branch; for now circle arm only
-    const borderR = dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0;
-    detailMarkup += `\n    <circle cx="0" cy="0" r="${borderR}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-border" data-view-id="${escapeAttr(dv.id)}"/>`;
+    const rp = dv.regionParent;
+    if (rp.kind === 'rect') {
+      const hw = rp.widthMm / 2;
+      const hh = rp.heightMm / 2;
+      detailMarkup += `\n    <rect x="${-hw}" y="${-hh}" width="${rp.widthMm}" height="${rp.heightMm}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-border" data-view-id="${escapeAttr(dv.id)}"/>`;
+    } else {
+      // kind === 'circle'
+      const borderR = rp.radiusMm;
+      detailMarkup += `\n    <circle cx="0" cy="0" r="${borderR}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-border" data-view-id="${escapeAttr(dv.id)}"/>`;
+    }
     if (projection) {
       const captionX = (projection.bbox.minX + projection.bbox.maxX) / 2;
       const captionY = projection.bbox.maxY + 5;
@@ -209,14 +216,33 @@ function renderDetailCalloutGroups(views: readonly DrawingView[]): string {
     const parentScale = parent.scale.numerator / parent.scale.denominator;
     const cx = parent.positionMm.x + dv.regionParent.center.x * parentScale;
     const cy = parent.positionMm.y + dv.regionParent.center.y * parentScale;
-    // TODO(batch-5): add rect branch; for now circle arm only
-    const r = (dv.regionParent.kind === 'circle' ? dv.regionParent.radiusMm : 0) * parentScale;
-    const COS45 = Math.SQRT1_2;
-    const labelX = cx + (r + 5) * COS45;
-    const labelY = cy - (r + 5) * COS45;
+    const rp = dv.regionParent;
+
+    let shapeMarkup: string;
+    let labelX: number;
+    let labelY: number;
+
+    if (rp.kind === 'rect') {
+      const w = rp.widthMm * parentScale;
+      const h = rp.heightMm * parentScale;
+      const rx = cx - w / 2;
+      const ry = cy - h / 2;
+      shapeMarkup = `<rect x="${rx}" y="${ry}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}"/>`;
+      // Label at top-right corner of the rect
+      labelX = rx + w + 2;
+      labelY = ry - 2;
+    } else {
+      // kind === 'circle'
+      const r = rp.radiusMm * parentScale;
+      const COS45 = Math.SQRT1_2;
+      shapeMarkup = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}"/>`;
+      labelX = cx + (r + 5) * COS45;
+      labelY = cy - (r + 5) * COS45;
+    }
+
     groups.push(
       `  <g data-detail-callout="${escapeAttr(dv.id)}">` +
-      `\n    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.35" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}"/>` +
+      `\n    ${shapeMarkup}` +
       `\n    <text x="${labelX}" y="${labelY}" font-size="5" font-family="sans-serif" text-anchor="start" data-role="detail-callout-label" data-detail-id="${escapeAttr(dv.id)}">${escapeText(dv.label)}</text>` +
       `\n  </g>`,
     );

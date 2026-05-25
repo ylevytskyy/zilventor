@@ -5,6 +5,8 @@ import {
   makeFixturePart,
   makeFixtureDrawingWithDetailView,
   makeFixtureDrawingWithParentAndDetail,
+  makeFixtureDrawingWithRectDetailView,
+  makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
 import type { DetailView } from '@zilventor/shared';
 
@@ -107,6 +109,92 @@ describe('renderDrawingSvg — detail view', () => {
     const svg = renderDrawingSvg(drawing, updatedSheet, makeFixturePart());
     expect(svg).toContain('data-edge-id="dh-hid"');
     expect(svg).toContain('stroke-dasharray');
+  });
+});
+
+describe('renderDrawingSvg — rect detail view (F2.1)', () => {
+  it('emits <rect data-role="detail-border"> for a rect detail view', () => {
+    const drawing = makeFixtureDrawingWithRectDetailView();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('data-role="detail-border"');
+    const rectBorderCount = (svg.match(/<rect[^>]*data-role="detail-border"[^>]*>/g) ?? []).length;
+    expect(rectBorderCount).toBe(1);
+    const circleBorderCount = (svg.match(/<circle[^>]*data-role="detail-border"[^>]*>/g) ?? []).length;
+    expect(circleBorderCount).toBe(0);
+  });
+
+  it('rect border is centered at origin: x=-widthMm/2, y=-heightMm/2, w=widthMm, h=heightMm', () => {
+    // Fixture: widthMm=20, heightMm=12, detail scale=2:1
+    // Group has transform="translate(posX,posY) scale(vScale)" — rect coords are in local space
+    // (scale(vScale) is applied by SVG). So x=-10, y=-6, width=20, height=12
+    const drawing = makeFixtureDrawingWithRectDetailView();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const borderRectMatch = svg.match(/<rect[^>]*data-role="detail-border"[^>]*/);
+    expect(borderRectMatch).not.toBeNull();
+    const attrs = borderRectMatch![0]!;
+    expect(attrs).toContain('x="-10"');
+    expect(attrs).toContain('y="-6"');
+    expect(attrs).toContain('width="20"');
+    expect(attrs).toContain('height="12"');
+  });
+
+  it('emits <text data-role="detail-caption"> containing DETAIL B', () => {
+    const drawing = makeFixtureDrawingWithRectDetailView();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('data-role="detail-caption"');
+    expect(svg).toContain('DETAIL B');
+  });
+});
+
+describe('renderDrawingSvg — rect detail callout overlay (F2.1)', () => {
+  it('emits <rect data-role="detail-callout-label"> on parent for rect region', () => {
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const borderCount = (svg.match(/data-role="detail-border"/g) ?? []).length;
+    const calloutCount = (svg.match(/data-role="detail-callout-label"/g) ?? []).length;
+    expect(borderCount).toBe(1);
+    expect(calloutCount).toBeGreaterThanOrEqual(1);
+    const calloutRectCount = (svg.match(/<rect[^>]*data-role="detail-callout-label"[^>]*/g) ?? []).length;
+    expect(calloutRectCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('emits <text data-role="detail-callout-label"> with letter "B" on the parent', () => {
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const textMatches = svg.match(/<text[^>]*data-role="detail-callout-label"[^>]*>B<\/text>/);
+    expect(textMatches).not.toBeNull();
+  });
+
+  it('callout rect x/y/width/height are in parent sheet-space', () => {
+    // parent positionMm={x:80,y:80}, parentScale=1, center={x:30,y:20}, widthMm=20, heightMm=12
+    // cx = 80 + 30*1 = 110, cy = 80 + 20*1 = 100
+    // w = 20*1 = 20, h = 12*1 = 12
+    // x = 110 - 10 = 100, y = 100 - 6 = 94
+    const drawing = makeFixtureDrawingWithParentAndRectDetail();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const calloutRectMatch = svg.match(/<rect[^>]*data-role="detail-callout-label"[^>]*/);
+    expect(calloutRectMatch).not.toBeNull();
+    const attrs = calloutRectMatch![0]!;
+    expect(attrs).toContain('x="100"');
+    expect(attrs).toContain('y="94"');
+    expect(attrs).toContain('width="20"');
+    expect(attrs).toContain('height="12"');
+  });
+
+  it('circle-region detail unchanged: still emits <circle> detail-border and <circle> callout', () => {
+    const drawing = makeFixtureDrawingWithParentAndDetail();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const circleBorder = (svg.match(/<circle[^>]*data-role="detail-border"/g) ?? []).length;
+    const circleCallout = (svg.match(/<circle[^>]*data-role="detail-callout-label"/g) ?? []).length;
+    expect(circleBorder).toBe(1);
+    expect(circleCallout).toBeGreaterThanOrEqual(1);
   });
 });
 

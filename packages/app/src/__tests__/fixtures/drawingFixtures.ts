@@ -100,6 +100,94 @@ export function makeFixtureDrawingWithDetailView(): DrawingDocument {
   };
 }
 
+export function makeFixtureDetailViewRect(id = 'detail-rect-1'): DetailView {
+  return {
+    id,
+    kind: 'detail',
+    parentViewId: 'view-sheet-1-0',
+    regionParent: { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 20, heightMm: 12 },
+    label: 'B',
+    positionMm: { x: 220, y: 80 },
+    scale: { numerator: 2, denominator: 1 },
+    showHidden: false,
+    projection: {
+      visibleEdges: [
+        { id: 'dr0', kind: 'outline' as const, points: [[0, 0], [8, 0], [8, 5], [0, 5], [0, 0]] as ReadonlyArray<readonly [number, number]> },
+      ],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 8, maxY: 5 },
+    },
+    inputFingerprint: 'fp-detail-rect-1',
+  };
+}
+
+export function makeFixtureDrawingWithRectDetailView(): DrawingDocument {
+  const base = makeFixtureDrawing({ viewCount: 1 });
+  const sheet = base.sheets[0]!;
+  const detail = makeFixtureDetailViewRect();
+  return {
+    ...base,
+    sheets: [{ ...sheet, views: [...sheet.views, detail] }],
+  };
+}
+
+export function makeFixtureDrawingWithParentAndRectDetail(): DrawingDocument {
+  const parentView: DrawingView = {
+    id: 'parent-rect-1',
+    kind: 'base' as const,
+    positionMm: { x: 80, y: 80 },
+    scale: { numerator: 1, denominator: 1 },
+    orientation: 'front' as const,
+    showHidden: false,
+    projection: {
+      visibleEdges: [
+        { id: 'pr-e0', kind: 'outline' as const, points: [[0, 0], [60, 0], [60, 40], [0, 40], [0, 0]] as ReadonlyArray<readonly [number, number]> },
+      ],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 60, maxY: 40 },
+    },
+    inputFingerprint: 'fp-parent-rect',
+  };
+  const detailView: DetailView = {
+    id: 'detail-rect-overlay-1',
+    kind: 'detail',
+    parentViewId: 'parent-rect-1',
+    regionParent: { kind: 'rect', center: { x: 30, y: 20 }, widthMm: 20, heightMm: 12 },
+    label: 'B',
+    positionMm: { x: 220, y: 80 },
+    scale: { numerator: 2, denominator: 1 },
+    showHidden: false,
+    projection: {
+      visibleEdges: [
+        { id: 'dr-ov-e0', kind: 'outline' as const, points: [[0, 0], [8, 0], [8, 5], [0, 5], [0, 0]] as ReadonlyArray<readonly [number, number]> },
+      ],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 8, maxY: 5 },
+    },
+    inputFingerprint: 'fp-detail-rect-overlay',
+  };
+  const sheetId = 'sheet-rect-overlay-1';
+  return {
+    id: 'drawing-rect-overlay-1',
+    name: 'Rect Overlay Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [{
+      id: sheetId,
+      name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [parentView, detailView],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+    }],
+    activeSheetId: sheetId,
+  };
+}
+
 export function makeFixtureDrawingWithParentAndDetail(): DrawingDocument {
   const parentView: DrawingView = {
     id: 'parent-view-1',
