@@ -77,25 +77,36 @@ Properties:
 
 - **No manifest bump.** `activeDrawing` is runtime store state, never serialized. No `.zidw` shape change → no migration.
 - **No renderer change.** This is not a two-renderer-path (`*.tsx` + `renderDrawingSvg.ts`) feature; nothing persisted or exported changes. The two-renderer-parity rule does not apply.
-- **Exact offender list is verified, not assumed.** The originating audit reported 78% confidence with 13 of 33 commands classified by grep heuristic rather than full read. **Plan task 0 re-reads every drawing command's `apply`/`revert`** to confirm the precise offender set before any edit. The list below is the working hypothesis, subject to that verification.
+- **Exact offender list is verified.** A full per-command read (apply + revert, with line numbers) replaced the originating audit's 78%-confidence/13-grep-only guess. The verified lists below are authoritative (86% read-level confidence; the residual caveat is test-driveability of three kernel-heavy *already-correct* commands — AddSectionView, AutoDim, AddDetailView — which are excluded from the parametrized loop anyway, so it does not affect classification).
 
-### Working offender hypothesis (verify in plan task 0)
+### Verified offender list (20 commands to fix)
 
-AddBaseViewCommand, AddProjectedViewCommand, AddIsoViewCommand, DeleteViewCommand, RegenerateViewCommand, MoveViewCommand, EditViewScaleCommand, ToggleHiddenLinesCommand, AddDrawingAnnotationCommand, DeleteDrawingAnnotationCommand, MoveDrawingAnnotationCommand, AddDrawingDimensionCommand, DeleteDrawingDimensionCommand, AddBreakCommand, DeleteBreakCommand, DeleteDimensionGroupCommand, AddSheetCommand, DeleteSheetCommand, RenameSheetCommand, EditSheetSizeCommand, EditDrawingPropertiesCommand, EditTitleBlockCommand.
+**Standard offenders — `apply` AND `revert` both omit `activeDrawing` (19):**
+- **View (8):** AddBaseViewCommand, AddProjectedViewCommand, AddIsoViewCommand, DeleteViewCommand, RegenerateViewCommand, MoveViewCommand, EditViewScaleCommand, ToggleHiddenLinesCommand.
+- **Annotation/dimension (5):** AddDrawingAnnotationCommand, DeleteDrawingAnnotationCommand, MoveDrawingAnnotationCommand, AddDrawingDimensionCommand, DeleteDrawingDimensionCommand.
+- **Sheet/properties (6):** AddSheetCommand, DeleteSheetCommand, RenameSheetCommand, EditSheetSizeCommand, EditDrawingPropertiesCommand, EditTitleBlockCommand.
 
-Already-correct (do not touch): AddAngularDimCommand, AddBaselineMemberCommand, AddDetailViewCommand, AddDimensionGroupCommand, AddHoleTableCommand, AddOrdinateMemberCommand, AddSectionViewCommand, AutoDimCommand, EditDetailRegionCommand, MoveDrawingDimensionCommand, SetActiveSheetCommand.
+**Inverse offender (1):** SetActiveSheetCommand writes `activeDrawing` *only* and never updates `activeDocument` — divergence in the opposite direction. It fails the same `activeDrawing === activeDocument.document` invariant, so it is in scope. Fix: build `nextDoc` with the new `activeSheetId` and spread `drawingDocState(nextDoc)` (sets both fields) in apply and revert.
+
+**Already-correct (do NOT touch — set both fields in apply + revert):** AddAngularDimCommand, AddBaselineMemberCommand, AddBreakCommand, AddDetailViewCommand, AddDimensionGroupCommand, AddHoleTableCommand, AddOrdinateMemberCommand, AddSectionViewCommand, AutoDimCommand, DeleteBreakCommand, DeleteDimensionGroupCommand, EditDetailRegionCommand, MoveDrawingDimensionCommand. *(Audit-hypothesis correction: AddBreak/DeleteBreak/DeleteDimensionGroup are correct — earlier guess wrongly listed them as offenders.)*
+
+**Verified facts that shape the plan:**
+- **No EXTRA store fields.** No drawing command writes anything beyond `activeDocument`/`activeDrawing`/`activePart`/`activeAssembly` in its `setState`. Spreading `drawingDocState(nextDoc)` (which nulls part/assembly) is safe for every command.
+- **No shared test drawing factory exists** — each spec defines a local `makeDrawing()`. The guard suite hoists ONE shared `makeDrawing()` helper.
+- **Existing specs seed `activeDocument` WITHOUT `activeDrawing`.** The guard harness must establish a valid baseline (e.g. call `setActiveDocument(...)`) so the invariant holds *before* the command runs — otherwise the baseline itself is divergent.
+- **Several commands guard/throw** if fixtures are unmet: AddProjectedView throws without a matching base view; DeleteSheet throws `LAST_SHEET` with <2 sheets; AddDetailView throws without parent `.projection`. Each guard row's fixture must satisfy the command's preconditions or `apply` no-ops/throws before `setState`.
 
 ## Batches (~3)
 
-- **B1** — `drawingDocState` helper + guard-suite harness + **view commands**: AddBaseView, AddProjectedView, AddIsoView, DeleteView, RegenerateView, MoveView, EditViewScale, ToggleHiddenLines.
-- **B2** — **annotation / dimension / break commands**: Add/Delete/MoveDrawingAnnotation, Add/DeleteDrawingDimension, Add/DeleteBreak, DeleteDimensionGroup.
-- **B3** — **sheet + properties commands**: Add/Delete/RenameSheet, EditSheetSize, EditDrawingProperties, EditTitleBlock.
+- **B1** — `drawingDocState` helper + guard-suite harness (+ shared `makeDrawing()`) + **8 view commands**: AddBaseView, AddProjectedView, AddIsoView, DeleteView, RegenerateView, MoveView, EditViewScale, ToggleHiddenLines.
+- **B2** — **5 annotation/dimension commands**: Add/Delete/MoveDrawingAnnotation, Add/DeleteDrawingDimension.
+- **B3** — **6 sheet/properties commands + SetActiveSheet (inverse)**: Add/Delete/RenameSheet, EditSheetSize, EditDrawingProperties, EditTitleBlock, SetActiveSheet.
 
 Each batch follows red → green → refactor: add the guard rows for that batch's commands (red — they fail on the stale `activeDrawing`), apply the helper (green), full `packages/app test:unit` stays green.
 
 ## Success criteria
 
-- Every drawing command that writes a drawing document leaves `activeDrawing === activeDocument.document` after both `apply` and `revert`.
-- Parametrized guard suite covers all such commands and is green.
+- Every drawing command that writes a drawing document leaves `activeDrawing === activeDocument.document` (kind `'drawing'`) after both `apply` and `revert` — including the inverse offender SetActiveSheet.
+- Parametrized guard suite covers all 20 touched commands plus ≥1 already-correct positive-control row (proves the harness detects correctness, not just failure), and is green.
 - `pnpm -r typecheck` clean; `pnpm -r test:unit` green at its prior count plus the new guard rows.
-- No manifest bump, no renderer-path change, no already-correct command modified.
+- No manifest bump, no renderer-path change, no already-correct command modified (other than the positive-control rows being *read* by the test, not edited).
