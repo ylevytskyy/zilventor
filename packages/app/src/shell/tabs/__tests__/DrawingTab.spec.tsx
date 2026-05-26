@@ -109,14 +109,13 @@ describe('DrawingTab — drawing active doc', () => {
     expect(btn.getAttribute('title')).toMatch(/follow-up/i);
   });
 
-  it('clicking Export DXF dispatches ExportDrawingDxfCommand', () => {
-    const dwg = seedDrawing();
-    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwg });
+  it('renders a disabled Export DXF button when no activePart/activeAssembly is set', () => {
+    // activePart and activeAssembly are both null (default store state) — button must be disabled.
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
     const btn = screen.getByRole('button', { name: /export dxf/i });
-    // Button is disabled when source is null (no activePart/activeAssembly set).
-    // That's an acceptable assertion without needing a full source mock.
     expect(btn).toBeInTheDocument();
+    expect(btn).toBeDisabled();
   });
 });
 
