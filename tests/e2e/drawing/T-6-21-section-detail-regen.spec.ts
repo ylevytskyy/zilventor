@@ -110,7 +110,7 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
   });
 
   // ─── Step 5–8: Create drawing + base + section + detail views ─────────
-  const { sheetId, baseViewId, sectionViewId, detailViewId } = await page.evaluate(
+  const { sheetId, baseViewId, sectionViewId, detailViewId, initialDetailEdgeCount } = await page.evaluate(
     async ({ sourcePath, partIdA: pA }: { sourcePath: string; partIdA: string }) => {
       const store = (window as unknown as {
         __zilventorStore: {
@@ -263,16 +263,22 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
       const initialHatchCount = sectionView.hatchSegments?.length ?? 0;
       console.log('[T-6-21] initial section hatchSegments:', initialHatchCount);
 
-      // Step 8: Place detail view — circle region at center of base view's projected bbox.
-      // The projected box in view-space spans -25..+25 in x and y; center is 0,0.
-      // Use the actual projected bbox center to ensure the region captures edges.
+      // Step 8: Place detail view — circle region that STRADDLES the top edge of box-A.
+      // Box-A front view (50×50×30, front projection): bbox spans x=-25..+25, y=-25..+25.
+      // Box-B front view (60×60×40, front projection): bbox spans x=-30..+30, y=-30..+30.
+      // Strategy: place the circle center 3mm below box-A's top edge (y = maxY - 3),
+      // radius = 5mm. This circle crosses the top edge of box-A (y=+25), capturing 1+
+      // clipped edge segments. For box-B the top edge is at y=+30 which is outside the
+      // circle (center at ~+22, radius 5 → highest y = +27 < +30), so 0 edges captured.
+      // Therefore detailEdgeCount changes from > 0 (box-A) to 0 (box-B after regen).
       const pBbox = baseView.projection!.bbox;
       const regionCenter = {
-        x: (pBbox.minX + pBbox.maxX) / 2,
-        y: (pBbox.minY + pBbox.maxY) / 2,
+        x: (pBbox.minX + pBbox.maxX) / 2,  // center x (unchanged)
+        y: pBbox.maxY - 3,                   // 3mm below top edge of box-A
       };
-      const regionRadius = Math.min(pBbox.maxX - pBbox.minX, pBbox.maxY - pBbox.minY) / 4;
-      console.log('[T-6-21] detail region center:', regionCenter, 'radius:', regionRadius);
+      const regionRadius = 5; // small enough to straddle only the top edge, not corners
+      console.log('[T-6-21] detail region center:', regionCenter, 'radius:', regionRadius,
+        '(straddles box-A top edge at y=', pBbox.maxY, ')');
       const { AddDetailViewCommand } = await import('/src/commands/AddDetailViewCommand.ts');
       await new AddDetailViewCommand({
         drawingId: drawing.id,
@@ -284,16 +290,23 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
 
       const s4 = store.getState();
       const sh4 = (s4.activeDocument as {
-        document: { sheets: Array<{ id: string; views: Array<{ id: string; kind: string }> }> };
+        document: { sheets: Array<{ id: string; views: Array<{ id: string; kind: string; projection?: { visibleEdges: unknown[] } }> }> };
       }).document.sheets.find((s) => s.id === sheetId)!;
       const detailView = sh4.views.find((v) => v.kind === 'detail')!;
       if (!detailView) throw new Error('T-6-21: detail view not found after AddDetailViewCommand');
+
+      // Capture initial (pre-regen, box-A) detail edge count.
+      // The circle straddles box-A's top edge → should be > 0.
+      const initialDetailEdgeCount =
+        (detailView as { projection?: { visibleEdges: unknown[] } }).projection?.visibleEdges.length ?? 0;
+      console.log('[T-6-21] initial detail edges (box-A, pre-regen):', initialDetailEdgeCount);
 
       return {
         sheetId,
         baseViewId: baseView.id,
         sectionViewId: sectionView.id,
         detailViewId: detailView.id,
+        initialDetailEdgeCount,
       };
     },
     { sourcePath: SOURCE_PATH, partIdA },
@@ -332,6 +345,11 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
   });
 
   expect(viewCount, 'reopenedDoc must have 3 views (base + section + detail) after pack→unpack').toBeGreaterThanOrEqual(3);
+
+  // Assert detail circle straddles box-A top edge → non-zero initial edge count.
+  // This proves the region placement is meaningful (not a degenerate no-op).
+  console.log('[T-6-21] pre-regen detail edge count (box-A):', initialDetailEdgeCount);
+  expect(initialDetailEdgeCount, 'detail circle must straddle box-A top edge and capture ≥1 clipped edge before regen').toBeGreaterThan(0);
 
   // ─── Step 10: Overwrite OPFS with box-B bytes ──────────────────────────
   await page.evaluate(
@@ -508,8 +526,12 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
     },
     { did: detailViewId, shId: sheetId },
   );
-  console.log('[T-6-21] detail edges after regen:', detailEdgeCount);
-  // Detail clips a circle region from the base — edges ≥ 0 (circle may partially miss geometry).
+  console.log('[T-6-21] detail edges after regen (box-B):', detailEdgeCount);
+  // Assert the detail geometry CHANGED after regen.
+  // Pre-regen (box-A): top edge at y=+25 → circle (center y=+22, r=5) captures it → count > 0.
+  // Post-regen (box-B): top edge at y=+30 → circle (center y=+22, r=5) max is y=+27 < +30 → 0 edges.
+  // So the edge count must differ — proving the re-projection actually ran with new geometry.
+  expect(detailEdgeCount, 'detail edge count after regen (box-B) must differ from pre-regen (box-A) count, proving real geometry re-clip ran').not.toBe(initialDetailEdgeCount);
 
   // ─── Step 16: No stale markers for section or detail ──────────────────
   const remainingSectionMarkers = await page.locator(`g[data-view-id="${sectionViewId}"] [data-stale-marker]`).count();

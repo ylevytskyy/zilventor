@@ -566,6 +566,79 @@ describe('AddSectionViewCommand.apply() — stepped cache key (SS-CMD-5)', () =>
   });
 });
 
+// ── FIX-1 regression: kernelId resolves via activeDrawingSourcePartId when activePart=null ──
+// Lock: activeDrawingSourcePartId must win over activePart?.id and source.id.
+// Bug path: drawingDocState() (called by CreateDrawingCommand) nulls activePart; without
+// the activeDrawingSourcePartId guard the command fell through to source.id (a file path,
+// not a kernel UUID), causing OCCT namedShapeCache lookup to fail silently.
+describe('AddSectionViewCommand.apply() — kernelId resolution (KID-1)', () => {
+  it('KID-1a: when activePart=null and activeDrawingSourcePartId set, cutBySectionPlane gets the kernel UUID (not source.id)', async () => {
+    const KERNEL_UUID = 'a1b2c3d4-kernel-uuid';
+    const SOURCE_ID = 'parts/box.zipt'; // source.id = partPath, NOT a kernel UUID
+
+    // resolveSectionSource returns source.id = SOURCE_ID (simulates real file path).
+    // The mock at module level returns 'src-fp'; override just for this test.
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      kind: 'part',
+      id: SOURCE_ID,
+    });
+
+    // State: activePart is null (drawingDocState() nulled it), but activeDrawingSourcePartId is set.
+    useAppStore.setState({
+      activePart: null,
+      activeDrawingSourcePartId: KERNEL_UUID,
+    } as never);
+
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await cmd.apply();
+
+    // cutBySectionPlane must be called with the kernel UUID, not the file path.
+    expect(cutBySectionPlane).toHaveBeenCalledWith(
+      KERNEL_UUID,           // ← must NOT be SOURCE_ID or undefined
+      expect.any(Object),    // plane
+      expect.any(Number),    // arrowDirection
+      undefined,             // splitPlane (full mode)
+      undefined,             // cutSide (full mode)
+    );
+    // Negative assertion: source.id (the partPath) must NOT have been passed.
+    const firstArg = (cutBySectionPlane as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(firstArg).not.toBe(SOURCE_ID);
+  });
+
+  it('KID-1b: same guard works for mode=stepped — activeDrawingSourcePartId wins over null activePart', async () => {
+    const KERNEL_UUID = 'b2c3d4e5-kernel-uuid';
+    const SOURCE_ID = 'parts/box.zipt';
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      kind: 'part',
+      id: SOURCE_ID,
+    });
+
+    useAppStore.setState({
+      activePart: null,
+      activeDrawingSourcePartId: KERNEL_UUID,
+    } as never);
+
+    const segments = [
+      { startSheet: { x: 0,  y: 0 },  endSheet: { x: 60, y: 0 } },
+      { startSheet: { x: 60, y: 0 },  endSheet: { x: 60, y: 30 } },
+      { startSheet: { x: 60, y: 30 }, endSheet: { x: 120, y: 30 } },
+    ] as const;
+
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'stepped', stepSegments: segments });
+    await cmd.apply();
+
+    expect(cutByStepSegments).toHaveBeenCalledWith(
+      KERNEL_UUID,
+      expect.any(Array),
+      expect.any(Number),
+    );
+    const firstArg = (cutByStepSegments as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(firstArg).not.toBe(SOURCE_ID);
+  });
+});
+
 describe('AddSectionViewCommand.revert() — stepped cache eviction (SS-CMD-4)', () => {
   const segments: readonly StepSegment[] = [
     { startSheet: { x: 0,   y: 0 },  endSheet: { x: 60,  y: 0 } },
