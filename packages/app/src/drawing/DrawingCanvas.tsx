@@ -133,9 +133,7 @@ export function DrawingCanvas() {
   const [staleViews, setStaleViews] = useState<Set<string>>(new Set());
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
-  const activeDrawingSourceFingerprint = useAppStore(
-    (s) => (s as unknown as { activeDrawingSourceFingerprint: string | null }).activeDrawingSourceFingerprint
-  );
+  const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
 
   if (!drawing) {
     return <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">No drawing open.</div>;
