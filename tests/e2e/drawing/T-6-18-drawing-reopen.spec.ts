@@ -8,7 +8,7 @@
  *      after CreateDrawingCommand the Model ribbon tab disappears). Save bytesB to globalThis.
  *   3. Switch back to box A context; create drawing + place real base view.
  *      view.inputFingerprint = djb2(bytesA).
- *   4. **REAL ROUND-TRIP** (separate evaluate): packDrawing(in-memory-doc) → Uint8Array
+ *   4. **REAL ROUND-TRIP** (separate evaluate): REAL packDrawing(in-memory-doc) → Uint8Array
  *      (simulates Save As). unpackDrawing(bytes) → reopenedDoc (simulates Open).
  *      reopenedDoc stored in globalThis.__t618_reopenedDoc.
  *   5. Assert: reopenedDoc.sheets[0].views.length ≥ 1 AND view.inputFingerprint set.
@@ -23,6 +23,8 @@
  *   - Step 4 is a SEPARATE page.evaluate call (not bolted onto the CreateDrawing eval).
  *     This avoids a ~30s execution-context-destroyed failure caused by running
  *     CreateDrawingCommand + AddBaseViewCommand + packDrawing all in one long evaluate.
+ *   - Step 4 uses the REAL packDrawing() from DrawingPacker.ts (writeTarGz is now a pure
+ *     synchronous byte-assembly — no streamx streaming — so it is browser-main-thread safe).
  *   - activateDrawingDocument is called with the DESERIALIZED doc (reopenedDoc), not the
  *     in-memory doc. This exercises the real SaveAs+Open code path.
  *
@@ -217,127 +219,16 @@ test('T-6-18: drawing reopen — pack→unpack round-trip preserves views + muta
   void sheetId; // captured for debugging context; baseViewId is what we assert on
 
   // ─── STEP 4: REAL ROUND-TRIP (separate evaluate) ─────────────────────────────
-  // Simulates File → Save As + File → Open:
-  //   packDrawingNative(in-memory-doc) → Uint8Array (Save As equivalent)
-  //   unpackDrawing(bytes)             → reopenedDoc (Open)
+  // Simulates File → Save As + File → Open using the REAL production APIs:
+  //   packDrawing(in-memory-doc)  → Uint8Array  (Save As)
+  //   unpackDrawing(bytes)        → reopenedDoc (Open)
+  //
+  // writeTarGz is now a pure synchronous byte-assembly (no streamx streaming),
+  // so packDrawing is browser-main-thread safe and exercises the exact same
+  // code path that production handleSaveAs runs.
+  //
   // The reopenedDoc is stored in globalThis for the activateDrawingDocument step.
-  //
-  // WHY NOT use packDrawing() directly: packDrawing() calls writeTarGz() which relies on
-  // streamx's pipe + queueMicrotask chain. In the browser main thread this chain enters an
-  // infinite microtask loop (Chrome kills the context at ~30s). writeTarGz is designed for
-  // Node.js (Vitest) and Web Workers (kernel), NOT the browser main thread.
-  //
-  // FIX: implement the pack step inline using:
-  //   1. Manual POSIX tar format (pure Uint8Array — no streamx)
-  //   2. CompressionStream('gzip') (browser-native — no pako)
-  // Then call the REAL unpackDrawing() to validate the deserialization path.
-  // This produces a byte-identical format to packDrawing() (same tar structure).
   const { viewCountAfterUnpack, viewHasFingerprint } = await page.evaluate(async () => {
-    // ── Inline pack helpers ──────────────────────────────────────────────────
-    // Build a single-entry POSIX tar archive from a manifest.json byte buffer.
-    function buildTarBytes(data: Uint8Array): Uint8Array {
-      const header = new Uint8Array(512);
-      const enc = new TextEncoder();
-
-      // name (0..99): 'manifest.json'
-      const nameBytes = enc.encode('manifest.json');
-      header.set(nameBytes.subarray(0, 100), 0);
-
-      // mode (100..107): '0000644\0'
-      header.set(enc.encode('0000644\0'), 100);
-      // uid (108..115): '0000000\0'
-      header.set(enc.encode('0000000\0'), 108);
-      // gid (116..123): '0000000\0'
-      header.set(enc.encode('0000000\0'), 116);
-
-      // size (124..135): 11-digit octal + null
-      const sizeStr = data.byteLength.toString(8).padStart(11, '0') + '\0';
-      header.set(enc.encode(sizeStr), 124);
-
-      // mtime (136..147): '00000000000\0' (epoch 0, deterministic)
-      header.set(enc.encode('00000000000\0'), 136);
-
-      // checksum (148..155): 8 spaces as placeholder for checksum computation
-      for (let i = 148; i < 156; i++) header[i] = 0x20;
-
-      // type flag (156): '0' = regular file
-      header[156] = 0x30;
-
-      // ustar magic (257..262): 'ustar\0'
-      header.set(enc.encode('ustar\0'), 257);
-      // version (263..264): '  '
-      header[263] = 0x20;
-      header[264] = 0x20;
-
-      // compute checksum: sum of all 512 bytes (checksum field is spaces)
-      let checksum = 0;
-      for (let i = 0; i < 512; i++) checksum += header[i];
-      // write checksum: 6 octal digits + null + space
-      const csStr = checksum.toString(8).padStart(6, '0');
-      header.set(enc.encode(csStr), 148);
-      header[154] = 0x00;
-      header[155] = 0x20;
-
-      // data padded to 512-byte block boundary
-      const padded = Math.ceil(data.byteLength / 512) * 512;
-      const dataBuf = new Uint8Array(padded);
-      dataBuf.set(data);
-
-      // assemble: header(512) + padded-data + EOF(1024 zero bytes)
-      const tar = new Uint8Array(512 + padded + 1024);
-      tar.set(header, 0);
-      tar.set(dataBuf, 512);
-      // last 1024 bytes are already zeroed (EOF marker)
-      return tar;
-    }
-
-    // gzip via browser-native CompressionStream (no pako, no streamx).
-    // IMPORTANT: reading and writing must run concurrently to avoid deadlock:
-    // if the compressed output exceeds CompressionStream's internal buffer,
-    // writer.write() blocks until the reader consumes data.
-    async function gzipNative(data: Uint8Array): Promise<Uint8Array> {
-      const cs = new CompressionStream('gzip');
-      const writer = cs.writable.getWriter();
-      const reader = cs.readable.getReader();
-
-      const chunks: Uint8Array[] = [];
-
-      // Start consuming the readable side immediately (concurrently with writes).
-      const readDone = (async () => {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value as Uint8Array);
-        }
-      })();
-
-      // Write data and close (the concurrent readDone loop prevents backpressure deadlock).
-      await writer.write(data);
-      await writer.close();
-      await readDone;
-
-      const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-      const out = new Uint8Array(total);
-      let off = 0;
-      for (const c of chunks) { out.set(c, off); off += c.byteLength; }
-      return out;
-    }
-
-    // Produce .zidw-compatible bytes: gzip(tar([manifest.json = JSON(manifest)]))
-    async function packDrawingNative(doc: unknown): Promise<Uint8Array> {
-      const manifest = {
-        formatVersion: 19, // CURRENT_FORMAT_VERSION — must match shared/src/manifest.ts
-        kind: 'drawing' as const,
-        createdAt: new Date().toISOString(),
-        appVersion: '0.0.0',
-        document: doc,
-      };
-      const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
-      const tarBytes = buildTarBytes(manifestBytes);
-      return gzipNative(tarBytes);
-    }
-    // ── End of inline pack helpers ───────────────────────────────────────────
-
     const store = (
       window as unknown as {
         __zilventorStore: {
@@ -357,20 +248,18 @@ test('T-6-18: drawing reopen — pack→unpack round-trip preserves views + muta
     }
     const inMemoryDoc = state.activeDocument.document;
 
-    // pack → unpack: the REAL serialization round-trip.
-    // Pack uses browser-native APIs (no streamx); unpack uses the REAL unpackDrawing
-    // (DrawingPacker.ts) to validate that the deserialization path works correctly.
-    console.log('[T-6-18] STEP4: packing with native gzip+tar');
-    const packStart = Date.now();
-    const packedBytes = await packDrawingNative(inMemoryDoc);
-    console.log('[T-6-18] STEP4: pack done in', Date.now() - packStart, 'ms, bytes:', packedBytes.length);
+    // REAL pack → unpack round-trip: both from the REAL DrawingPacker.ts.
+    const { packDrawing, unpackDrawing } = await import('/src/storage/DrawingPacker.ts');
 
-    console.log('[T-6-18] STEP4: importing DrawingPacker for unpackDrawing');
-    const { unpackDrawing } = await import('/src/storage/DrawingPacker.ts');
-    console.log('[T-6-18] STEP4: calling unpackDrawing');
+    console.log('[T-6-18] STEP4: calling real packDrawing');
+    const packStart = Date.now();
+    const packedBytes = await packDrawing(inMemoryDoc as Parameters<typeof packDrawing>[0]);
+    console.log('[T-6-18] STEP4: packDrawing done in', Date.now() - packStart, 'ms, bytes:', packedBytes.length);
+
+    console.log('[T-6-18] STEP4: calling real unpackDrawing');
     const unpackStart = Date.now();
     const reopenedDoc = await unpackDrawing(packedBytes);
-    console.log('[T-6-18] STEP4: unpackDrawing done in', Date.now() - unpackStart, 'ms, sheets:', (reopenedDoc as {sheets: unknown[]}).sheets.length);
+    console.log('[T-6-18] STEP4: unpackDrawing done in', Date.now() - unpackStart, 'ms, sheets:', (reopenedDoc as { sheets: unknown[] }).sheets.length);
 
     // Store reopenedDoc in globalThis for the activateDrawingDocument step.
     // activateDrawingDocument MUST receive the deserialized doc (not the in-memory one)

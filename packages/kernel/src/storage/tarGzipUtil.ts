@@ -1,21 +1,12 @@
 import { gzip, ungzip } from 'pako';
-import { pack as tarPack, extract as tarExtract } from 'tar-stream';
+import { extract as tarExtract } from 'tar-stream';
 // `streamx` has no published types. tar-stream already depends on it, so
-// it's on disk; we re-use its Writable to collect pack/extract output in a
+// it's on disk; we re-use its Writable to collect extract output in a
 // way that works in both Node and the browser Web Worker.
 // @ts-expect-error missing type declarations for streamx
 import { Writable } from 'streamx';
 
 export type TarEntry = { name: string; data: Uint8Array<ArrayBufferLike> };
-
-const DETERMINISTIC_HEADER = {
-  mtime: new Date(0),
-  uid: 0,
-  gid: 0,
-  uname: '',
-  gname: '',
-  mode: 0o644,
-};
 
 function concatBytes(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((n, c) => n + c.byteLength, 0);
@@ -28,54 +19,84 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return flat;
 }
 
-function addEntry(
-  tar: ReturnType<typeof tarPack>,
-  header: Parameters<ReturnType<typeof tarPack>['entry']>[0],
-  body: Uint8Array,
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    // `@types/tar-stream` types `body` as `Buffer | string` but the runtime
-    // (b4a-backed) accepts any Uint8Array in both Node and the browser.
-    tar.entry(
-      { ...header, size: body.byteLength },
-      body as unknown as Buffer,
-      (err?: Error | null) => {
-        if (err) reject(err);
-        else resolve();
-      },
-    );
-  });
+// ---------------------------------------------------------------------------
+// Pure synchronous tar builder — works on the browser main thread, in Web
+// Workers, and in Node without needing a streaming event loop.
+//
+// Background: tar-stream's Pack is a streamx Readable. Its pipe/drain cycle
+// is driven by queueMicrotask, which requires multiple event-loop turns to
+// propagate backpressure signals.  On the browser main thread that chain
+// stalls indefinitely when a long-running async function (e.g. page.evaluate)
+// consumes all microtask budget, causing packDrawing to hang regardless of the
+// Pack's highWaterMark.  The solution is to skip streaming entirely and
+// assemble the tar bytes directly with typed arrays.
+//
+// Format: POSIX ustar (same as what tar-stream produces).
+// Each entry: 512-byte header block + data padded to 512 boundary.
+// Archive ends with 2 × 512-byte zero blocks.
+// ---------------------------------------------------------------------------
+const USTAR_MAGIC = new Uint8Array([0x75, 0x73, 0x74, 0x61, 0x72, 0x00]); // "ustar\0"
+const USTAR_VERSION = new Uint8Array([0x30, 0x30]); // "00"
+
+function buildTarEntry(name: string, data: Uint8Array, mtime = 0): Uint8Array {
+  const enc = new TextEncoder();
+  const nameBytes = enc.encode(name);
+  if (nameBytes.byteLength > 100) {
+    throw new Error(`tar entry name too long (max 100 bytes): ${name}`);
+  }
+
+  const header = new Uint8Array(512);
+
+  // name (0–99)
+  header.set(nameBytes, 0);
+  // mode (100–107): '0000644\0'
+  header.set(enc.encode('0000644\0'), 100);
+  // uid (108–115)
+  header.set(enc.encode('0000000\0'), 108);
+  // gid (116–123)
+  header.set(enc.encode('0000000\0'), 116);
+  // size (124–135): 11-digit octal + null
+  header.set(enc.encode(data.byteLength.toString(8).padStart(11, '0') + '\0'), 124);
+  // mtime (136–147): 11-digit octal + null
+  header.set(enc.encode(mtime.toString(8).padStart(11, '0') + '\0'), 136);
+  // checksum placeholder — 8 spaces (148–155)
+  header.fill(0x20, 148, 156);
+  // type flag (156): '0' = regular file
+  header[156] = 0x30;
+  // ustar magic (257–262)
+  header.set(USTAR_MAGIC, 257);
+  // ustar version (263–264)
+  header.set(USTAR_VERSION, 263);
+
+  // Checksum: sum of all 512 bytes (checksum field treated as spaces)
+  let checksum = 0;
+  for (let i = 0; i < 512; i++) checksum += header[i]!;
+  // Write: 6 octal digits + null + space
+  header.set(enc.encode(checksum.toString(8).padStart(6, '0')), 148);
+  header[154] = 0x00;
+  header[155] = 0x20;
+
+  // Data padded to 512-byte boundary
+  const paddedSize = Math.ceil(data.byteLength / 512) * 512;
+  const paddedData = new Uint8Array(paddedSize);
+  paddedData.set(data, 0);
+
+  // Combine header + padded data
+  const entry = new Uint8Array(512 + paddedSize);
+  entry.set(header, 0);
+  entry.set(paddedData, 512);
+  return entry;
 }
 
 export async function writeTarGz(entries: TarEntry[]): Promise<Uint8Array> {
-  // Use a large highWaterMark to avoid backpressure stalls in the browser main thread.
-  // The default 16 KiB causes push() to return false for large manifests, and the
-  // drain/resume path through queueMicrotask does not complete in all browser contexts.
-  const tar = tarPack({ highWaterMark: 1 << 24 }); // 16 MiB — no practical limit for .zidw
-  const chunks: Uint8Array[] = [];
-
-  // Pipe the tar output into a collector Writable. Using streamx's `pipe`
-  // delivers chunks reliably across Node and the browser Web Worker, where
-  // the event-emitter / async-iterator paths did not pump as expected.
-  const collector = new Writable({
-    write(c: Uint8Array, cb: (err?: Error | null) => void) {
-      chunks.push(new Uint8Array(c.buffer, c.byteOffset, c.byteLength));
-      cb(null);
-    },
-  });
-  const collectDone = new Promise<void>((resolve, reject) => {
-    collector.on('finish', () => resolve());
-    collector.on('error', (e: Error) => reject(e));
-  });
-  (tar as unknown as { pipe(w: Writable): void }).pipe(collector);
-
+  // Build all entry bytes synchronously — no streaming, no event-loop dependency.
+  const parts: Uint8Array[] = [];
   for (const entry of entries) {
-    await addEntry(tar, { ...DETERMINISTIC_HEADER, name: entry.name }, entry.data);
+    parts.push(buildTarEntry(entry.name, entry.data));
   }
-  tar.finalize();
-
-  await collectDone;
-  return gzip(concatBytes(chunks));
+  // POSIX tar EOF: two 512-byte zero blocks
+  parts.push(new Uint8Array(1024));
+  return gzip(concatBytes(parts));
 }
 
 export async function readTarGz(archive: Uint8Array): Promise<TarEntry[]> {
