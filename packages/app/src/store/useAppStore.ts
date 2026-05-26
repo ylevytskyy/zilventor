@@ -96,7 +96,10 @@ type AppState = {
   /** Kernel part id loaded from the drawing's source.partPath on drawing activation.
    *  Null when no drawing is active or the source part has not yet loaded.
    *  Set by loadDrawingSource (called from CreateDrawingCommand.apply / future reopen path).
-   *  Reset to null by drawingDocState() so drawing commands always see a clean slate. */
+   *  Preserved until the next drawing creation — NOT reset by drawingDocState() or
+   *  setActiveDocument(), because drawingDocState() is called by every drawing edit
+   *  command and nulling here would break projectViewFromSource for views placed after
+   *  the first. */
   activeDrawingSourcePartId: string | null;
   /** djb2 hash of the raw OPFS bytes used to load the source part (set alongside
    *  activeDrawingSourcePartId by loadDrawingSource). Used by projectViewFromSource as
@@ -104,7 +107,8 @@ type AppState = {
    *  A kernel UUID is stable per-session, so djb2(kernelId) would NEVER detect edits —
    *  hashing the actual bytes is the correct content-based change-detector.
    *  Null when no drawing is active or the source part has not yet loaded.
-   *  Reset to null by drawingDocState(). */
+   *  Preserved (not reset by drawingDocState/setActiveDocument) — same lifecycle as
+   *  activeDrawingSourcePartId above. */
   activeDrawingSourceFingerprint: string | null;
   kernelReady: boolean;
   statusMessage: string;
