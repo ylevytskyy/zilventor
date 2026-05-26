@@ -7,6 +7,7 @@ import { ViewElement } from './ViewElement';
 import { SectionLineOverlay } from './SectionLineOverlay';
 import { DimensionElement } from './DimensionElement';
 import { AnnotationElement } from './AnnotationElement';
+import { computeStaleViewIds } from './computeStaleViewIds';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import { AddSectionViewCommand } from '../commands/AddSectionViewCommand';
@@ -132,6 +133,9 @@ export function DrawingCanvas() {
   const [staleViews, setStaleViews] = useState<Set<string>>(new Set());
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
+  const activeDrawingSourceFingerprint = useAppStore(
+    (s) => (s as unknown as { activeDrawingSourceFingerprint: string | null }).activeDrawingSourceFingerprint
+  );
 
   if (!drawing) {
     return <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">No drawing open.</div>;
@@ -145,15 +149,16 @@ export function DrawingCanvas() {
   const drawingId = drawing.id;
   const sheetId = sheet.id;
 
-  // Detect stale views on mount (views with projection but no fingerprint)
+  // Detect stale views on drawing activation / source fingerprint change.
+  // Reads activeDrawingSourceFingerprint (bytes hash set by loadDrawingSource in B0).
+  // Uses computeStaleViewIds() for the two staleness conditions.
+  //
+  // NOTE: do NOT use fingerprintPartState(activePart) here — activePart is null in the live
+  // drawing context (reset by drawingDocState). The bytes-based fingerprint slot is correct.
   useEffect(() => {
-    const stale = new Set<string>();
-    for (const v of sheet.views) {
-      if (v.projection && !v.inputFingerprint) stale.add(v.id);
-    }
-    setStaleViews(stale);
+    setStaleViews(computeStaleViewIds(sheet.views, activeDrawingSourceFingerprint));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawing.id, sheet.id]);
+  }, [drawing.id, sheet.id, activeDrawingSourceFingerprint]);
 
   // F5: Reset sessions when toolMode changes away from them
   useEffect(() => {
