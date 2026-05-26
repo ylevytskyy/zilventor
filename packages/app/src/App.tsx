@@ -117,6 +117,7 @@ import type { NestInputRow } from '@zilventor/shared';
 import { projectView } from '@zilventor/shared/src/drawing/projector';
 import { renderDrawingSvg } from './drawing/renderDrawingSvg';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
+import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -3018,11 +3019,37 @@ export default function App() {
       return { p95ms, mode };
     };
 
+    // T63h: fingerprintPartState p95 < 5ms (synchronous djb2 of featureTree+parameters).
+    // Uses a synthetic 20-feature part document. Static import at module top (_fpFn).
+    const _syntheticPart: import('@zilventor/shared').PartDocument = {
+      id: 'perf-fp-part', name: 'FP Perf', units: 'mm',
+      parameters: Object.fromEntries(
+        Array.from({ length: 10 }, (_, i) => [`p${i}`, { name: `p${i}`, expression: `${i * 5}`, value: i * 5, unit: 'mm' as const }])
+      ) as Record<string, import('@zilventor/shared').SketchParameter>,
+      featureTree: Array.from({ length: 20 }, (_, i) => ({
+        id: `feat-${i}`, kind: 'extrude' as const,
+        sketchRef: `sk-${i}`, distanceParam: `${10 + i}`,
+        direction: 'forward' as const, operation: 'new' as const,
+      })) as unknown as import('@zilventor/shared').Feature[],
+      properties: {}, materials: [], hardware: [],
+    };
+    (w as unknown as { __zilventorFingerprintPartStateMs: (n: number) => number }).__zilventorFingerprintPartStateMs = (n: number): number => {
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        _fpFn(_syntheticPart);
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((a, b) => a - b);
+      return samples[Math.floor(samples.length * 0.95)] ?? 0;
+    };
+
     return () => {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
       delete w.__zilventorExportPdfMs;
       delete w.__zilventorSectionCutMs;
+      delete w.__zilventorFingerprintPartStateMs;
     };
   }, []);
 

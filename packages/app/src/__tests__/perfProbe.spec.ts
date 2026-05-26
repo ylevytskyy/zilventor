@@ -62,6 +62,25 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
 class MockResizeObserver { observe() {} unobserve() {} disconnect() {} }
 (global as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver = MockResizeObserver;
 
+describe('__zilventorFingerprintPartStateMs (T63h)', () => {
+  afterEach(() => {
+    cleanup();
+    delete (globalThis as { __zilventorFingerprintPartStateMs?: unknown }).__zilventorFingerprintPartStateMs;
+  });
+
+  it('probe is registered and returns p95 < 5ms for 20-feature synthetic part', async () => {
+    render(React.createElement(App));
+    await new Promise((r) => setTimeout(r, 200));
+    const probe = (globalThis as {
+      __zilventorFingerprintPartStateMs?: (n: number) => number;
+    }).__zilventorFingerprintPartStateMs;
+    expect(typeof probe).toBe('function');
+    const p95 = probe!(30);
+    expect(p95).toBeGreaterThanOrEqual(0);
+    expect(p95).toBeLessThan(5);
+  });
+});
+
 describe('__zilventorSectionCutMs stepped variant (F1.2 / T63d wiring)', () => {
   afterEach(() => {
     cleanup();

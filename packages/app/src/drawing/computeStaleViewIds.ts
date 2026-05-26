@@ -19,7 +19,7 @@ import type { DrawingView } from '@zilventor/shared';
  * Returns an empty set when activeDrawingSourceFingerprint is null (no source loaded yet).
  */
 export function computeStaleViewIds(
-  views: DrawingView[],
+  views: readonly DrawingView[],
   activeDrawingSourceFingerprint: string | null,
 ): Set<string> {
   const stale = new Set<string>();
