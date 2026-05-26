@@ -9,7 +9,7 @@
  * Strategy: mock unpackDrawing + activateDrawingDocument, then drive handleOpen
  * via an extracted testable function (or spy on the imports).
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { packDrawing } from '../../../storage/DrawingPacker';
 import type { DrawingDocument } from '@zilventor/shared';
 
