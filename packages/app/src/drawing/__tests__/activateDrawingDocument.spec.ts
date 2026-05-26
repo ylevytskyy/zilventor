@@ -11,6 +11,36 @@ vi.mock('../loadDrawingSource', () => ({
   _clearLoadDrawingSourceCache: vi.fn(),
 }));
 
+// Mock loadAssemblyForProjection so assembly tests don't need real OPFS/kernel
+vi.mock('../loadAssemblyForProjection', () => ({
+  loadAssemblyForProjection: vi.fn().mockResolvedValue({
+    components: [
+      { partId: 'pid-asm-A', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ],
+    sourceFingerprint: 'fp-asm-reopened',
+  }),
+}));
+
+// Mock AssemblyPacker.unpackAssembly — called by the assembly branch before loadAssemblyForProjection
+vi.mock('@zilventor/kernel/src/storage/AssemblyPacker', () => ({
+  unpackAssembly: vi.fn().mockResolvedValue({
+    id: 'asm-mock',
+    name: 'Mock Assembly',
+    units: 'mm',
+    parameters: {},
+    components: [],
+    constraints: [],
+    groundedComponentPaths: [],
+    colors: {},
+    bomItemNumbers: {},
+    cutListItemNumbers: {},
+    colorOverrides: {},
+    properties: {},
+    materials: [],
+    hardware: [],
+  }),
+}));
+
 // Mock Opfs — not used directly by activateDrawingDocument (passed via args) but
 // Opfs.forNavigator may be imported by loadDrawingSource shim; mock defensively.
 vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
@@ -74,6 +104,7 @@ describe('activateDrawingDocument', () => {
       activeAssembly: null,
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,
+      activeDrawingSourceComponents: null,
     } as never);
     vi.clearAllMocks();
   });
@@ -122,8 +153,8 @@ describe('activateDrawingDocument', () => {
     expect(useAppStore.getState().statusMessage).toMatch(/source part/i);
   });
 
-  it('assembly source: setActiveDocument called, source-load skipped, slots null', async () => {
-    const { loadDrawingSource } = await import('../loadDrawingSource');
+  it('assembly source (happy path): loads components, sets slots, status "Opened"', async () => {
+    const { loadAssemblyForProjection } = await import('../loadAssemblyForProjection');
     const { activateDrawingDocument } = await import('../activateDrawingDocument');
     const kernel = makeKernel();
     const opfs = makeOpfs(true);
@@ -132,22 +163,47 @@ describe('activateDrawingDocument', () => {
       id: 'drw-asm',
       source: { partPath: 'assemblies/wardrobe.ziasm', sourceKind: 'assembly' },
     };
+
+    await activateDrawingDocument(asmDoc, { kernel: kernel as never, opfs: opfs as never });
+
+    // loadAssemblyForProjection was called
+    expect(loadAssemblyForProjection).toHaveBeenCalled();
+
+    const s = useAppStore.getState() as unknown as {
+      activeDrawingSourceComponents: unknown;
+      activeDrawingSourceFingerprint: string | null;
+      activeDrawingSourcePartId: string | null;
+    };
+    expect(s.activeDrawingSourceComponents).toEqual([
+      { partId: 'pid-asm-A', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ]);
+    expect(s.activeDrawingSourceFingerprint).toBe('fp-asm-reopened');
+    expect(s.activeDrawingSourcePartId).toBeNull();
+    expect(useAppStore.getState().statusMessage).toBe('Opened');
+  });
+
+  it('assembly source (load failure): drawing activated, slots null, setStatus notice', async () => {
+    const { loadAssemblyForProjection } = await import('../loadAssemblyForProjection');
+    (loadAssemblyForProjection as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('OPFS_READ_FAILED: assemblies/wardrobe.ziasm')
+    );
+    const { activateDrawingDocument } = await import('../activateDrawingDocument');
+    const kernel = makeKernel();
+    const opfs = makeOpfs(true);
+    const asmDoc: DrawingDocument = {
+      ...baseDoc,
+      id: 'drw-asm2',
+      source: { partPath: 'assemblies/wardrobe.ziasm', sourceKind: 'assembly' },
+    };
+
     await activateDrawingDocument(asmDoc, { kernel: kernel as never, opfs: opfs as never });
 
     const doc = useAppStore.getState().activeDocument;
     expect(doc?.kind).toBe('drawing');
-    expect((doc as { kind: 'drawing'; document: DrawingDocument }).document.id).toBe('drw-asm');
 
-    // loadDrawingSource must NOT be called for assembly
-    expect(loadDrawingSource).not.toHaveBeenCalled();
-
-    // Slots stay null
-    const { partId, fingerprint } = getStoreSlots();
-    expect(partId).toBeNull();
-    expect(fingerprint).toBeNull();
-
-    // Non-blocking notice
-    expect(useAppStore.getState().statusMessage).toMatch(/assembly/i);
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceComponents: unknown };
+    expect(s.activeDrawingSourceComponents).toBeNull();
+    expect(useAppStore.getState().statusMessage).toMatch(/assembly.*failed|failed.*assembly|source.*not found/i);
   });
 
   it('clears the loadDrawingSource cache before loading (fresh OPFS read)', async () => {

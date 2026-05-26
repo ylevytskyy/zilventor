@@ -25,12 +25,36 @@ export async function activateDrawingDocument(
   const activePartId = useAppStore.getState().activePart?.id;
   useAppStore.getState().setActiveDocument({ kind: 'drawing', document: doc });
 
-  // Step 2: skip source-load for assembly-sourced drawings (separate deferred work).
+  // Step 2: assembly-sourced drawings — unpack .ziasm + loadAssemblyForProjection.
   if (doc.source.sourceKind === 'assembly') {
-    // Slots stay null; Regenerate naturally disabled.
-    useAppStore.getState().setStatus(
-      'Assembly-sourced drawing opened — Regenerate unavailable (assembly projection is deferred)',
-    );
+    // Assembly branch: unpack the .ziasm, load all visible leaf parts, build composed poses.
+    try {
+      const { loadAssemblyForProjection } = await import('./loadAssemblyForProjection');
+      const { unpackAssembly } = await import('@zilventor/kernel/src/storage/AssemblyPacker');
+      const asmBytes = await opfs.read(doc.source.partPath);
+      const asmDoc = await unpackAssembly(asmBytes);
+      const { components, sourceFingerprint } = await loadAssemblyForProjection({
+        asmPath: doc.source.partPath,
+        asmDoc,
+        opfs,
+        kernel,
+      });
+      useAppStore.setState({
+        activeDrawingSourceComponents: components,
+        activeDrawingSourceFingerprint: sourceFingerprint,
+      } as never);
+      useAppStore.getState().setStatus('Opened');
+    } catch (e) {
+      console.warn('[activateDrawingDocument] assembly source load failed:', (e as Error).message);
+      useAppStore.getState().setStatus(
+        'Assembly source load failed — Regenerate disabled. Ensure all assembly parts are saved.',
+      );
+      useAppStore.setState({
+        activeDrawingSourceComponents: null,
+        activeDrawingSourceFingerprint: null,
+        activeDrawingSourcePartId: null,
+      } as never);
+    }
     return;
   }
 
@@ -66,6 +90,7 @@ export async function activateDrawingDocument(
     useAppStore.setState({
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,
+      activeDrawingSourceComponents: null,
     } as never);
   }
 }
