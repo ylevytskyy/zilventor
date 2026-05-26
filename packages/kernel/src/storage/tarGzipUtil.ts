@@ -48,7 +48,10 @@ function addEntry(
 }
 
 export async function writeTarGz(entries: TarEntry[]): Promise<Uint8Array> {
-  const tar = tarPack();
+  // Use a large highWaterMark to avoid backpressure stalls in the browser main thread.
+  // The default 16 KiB causes push() to return false for large manifests, and the
+  // drain/resume path through queueMicrotask does not complete in all browser contexts.
+  const tar = tarPack({ highWaterMark: 1 << 24 }); // 16 MiB — no practical limit for .zidw
   const chunks: Uint8Array[] = [];
 
   // Pipe the tar output into a collector Writable. Using streamx's `pipe`
