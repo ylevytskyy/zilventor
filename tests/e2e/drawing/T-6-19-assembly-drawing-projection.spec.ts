@@ -14,7 +14,8 @@
  *      Set it as activeAssembly in the store.
  *   4. Drive CreateDrawingCommand({ sourcePath:'assemblies/t619.ziasm', sourceKind:'assembly' }).
  *      Verifies activeDrawingSourceComponents is populated (≥2) and fingerprint is set.
- *   5. AddBaseViewCommand → assert visibleEdges.length > 0 (edges from BOTH parts present).
+ *   5. AddBaseViewCommand → assert visibleEdges contain edge-id prefix "0" (Part A at x:+60)
+ *      AND prefix "1" (Part B at x:−40) — proves BOTH components contributed projected geometry.
  *   6. REAL pack→unpack round-trip (separate evaluate): packDrawing → unpackDrawing (same pattern
  *      as T-6-18 step 4). Store reopenedDoc in globalThis.__t619_reopenedDoc.
  *      Assert views preserved + inputFingerprint set.
@@ -216,7 +217,7 @@ test('T-6-19: 2-part assembly drawing — base view + pack→unpack + stale + re
   );
 
   // ── Step 4 + 5: CreateDrawingCommand + AddBaseViewCommand ─────────────────────
-  const { sheetId, baseViewId, baseViewEdgeCount } = await page.evaluate(
+  const { sheetId, baseViewId, baseViewEdgeCount, baseViewEdgeIdPrefixes } = await page.evaluate(
     async ({ asmPath }: { asmPath: string }) => {
       const store = (window as unknown as {
         __zilventorStore: {
@@ -230,7 +231,7 @@ test('T-6-19: 2-part assembly drawing — base view + pack→unpack + stale + re
                   views: Array<{
                     id: string;
                     kind: string;
-                    projection?: { visibleEdges: unknown[] };
+                    projection?: { visibleEdges: Array<{ id: string }> };
                     inputFingerprint?: string;
                   }>;
                 }>;
@@ -286,17 +287,35 @@ test('T-6-19: 2-part assembly drawing — base view + pack→unpack + stale + re
         throw new Error('T-6-19: base view inputFingerprint not set');
       }
 
+      // Extract the component-index prefix ("0" or "1") from each visible Edge2D id.
+      // Assembly edge ids are namespaced as `${compIdx}::${partId}::${edgeKey}_${runIndex}`
+      // by getAssemblyProjectorInput (packages/kernel/src/adapter/drawing/getProjectorInput.ts).
+      // Collecting the unique set of leading component indices lets the caller assert that
+      // BOTH components contributed projected geometry, not just one.
+      const edgeIdPrefixes = new Set<string>();
+      for (const edge of baseView.projection.visibleEdges) {
+        const prefix = edge.id.split('::')[0];
+        if (prefix !== undefined) edgeIdPrefixes.add(prefix);
+      }
+
       return {
         sheetId,
         drawingId: drawingDoc.id,
         baseViewId: baseView.id,
         baseViewEdgeCount: baseView.projection.visibleEdges.length,
+        baseViewEdgeIdPrefixes: Array.from(edgeIdPrefixes),
       };
     },
     { asmPath: ASM_PATH },
   );
 
-  expect(baseViewEdgeCount, 'base view must have projected edges from the 2-part assembly').toBeGreaterThan(0);
+  // Assert both component instances contributed projected geometry.
+  // Edge ids are namespaced "${compIdx}::${partId}::${edgeKey}_${runIndex}" so prefix "0"
+  // means component 0 (Part A at x:+60) and "1" means component 1 (Part B at x:−40).
+  // The old `> 0` check would pass even if only one component projected; this assertion
+  // would fail if either component produced no visible edges (1-part regression scenario).
+  expect(baseViewEdgeIdPrefixes, 'base view must contain edges from component 0 (Part A)').toContain('0');
+  expect(baseViewEdgeIdPrefixes, 'base view must contain edges from component 1 (Part B)').toContain('1');
 
   // Switch to drawing tab and verify the base view renders in the SVG canvas.
   await page.getByRole('tab', { name: 'Drawing' }).click();
