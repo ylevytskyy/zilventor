@@ -119,4 +119,24 @@ describe('dxfWriter — entity emitters (DXF-ENT)', () => {
     expect(linePos).toBeLessThan(circPos);
     expect(circPos).toBeLessThan(textPos);
   });
+
+  it('DXF-ENT-7: fmt() guard — NaN, Infinity, -0 coords emit "0.0000" not invalid tokens', () => {
+    // DXF parsers reject the literal tokens "NaN" and "Infinity".
+    // fmt() must clamp non-finite and negative-zero to '0.0000'.
+    const doc = createDxfDocument();
+    doc.line('VISIBLE', NaN, Infinity, -0, -Infinity);
+    const out = doc.toString();
+    // Must NEVER contain invalid DXF tokens
+    expect(out).not.toContain('NaN');
+    expect(out).not.toContain('Infinity');
+    // All 4 coordinates must be emitted as '0.0000'
+    // Extract the LINE entity block (from LINE up to next entity or ENDSEC)
+    const lines = out.split('\n');
+    const lineIdx = lines.findIndex((l) => l.trim() === 'LINE');
+    expect(lineIdx).toBeGreaterThan(-1);
+    const entityBlock = lines.slice(lineIdx, lineIdx + 20).join('\n');
+    // x1=NaN → 0.0000, y1=Infinity → 0.0000, x2=-0 → 0.0000, y2=-Infinity → 0.0000
+    const coordValues = entityBlock.match(/0\.0000/g) ?? [];
+    expect(coordValues.length).toBeGreaterThanOrEqual(4);
+  });
 });

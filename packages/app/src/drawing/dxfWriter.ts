@@ -24,7 +24,9 @@ const LAYERS = [
 ] as const;
 
 function fmt(n: number): string {
-  // DXF R12 coords: up to 6 decimal places, no trailing zeros beyond 3
+  // DXF R12 coords: up to 6 decimal places, no trailing zeros beyond 3.
+  // Guard against non-finite values and negative-zero — DXF parsers reject 'NaN'/'Infinity'.
+  if (!Number.isFinite(n) || Object.is(n, -0)) return '0.0000';
   return n.toFixed(4);
 }
 
@@ -71,6 +73,11 @@ export function createDxfDocument(): DxfDocument {
   tables.push('  0', 'ENDTAB');
 
   tables.push('  0', 'ENDSEC');
+
+  // ── BLOCKS section (empty — required by R12 structure between TABLES and ENTITIES) ──
+  const blocks: string[] = [];
+  blocks.push('  0', 'SECTION', '  2', 'BLOCKS');
+  blocks.push('  0', 'ENDSEC');
 
   // Internal entities accumulator — populated by emitters
   const ents: string[] = [];
@@ -133,6 +140,7 @@ export function createDxfDocument(): DxfDocument {
       return [
         ...header,
         ...tables,
+        ...blocks,
         ...entSection,
         '  0', 'EOF',
       ].join('\n') + '\n';
