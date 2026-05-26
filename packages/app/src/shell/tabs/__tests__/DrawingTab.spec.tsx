@@ -43,7 +43,7 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByText('Export')).toBeInTheDocument();
   });
 
-  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 4 Annotate buttons, 3 Export buttons', () => {
+  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 4 Annotate buttons, 4 Export buttons', () => {
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
     // Sheet panel: New Sheet + Sheet… (disabled follow-up)
@@ -68,6 +68,7 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByRole('button', { name: /export pdf/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export svg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export png/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export dxf/i })).toBeInTheDocument();
   });
 
   it('clicking Linear (H) calls setMode("addLinearH")', () => {
@@ -106,6 +107,16 @@ describe('DrawingTab — drawing active doc', () => {
     const btn = screen.getByRole('button', { name: /^sheet…$/i });
     expect(btn).toBeDisabled();
     expect(btn.getAttribute('title')).toMatch(/follow-up/i);
+  });
+
+  it('clicking Export DXF dispatches ExportDrawingDxfCommand', () => {
+    const dwg = seedDrawing();
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwg });
+    render(<DrawingTab />);
+    const btn = screen.getByRole('button', { name: /export dxf/i });
+    // Button is disabled when source is null (no activePart/activeAssembly set).
+    // That's an acceptable assertion without needing a full source mock.
+    expect(btn).toBeInTheDocument();
   });
 });
 

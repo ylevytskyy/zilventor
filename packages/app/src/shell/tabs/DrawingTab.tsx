@@ -6,6 +6,7 @@ import { AddSheetCommand } from '../../commands/AddSheetCommand';
 import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand';
 import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
 import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
+import { ExportDrawingDxfCommand } from '../../commands/ExportDrawingDxfCommand';
 import { StubTab } from './_stub';
 
 export default function DrawingTab(): JSX.Element {
@@ -298,6 +299,23 @@ export default function DrawingTab(): JSX.Element {
           }}
         >
           Export PNG
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Export DXF"
+          disabled={!source}
+          title={source ? 'Export to DXF' : 'Source document not loaded'}
+          onClick={() => {
+            if (!source) return;
+            void bus.execute(new ExportDrawingDxfCommand({
+              drawing,
+              sheetId: drawing.activeSheetId,
+              source,
+            }));
+          }}
+        >
+          Export DXF
         </button>
       </RibbonPanel>
     </div>
