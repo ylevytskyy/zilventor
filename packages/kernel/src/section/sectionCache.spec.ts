@@ -11,7 +11,7 @@ function makeMemoryOpfsRoot(): FileSystemDirectoryHandle {
     return {
       kind: 'directory',
       name: prefix,
-      async getDirectoryHandle(name: string, opts?: { create?: boolean }) {
+      async getDirectoryHandle(name: string, _opts?: { create?: boolean }) {
         return makeDir(prefix ? `${prefix}/${name}` : name);
       },
       async getFileHandle(name: string, opts?: { create?: boolean }) {
@@ -48,7 +48,6 @@ function makeMemoryOpfsRoot(): FileSystemDirectoryHandle {
       [Symbol.asyncIterator](): AsyncIterator<[string, FileSystemHandle]> {
         // Return entries that start with this prefix
         const relevant = [...files.entries()].filter(([k]) => {
-          const stripped = prefix ? k.slice(prefix.length + 1) : k;
           return prefix ? k.startsWith(prefix + '/') : true;
         });
         let i = 0;

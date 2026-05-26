@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SketchPrimitive, SketchConstraint } from '@zilventor/shared';
+import type { SketchPrimitive } from '@zilventor/shared';
 import { GcsSystem } from '../GcsSystem';
 import { loadPlanegcs } from '../planegcsLoader';
 

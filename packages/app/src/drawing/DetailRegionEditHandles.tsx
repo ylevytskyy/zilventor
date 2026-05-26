@@ -159,7 +159,6 @@ export function DetailRegionEditHandles({
         () => useToolModeStore.getState().editDragEnd((prev, next) => onCommit(prev, next)),
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [...sharedRectDeps],
   );
 
@@ -176,7 +175,6 @@ export function DetailRegionEditHandles({
         () => useToolModeStore.getState().editDragEnd((prev, next) => onCommit(prev, next)),
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [...sharedRectDeps],
   );
 
@@ -193,7 +191,6 @@ export function DetailRegionEditHandles({
         () => useToolModeStore.getState().editDragEnd((prev, next) => onCommit(prev, next)),
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [...sharedRectDeps],
   );
 
@@ -210,7 +207,6 @@ export function DetailRegionEditHandles({
         () => useToolModeStore.getState().editDragEnd((prev, next) => onCommit(prev, next)),
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [...sharedRectDeps],
   );
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type {
-  Feature, HoleFeature, HolePlacement, HoleProfile, HoleTermination,
+  Feature, HoleFeature, HoleTermination,
   ParamOrLiteral, FaceName, EdgeName,
 } from '../types';
 

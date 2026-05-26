@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePartJson, parseAssemblyJson, type ImporterPartJson, type ImporterAssemblyJson } from '../inventorJsonSchema';
+import { parsePartJson, parseAssemblyJson } from '../inventorJsonSchema';
 
 describe('inventorJsonSchema', () => {
   describe('parsePartJson', () => {

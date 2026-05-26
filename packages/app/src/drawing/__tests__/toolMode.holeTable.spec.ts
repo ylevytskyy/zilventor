@@ -1,7 +1,6 @@
 // packages/app/src/drawing/__tests__/toolMode.holeTable.spec.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { HoleTableToolState } from '../toolMode';
 
 describe('HoleTableToolState — initial state', () => {
   beforeEach(() => {

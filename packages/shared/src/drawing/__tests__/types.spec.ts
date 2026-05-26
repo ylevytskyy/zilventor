@@ -1,18 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type {
   DrawingDocument,
-  DrawingSource,
-  DrawingSheet,
   SheetSize,
   DrawingView,
   BaseView,
   ProjectedView,
   IsoView,
-  ViewScale,
   DrawingDimension,
-  PointRef,
   DrawingAnnotation,
-  TitleBlockOverrides,
   SectionView,
   HatchSegment,
 } from '../types';

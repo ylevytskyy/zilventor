@@ -794,7 +794,7 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       return liveRegion;
     }
     if (editDetailRegionState.stage === 'draggingCorner') {
-      const { startRegion, oppositeCorner } = editDetailRegionState;
+      const { oppositeCorner } = editDetailRegionState;
       const widthMm  = Math.max(Math.abs(point.x - oppositeCorner.x), MIN_DETAIL_RECT_MM);
       const heightMm = Math.max(Math.abs(point.y - oppositeCorner.y), MIN_DETAIL_RECT_MM);
       const newCenter = {

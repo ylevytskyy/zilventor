@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type {
   WorkAxisFeature, WorkPlaneFeature, WorkPointFeature,
-  WorkAxisRef, WorkPlaneRef, WorkPointRef, ParamOrLiteral, Feature,
+  Feature,
 } from '../types';
 
 describe('Work feature types', () => {

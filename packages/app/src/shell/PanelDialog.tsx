@@ -190,7 +190,6 @@ export function PanelDialog(): JSX.Element | null {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelDialog]);
 
   if (!panelDialog) return null;

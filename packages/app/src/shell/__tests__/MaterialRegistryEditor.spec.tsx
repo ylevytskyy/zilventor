@@ -31,7 +31,7 @@ const partWithPanel = (materialId: string): PartDocument => {
   };
 };
 
-const flush = async () => {
+const _flush = async () => {
   await act(async () => { await Promise.resolve(); });
 };
 

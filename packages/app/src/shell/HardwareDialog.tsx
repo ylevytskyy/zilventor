@@ -37,7 +37,7 @@ export function HardwareDialog(): JSX.Element | null {
     if (first && !filtered.find((e) => e.id === selectedSkuId)) {
       setSelectedSkuId(first.id);
     }
-  }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category]);
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {

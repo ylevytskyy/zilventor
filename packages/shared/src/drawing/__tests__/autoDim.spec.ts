@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { findMatchingEdge2D } from '../autoDim';
-import type { DrawingView, BaseView, DrawingDimension } from '../types';
+import type { BaseView, DrawingDimension } from '../types';
 import type { Edge2D } from '../projectedGeometry';
 
 // Helper: narrow a DrawingDimension (post-F5 union) to the linear subset that has offsetMm.

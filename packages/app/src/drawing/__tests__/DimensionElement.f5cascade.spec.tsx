@@ -19,7 +19,7 @@ import type { DrawingSheet } from '@zilventor/shared';
 const GROUP_ID = 'group-cascade-test';
 const VIEW_ID = 'view-cascade-test';
 
-function makeSheet(paramValue: number): DrawingSheet {
+function makeSheet(_paramValue: number): DrawingSheet {
   return {
     id: 'sheet-c',
     name: 'Sheet 1',

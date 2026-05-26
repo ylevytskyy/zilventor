@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { RegionParent, DetailView, Vec2, ViewScale, DrawingView } from '../types';
+import type { RegionParent, DetailView, ViewScale, DrawingView } from '../types';
 
 describe('RegionParent shape', () => {
   it('has center (Vec2) and radiusMm (number)', () => {

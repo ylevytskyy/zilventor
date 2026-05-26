@@ -96,7 +96,7 @@ describe('DrawingTreePane — detail views in tree', () => {
   it('renders detail view row with "Detail A (from Base — front)" label', () => {
     render(<DrawingTreePane />);
     // Click the sheet row to select it (fires SetActiveSheetCommand), then click expand toggle
-    const sheet1Row = screen.getByText('Sheet 1');
+    const _sheet1Row = screen.getByText('Sheet 1');
     // The ▸ toggle is a sibling span; click the expand toggle
     const toggles = screen.getAllByText('▸');
     fireEvent.click(toggles[0]!); // expand first sheet

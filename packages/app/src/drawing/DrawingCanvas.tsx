@@ -31,7 +31,7 @@ import { AddProjectedViewCommand } from '../commands/AddProjectedViewCommand';
 import { AddIsoViewCommand } from '../commands/AddIsoViewCommand';
 import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
-import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
+import type { DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
 import { RegenerateViewCommand } from '../commands/RegenerateViewCommand';
 import { projectViewFromSource } from './projectViewFromSource';
 import { deriveProjectedOrientation } from '@zilventor/shared/src/drawing/deriveProjectedOrientation';
@@ -101,7 +101,7 @@ export function DrawingCanvas() {
   const detailState = useToolModeStore((s) => s.detailState);
   const detailRectState = useToolModeStore((s) => s.detailRectState);
   const breakState = useToolModeStore((s) => s.breakState);
-  const editDetailRegionState = useToolModeStore((s) => s.editDetailRegionState);
+  const _editDetailRegionState = useToolModeStore((s) => s.editDetailRegionState);
 
   // Pan/zoom state
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -155,7 +155,6 @@ export function DrawingCanvas() {
   // drawing context (reset by drawingDocState). The bytes-based fingerprint slot is correct.
   useEffect(() => {
     setStaleViews(computeStaleViewIds(sheet.views, activeDrawingSourceFingerprint));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, sheet.id, activeDrawingSourceFingerprint]);
 
   // F5: Reset sessions when toolMode changes away from them
@@ -177,7 +176,6 @@ export function DrawingCanvas() {
     if (toolMode !== 'angular') {
       angularSessionRef.current = { phase: 'pick-edge-1' };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolMode]);
 
   // ESC / Enter / Arrow keys for section/detail/break tool

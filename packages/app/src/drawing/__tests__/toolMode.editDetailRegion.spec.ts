@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { Region, EditDetailRegionToolState } from '../toolMode';
+import type { Region } from '../toolMode';
 import { MIN_DETAIL_RADIUS_MM } from '../drawingConstants';
 
 describe('MIN_DETAIL_RADIUS_MM constant', () => {

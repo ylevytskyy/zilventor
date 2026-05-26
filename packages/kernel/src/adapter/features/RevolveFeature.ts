@@ -120,7 +120,7 @@ export function executeRevolveFeature(
 
   const edges: EdgeHandle[] = [];
   let closedWiresLocal: ReturnType<typeof combineEdgesIntoWires>['closedWires'] = [];
-  let openChainsLocal: ReturnType<typeof combineEdgesIntoWires>['openChains'] = [];
+  let _openChainsLocal: ReturnType<typeof combineEdgesIntoWires>['openChains'] = [];
   let face: unknown = null;
   let mkFace: { delete: () => void } | null = null;
   let preRotatedFace: unknown = null;
@@ -133,7 +133,7 @@ export function executeRevolveFeature(
 
     const combined = combineEdgesIntoWires(oc, edges);
     closedWiresLocal = combined.closedWires;
-    openChainsLocal = combined.openChains;
+    _openChainsLocal = combined.openChains;
 
     if (closedWiresLocal.length === 0) {
       edges.forEach(disposeEdge);
@@ -177,7 +177,7 @@ export function executeRevolveFeature(
     mkFace = null;
     closedWiresLocal.forEach(disposeWire);
     closedWiresLocal = [];
-    openChainsLocal = [];
+    _openChainsLocal = [];
     edges.forEach(disposeEdge);
     edges.length = 0;
 

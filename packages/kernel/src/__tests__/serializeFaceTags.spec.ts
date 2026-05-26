@@ -4,7 +4,7 @@
 //   HS-K-6 — planeSource round-trips through serializeFaceTags
 //   HS-K-7 — single-part cutBySectionPlane wires splitPlane/splitSide through KernelApi
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { serializeFaceTags } from '../api';
 import type { FaceTagMap as KernelFaceTagMap } from '../section/cutBySectionPlane';
 

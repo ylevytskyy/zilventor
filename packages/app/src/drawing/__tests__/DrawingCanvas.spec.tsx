@@ -4,7 +4,6 @@ import { render, fireEvent } from '@testing-library/react';
 import { DrawingCanvas } from '../DrawingCanvas';
 import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../toolMode';
-import { AddDrawingDimensionCommand } from '../../commands/AddDrawingDimensionCommand';
 import { AddSectionViewCommand } from '../../commands/AddSectionViewCommand';
 import type { DrawingDocument, DrawingSheet, BaseView, SectionView, DetailView } from '@zilventor/shared';
 
@@ -136,7 +135,6 @@ describe('DrawingCanvas — section tool mode', () => {
       fireEvent.click(viewGroup);
     } else {
       // Fallback: click the SVG with data-view-id attr on event target
-      const svg = document.querySelector('svg')!;
       // Can't easily set target attr in jsdom; assert the action path exists
       // by checking the store wires the action — skip if no viewGroup
     }

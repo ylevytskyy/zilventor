@@ -1,5 +1,5 @@
 // packages/app/src/commands/__tests__/DeleteSheetCommand.spec.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { DeleteSheetCommand } from '../DeleteSheetCommand';
 import type { DrawingDocument } from '@zilventor/shared';

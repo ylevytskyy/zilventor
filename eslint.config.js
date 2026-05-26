@@ -27,7 +27,8 @@ export default [
       '**/tailwind.config.ts',
       'playwright.config.ts',
       'vitest.config.ts',
-      'tests/**'
+      'tests/**',
+      '.remember/**'
     ]
   }
 ];

@@ -32,6 +32,5 @@ export function useCutListResult(): CutListResult {
       activeAssembly.materials ?? [],
       partInfoCacheRef.current ?? new Map(),
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef]);
 }

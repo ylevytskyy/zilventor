@@ -21,7 +21,7 @@ import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
-import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, MirrorPlane, PatternAxis, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
+import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
@@ -90,7 +90,7 @@ import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/Asse
 import type { ComponentInstance, AssemblyDocument } from '@zilventor/shared';
 import * as THREE from 'three';
 import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraintSolver';
-import { AssemblyRefCache, refKey, circularEdgeRefKey } from '@zilventor/kernel/src/assembly/AssemblyConstraintRefs';
+import { AssemblyRefCache, refKey } from '@zilventor/kernel/src/assembly/AssemblyConstraintRefs';
 import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { parseParamOrLiteral } from './shell/parseParamOrLiteral';
 import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
@@ -560,7 +560,7 @@ export default function App() {
         // Primitive i (odd):  x1=i*5,y1=0 → x2=i*5,y2=30; projected: (i*5-25, -75) → (i*5-25, -45).
         // Matching edge for each: first edge in its group uses exact projected coords.
         const bboxForPerf = { minX: 0, minY: 0, maxX: 50, maxY: 150 };
-        const cx = 25, cy = 75, cz = 25;
+        const cx = 25, cy = 75, _cz = 25;
         const syntheticEdges: Edge2D[] = Array.from({ length: CONSTRAINTS * EDGES_PER_CONSTRAINT }, (_, i) => {
           const cIdx = Math.floor(i / EDGES_PER_CONSTRAINT);
           const prim = primitives[cIdx]!;

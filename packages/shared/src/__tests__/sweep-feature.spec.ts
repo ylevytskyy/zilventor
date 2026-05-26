@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Feature, SweepFeature, SweepOrientation, BooleanOperation } from '../types';
+import type { Feature, SweepFeature, BooleanOperation } from '../types';
 
 describe('SweepFeature', () => {
   it('accepts path orientation + new operation', () => {

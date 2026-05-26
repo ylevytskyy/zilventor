@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { ToolMode, PendingViewParams, SectionToolState, DetailToolState, BreakToolState } from '../toolMode';
+import type { ToolMode, PendingViewParams, BreakToolState } from '../toolMode';
 import { MIN_DETAIL_RECT_MM } from '../drawingConstants';
 
 describe('useToolModeStore', () => {

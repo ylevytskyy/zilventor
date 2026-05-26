@@ -1,7 +1,6 @@
 // packages/app/src/drawing/__tests__/toolMode.detailRect.spec.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useToolModeStore } from '../toolMode';
-import type { DetailRectToolState, Region } from '../toolMode';
 import { MIN_DETAIL_RECT_MM } from '../drawingConstants';
 
 describe('detailRect ToolMode — initial state', () => {
