@@ -31,6 +31,10 @@ import { AddIsoViewCommand } from '../commands/AddIsoViewCommand';
 import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
+import { RegenerateViewCommand } from '../commands/RegenerateViewCommand';
+import { projectViewFromSource } from './projectViewFromSource';
+import { deriveProjectedOrientation } from '@zilventor/shared/src/drawing/deriveProjectedOrientation';
+import type { ViewOrientation } from '@zilventor/shared';
 
 // ISO sheet sizes in mm (landscape orientation)
 const ISO_MM: Record<string, { w: number; h: number }> = {
@@ -888,8 +892,50 @@ export function DrawingCanvas() {
   }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
   const handleRegenerate = useCallback((viewId: string) => {
-    setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
-  }, []);
+    const view = sheet.views.find((v) => v.id === viewId);
+    if (!view || view.kind === 'section' || view.kind === 'detail') {
+      // Section/detail regenerate is out of scope for this pass (requires kernel re-cut).
+      // Still clear the stale marker so the UI isn't permanently stuck.
+      setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
+      return;
+    }
+
+    // Derive orientation for the view.
+    let orientation: ViewOrientation;
+    if (view.kind === 'base') {
+      orientation = view.orientation;
+    } else if (view.kind === 'iso') {
+      orientation = `iso-${view.corner}` as ViewOrientation;
+    } else if (view.kind === 'projected') {
+      const baseView = sheet.views.find(
+        (v): v is BaseView => v.id === view.baseViewId && v.kind === 'base'
+      );
+      if (!baseView) {
+        setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
+        return;
+      }
+      orientation = deriveProjectedOrientation(baseView.orientation, view.direction);
+    } else {
+      setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const { projection, inputFingerprint } = await projectViewFromSource(orientation);
+        await bus.execute(new RegenerateViewCommand({
+          sheetId: sheet.id,
+          viewId,
+          projection,
+          inputFingerprint,
+        }));
+        setStaleViews((prev) => { const next = new Set(prev); next.delete(viewId); return next; });
+      } catch (err) {
+        console.error('[handleRegenerate] failed:', err);
+        // Do not clear the stale marker on error — leave it for the user to retry.
+      }
+    })();
+  }, [sheet, bus]);
 
   // viewBox incorporating pan/zoom (at zero pan/zoom = "0 0 sheetW sheetH")
   const vbX = -pan.x / zoom;
