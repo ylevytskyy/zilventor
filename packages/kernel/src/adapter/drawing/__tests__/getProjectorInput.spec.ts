@@ -169,6 +169,36 @@ describe('getProjectorInput — assembly source', () => {
     expect(asmInput.triangles.length).toBeGreaterThanOrEqual(24); // both boxes included
   });
 
+  it('produces globally-unique edge ids when the same partId appears twice (same part, two instances)', async () => {
+    // Two components that reference the SAME partId (same part used twice in the assembly,
+    // typical for repeated hardware like shelf pins).  Before the fix, both components emit
+    // edges prefixed with comp.partId, so identical edge labels from the shared part topology
+    // collide → React duplicate-key warning → potential render omissions.
+    const resShared = await executeTree(oc, makeBoxPart('box-shared'));
+    expect(resShared.ok).toBe(true);
+    if (!resShared.ok) return;
+
+    const ns = resShared.value.namedShape;
+    const cache = new Map([['box-shared', ns]]);
+
+    const asmInput = await getProjectorInput(
+      oc,
+      {
+        kind: 'assembly',
+        components: [
+          // Same partId, different poses → simulates a repeated component (e.g. screw × 2).
+          { partId: 'box-shared', pose: IDENTITY_POSE },
+          { partId: 'box-shared', pose: { translation: { x: 200, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+        ],
+      },
+      (id) => cache.get(id),
+    );
+
+    const ids = asmInput.edges.map((e) => e.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length); // all edge ids must be globally unique
+  });
+
   it('throws when a partId is not in the cache', async () => {
     await expect(
       getProjectorInput(

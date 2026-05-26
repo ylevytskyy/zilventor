@@ -138,7 +138,8 @@ function getAssemblyProjectorInput(
   const allEdges: import('@zilventor/shared').EdgeMesh3D[] = [];
   let bbox: Bbox6 | null = null;
 
-  for (const comp of components) {
+  for (let compIdx = 0; compIdx < components.length; compIdx++) {
+    const comp = components[compIdx]!;
     const ns = lookupNamedShape(comp.partId);
     if (!ns) {
       throw new Error(`getAssemblyProjectorInput: partId "${comp.partId}" not in cache — call execute() first`);
@@ -154,11 +155,13 @@ function getAssemblyProjectorInput(
       ]);
     }
 
-    // Transform edges
+    // Transform edges — namespace by component index so that two instances of the
+    // same part (same partId, different poses) never share an edge id.  The index
+    // is always unique across the loop; the partId is included for debuggability.
     for (const edge of partInput.edges) {
       allEdges.push({
         ...edge,
-        id: `${comp.partId}::${edge.id}`,
+        id: `${compIdx}::${comp.partId}::${edge.id}`,
         points: edge.points.map((p) => applyPose(p, comp.pose)),
       });
     }
