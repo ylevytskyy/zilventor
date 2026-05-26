@@ -93,6 +93,19 @@ type AppState = {
   activePart: PartDocument | null;
   activeAssembly: AssemblyDocument | null;
   activeDrawing: DrawingDocument | null;         // Sub-project 6
+  /** Kernel part id loaded from the drawing's source.partPath on drawing activation.
+   *  Null when no drawing is active or the source part has not yet loaded.
+   *  Set by loadDrawingSource (called from CreateDrawingCommand.apply / future reopen path).
+   *  Reset to null by drawingDocState() so drawing commands always see a clean slate. */
+  activeDrawingSourcePartId: string | null;
+  /** djb2 hash of the raw OPFS bytes used to load the source part (set alongside
+   *  activeDrawingSourcePartId by loadDrawingSource). Used by projectViewFromSource as
+   *  inputFingerprint and by the B5 staleness useEffect to detect source edits.
+   *  A kernel UUID is stable per-session, so djb2(kernelId) would NEVER detect edits —
+   *  hashing the actual bytes is the correct content-based change-detector.
+   *  Null when no drawing is active or the source part has not yet loaded.
+   *  Reset to null by drawingDocState(). */
+  activeDrawingSourceFingerprint: string | null;
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -328,6 +341,8 @@ export const useAppStore = create<AppState>((set) => ({
   activePart: null,
   activeAssembly: null,
   activeDrawing: null,
+  activeDrawingSourcePartId: null,
+  activeDrawingSourceFingerprint: null,
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,
