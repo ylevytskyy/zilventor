@@ -104,3 +104,22 @@ describe('__zilventorSectionCutMs stepped variant (F1.2 / T63d wiring)', () => {
     expect(result.p95ms).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('__zilventorProjectionRoundTripMs (T63i)', () => {
+  afterEach(() => {
+    cleanup();
+    delete (globalThis as { __zilventorProjectionRoundTripMs?: unknown }).__zilventorProjectionRoundTripMs;
+  });
+
+  it('pure projectView on 100-triangle fixture p95 < 200ms', async () => {
+    render(React.createElement(App));
+    await new Promise((r) => setTimeout(r, 200));
+    const probe = (globalThis as {
+      __zilventorProjectionRoundTripMs?: (n: number) => number;
+    }).__zilventorProjectionRoundTripMs;
+    expect(typeof probe).toBe('function');
+    const p95 = probe!(30);
+    expect(p95).toBeGreaterThanOrEqual(0);
+    expect(p95).toBeLessThan(200); // pure JS only; no kernel RPC in this probe
+  });
+});

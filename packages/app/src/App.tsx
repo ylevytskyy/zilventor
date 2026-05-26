@@ -3044,12 +3044,42 @@ export default function App() {
       return samples[Math.floor(samples.length * 0.95)] ?? 0;
     };
 
+    // T63i: projectView round-trip p95 < 200ms (pure JS — no kernel RPC).
+    // Uses a synthetic 100-triangle / 50-edge fixture that exercises the full
+    // projectView code path (view-matrix transform + silhouette classification).
+    // The kernel RPC cost (getProjectorInput) is excluded — it runs off-thread
+    // via Comlink and varies with WASM load time.
+    const _synthInput: import('@zilventor/shared/src/drawing/projector').ProjectorInput = {
+      triangles: Array.from({ length: 100 }, (_, i) => {
+        const bx = (i % 10) * 10; const bz = Math.floor(i / 10) * 10;
+        return [[bx, 0, bz], [bx + 8, 0, bz], [bx + 4, 8, bz + 8]] as
+          [[number,number,number],[number,number,number],[number,number,number]];
+      }),
+      edges: Array.from({ length: 50 }, (_, i) => ({
+        id: `e${i}`,
+        points: [[(i % 10) * 10, 0, 0], [(i % 10) * 10 + 8, 0, 0]] as [[number,number,number],[number,number,number]],
+        adjacentFaces: [],
+      })),
+      bbox: [0, 0, 0, 100, 10, 100] as [number,number,number,number,number,number],
+    };
+    (w as unknown as { __zilventorProjectionRoundTripMs: (n: number) => number }).__zilventorProjectionRoundTripMs = (n: number): number => {
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        projectView(_synthInput, 'front');
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((a, b) => a - b);
+      return samples[Math.floor(samples.length * 0.95)] ?? 0;
+    };
+
     return () => {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
       delete w.__zilventorExportPdfMs;
       delete w.__zilventorSectionCutMs;
       delete w.__zilventorFingerprintPartStateMs;
+      delete (w as unknown as { __zilventorProjectionRoundTripMs?: unknown }).__zilventorProjectionRoundTripMs;
     };
   }, []);
 
