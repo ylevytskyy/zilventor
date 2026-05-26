@@ -2,12 +2,14 @@ import type { Command } from './Command';
 import type { DrawingDocument, DrawingSheet, SheetSize } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { ActiveDocument } from '../store/useAppStore';
+import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
 
 export class CreateDrawingCommand implements Command {
   readonly name = 'CreateDrawing';
   private prevActiveDocument: ActiveDocument | null = null;
   private prevActiveDrawingSourcePartId: string | null = null;
   private prevActiveDrawingSourceFingerprint: string | null = null;
+  private prevActiveDrawingSourceComponents: AssemblyComponentInput[] | null = null;
   private createdId: string | null = null;
 
   constructor(
@@ -25,12 +27,16 @@ export class CreateDrawingCommand implements Command {
     const prevSlots = state as unknown as {
       activeDrawingSourcePartId: string | null;
       activeDrawingSourceFingerprint: string | null;
+      activeDrawingSourceComponents: AssemblyComponentInput[] | null;
     };
     this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
     this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
+    this.prevActiveDrawingSourceComponents = prevSlots.activeDrawingSourceComponents;
     // Capture activePart.id BEFORE setActiveDocument (which nulls activePart).
     // Used as the OPFS-fallback partId when partPath = `${partId}.zipt` (e2e test path).
     const activePartId = state.activePart?.id;
+    // Capture activeAssembly BEFORE setActiveDocument (which could null it).
+    const activeAsmDoc = state.activeAssembly;
 
     const sheetId = crypto.randomUUID();
     const drawingId = crypto.randomUUID();
@@ -65,9 +71,8 @@ export class CreateDrawingCommand implements Command {
 
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: doc });
 
-    // Load the source part into the kernel so projection commands can call
-    // getProjectorInput without a cache miss. Only for part-sourced drawings —
-    // assembly-sourced drawings use a different load path (future work).
+    // Load the source into the kernel so projection commands can call
+    // getProjectorInput without a cache miss.
     if (this.opts.sourceKind === 'part') {
       try {
         const { loadDrawingSource, _clearLoadDrawingSourceCache } = await import('../drawing/loadDrawingSource');
@@ -94,6 +99,29 @@ export class CreateDrawingCommand implements Command {
         // when the user tries to place them; the user can retry.
         console.warn('[CreateDrawingCommand] source part load failed:', (e as Error).message);
       }
+    } else if (this.opts.sourceKind === 'assembly') {
+      // Assembly branch: load all visible parts + compute composite fingerprint.
+      // activeAsmDoc is captured BEFORE setActiveDocument above (ordering guarantee).
+      try {
+        const { loadAssemblyForProjection } = await import('../drawing/loadAssemblyForProjection');
+        const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+        const kernel = useAppStore.getState().kernel;
+        if (kernel && activeAsmDoc) {
+          const opfs = await Opfs.forNavigator();
+          const { components, sourceFingerprint } = await loadAssemblyForProjection({
+            asmPath: this.opts.sourcePath,
+            asmDoc: activeAsmDoc,
+            opfs,
+            kernel,
+          });
+          useAppStore.setState({
+            activeDrawingSourceComponents: components,
+            activeDrawingSourceFingerprint: sourceFingerprint,
+          } as never);
+        }
+      } catch (e) {
+        console.warn('[CreateDrawingCommand] assembly source load failed:', (e as Error).message);
+      }
     }
 
     // Persist to OPFS — fire-and-forget; errors surface in production via status bar
@@ -110,6 +138,7 @@ export class CreateDrawingCommand implements Command {
     useAppStore.setState({
       activeDrawingSourcePartId: this.prevActiveDrawingSourcePartId,
       activeDrawingSourceFingerprint: this.prevActiveDrawingSourceFingerprint,
+      activeDrawingSourceComponents: this.prevActiveDrawingSourceComponents,
     } as never);
 
     if (this.createdId) {

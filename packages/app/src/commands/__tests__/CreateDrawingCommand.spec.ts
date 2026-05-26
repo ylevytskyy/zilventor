@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { CreateDrawingCommand } from '../CreateDrawingCommand';
-import type { DrawingDocument } from '@zilventor/shared';
+import type { DrawingDocument, AssemblyDocument } from '@zilventor/shared';
 import * as deleteModule from '../../storage/deleteDrawingFromOpfs';
 
 // Stub OPFS: CreateDrawingCommand calls saveDrawingToOpfs / deleteDrawingFromOpfs which we mock
@@ -19,6 +19,15 @@ vi.mock('../../drawing/loadDrawingSource', () => ({
   _clearLoadDrawingSourceCache: vi.fn(),
 }));
 
+vi.mock('../../drawing/loadAssemblyForProjection', () => ({
+  loadAssemblyForProjection: vi.fn().mockResolvedValue({
+    components: [
+      { partId: 'pid-A', pose: { translation: { x: 10, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ],
+    sourceFingerprint: 'fp-asm-mock',
+  }),
+}));
+
 vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   Opfs: {
     forNavigator: vi.fn().mockResolvedValue({
@@ -28,6 +37,15 @@ vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   },
 }));
 
+function makeAsmDoc(): AssemblyDocument {
+  return {
+    id: 'asm-1', name: 'Cabinet', units: 'mm',
+    parameters: {}, properties: {}, components: [], constraints: [],
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
+    cutListItemNumbers: {}, colorOverrides: {}, materials: [], hardware: [],
+  };
+}
+
 function getDrawing(): DrawingDocument | null {
   const doc = useAppStore.getState().activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
   if (!doc || doc.kind !== 'drawing') return null;
@@ -36,7 +54,7 @@ function getDrawing(): DrawingDocument | null {
 
 describe('CreateDrawingCommand', () => {
   beforeEach(() => {
-    useAppStore.setState({ activeDocument: null, activePart: null, activeAssembly: null, activeDrawingSourcePartId: null, activeDrawingSourceFingerprint: null } as never);
+    useAppStore.setState({ activeDocument: null, activePart: null, activeAssembly: null, activeDrawingSourcePartId: null, activeDrawingSourceFingerprint: null, activeDrawingSourceComponents: null } as never);
   });
 
   it('apply creates a drawing document with one A3-landscape sheet', async () => {
@@ -132,19 +150,42 @@ describe('CreateDrawingCommand', () => {
     expect(s.activeDrawingSourceFingerprint).toBe('fp-bytes-hash-abc');
   });
 
-  it('apply does NOT set source slots when sourceKind is assembly', async () => {
+  it('apply (assembly source): sets activeDrawingSourceComponents + activeDrawingSourceFingerprint', async () => {
     const cmd = new CreateDrawingCommand({
-      sourcePath: 'assemblies/wardrobe.ziasm',
+      sourcePath: 'assemblies/cabinet.ziasm',
       sourceKind: 'assembly',
     });
+    const fakeAsmDoc = makeAsmDoc();
+    useAppStore.setState({ activeAssembly: fakeAsmDoc, kernel: { loadFromBytes: vi.fn(), execute: vi.fn() } as never } as never);
+
     await cmd.apply();
 
     const s = useAppStore.getState() as unknown as {
-      activeDrawingSourcePartId: string | null;
+      activeDrawingSourceComponents: unknown;
       activeDrawingSourceFingerprint: string | null;
+      activeDrawingSourcePartId: string | null;
     };
+    expect(s.activeDrawingSourceComponents).toEqual([
+      { partId: 'pid-A', pose: { translation: { x: 10, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ]);
+    expect(s.activeDrawingSourceFingerprint).toBe('fp-asm-mock');
+    // Part slot must remain null for assembly drawings
     expect(s.activeDrawingSourcePartId).toBeNull();
-    expect(s.activeDrawingSourceFingerprint).toBeNull();
+  });
+
+  it('revert (assembly source): clears activeDrawingSourceComponents', async () => {
+    const cmd = new CreateDrawingCommand({
+      sourcePath: 'assemblies/cabinet.ziasm',
+      sourceKind: 'assembly',
+    });
+    const fakeAsmDoc = makeAsmDoc();
+    useAppStore.setState({ activeAssembly: fakeAsmDoc, kernel: { loadFromBytes: vi.fn(), execute: vi.fn() } as never } as never);
+
+    await cmd.apply();
+    await cmd.revert();
+
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceComponents: unknown };
+    expect(s.activeDrawingSourceComponents).toBeNull();
   });
 
   it('revert resets both source slots to null', async () => {
