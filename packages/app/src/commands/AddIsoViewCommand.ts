@@ -1,7 +1,9 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ViewScale, IsoView } from '@zilventor/shared';
+import type { ViewOrientation } from '@zilventor/shared/src/drawing/viewMatrix';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
+import { projectViewFromSource } from '../drawing/projectViewFromSource';
 
 export class AddIsoViewCommand implements Command {
   readonly name = 'AddIsoView';
@@ -22,6 +24,10 @@ export class AddIsoViewCommand implements Command {
     const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
+    // corner → iso-<corner> matches ViewOrientation: 'iso-NE' | 'iso-NW' | 'iso-SE' | 'iso-SW'
+    const orientation: ViewOrientation = `iso-${this.opts.corner}` as ViewOrientation;
+    const { projection, inputFingerprint } = await projectViewFromSource(orientation);
+
     const newId = crypto.randomUUID();
     this.newViewId = newId;
 
@@ -32,6 +38,8 @@ export class AddIsoViewCommand implements Command {
       corner: this.opts.corner,
       scale: this.opts.scale,
       showHidden: this.opts.showHidden ?? false, // engineering convention
+      projection,
+      inputFingerprint,
     };
 
     const next: DrawingDocument = {

@@ -1,8 +1,21 @@
 // packages/app/src/commands/__tests__/AddIsoViewCommand.spec.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { AddIsoViewCommand } from '../AddIsoViewCommand';
 import type { DrawingDocument } from '@zilventor/shared';
+
+vi.mock('../../drawing/projectViewFromSource', () => ({
+  projectViewFromSource: vi.fn().mockResolvedValue({
+    projection: {
+      visibleEdges: [{ id: 'iso-e0', kind: 'outline', points: [[0,0],[40,0],[20,30],[0,0]], sourceFaceIds: [] }],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 40, maxY: 30 },
+    },
+    inputFingerprint: 'mock-iso-fp',
+  }),
+}));
+
+import { projectViewFromSource } from '../../drawing/projectViewFromSource';
 
 type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
 
@@ -40,7 +53,7 @@ describe('AddIsoViewCommand', () => {
     if (view.kind !== 'iso') return;
     expect(view.corner).toBe('NE');
     expect(view.showHidden).toBe(false); // engineering convention default
-    expect(view.projection).toBeUndefined();
+    expect(view.projection).toBeDefined();
   });
 
   it('respects explicit showHidden=true', async () => {
@@ -71,5 +84,33 @@ describe('AddIsoViewCommand', () => {
 
     const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
     expect(doc.sheets[0]!.views).toHaveLength(0);
+  });
+
+  it('apply stores projection and inputFingerprint; calls projectViewFromSource with iso-NE orientation', async () => {
+    const cmd = new AddIsoViewCommand({
+      sheetId: 'sheet-1',
+      positionMm: { x: 200, y: 200 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+    });
+    await cmd.apply();
+
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActive).document;
+    const view = doc.sheets[0]!.views[0]!;
+    if (view.kind !== 'iso') return;
+    expect(view.projection).toBeDefined();
+    expect(view.inputFingerprint).toBe('mock-iso-fp');
+    expect(projectViewFromSource).toHaveBeenCalledWith('iso-NE');
+  });
+
+  it('apply calls projectViewFromSource with iso-SW for corner SW', async () => {
+    const cmd = new AddIsoViewCommand({
+      sheetId: 'sheet-1',
+      positionMm: { x: 0, y: 0 },
+      corner: 'SW',
+      scale: { numerator: 1, denominator: 2 },
+    });
+    await cmd.apply();
+    expect(projectViewFromSource).toHaveBeenCalledWith('iso-SW');
   });
 });
