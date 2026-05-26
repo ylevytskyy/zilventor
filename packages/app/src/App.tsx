@@ -121,6 +121,7 @@ import { projectView } from '@zilventor/shared/src/drawing/projector';
 import { renderDrawingSvg } from './drawing/renderDrawingSvg';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
+import { restoreLastOpenDrawing } from './drawing/restoreLastOpenDrawing';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -937,6 +938,9 @@ export default function App() {
     }
   }, []);
 
+  // Lazy OPFS singleton — shared by autosave, boot-restore, and Place dialog effects.
+  const opfsRef = useRef<Opfs | null>(null);
+
   // Bootstrap the kernel once.
   useEffect(() => {
     let disposed = false;
@@ -959,6 +963,25 @@ export default function App() {
       terminateRef.current = null;
     };
   }, []);
+
+  // Drawing OPFS autosave: boot-restore effect.
+  // Runs once after the kernel becomes ready. Guards on activeDocument === null
+  // so a user action that opens a doc before this effect fires is never clobbered.
+  useEffect(() => {
+    if (!kernelReady) return;
+    if (useAppStore.getState().activeDocument !== null) return;
+    void (async () => {
+      try {
+        if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+        await restoreLastOpenDrawing({
+          kernel: useAppStore.getState().kernel as never,
+          opfs: opfsRef.current,
+        });
+      } catch (e) {
+        console.warn('boot restore failed:', (e as Error).message);
+      }
+    })();
+  }, [kernelReady]);
 
   // Re-execute when the feature tree contains a solid-producing feature (extrude).
   // Empty / sketch-only trees skip execute() entirely — otherwise the kernel
@@ -3225,7 +3248,6 @@ export default function App() {
   }, [pickedRefA, pickedRefB, valueExpression, placeConstraintMode, editingConstraintId]);
 
   // Lazy OPFS singleton + tile list for the Place dialog.
-  const opfsRef = useRef<Opfs | null>(null);
   const [tiles, setTiles] = useState<AssemblyTile[]>([]);
 
   useEffect(() => {
