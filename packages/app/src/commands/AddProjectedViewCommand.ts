@@ -2,6 +2,8 @@ import type { Command } from './Command';
 import type { DrawingDocument, ProjectedView, BaseView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
+import { projectViewFromSource } from '../drawing/projectViewFromSource';
+import { deriveProjectedOrientation } from '@zilventor/shared/src/drawing/deriveProjectedOrientation';
 
 export class AddProjectedViewCommand implements Command {
   readonly name = 'AddProjectedView';
@@ -31,6 +33,11 @@ export class AddProjectedViewCommand implements Command {
       throw new Error(`BASE_VIEW_NOT_FOUND: no base view with id ${this.opts.baseViewId} on sheet ${this.opts.sheetId}`);
     }
 
+    // Derive the orientation for the projected view from the base view's orientation.
+    const orientation = deriveProjectedOrientation(baseView.orientation, this.opts.direction);
+
+    const { projection, inputFingerprint } = await projectViewFromSource(orientation);
+
     const newId = crypto.randomUUID();
     this.newViewId = newId;
 
@@ -42,6 +49,8 @@ export class AddProjectedViewCommand implements Command {
       direction: this.opts.direction,
       scale: baseView.scale,  // inherit from base
       showHidden: baseView.showHidden,
+      projection,
+      inputFingerprint,
     };
 
     const next: DrawingDocument = {
