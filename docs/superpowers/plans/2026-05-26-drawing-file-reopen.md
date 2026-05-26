@@ -1131,3 +1131,11 @@ No TBD, TODO, "similar to Task N", or incomplete code blocks remain.
 - `activateDrawingDocument` named identically in `activateDrawingDocument.ts`, `activateDrawingDocument.spec.ts`, and `FileTab.tsx` import.
 - `activePartId` read from `useAppStore.getState().activePart?.id` BEFORE `setActiveDocument` call in `activateDrawingDocument` — consistent with `CreateDrawingCommand.ts` line 33.
 - `loadDrawingSource({ ..., activePartId })` call shape consistent with `LoadDrawingSourceArgs` type in `loadDrawingSource.ts` line 67–73.
+
+## Post-implementation corrections (2026-05-26)
+
+*These notes record two mid-flight pivots discovered during implementation. The original plan body is unchanged.*
+
+**(a) Option A pivot — drawing Save As added.** Investigation found drawings had no existing disk-save path: the only autosave wrote an empty-sheet OPFS copy, invisible to the disk Open picker. The feature therefore added a `handleSaveAs` drawing branch (`showSaveFilePicker` + `packDrawing` → `.zidw`) as a prerequisite, making the disk `handleOpen` branch reachable. Views are captured at Save-As time (no autosave of disk copies needed). Task 4 in the plan marked `handleSaveAs` OUT OF SCOPE per the verifier; this note corrects that — it shipped as part of this feature.
+
+**(b) `writeTarGz` browser-hang fix.** The shared `packages/kernel/src/storage/tarGzipUtil.ts` `writeTarGz` deadlocked on the browser main thread because `streamx` backpressure causes a microtask stall for large drawing manifests. It was rewritten to synchronous POSIX ustar byte-assembly. Since `handleSaveAs` calls `packDrawing` on the main thread, fixing `writeTarGz` was load-bearing for this feature.

@@ -106,7 +106,8 @@ export default function FileTab() {
         const doc = await unpackDrawing(bytes);
         const opfs = await Opfs.forNavigator();
         await activateDrawingDocument(doc, { kernel, opfs });
-        setStatus('Opened');
+        // Status is set by activateDrawingDocument (happy path → 'Opened';
+        // assembly/missing-source paths → their own notices). Do NOT call setStatus here.
         return;
       }
       if (kind === 'assembly') {

@@ -51,6 +51,9 @@ export async function activateDrawingDocument(
       activeDrawingSourcePartId: partId,
       activeDrawingSourceFingerprint: sourceFingerprint,
     } as never);
+    // Step 5: confirm success in the status bar. Doing this here (rather than in
+    // FileTab) means the assembly/missing-source notices set above are never overwritten.
+    useAppStore.getState().setStatus('Opened');
   } catch (e) {
     // Source part missing or kernel load failed. Drawing is already active (step 1)
     // and renders its saved projection. Regenerate is naturally disabled (slots null).
@@ -59,7 +62,7 @@ export async function activateDrawingDocument(
     useAppStore.getState().setStatus(
       'Source part not found — Regenerate disabled. Open and re-save the part to restore.',
     );
-    // Ensure slots are explicitly null (they may have had a previous value from a prior drawing).
+    // Null slots explicitly so a prior drawing's source slots cannot bleed into this activation.
     useAppStore.setState({
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,

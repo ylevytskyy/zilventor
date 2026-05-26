@@ -78,7 +78,7 @@ describe('activateDrawingDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('happy path (part source): sets activeDocument + source slots', async () => {
+  it('happy path (part source): sets activeDocument + source slots + statusMessage "Opened"', async () => {
     const { activateDrawingDocument } = await import('../activateDrawingDocument');
     const kernel = makeKernel();
     const opfs = makeOpfs(true);
@@ -93,6 +93,10 @@ describe('activateDrawingDocument', () => {
     const { partId, fingerprint } = getStoreSlots();
     expect(partId).toBe('kernel-part-uuid-mock');
     expect(fingerprint).toBe('fp-mock-bytes-hash');
+
+    // Status bar must say "Opened" on the happy path (so FileTab doesn't overwrite
+    // assembly/missing-source notices set by activateDrawingDocument itself).
+    expect(useAppStore.getState().statusMessage).toBe('Opened');
   });
 
   it('missing source (opfs.exists=false): drawing still activated, slots null, setStatus called', async () => {

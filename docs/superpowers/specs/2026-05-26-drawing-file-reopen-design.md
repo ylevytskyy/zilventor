@@ -164,3 +164,11 @@ User → Open → pick cabinet.zidw
 
 No bump. v19 unchanged — reopen reads existing v19 `.zidw` files; nothing in the
 serialized shape changes.
+
+## Post-implementation corrections (2026-05-26)
+
+*These notes record two mid-flight pivots that occurred after this spec was approved. The original spec body is unchanged.*
+
+**(a) Option A pivot — drawing Save As added.** Investigation found drawings had no existing disk-save path: only an empty-sheet OPFS autosave, invisible to the disk Open picker. The feature therefore added `handleSaveAs` drawing branch (`showSaveFilePicker` + `packDrawing` → `.zidw`), making the already-built disk `handleOpen` reachable. View content is captured at Save-As time; no autosave of disk copies is needed. The spec's Option A ("extend Open picker") remained the right shape, but Save-As was a prerequisite, not an out-of-scope nicety.
+
+**(b) `writeTarGz` browser-hang fix.** The shared `packages/kernel/src/storage/tarGzipUtil.ts` `writeTarGz` deadlocked on the browser main thread due to `streamx` backpressure microtask stall for large drawing manifests. It was rewritten to synchronous POSIX ustar byte-assembly. Since `handleSaveAs` calls `packDrawing` on the main thread, this was load-bearing for the feature.
