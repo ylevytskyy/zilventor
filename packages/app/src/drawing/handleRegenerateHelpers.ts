@@ -22,6 +22,7 @@ import { regenerateSectionView } from './regenerateSectionView';
 import { regenerateDetailView } from './regenerateDetailView';
 import { RegenerateViewCommand } from '../commands/RegenerateViewCommand';
 import { deriveProjectedOrientation } from '@zilventor/shared/src/drawing/deriveProjectedOrientation';
+import { useAppStore } from '../store/useAppStore';
 
 export type HandleRegenerateOptions = {
   views: readonly DrawingView[];
@@ -116,7 +117,11 @@ export function buildHandleRegenerate(
       clearStaleView(viewId);
     } catch (err) {
       console.error('[handleRegenerate] failed:', err);
+      // Surface the thrown message in the status bar so the user sees a clear reason
+      // (e.g. "Assembly section Regenerate is not yet supported — re-create the section view.").
       // Do NOT clear stale marker on error — leave it for the user to retry.
+      const msg = err instanceof Error ? err.message : String(err);
+      useAppStore.getState().setStatus(msg);
     }
   };
 }

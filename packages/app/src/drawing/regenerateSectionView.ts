@@ -4,9 +4,7 @@ import { resolveSectionSource, getHatchSpec } from '@zilventor/shared';
 import type { CommandBus } from '../commands/CommandBus';
 import {
   cutBySectionPlane,
-  cutAssemblyBySectionPlane,
   cutByStepSegments,
-  cutAssemblyByStepSegments,
 } from '../kernel/cutBySectionPlane';
 import { projectSectionView } from './projectSectionView';
 import { deriveSectionPlane, deriveStepPlanes } from '@zilventor/shared/src/drawing/sectionPlane';
@@ -50,10 +48,17 @@ export async function regenerateSectionView(
   // 1. Resolve the source (part vs assembly).
   const source = resolveSectionSource(view, drawing);
 
-  // 2. Determine kernel id: same priority as projectViewFromSource (live slot first, then activePart).
-  const kernelId: string = source.kind === 'assembly'
-    ? (state.activeAssembly?.id ?? source.id)
-    : (state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id);
+  // 1a. Defer assembly-sourced section Regenerate: on drawing reopen only individual
+  //     component parts are loaded into the kernel (via activeDrawingSourceComponents),
+  //     not a single assembly handle that cutAssemblyBySectionPlane requires.
+  //     Throw before any kernel call so the caller keeps the stale marker intact.
+  if (source.kind === 'assembly') {
+    throw new Error('Assembly section Regenerate is not yet supported — re-create the section view.');
+  }
+
+  // 2. Determine kernel id: source.kind is always 'part' here (assembly is guarded above).
+  //    Priority: live slot (activeDrawingSourcePartId) → activePart → stored source.id.
+  const kernelId: string = state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id;
 
   // 3. Run the kernel cut for the right mode.
   let compound: unknown;
@@ -70,18 +75,14 @@ export async function regenerateSectionView(
     const viewMatrix = ((parentView as { viewMatrix?: number[] })?.viewMatrix
       ?? new Array(16).fill(0) as number[]) as Mat4;
     const planes = deriveStepPlanes(view.stepSegments, viewMatrix, view.arrowDirection);
-    const result = source.kind === 'assembly'
-      ? await cutAssemblyByStepSegments(kernelId, planes, view.arrowDirection)
-      : await cutByStepSegments(kernelId, planes, view.arrowDirection);
+    const result = await cutByStepSegments(kernelId, planes, view.arrowDirection);
     if (!result.ok) throw new Error(`REGEN_SECTION stepped cut failed: ${result.reason}`);
     compound = result.compound;
     faceTags = result.faceTags;
   } else {
     // full or half
     if (!view.plane) throw new Error('REGEN_SECTION: full/half view missing plane');
-    const result = source.kind === 'assembly'
-      ? await cutAssemblyBySectionPlane(kernelId, view.plane, view.arrowDirection, view.splitPlane, view.cutSide)
-      : await cutBySectionPlane(kernelId, view.plane, view.arrowDirection, view.splitPlane, view.cutSide);
+    const result = await cutBySectionPlane(kernelId, view.plane, view.arrowDirection, view.splitPlane, view.cutSide);
     if (!result.ok) throw new Error(`REGEN_SECTION cut failed: ${result.reason}`);
     compound = result.compound;
     faceTags = result.faceTags;

@@ -254,20 +254,22 @@ describe('regenerateSectionView — cut failure', () => {
   });
 });
 
-// ── Task 9 (B5): Assembly-sourced section regression-coverage ─────────────
-// Exercises the `source.kind === 'assembly'` branch in regenerateSectionView.
-// The branch already exists from Task 1; this test locks the dispatch contract.
+// ── Task 9 (B5): Assembly-sourced section — deferred (graceful bail) ──────
+// Assembly section Regenerate is deferred: on drawing reopen only individual
+// component parts are loaded into the kernel (not a single assembly handle
+// that cutAssemblyBySectionPlane needs). The guard throws BEFORE any kernel
+// call so the view stays stale and the last-good projection is preserved.
 
-describe('regenerateSectionView — assembly source', () => {
+describe('regenerateSectionView — assembly source (deferred)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('uses cutAssemblyBySectionPlane when source.kind === "assembly"', async () => {
+  it('throws "not yet supported" and does NOT call any cut function when source.kind === "assembly"', async () => {
     const { resolveSectionSource } = await import('@zilventor/shared');
     (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'asm-uuid-1' });
 
-    const { cutAssemblyBySectionPlane } = await import('../../kernel/cutBySectionPlane');
+    const { cutAssemblyBySectionPlane, cutBySectionPlane } = await import('../../kernel/cutBySectionPlane');
 
     const drawingAsm: DrawingDocument = {
       ...makeDrawingWithSection(),
@@ -283,23 +285,24 @@ describe('regenerateSectionView — assembly source', () => {
       kernel: {} as never,
     });
 
-    await regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never);
+    // (a) Must throw the "not yet supported" message.
+    await expect(
+      regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never),
+    ).rejects.toThrow('Assembly section Regenerate is not yet supported');
 
-    expect(cutAssemblyBySectionPlane).toHaveBeenCalledOnce();
-    expect(cutAssemblyBySectionPlane).toHaveBeenCalledWith(
-      'asm-uuid-1',
-      SECTION_VIEW_FULL.plane,
-      SECTION_VIEW_FULL.arrowDirection,
-      undefined,
-      undefined,
-    );
-    // Section regenerate writes atomically to the store (not through bus.execute).
-    expect(fakeBus.execute).not.toHaveBeenCalled();
-    // Verify store was updated with the assembly-source fingerprint.
+    // (b) Neither cut function must be called.
+    expect(cutAssemblyBySectionPlane).not.toHaveBeenCalled();
+    expect(cutBySectionPlane).not.toHaveBeenCalled();
+
+    // (c) Store not mutated — projection and inputFingerprint unchanged.
     const liveDoc = useAppStore.getState().activeDocument;
     const liveDrawing = (liveDoc as unknown as { kind: string; document: { sheets: Array<{ id: string; views: Array<{ id: string; inputFingerprint?: string }> }> } }).document;
     const updatedView = liveDrawing.sheets[0]!.views.find((v) => v.id === SECTION_VIEW_FULL.id)!;
-    expect(updatedView.inputFingerprint).toBe('new-asm-fp');
+    // inputFingerprint is 'old-source-fp' from the fixture — it must NOT be overwritten.
+    expect(updatedView.inputFingerprint).toBe('old-source-fp');
+
+    // bus not called (section skips it on the happy path too).
+    expect(fakeBus.execute).not.toHaveBeenCalled();
   });
 });
 

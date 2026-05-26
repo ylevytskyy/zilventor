@@ -55,6 +55,7 @@ Replace the section/detail bail with a kind dispatch: `section` → regenerate-s
 - A "Regenerate all stale" button (per-view Regenerate only).
 - Changing how sections/details are CREATED or how staleness is COMPUTED (both already work).
 - Stepped/half section variants get re-cut through the same `cutBySectionPlane` they were created with — no special-casing.
+- Assembly-sourced section Regenerate (deferred — kernel only loads component parts on reopen, not a single assembly handle that `cutAssemblyBySectionPlane` needs; bails gracefully with a clear status).
 
 ## Open items for the plan's verifier / implementer to confirm against real code
 1. The exact section re-cut parameters stored on `SectionView` (mode half/stepped, `splitPlane`/`splitSide`, `arrowDirection`) so the regenerate re-cut uses identical inputs to creation.
