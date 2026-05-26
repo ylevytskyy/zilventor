@@ -87,6 +87,9 @@ import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/share
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packDrawing } from './storage/DrawingPacker';
+import { autosaveDrawing } from './storage/autosaveDrawing';
+import { clearLastOpen } from './storage/lastOpenDocument';
 import type { ComponentInstance, AssemblyDocument } from '@zilventor/shared';
 import * as THREE from 'three';
 import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraintSolver';
@@ -3468,7 +3471,8 @@ export default function App() {
           const doc = useAppStore.getState().activeDocument;
           if (!doc) return;
           if (doc.kind === 'drawing') {
-            // TODO Sub-project 6: drawing autosave (.zidw)
+            await autosaveDrawing({ doc: doc.document, opfs, packDrawing });
+            autosaveStatsRef.current.writeCount += 1;
             return;
           }
           if (doc.kind === 'assembly') {
@@ -3508,10 +3512,12 @@ export default function App() {
             const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
             const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
+            clearLastOpen();
           } else {
             if (!kernel) return;
             const bytes = await kernel.saveToBytes(doc.document.id);
             await opfs.write(`${doc.document.name}.zipt`, bytes);
+            clearLastOpen();
           }
           autosaveStatsRef.current.writeCount += 1;
         } catch (e) {
