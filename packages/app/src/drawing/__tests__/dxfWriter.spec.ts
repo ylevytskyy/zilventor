@@ -44,3 +44,79 @@ describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
     }
   });
 });
+
+describe('dxfWriter — entity emitters (DXF-ENT)', () => {
+  it('DXF-ENT-1: line emits correct group codes', () => {
+    const doc = createDxfDocument();
+    doc.line('VISIBLE', 10, 20, 30, 40);
+    const out = doc.toString();
+    // Must contain LINE entity on VISIBLE layer with correct coords
+    expect(out).toContain('LINE');
+    expect(out).toContain('VISIBLE');
+    // Group code 10 → x1=10, group code 20 → y1=20
+    // Group code 11 → x2=30, group code 21 → y2=40
+    const lines = out.split('\n');
+    const lineIdx = lines.findIndex((l) => l.trim() === 'LINE');
+    expect(lineIdx).toBeGreaterThan(-1);
+    const entityBlock = lines.slice(lineIdx, lineIdx + 20).join('\n');
+    expect(entityBlock).toContain('10.0000');
+    expect(entityBlock).toContain('20.0000');
+    expect(entityBlock).toContain('30.0000');
+    expect(entityBlock).toContain('40.0000');
+  });
+
+  it('DXF-ENT-2: polyline emits POLYLINE/VERTEX/SEQEND sequence', () => {
+    const doc = createDxfDocument();
+    doc.polyline('HIDDEN', [[0, 0], [10, 5], [20, 0]]);
+    const out = doc.toString();
+    expect(out).toContain('POLYLINE');
+    expect(out).toContain('VERTEX');
+    expect(out).toContain('SEQEND');
+    // Vertices-follow flag: group code 66 = 1
+    expect(out).toContain(' 66');
+    // Count VERTEX occurrences = 3
+    const vertexCount = (out.match(/\bVERTEX\b/g) ?? []).length;
+    expect(vertexCount).toBe(3);
+  });
+
+  it('DXF-ENT-3: polyline with < 2 points emits nothing', () => {
+    const doc = createDxfDocument();
+    doc.polyline('VISIBLE', [[5, 5]]);
+    const out = doc.toString();
+    expect(out).not.toContain('POLYLINE');
+    expect(out).not.toContain('VERTEX');
+  });
+
+  it('DXF-ENT-4: circle emits CIRCLE with correct center and radius', () => {
+    const doc = createDxfDocument();
+    doc.circle('DETAIL', 15, 25, 7.5);
+    const out = doc.toString();
+    expect(out).toContain('CIRCLE');
+    expect(out).toContain('DETAIL');
+    // radius group code 40
+    expect(out).toContain('7.5000');
+  });
+
+  it('DXF-ENT-5: text emits TEXT with correct coords, height, value', () => {
+    const doc = createDxfDocument();
+    doc.text('DIMENSIONS', 5, 10, 3.5, 'Hello DXF');
+    const out = doc.toString();
+    expect(out).toContain('TEXT');
+    expect(out).toContain('DIMENSIONS');
+    expect(out).toContain('Hello DXF');
+    expect(out).toContain('3.5000'); // height
+  });
+
+  it('DXF-ENT-6: multiple entities in emission order', () => {
+    const doc = createDxfDocument();
+    doc.line('VISIBLE', 0, 0, 1, 1);
+    doc.circle('DETAIL', 5, 5, 2);
+    doc.text('TITLE', 0, 0, 4, 'Drawing A');
+    const out = doc.toString();
+    const linePos = out.indexOf('LINE');
+    const circPos = out.indexOf('CIRCLE');
+    const textPos = out.indexOf('TEXT');
+    expect(linePos).toBeLessThan(circPos);
+    expect(circPos).toBeLessThan(textPos);
+  });
+});
