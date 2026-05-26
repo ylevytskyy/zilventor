@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { regenerateSectionView } from '../regenerateSectionView';
-import type { DrawingDocument, SectionView } from '@zilventor/shared';
+import type { DrawingDocument, SectionView, StepSegment } from '@zilventor/shared';
 
 // ── mock the kernel cut function ──────────────────────────────────────────
 vi.mock('../../kernel/cutBySectionPlane', () => {
@@ -251,5 +251,141 @@ describe('regenerateSectionView — cut failure', () => {
     expect(fingerprintAfter).toBe(fingerprintBefore);
     // bus never called (section skips it on the happy path too, but confirm no side effects).
     expect(fakeBus.execute).not.toHaveBeenCalled();
+  });
+});
+
+// ── Task 9 (B5): Assembly-sourced section regression-coverage ─────────────
+// Exercises the `source.kind === 'assembly'` branch in regenerateSectionView.
+// The branch already exists from Task 1; this test locks the dispatch contract.
+
+describe('regenerateSectionView — assembly source', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('uses cutAssemblyBySectionPlane when source.kind === "assembly"', async () => {
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'asm-uuid-1' });
+
+    const { cutAssemblyBySectionPlane } = await import('../../kernel/cutBySectionPlane');
+
+    const drawingAsm: DrawingDocument = {
+      ...makeDrawingWithSection(),
+      source: { partPath: 'assemblies/asm1.ziasm', sourceKind: 'assembly' },
+    };
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: drawingAsm },
+      activeDrawing: drawingAsm,
+      activeDrawingSourcePartId: null,
+      activeDrawingSourceFingerprint: 'new-asm-fp',
+      activeAssembly: { id: 'asm-uuid-1', materials: [], components: [] } as never,
+      activePart: null,
+      kernel: {} as never,
+    });
+
+    await regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never);
+
+    expect(cutAssemblyBySectionPlane).toHaveBeenCalledOnce();
+    expect(cutAssemblyBySectionPlane).toHaveBeenCalledWith(
+      'asm-uuid-1',
+      SECTION_VIEW_FULL.plane,
+      SECTION_VIEW_FULL.arrowDirection,
+      undefined,
+      undefined,
+    );
+    // Section regenerate writes atomically to the store (not through bus.execute).
+    expect(fakeBus.execute).not.toHaveBeenCalled();
+    // Verify store was updated with the assembly-source fingerprint.
+    const liveDoc = useAppStore.getState().activeDocument;
+    const liveDrawing = (liveDoc as unknown as { kind: string; document: { sheets: Array<{ id: string; views: Array<{ id: string; inputFingerprint?: string }> }> } }).document;
+    const updatedView = liveDrawing.sheets[0]!.views.find((v) => v.id === SECTION_VIEW_FULL.id)!;
+    expect(updatedView.inputFingerprint).toBe('new-asm-fp');
+  });
+});
+
+// ── Task 10 (B6): Stepped section regression-coverage ────────────────────
+// Exercises the `mode === 'stepped'` branch: deriveStepPlanes → cutByStepSegments.
+// The branch already exists from Task 1; this test locks the dispatch contract.
+
+const STEP_SEGS: readonly StepSegment[] = [
+  { startSheet: { x: 0, y: 10 }, endSheet: { x: 25, y: 10 } },
+  { startSheet: { x: 25, y: 10 }, endSheet: { x: 25, y: 40 } },
+  { startSheet: { x: 25, y: 40 }, endSheet: { x: 50, y: 40 } },
+];
+
+const SECTION_VIEW_STEPPED: SectionView = {
+  id: 'sec-stepped',
+  kind: 'section',
+  parentViewId: 'base-1',
+  sectionLine: { p0: { x: 0, y: 10 }, p1: { x: 50, y: 40 } },
+  arrowDirection: 1,
+  label: 'C',
+  positionMm: { x: 300, y: 80 },
+  scale: { numerator: 1, denominator: 1 },
+  showHidden: false,
+  mode: 'stepped',
+  stepSegments: STEP_SEGS,
+  hatchSegments: [],
+  fingerprint: 'old-stepped-fp',
+  projection: {
+    visibleEdges: [],
+    hiddenEdges: [],
+    bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+  },
+  inputFingerprint: 'old-source-fp',
+};
+
+describe('regenerateSectionView — stepped mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Set up drawing that includes SECTION_VIEW_STEPPED alongside the base and full section views.
+    const drawingWithStepped: DrawingDocument = {
+      ...makeDrawingWithSection(),
+      sheets: makeDrawingWithSection().sheets.map((s) => ({
+        ...s,
+        views: [...s.views, SECTION_VIEW_STEPPED],
+      })),
+    };
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: drawingWithStepped },
+      activeDrawing: drawingWithStepped,
+      activeDrawingSourcePartId: 'part-uuid-1',
+      activeDrawingSourceFingerprint: 'new-source-fp',
+      activePart: { id: 'part-uuid-1', materials: [], featureTree: [], parameters: {} } as never,
+      kernel: {} as never,
+    });
+  });
+
+  it('calls cutByStepSegments with deriveStepPlanes result for stepped mode', async () => {
+    const { cutByStepSegments } = await import('../../kernel/cutBySectionPlane');
+    const { deriveStepPlanes } = await import('@zilventor/shared/src/drawing/sectionPlane');
+
+    // Give deriveStepPlanes a real return value so cutByStepSegments receives planes.
+    const mockPlanes = [
+      { origin: { x: 12, y: 10, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+      { origin: { x: 25, y: 25, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 37, y: 40, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+    ];
+    (deriveStepPlanes as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockPlanes);
+
+    await regenerateSectionView(SECTION_VIEW_STEPPED, 'sheet-1', fakeBus as never);
+
+    // deriveStepPlanes was called with the stepped view's segments.
+    expect(deriveStepPlanes).toHaveBeenCalledOnce();
+    const stepArgs = (deriveStepPlanes as ReturnType<typeof vi.fn>).mock.calls[0]![0] as readonly StepSegment[];
+    expect(stepArgs).toEqual(STEP_SEGS);
+
+    // cutByStepSegments (not cutBySectionPlane) was called with correct kernel id + arrowDirection.
+    expect(cutByStepSegments).toHaveBeenCalledOnce();
+    expect((cutByStepSegments as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe('part-uuid-1');
+    expect((cutByStepSegments as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toEqual(mockPlanes);
+    expect((cutByStepSegments as ReturnType<typeof vi.fn>).mock.calls[0]![2]).toBe(1);
+
+    // Section regenerate writes to the store atomically (not through bus.execute).
+    expect(fakeBus.execute).not.toHaveBeenCalled();
+    const liveDoc = useAppStore.getState().activeDocument;
+    const liveDrawing = (liveDoc as unknown as { kind: string; document: { sheets: Array<{ views: Array<{ id: string; inputFingerprint?: string }> }> } }).document;
+    const updatedView = liveDrawing.sheets[0]!.views.find((v) => v.id === SECTION_VIEW_STEPPED.id)!;
+    expect(updatedView.inputFingerprint).toBe('new-source-fp');
   });
 });
