@@ -2,6 +2,7 @@
 import { projectView } from '@zilventor/shared';
 import type { ViewOrientation } from '@zilventor/shared';
 import type { ProjectedGeometry } from '@zilventor/shared';
+import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
 import { useAppStore } from '../store/useAppStore';
 import { fingerprintPartState } from './fingerprintPartState';
 
@@ -41,6 +42,30 @@ export async function projectViewFromSource(
   const kernel = state.kernel;
   if (!kernel) throw new Error('KERNEL_NOT_READY: kernel not initialized');
 
+  // ---- Assembly branch ----
+  const sourceKind = state.activeDrawing?.source.sourceKind;
+  if (sourceKind === 'assembly') {
+    const components = state.activeDrawingSourceComponents as AssemblyComponentInput[] | null;
+    if (!components) {
+      throw new Error(
+        'PART_NOT_IN_STORE: activeDrawingSourceComponents is null. ' +
+        'Ensure the assembly drawing source was loaded via CreateDrawingCommand or activateDrawingDocument before placing views.',
+      );
+    }
+    const input = await kernel.getProjectorInput({ kind: 'assembly', components });
+    if (input === null) {
+      throw new Error(
+        'GEOMETRY_NOT_CACHED: getProjectorInput returned null for assembly components.',
+      );
+    }
+    const projection = projectView(input, orientation);
+    const inputFingerprint =
+      state.activeDrawingSourceFingerprint ??
+      'asm-fp-missing';
+    return { projection, inputFingerprint };
+  }
+
+  // ---- Part branch (unchanged) ----
   // Resolve kernel partId: live path first, then test fallback.
   const kernelId: string | null =
     state.activeDrawingSourcePartId ??

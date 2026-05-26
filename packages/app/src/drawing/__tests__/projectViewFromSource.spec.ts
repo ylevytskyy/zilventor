@@ -124,4 +124,71 @@ describe('projectViewFromSource', () => {
     } as never);
     await expect(projectViewFromSource('front')).rejects.toThrow('GEOMETRY_NOT_CACHED');
   });
+
+  it('assembly branch: uses activeDrawingSourceComponents when sourceKind is assembly', async () => {
+    const comps = [
+      { partId: 'pid-asm-A', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as [number,number,number,number] } },
+    ];
+    const mockKernel = {
+      getProjectorInput: vi.fn().mockResolvedValue(MOCK_PROJECTOR_INPUT),
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'drw-asm', name: 'Asm Drawing', units: 'mm',
+          source: { partPath: 'assemblies/cabinet.ziasm', sourceKind: 'assembly' },
+          properties: {}, sheets: [], activeSheetId: 's1',
+        },
+      },
+      activeDrawing: {
+        id: 'drw-asm', name: 'Asm Drawing', units: 'mm',
+        source: { partPath: 'assemblies/cabinet.ziasm', sourceKind: 'assembly' },
+        properties: {}, sheets: [], activeSheetId: 's1',
+      },
+      activePart: null,
+      activeAssembly: null,
+      activeDrawingSourcePartId: null,
+      activeDrawingSourceFingerprint: 'fp-asm-composite',
+      activeDrawingSourceComponents: comps,
+      kernel: mockKernel as never,
+    } as never);
+
+    const result = await projectViewFromSource('front');
+
+    // kernel.getProjectorInput must be called with kind:'assembly' + the components
+    expect(mockKernel.getProjectorInput).toHaveBeenCalledWith({ kind: 'assembly', components: comps });
+
+    // Returns a ProjectViewResult with inputFingerprint from activeDrawingSourceFingerprint
+    expect(result.inputFingerprint).toBe('fp-asm-composite');
+    expect(result.projection).toBeDefined();
+  });
+
+  it('assembly branch: throws PART_NOT_IN_STORE when components slot is null', async () => {
+    const mockKernel = {
+      getProjectorInput: vi.fn().mockResolvedValue(MOCK_PROJECTOR_INPUT),
+    };
+    useAppStore.setState({
+      activeDocument: {
+        kind: 'drawing',
+        document: {
+          id: 'drw-asm2', name: 'D2', units: 'mm',
+          source: { partPath: 'assemblies/w.ziasm', sourceKind: 'assembly' },
+          properties: {}, sheets: [], activeSheetId: 's1',
+        },
+      },
+      activeDrawing: {
+        id: 'drw-asm2', name: 'D2', units: 'mm',
+        source: { partPath: 'assemblies/w.ziasm', sourceKind: 'assembly' },
+        properties: {}, sheets: [], activeSheetId: 's1',
+      },
+      activePart: null,
+      activeAssembly: null,
+      activeDrawingSourceComponents: null,
+      activeDrawingSourceFingerprint: null,
+      kernel: mockKernel as never,
+    } as never);
+
+    await expect(projectViewFromSource('front')).rejects.toThrow('PART_NOT_IN_STORE');
+  });
 });
