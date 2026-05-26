@@ -25,6 +25,9 @@ import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { DetailRegionEditHandles } from './DetailRegionEditHandles';
 import { HalfSectionSidePreview } from './HalfSectionSidePreview';
 import { EditDetailRegionCommand } from '../commands/EditDetailRegionCommand';
+import { AddBaseViewCommand } from '../commands/AddBaseViewCommand';
+import { AddProjectedViewCommand } from '../commands/AddProjectedViewCommand';
+import { AddIsoViewCommand } from '../commands/AddIsoViewCommand';
 import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingDocument, DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
@@ -835,7 +838,52 @@ export function DrawingCanvas() {
       return;
     }
 
-    // Other modes (addRadial, addDiametric, addLeader, addBalloon, placeBase) → wired in Phase 8 batch 2
+    if (toolMode === 'placeBase') {
+      const params = useToolModeStore.getState().pendingViewParams;
+      if (params?.kind !== 'base') { setClickAccum([]); return; }
+      const sheetPt = { x: svgX, y: svgY };
+      void bus.execute(new AddBaseViewCommand({
+        sheetId: sheet.id,
+        positionMm: sheetPt,
+        orientation: params.orientation,
+        scale: { numerator: params.scale.n, denominator: params.scale.d },
+      }));
+      useToolModeStore.getState().reset();
+      setClickAccum([]);
+      return;
+    }
+
+    if (toolMode === 'placeProjected') {
+      const params = useToolModeStore.getState().pendingViewParams;
+      if (params?.kind !== 'projected') { setClickAccum([]); return; }
+      const sheetPt = { x: svgX, y: svgY };
+      void bus.execute(new AddProjectedViewCommand({
+        sheetId: sheet.id,
+        baseViewId: params.baseViewId,
+        direction: params.direction,
+        positionMm: sheetPt,
+      }));
+      useToolModeStore.getState().reset();
+      setClickAccum([]);
+      return;
+    }
+
+    if (toolMode === 'placeIso') {
+      const params = useToolModeStore.getState().pendingViewParams;
+      if (params?.kind !== 'iso') { setClickAccum([]); return; }
+      const sheetPt = { x: svgX, y: svgY };
+      void bus.execute(new AddIsoViewCommand({
+        sheetId: sheet.id,
+        positionMm: sheetPt,
+        corner: params.corner,
+        scale: { numerator: params.scale.n, denominator: params.scale.d },
+      }));
+      useToolModeStore.getState().reset();
+      setClickAccum([]);
+      return;
+    }
+
+    // Other modes (addRadial, addDiametric, addLeader, addBalloon)
     setClickAccum([]);
   }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
