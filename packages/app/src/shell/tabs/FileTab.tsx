@@ -5,6 +5,9 @@ import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { writeToHandle } from '@zilventor/kernel/src/storage/FileSystemAccess';
+import { unpackDrawing } from '../../storage/DrawingPacker';
+import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
+import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 type FSAWindow = Window & {
   showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle>;
@@ -78,6 +81,7 @@ export default function FileTab() {
         types: [
           { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
           { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
+          { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
         ]
       });
       if (!handle) return;
@@ -92,7 +96,10 @@ export default function FileTab() {
       const kind = manifest.kind ?? 'part'; // legacy v7 default
 
       if (kind === 'drawing') {
-        // TODO Sub-project 6: implement drawing open
+        const doc = await unpackDrawing(bytes);
+        const opfs = await Opfs.forNavigator();
+        await activateDrawingDocument(doc, { kernel, opfs });
+        setStatus('Opened');
         return;
       }
       if (kind === 'assembly') {
