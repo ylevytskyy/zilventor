@@ -34,9 +34,6 @@ function makeDrawing(sheet: DrawingSheet): DrawingDocument {
   };
 }
 
-// A4 landscape: w=297, h=210
-const SHEET_H = 210;
-
 describe('renderDrawingDxf — base view edges (DXF-EDGES)', () => {
   it('DXF-EDGES-1: empty sheet produces valid DXF string with sections', () => {
     const sheet = makeSheet();
