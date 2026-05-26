@@ -3,21 +3,34 @@ import { describe, it, expect } from 'vitest';
 import { createDxfDocument } from '../dxfWriter';
 
 describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
-  it('DXF-SCAF-1: produces matching SECTION/ENDSEC pairs', () => {
+  it('DXF-SCAF-1: produces matching SECTION/ENDSEC pairs (exactly 4: HEADER, TABLES, BLOCKS, ENTITIES)', () => {
     const doc = createDxfDocument();
     const out = doc.toString();
     // Count SECTION openings and ENDSEC closings
     const sections = (out.match(/\n\s*SECTION\s*\n/g) ?? []).length;
     const endsecs  = (out.match(/\n\s*ENDSEC\s*\n/g)  ?? []).length;
     expect(sections).toBe(endsecs);
-    expect(sections).toBeGreaterThanOrEqual(3); // HEADER, TABLES, ENTITIES
+    expect(sections).toBe(4); // HEADER, TABLES, BLOCKS, ENTITIES
   });
 
-  it('DXF-SCAF-2: contains HEADER, TABLES, ENTITIES section names', () => {
+  it('DXF-SCAF-2: contains HEADER, TABLES, BLOCKS, ENTITIES section names', () => {
     const out = createDxfDocument().toString();
     expect(out).toContain('HEADER');
     expect(out).toContain('TABLES');
+    expect(out).toContain('BLOCKS');
     expect(out).toContain('ENTITIES');
+  });
+
+  it('DXF-SCAF-6: BLOCKS section is ordered after TABLES and before ENTITIES', () => {
+    const out = createDxfDocument().toString();
+    const tablesPos   = out.indexOf('TABLES');
+    const blocksPos   = out.indexOf('BLOCKS');
+    const entitiesPos = out.indexOf('ENTITIES');
+    expect(tablesPos,   'TABLES must appear in output').toBeGreaterThan(-1);
+    expect(blocksPos,   'BLOCKS must appear in output').toBeGreaterThan(-1);
+    expect(entitiesPos, 'ENTITIES must appear in output').toBeGreaterThan(-1);
+    expect(blocksPos).toBeGreaterThan(tablesPos);
+    expect(entitiesPos).toBeGreaterThan(blocksPos);
   });
 
   it('DXF-SCAF-3: terminates with group-code 0 / EOF', () => {

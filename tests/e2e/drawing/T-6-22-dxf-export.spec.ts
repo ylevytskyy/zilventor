@@ -421,7 +421,7 @@ test('T-6-22: DXF export — real geometry download + parse', async ({ page }) =
   const sectionCount = code0Values.filter((v) => v === 'SECTION').length;
   const endsecCount  = code0Values.filter((v) => v === 'ENDSEC').length;
   expect(sectionCount, 'SECTION count must equal ENDSEC count').toBe(endsecCount);
-  expect(sectionCount, 'Must have at least 3 sections (HEADER, TABLES, ENTITIES)').toBeGreaterThanOrEqual(3);
+  expect(sectionCount, 'Must have exactly 4 sections (HEADER, TABLES, BLOCKS, ENTITIES)').toBe(4);
 
   // 13b. Required section names present
   expect(dxfText, 'HEADER section').toContain('HEADER');
