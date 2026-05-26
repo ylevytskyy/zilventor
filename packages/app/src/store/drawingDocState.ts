@@ -5,10 +5,11 @@ import type { DrawingDocument } from '@zilventor/shared';
  * Spread into useAppStore.setState(...) so activeDrawing can never drift from
  * activeDocument — see docs/superpowers/specs/2026-05-25-active-drawing-audit-design.md.
  *
- * Also resets activeDrawingSourcePartId and activeDrawingSourceFingerprint to null
- * so that stale kernel ids and fingerprints from a previous drawing session never
- * bleed into the new drawing context. loadDrawingSource sets both slots AFTER this
- * reset, asynchronously.
+ * Does NOT reset activeDrawingSourcePartId / activeDrawingSourceFingerprint — those are
+ * set by CreateDrawingCommand → loadDrawingSource on drawing activation and must survive
+ * all subsequent drawing edit operations (AddBaseViewCommand, AddIsoViewCommand, etc.)
+ * that call drawingDocState to update the document. Resetting them here would clear the
+ * source identity on every view add and break projectViewFromSource.
  */
 export function drawingDocState(nextDoc: DrawingDocument) {
   return {
@@ -16,7 +17,5 @@ export function drawingDocState(nextDoc: DrawingDocument) {
     activePart: null,
     activeAssembly: null,
     activeDrawing: nextDoc,
-    activeDrawingSourcePartId: null,
-    activeDrawingSourceFingerprint: null,
   };
 }

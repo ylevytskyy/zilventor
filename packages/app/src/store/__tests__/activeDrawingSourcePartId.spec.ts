@@ -29,11 +29,17 @@ describe('activeDrawingSourcePartId + activeDrawingSourceFingerprint store slots
     expect(s.activeDrawingSourceFingerprint).toBe('fp-abc123');
   });
 
-  it('drawingDocState resets both slots to null', () => {
+  it('drawingDocState does NOT reset source slots — they survive across view-add operations', () => {
+    // drawingDocState is called by view-placement commands (AddBaseViewCommand, AddIsoViewCommand, etc.)
+    // on every document edit. The source slots (set by CreateDrawingCommand → loadDrawingSource) must
+    // survive these calls so that projectViewFromSource can call getProjectorInput after AddBaseViewCommand.
+    // Only CreateDrawingCommand.apply() should update them (via loadDrawingSource).
     useAppStore.setState({ activeDrawingSourcePartId: 'some-id', activeDrawingSourceFingerprint: 'some-fp' } as never);
     const fakeDoc = { id: 'd1', name: 'D', units: 'mm', source: { partPath: 'p.zipt', sourceKind: 'part' }, properties: {}, sheets: [], activeSheetId: 's1' };
     const patch = drawingDocState(fakeDoc as never);
-    expect((patch as unknown as { activeDrawingSourcePartId: unknown }).activeDrawingSourcePartId).toBeNull();
-    expect((patch as unknown as { activeDrawingSourceFingerprint: unknown }).activeDrawingSourceFingerprint).toBeNull();
+    // The patch object does NOT contain source slot keys — Zustand merges, so
+    // existing values in the store are preserved.
+    expect((patch as unknown as { activeDrawingSourcePartId?: unknown }).activeDrawingSourcePartId).toBeUndefined();
+    expect((patch as unknown as { activeDrawingSourceFingerprint?: unknown }).activeDrawingSourceFingerprint).toBeUndefined();
   });
 });

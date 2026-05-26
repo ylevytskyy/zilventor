@@ -28,6 +28,9 @@ export class CreateDrawingCommand implements Command {
     };
     this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
     this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
+    // Capture activePart.id BEFORE setActiveDocument (which nulls activePart).
+    // Used as the OPFS-fallback partId when partPath = `${partId}.zipt` (e2e test path).
+    const activePartId = state.activePart?.id;
 
     const sheetId = crypto.randomUUID();
     const drawingId = crypto.randomUUID();
@@ -75,7 +78,6 @@ export class CreateDrawingCommand implements Command {
           // Clear the module-level cache so re-activating the same drawing picks up
           // any edits made since the last activation (fresh OPFS read each time).
           _clearLoadDrawingSourceCache();
-          const activePartId = useAppStore.getState().activePart?.id;
           const { partId, sourceFingerprint } = await loadDrawingSource({
             partPath: this.opts.sourcePath,
             kernel,
