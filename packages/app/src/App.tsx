@@ -122,6 +122,7 @@ import { renderDrawingSvg } from './drawing/renderDrawingSvg';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
 import { restoreLastOpenDrawing } from './drawing/restoreLastOpenDrawing';
+import type { KernelForLoad } from './drawing/loadDrawingSource';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -972,9 +973,11 @@ export default function App() {
     if (useAppStore.getState().activeDocument !== null) return;
     void (async () => {
       try {
+        const kernel = useAppStore.getState().kernel;
+        if (!kernel) return;
         if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
         await restoreLastOpenDrawing({
-          kernel: useAppStore.getState().kernel as never,
+          kernel: kernel as unknown as KernelForLoad,
           opfs: opfsRef.current,
         });
       } catch (e) {

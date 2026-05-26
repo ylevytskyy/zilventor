@@ -53,4 +53,15 @@ describe('autosaveDrawing', () => {
 
     expect(opfs.write).toHaveBeenCalledWith('drawings/drw-aabb.zidw', payload);
   });
+
+  it('does not call setLastOpenDrawing when opfs.write rejects', async () => {
+    const writeError = new Error('disk full');
+    const opfs = { write: vi.fn().mockRejectedValue(writeError) };
+    const mockPackDrawing = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+    await expect(
+      autosaveDrawing({ doc: baseDrawingDoc, opfs: opfs as never, packDrawing: mockPackDrawing }),
+    ).rejects.toThrow('disk full');
+    expect(setLastOpenDrawing).not.toHaveBeenCalled();
+  });
 });

@@ -158,11 +158,26 @@ test('T-6-20: drawing autosave + reload recovery — drawing + view restored aft
 
   // 5. Reload the page. The boot-restore effect fires after kernelReady.
   await page.reload();
-  // waitForKernelReady waits for status bar 'Ready'. After restore, status shows 'Opened'.
-  // Either is acceptable — use a broader selector that matches both.
+  // Wait for the kernel to be ready first (status bar 'Ready' or 'Opened').
   await expect(page.getByText(/^(Ready|Opened)$/)).toBeVisible({ timeout: 120_000 });
 
-  // 6. Switch to Drawing tab (boot restore activates the drawing, DrawingCanvas mounts).
+  // Wait for boot-restore to complete: activeDocument.kind === 'drawing' in the store.
+  // This is deterministic — it polls the store state and resolves only after
+  // restoreLastOpenDrawing → activateDrawingDocument → setActiveDocument completes.
+  await page.waitForFunction(
+    () => {
+      const store = (window as unknown as {
+        __zilventorStore?: {
+          getState(): { activeDocument: { kind: string } | null };
+        };
+      }).__zilventorStore;
+      return store?.getState()?.activeDocument?.kind === 'drawing';
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  // 6. Switch to Drawing tab (DrawingCanvas mounts when activeDocument.kind === 'drawing').
   await page.getByRole('tab', { name: 'Drawing' }).click();
 
   // 7. Assert sheet border visible (drawing rendered).
