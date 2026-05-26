@@ -111,10 +111,12 @@ export class AddSectionViewCommand implements Command {
       faceTags = cached.faceTags;
     } else {
       // Use the active kernel part/assembly UUID so namedShapeCache lookup succeeds.
+      // Priority: activeDrawingSourcePartId (set by loadDrawingSource / CreateDrawingCommand)
+      // then activePart.id (unit-test fallback), then source.id (partPath — last resort).
       // For an assembly, cutAssemblyBySectionPlane iterates all cached parts.
       const kernelId = source.kind === 'assembly'
         ? (state.activeAssembly?.id ?? source.id)
-        : (state.activePart?.id ?? source.id);
+        : (state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id);
       const result = source.kind === 'assembly'
         ? await cutAssemblyBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide)
         : await cutBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide);
@@ -266,7 +268,7 @@ export class AddSectionViewCommand implements Command {
     } else {
       const kernelId = source.kind === 'assembly'
         ? (state.activeAssembly?.id ?? source.id)
-        : (state.activePart?.id ?? source.id);
+        : (state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id);
       const result = source.kind === 'assembly'
         ? await cutAssemblyByStepSegments(kernelId, planes, this.payload.arrowDirection)
         : await cutByStepSegments(kernelId, planes, this.payload.arrowDirection);
