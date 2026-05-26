@@ -3073,6 +3073,80 @@ export default function App() {
       return samples[Math.floor(samples.length * 0.95)] ?? 0;
     };
 
+    // T63j: assembly projection p95 — 10 synthetic leaves, no real OPFS.
+    // Pre-loads 10 copies of the active part into the kernel and uses static identity poses.
+    // IMPORTANT: snapshot all store fields ONCE before the loop; use a synthetic fixture object
+    // inside the loop (do NOT spread+mutate the real activeDrawing per-iteration); restore ALL
+    // mutated fields in a finally block so the hook is non-destructive.
+    (w as unknown as { __zilventorAsmProjectViewMs: (n: number) => Promise<number> }).__zilventorAsmProjectViewMs = async (n: number): Promise<number> => {
+      const kernel = useAppStore.getState().kernel;
+      const activePart = useAppStore.getState().activePart;
+      if (!kernel || !activePart) return 0;
+
+      // Snapshot the relevant store fields ONCE before the loop.
+      const snapActiveDocument = useAppStore.getState().activeDocument;
+      const snapActiveDrawing = useAppStore.getState().activeDrawing;
+      const snapActivePart = useAppStore.getState().activePart;
+      const snapActiveAssembly = useAppStore.getState().activeAssembly;
+      const snapFingerprint = useAppStore.getState().activeDrawingSourceFingerprint;
+      const snapComponents = (useAppStore.getState() as unknown as { activeDrawingSourceComponents: unknown }).activeDrawingSourceComponents;
+
+      // Reuse the existing kernel part ID (already loaded) for all 10 synthetic leaves.
+      const partId = activePart.id;
+      const syntheticComponents = Array.from({ length: 10 }, (_, i) => ({
+        partId,
+        pose: {
+          translation: { x: i * 60, y: 0, z: 0 },
+          quaternion: [0, 0, 0, 1] as [number, number, number, number],
+        },
+      }));
+
+      // Build a synthetic drawing fixture using a fixed object — NOT the real activeDrawing.
+      // This avoids mutating the real activeDrawing doc inside the loop.
+      const syntheticDrawing = {
+        id: 'perf-t63j-drawing',
+        name: 'Perf Fixture',
+        units: 'mm' as const,
+        source: { partPath: 'perf/fixture.ziasm', sourceKind: 'assembly' as const },
+        properties: {},
+        sheets: [],
+        activeSheetId: 'none',
+      };
+
+      const samples: number[] = [];
+      try {
+        // Set the synthetic fixture ONCE before the loop (not per-iteration).
+        useAppStore.setState({
+          activeDrawing: syntheticDrawing,
+          activeDocument: { kind: 'drawing', document: syntheticDrawing } as never,
+          activeDrawingSourceFingerprint: 'perf-fp',
+          activeDrawingSourceComponents: syntheticComponents,
+          activePart: null,
+          activeAssembly: null,
+        } as never);
+
+        const { projectViewFromSource } = await import('./drawing/projectViewFromSource');
+        for (let i = 0; i < n; i++) {
+          const t0 = performance.now();
+          await projectViewFromSource('front');
+          samples.push(performance.now() - t0);
+        }
+      } finally {
+        // Restore ALL mutated store fields so the hook is non-destructive.
+        useAppStore.setState({
+          activeDocument: snapActiveDocument,
+          activeDrawing: snapActiveDrawing,
+          activePart: snapActivePart,
+          activeAssembly: snapActiveAssembly,
+          activeDrawingSourceFingerprint: snapFingerprint,
+          activeDrawingSourceComponents: snapComponents,
+        } as never);
+      }
+
+      samples.sort((a, b) => a - b);
+      return samples[Math.floor(samples.length * 0.95)] ?? 0;
+    };
+
     return () => {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
@@ -3080,6 +3154,7 @@ export default function App() {
       delete w.__zilventorSectionCutMs;
       delete w.__zilventorFingerprintPartStateMs;
       delete (w as unknown as { __zilventorProjectionRoundTripMs?: unknown }).__zilventorProjectionRoundTripMs;
+      delete (w as unknown as { __zilventorAsmProjectViewMs?: unknown }).__zilventorAsmProjectViewMs;
     };
   }, []);
 
