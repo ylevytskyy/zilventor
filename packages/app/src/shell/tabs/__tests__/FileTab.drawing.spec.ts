@@ -76,3 +76,45 @@ describe('FileTab handleOpen drawing branch integration', () => {
     expect(src).toContain('application/zilinventor-drawing');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Save As — drawing branch
+// ---------------------------------------------------------------------------
+
+describe('FileTab handleSaveAs drawing branch', () => {
+  it('FileTab imports packDrawing and wires it into handleSaveAs with .zidw extension', async () => {
+    // Structural assertion: FileTab.tsx source must contain the exact call
+    // "await packDrawing(" — this literal only appears in the Save As drawing
+    // branch (handleOpen uses unpackDrawing, not packDrawing).
+    //
+    // When the drawing branch is a TODO no-op, "await packDrawing(" is absent
+    // from the source → the expect below fails (RED). After implementation it
+    // will be present (GREEN).
+    const fs = await import('fs/promises');
+    const src = await fs.readFile(
+      new URL('../FileTab.tsx', import.meta.url).pathname,
+      'utf-8'
+    );
+    // "packDrawing" import must be present (added alongside packAssembly-style import)
+    expect(src).toContain('packDrawing');
+    // The actual async call must be present in handleSaveAs
+    expect(src).toContain('await packDrawing(');
+    // The save picker for drawings must suggest a .zidw extension via template literal
+    expect(src).toContain('.zidw`');
+    // Must use the drawing accept MIME type in the save picker
+    expect(src).toContain('application/zilinventor-drawing');
+  });
+
+  it('packDrawing output can be round-tripped through unpackDrawing (validates bytes written by Save As)', async () => {
+    // End-to-end contract test: validates what handleSaveAs writes to disk.
+    // This proves packDrawing produces bytes that unpackDrawing correctly recovers,
+    // so the file the user saves can be reopened.
+    const { packDrawing, unpackDrawing } = await import('../../../storage/DrawingPacker');
+    const doc: DrawingDocument = baseDoc;
+    const bytes = await packDrawing(doc);
+    const recovered = await unpackDrawing(bytes);
+    expect(recovered.id).toBe('drw-test');
+    expect(recovered.name).toBe('Test Drawing');
+    expect(recovered.sheets).toHaveLength(1);
+  });
+});

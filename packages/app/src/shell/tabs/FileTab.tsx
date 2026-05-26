@@ -5,7 +5,7 @@ import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { writeToHandle } from '@zilventor/kernel/src/storage/FileSystemAccess';
-import { unpackDrawing } from '../../storage/DrawingPacker';
+import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
@@ -44,7 +44,14 @@ export default function FileTab() {
       }
 
       if (activeDocument.kind === 'drawing') {
-        // TODO Sub-project 6: implement drawing save
+        const doc = activeDocument.document;
+        const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
+          suggestedName: `${doc.name}.zidw`,
+          types: [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }]
+        });
+        const archive = await packDrawing(doc);
+        await writeToHandle(handle, archive);
+        setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
         return;
       }
       if (activeDocument.kind === 'assembly') {
