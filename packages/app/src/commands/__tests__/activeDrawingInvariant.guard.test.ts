@@ -1,5 +1,19 @@
 // packages/app/src/commands/__tests__/activeDrawingInvariant.guard.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// AddBaseViewCommand now calls projectViewFromSource (needs kernel).
+// The guard test only checks the activeDrawing invariant, not projection behaviour,
+// so mock it out to return a minimal result.
+vi.mock('../../drawing/projectViewFromSource', () => ({
+  projectViewFromSource: vi.fn().mockResolvedValue({
+    projection: {
+      visibleEdges: [],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+    },
+    inputFingerprint: 'guard-test-fp',
+  }),
+}));
 import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
 import type { DimensionGroup } from '@zilventor/shared/src/drawing/types';
 import { useAppStore } from '../../store/useAppStore';

@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { DrawingDocument, ViewScale, BaseView } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
+import { projectViewFromSource } from '../drawing/projectViewFromSource';
 
 type BaseOrient = 'front' | 'top' | 'right' | 'back' | 'bottom' | 'left';
 
@@ -24,6 +25,10 @@ export class AddBaseViewCommand implements Command {
     const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
+    // Project the source geometry via the kernel.
+    // Throws KERNEL_NOT_READY or PART_NOT_IN_STORE if not ready.
+    const { projection, inputFingerprint } = await projectViewFromSource(this.opts.orientation);
+
     const newId = crypto.randomUUID();
     this.newViewId = newId;
 
@@ -34,6 +39,8 @@ export class AddBaseViewCommand implements Command {
       orientation: this.opts.orientation,
       scale: this.opts.scale,
       showHidden: this.opts.showHidden ?? true,
+      projection,
+      inputFingerprint,
     };
 
     const next: DrawingDocument = {
