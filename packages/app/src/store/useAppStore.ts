@@ -110,6 +110,11 @@ type AppState = {
    *  Preserved (not reset by drawingDocState/setActiveDocument) — same lifecycle as
    *  activeDrawingSourcePartId above. */
   activeDrawingSourceFingerprint: string | null;
+  /** Kernel-loaded components for assembly-sourced drawings. Parallel to activeDrawingSourceFingerprint.
+   *  Set by CreateDrawingCommand / activateDrawingDocument for assembly sourceKind.
+   *  Null for part-sourced drawings and when no drawing is active.
+   *  NOT reset by drawingDocState() — same lifecycle contract as activeDrawingSourcePartId. */
+  activeDrawingSourceComponents: import('@zilventor/kernel/src/adapter/drawing/getProjectorInput').AssemblyComponentInput[] | null;
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -347,6 +352,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeDrawing: null,
   activeDrawingSourcePartId: null,
   activeDrawingSourceFingerprint: null,
+  activeDrawingSourceComponents: null,
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,

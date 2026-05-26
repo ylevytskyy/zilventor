@@ -1,5 +1,6 @@
 // packages/app/src/store/__tests__/activeDrawingSourcePartId.spec.ts
 import { describe, it, expect } from 'vitest';
+import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
 import { useAppStore } from '../useAppStore';
 import { drawingDocState } from '../drawingDocState';
 
@@ -41,5 +42,38 @@ describe('activeDrawingSourcePartId + activeDrawingSourceFingerprint store slots
     // existing values in the store are preserved.
     expect((patch as unknown as { activeDrawingSourcePartId?: unknown }).activeDrawingSourcePartId).toBeUndefined();
     expect((patch as unknown as { activeDrawingSourceFingerprint?: unknown }).activeDrawingSourceFingerprint).toBeUndefined();
+  });
+});
+
+describe('activeDrawingSourceComponents store slot', () => {
+  it('activeDrawingSourceComponents defaults to null', () => {
+    const state = useAppStore.getState() as unknown as { activeDrawingSourceComponents: unknown };
+    expect('activeDrawingSourceComponents' in state).toBe(true);
+    expect(state.activeDrawingSourceComponents).toBeNull();
+  });
+
+  it('activeDrawingSourceComponents can be set and read', () => {
+    const comps: AssemblyComponentInput[] = [
+      { partId: 'pid-1', pose: { translation: { x: 1, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ];
+    useAppStore.setState({ activeDrawingSourceComponents: comps } as never);
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceComponents: AssemblyComponentInput[] | null };
+    expect(s.activeDrawingSourceComponents).toEqual(comps);
+  });
+
+  it('drawingDocState does NOT reset activeDrawingSourceComponents', () => {
+    const comps: AssemblyComponentInput[] = [
+      { partId: 'pid-asm', pose: { translation: { x: 5, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+    ];
+    useAppStore.setState({ activeDrawingSourceComponents: comps } as never);
+
+    const fakeDoc = {
+      id: 'drw-1', name: 'D', units: 'mm', source: { partPath: 'a.ziasm', sourceKind: 'assembly' },
+      properties: {}, sheets: [], activeSheetId: 's1',
+    };
+    const patch = drawingDocState(fakeDoc as never);
+    // patch must NOT contain activeDrawingSourceComponents — Zustand merges, so the
+    // stored value is preserved across all drawing edit operations.
+    expect((patch as unknown as { activeDrawingSourceComponents?: unknown }).activeDrawingSourceComponents).toBeUndefined();
   });
 });
