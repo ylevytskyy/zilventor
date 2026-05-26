@@ -69,7 +69,7 @@ export type LoadDrawingSourceArgs = {
   kernel: KernelForLoad;
   opfs: OpfsForLoad;
   /** Kernel id of the currently-active part (if any), used as fallback when OPFS read fails. */
-  activePartId?: string;
+  activePartId?: string | undefined;
 };
 
 export async function loadDrawingSource(args: LoadDrawingSourceArgs): Promise<LoadDrawingSourceResult> {

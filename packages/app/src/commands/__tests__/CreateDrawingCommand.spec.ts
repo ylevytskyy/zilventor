@@ -14,6 +14,20 @@ vi.mock('../../storage/deleteDrawingFromOpfs', () => ({
   deleteDrawingFromOpfs: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../drawing/loadDrawingSource', () => ({
+  loadDrawingSource: vi.fn().mockResolvedValue({ partId: 'kernel-part-uuid-from-load', sourceFingerprint: 'fp-bytes-hash-abc' }),
+  _clearLoadDrawingSourceCache: vi.fn(),
+}));
+
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
+  Opfs: {
+    forNavigator: vi.fn().mockResolvedValue({
+      read: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
+      exists: vi.fn().mockResolvedValue(true),
+    }),
+  },
+}));
+
 function getDrawing(): DrawingDocument | null {
   const doc = useAppStore.getState().activeDocument as unknown as { kind: string; document: DrawingDocument } | null;
   if (!doc || doc.kind !== 'drawing') return null;
@@ -22,7 +36,7 @@ function getDrawing(): DrawingDocument | null {
 
 describe('CreateDrawingCommand', () => {
   beforeEach(() => {
-    useAppStore.setState({ activeDocument: null, activePart: null, activeAssembly: null } as never);
+    useAppStore.setState({ activeDocument: null, activePart: null, activeAssembly: null, activeDrawingSourcePartId: null, activeDrawingSourceFingerprint: null } as never);
   });
 
   it('apply creates a drawing document with one A3-landscape sheet', async () => {
@@ -100,5 +114,53 @@ describe('CreateDrawingCommand', () => {
 
     expect(deleteSpy).toHaveBeenCalledOnce();
     expect(deleteSpy).toHaveBeenCalledWith(createdId);
+  });
+
+  it('apply sets activeDrawingSourcePartId + activeDrawingSourceFingerprint from loadDrawingSource when sourceKind is part', async () => {
+    const cmd = new CreateDrawingCommand({
+      sourcePath: 'parts/cabinet1.zipt',
+      sourceKind: 'part',
+    });
+    useAppStore.setState({ kernel: { loadFromBytes: vi.fn(), execute: vi.fn() } as never } as never);
+    await cmd.apply();
+
+    const s = useAppStore.getState() as unknown as {
+      activeDrawingSourcePartId: string | null;
+      activeDrawingSourceFingerprint: string | null;
+    };
+    expect(s.activeDrawingSourcePartId).toBe('kernel-part-uuid-from-load');
+    expect(s.activeDrawingSourceFingerprint).toBe('fp-bytes-hash-abc');
+  });
+
+  it('apply does NOT set source slots when sourceKind is assembly', async () => {
+    const cmd = new CreateDrawingCommand({
+      sourcePath: 'assemblies/wardrobe.ziasm',
+      sourceKind: 'assembly',
+    });
+    await cmd.apply();
+
+    const s = useAppStore.getState() as unknown as {
+      activeDrawingSourcePartId: string | null;
+      activeDrawingSourceFingerprint: string | null;
+    };
+    expect(s.activeDrawingSourcePartId).toBeNull();
+    expect(s.activeDrawingSourceFingerprint).toBeNull();
+  });
+
+  it('revert resets both source slots to null', async () => {
+    const cmd = new CreateDrawingCommand({
+      sourcePath: 'parts/cabinet1.zipt',
+      sourceKind: 'part',
+    });
+    useAppStore.setState({ kernel: { loadFromBytes: vi.fn(), execute: vi.fn() } as never } as never);
+    await cmd.apply();
+    await cmd.revert();
+
+    const s = useAppStore.getState() as unknown as {
+      activeDrawingSourcePartId: string | null;
+      activeDrawingSourceFingerprint: string | null;
+    };
+    expect(s.activeDrawingSourcePartId).toBeNull();
+    expect(s.activeDrawingSourceFingerprint).toBeNull();
   });
 });

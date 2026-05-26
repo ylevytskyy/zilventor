@@ -6,6 +6,8 @@ import type { ActiveDocument } from '../store/useAppStore';
 export class CreateDrawingCommand implements Command {
   readonly name = 'CreateDrawing';
   private prevActiveDocument: ActiveDocument | null = null;
+  private prevActiveDrawingSourcePartId: string | null = null;
+  private prevActiveDrawingSourceFingerprint: string | null = null;
   private createdId: string | null = null;
 
   constructor(
@@ -18,7 +20,14 @@ export class CreateDrawingCommand implements Command {
   ) {}
 
   async apply(): Promise<void> {
-    this.prevActiveDocument = useAppStore.getState().activeDocument;
+    const state = useAppStore.getState();
+    this.prevActiveDocument = state.activeDocument;
+    const prevSlots = state as unknown as {
+      activeDrawingSourcePartId: string | null;
+      activeDrawingSourceFingerprint: string | null;
+    };
+    this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
+    this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
 
     const sheetId = crypto.randomUUID();
     const drawingId = crypto.randomUUID();
@@ -53,6 +62,38 @@ export class CreateDrawingCommand implements Command {
 
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: doc });
 
+    // Load the source part into the kernel so projection commands can call
+    // getProjectorInput without a cache miss. Only for part-sourced drawings —
+    // assembly-sourced drawings use a different load path (future work).
+    if (this.opts.sourceKind === 'part') {
+      try {
+        const { loadDrawingSource, _clearLoadDrawingSourceCache } = await import('../drawing/loadDrawingSource');
+        const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+        const kernel = useAppStore.getState().kernel;
+        if (kernel) {
+          const opfs = await Opfs.forNavigator();
+          // Clear the module-level cache so re-activating the same drawing picks up
+          // any edits made since the last activation (fresh OPFS read each time).
+          _clearLoadDrawingSourceCache();
+          const activePartId = useAppStore.getState().activePart?.id;
+          const { partId, sourceFingerprint } = await loadDrawingSource({
+            partPath: this.opts.sourcePath,
+            kernel,
+            opfs,
+            activePartId,
+          });
+          useAppStore.setState({
+            activeDrawingSourcePartId: partId,
+            activeDrawingSourceFingerprint: sourceFingerprint,
+          } as never);
+        }
+      } catch (e) {
+        // Non-fatal: source part failed to load. Views will throw PART_NOT_IN_STORE
+        // when the user tries to place them; the user can retry.
+        console.warn('[CreateDrawingCommand] source part load failed:', (e as Error).message);
+      }
+    }
+
     // Persist to OPFS — fire-and-forget; errors surface in production via status bar
     try {
       const { saveDrawingToOpfs } = await import('../storage/saveDrawingToOpfs');
@@ -64,6 +105,10 @@ export class CreateDrawingCommand implements Command {
 
   async revert(): Promise<void> {
     useAppStore.getState().setActiveDocument(this.prevActiveDocument);
+    useAppStore.setState({
+      activeDrawingSourcePartId: this.prevActiveDrawingSourcePartId,
+      activeDrawingSourceFingerprint: this.prevActiveDrawingSourceFingerprint,
+    } as never);
 
     if (this.createdId) {
       const id = this.createdId;
