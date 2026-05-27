@@ -10,7 +10,7 @@ export class CreateDrawingCommand implements Command {
   private prevActiveDrawingSourcePartId: string | null = null;
   private prevActiveDrawingSourceFingerprint: string | null = null;
   private prevActiveDrawingSourceComponents: AssemblyComponentInput[] | null = null;
-  private prevActiveDrawingSourceComponentColors!: Record<string, string> | null;
+  private prevActiveDrawingSourceComponentColors: Record<string, string> | null = null;
   private prevActiveDrawingSourceDocument: PartDocument | AssemblyDocument | null = null;
   private createdId: string | null = null;
 
@@ -30,12 +30,13 @@ export class CreateDrawingCommand implements Command {
       activeDrawingSourcePartId: string | null;
       activeDrawingSourceFingerprint: string | null;
       activeDrawingSourceComponents: AssemblyComponentInput[] | null;
+      activeDrawingSourceComponentColors: Record<string, string> | null;
       activeDrawingSourceDocument: PartDocument | AssemblyDocument | null;
     };
     this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
     this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
     this.prevActiveDrawingSourceComponents = prevSlots.activeDrawingSourceComponents;
-    this.prevActiveDrawingSourceComponentColors = (prevSlots as unknown as { activeDrawingSourceComponentColors: Record<string, string> | null }).activeDrawingSourceComponentColors;
+    this.prevActiveDrawingSourceComponentColors = prevSlots.activeDrawingSourceComponentColors;
     this.prevActiveDrawingSourceDocument = prevSlots.activeDrawingSourceDocument;
     // Capture activePart BEFORE setActiveDocument (which nulls activePart).
     const activePartDoc = state.activePart;

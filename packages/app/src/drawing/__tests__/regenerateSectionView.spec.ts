@@ -476,3 +476,38 @@ describe('regenerateSectionView — stepped mode', () => {
     expect(updatedView.inputFingerprint).toBe('new-source-fp');
   });
 });
+
+// ── NIT 4: regen-color teeth — colorForFace reads activeDrawingSourceComponentColors ──
+// Verifies that regenerateSectionView passes a colorForFace resolver to projectSectionView
+// that reads from the store's activeDrawingSourceComponentColors slot.
+// If regenerateSectionView stopped passing colorForFace (7th arg) OR read the wrong slot,
+// this test fails with "expected '#aa0000' / '#0000bb'".
+
+describe('regenerateSectionView — colorForFace reads activeDrawingSourceComponentColors (NIT 4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: makeDrawingWithSection() },
+      activeDrawing: makeDrawingWithSection(),
+      activeDrawingSourcePartId: 'part-uuid-1',
+      activeDrawingSourceFingerprint: 'new-source-fp',
+      activeDrawingSourceComponentColors: { A: '#aa0000', B: '#0000bb' },
+      activePart: { id: 'part-uuid-1', materials: [], featureTree: [], parameters: {} } as never,
+      kernel: { execute: vi.fn(), getProjectorInput: vi.fn() } as never,
+    });
+  });
+
+  it('passes colorForFace that resolves per-component colors from the store slot', async () => {
+    const { projectSectionView } = await import('../projectSectionView');
+    const mockFn = projectSectionView as ReturnType<typeof vi.fn>;
+
+    await regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never);
+
+    expect(mockFn).toHaveBeenCalledOnce();
+    // The 7th argument (index 6) is colorForFace.
+    const colorForFace = mockFn.mock.calls[0]![6] as ((partId: string) => string) | undefined;
+    expect(typeof colorForFace).toBe('function');
+    expect(colorForFace!('A')).toBe('#aa0000');
+    expect(colorForFace!('B')).toBe('#0000bb');
+  });
+});
