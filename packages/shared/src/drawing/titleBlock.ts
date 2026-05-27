@@ -29,7 +29,7 @@ export type ResolvedTitleBlock = {
 export function resolveTitleBlock(
   drawing: DrawingDocument,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
   sheetIndex: number,
   sheetCount: number,
   createdAt: string,
@@ -43,7 +43,7 @@ export function resolveTitleBlock(
     : '1:1';
 
   // Auto-derive material: part gets first material name; assembly → empty
-  const firstMaterial = 'materials' in source ? source.materials[0] : undefined;
+  const firstMaterial = source != null && 'materials' in source ? source.materials[0] : undefined;
   const autoMaterial = firstMaterial ? firstMaterial.name : '';
 
   // Auto-derive date from createdAt (ISO yyyy-mm-dd prefix)
@@ -57,7 +57,7 @@ export function resolveTitleBlock(
 
   return {
     drawingName: ov.drawingName ?? drawing.name,
-    partName: ov.partName ?? source.name,
+    partName: ov.partName ?? source?.name ?? '',
     drawnBy: ov.drawnBy ?? '',
     approvedBy: ov.approvedBy ?? '',
     scaleText: ov.scaleText ?? autoScale,

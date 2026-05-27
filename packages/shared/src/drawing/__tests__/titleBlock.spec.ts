@@ -166,3 +166,50 @@ describe('resolveTitleBlock — assembly source', () => {
     expect(r.material).toBe('');
   });
 });
+
+function nullSourceSheet(overrides: Partial<DrawingSheet['titleBlock']> = {}): DrawingSheet {
+  return {
+    id: 'sh1',
+    name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views: [],
+    dimensions: [],
+    annotations: [],
+    titleBlock: overrides,
+    dimensionGroups: [],
+  };
+}
+
+function nullSourceDrawing(sh: DrawingSheet): DrawingDocument {
+  return {
+    id: 'dw1',
+    name: 'My Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [sh],
+    activeSheetId: 'sh1',
+  };
+}
+
+describe('resolveTitleBlock — null source', () => {
+  it('degrades partName and material to blank when source is null and no override', () => {
+    const sh = nullSourceSheet();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null as any, 0, 1, '');
+    expect(tb.partName).toBe('');
+    expect(tb.material).toBe('');
+    expect(tb.drawingName).toBe('My Drawing');
+    expect(tb.scaleText).toBe('1:1');
+    expect(tb.sheetNumber).toEqual({ current: 1, total: 1 });
+  });
+
+  it('uses sheet overrides for partName and material when source is null', () => {
+    const sh = nullSourceSheet({ partName: 'Widget', material: 'Steel' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null as any, 0, 1, '');
+    expect(tb.partName).toBe('Widget');
+    expect(tb.material).toBe('Steel');
+  });
+});
