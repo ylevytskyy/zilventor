@@ -271,4 +271,32 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     expect(out).toContain('TITLE');
     expect(out).toContain('Drawing:');
   });
+
+  it('DXF-NDIM-LINEAR-1: linear-h dimension → DIMENSION entity + anonymous block on DIMENSIONS', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [
+            { id: 'e1', kind: 'outline', points: [[0, 50], [0, 60]] as ReadonlyArray<readonly [number, number]> },
+            { id: 'e2', kind: 'outline', points: [[30, 50], [30, 60]] as ReadonlyArray<readonly [number, number]> },
+          ],
+          hiddenEdges: [], bbox: { minX: 0, minY: 50, maxX: 30, maxY: 60 },
+        },
+      }],
+      dimensions: [{
+        id: 'dim1', kind: 'linear-h', viewId: 'v1',
+        from: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+        to:   { kind: 'edge-endpoint', edgeId: 'e2', end: 'start' },
+        offsetMm: 10,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSION');           // native entity emitted
+    expect(out).toContain('STANDARD');             // references dimstyle
+    expect(out).toMatch(/\*D\d+/);                 // references an anonymous block
+    // The dim picture geometry is preserved (now inside the block): dimSvgY=40 → dxfY=170
+    expect(out).toContain('170.0000');
+  });
 });

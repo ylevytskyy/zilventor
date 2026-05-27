@@ -314,16 +314,36 @@ function emitDimension(
 
     if (dim.kind === 'linear-h') {
       const dimSvgY = sy1 - offset;
-      doc.polyline('DIMENSIONS', [[x1, flipY(dimSvgY)], [x2, flipY(dimSvgY)]]);
-      doc.polyline('DIMENSIONS', [[x1, flipY(sy1)], [x1, flipY(dimSvgY)]]);
-      doc.polyline('DIMENSIONS', [[x2, flipY(sy2)], [x2, flipY(dimSvgY)]]);
-      doc.text('DIMENSIONS', (x1 + x2) / 2, flipY(dimSvgY - 1), 3.5, label);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[x1, flipY(dimSvgY)], [x2, flipY(dimSvgY)]]);
+        doc.polyline('DIMENSIONS', [[x1, flipY(sy1)], [x1, flipY(dimSvgY)]]);
+        doc.polyline('DIMENSIONS', [[x2, flipY(sy2)], [x2, flipY(dimSvgY)]]);
+        doc.text('DIMENSIONS', (x1 + x2) / 2, flipY(dimSvgY - 1), 3.5, label);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 0,
+        defPoint: [x2, flipY(dimSvgY)],
+        textMid: [(x1 + x2) / 2, flipY(dimSvgY - 1)],
+        text: label, rotation: 0,
+        extraPoints: [[13, x1, flipY(sy1)], [14, x2, flipY(sy2)]],
+      });
     } else {
       const dimSvgX = x1 + offset;
-      doc.polyline('DIMENSIONS', [[dimSvgX, flipY(sy1)], [dimSvgX, flipY(sy2)]]);
-      doc.polyline('DIMENSIONS', [[x1, flipY(sy1)], [dimSvgX, flipY(sy1)]]);
-      doc.polyline('DIMENSIONS', [[x2, flipY(sy2)], [dimSvgX, flipY(sy2)]]);
-      doc.text('DIMENSIONS', dimSvgX + 1, flipY((sy1 + sy2) / 2), 3.5, label);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[dimSvgX, flipY(sy1)], [dimSvgX, flipY(sy2)]]);
+        doc.polyline('DIMENSIONS', [[x1, flipY(sy1)], [dimSvgX, flipY(sy1)]]);
+        doc.polyline('DIMENSIONS', [[x2, flipY(sy2)], [dimSvgX, flipY(sy2)]]);
+        doc.text('DIMENSIONS', dimSvgX + 1, flipY((sy1 + sy2) / 2), 3.5, label);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD',
+        dimType: dim.kind === 'aligned' ? 1 : 0,
+        defPoint: [dimSvgX, flipY(sy2)],
+        textMid: [dimSvgX + 1, flipY((sy1 + sy2) / 2)],
+        text: label,
+        rotation: dim.kind === 'aligned' ? undefined : 90,
+        extraPoints: [[13, x1, flipY(sy1)], [14, x2, flipY(sy2)]],
+      });
     }
     return;
   }
