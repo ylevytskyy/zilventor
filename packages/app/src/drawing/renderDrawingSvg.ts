@@ -23,7 +23,7 @@ const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
 export function renderDrawingSvg(
   drawing: DrawingDocument,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): string {
   const sheetW = getSheetWidthMm(sheet);
   const sheetH = getSheetHeightMm(sheet);
@@ -595,12 +595,12 @@ const HT_TABLE_W = HT_COL_TAG_W + HT_COL_X_W + HT_COL_Y_W + HT_COL_DESC_W;
 function renderHoleTableAnnotation(
   ann: HoleTableAnnotation,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): string {
   // Only PartDocument has featureTree; AssemblyDocument has `components` instead.
   // NOTE: neither document has a `kind` discriminant (verified packages/shared/src/types.ts:67,94),
   // so distinguish structurally via `'featureTree' in source`. Hole tables only apply to part drawings.
-  const part = 'featureTree' in source ? (source as PartDocument) : null;
+  const part = source != null && 'featureTree' in source ? (source as PartDocument) : null;
   if (!part) return '';
 
   const resolveParam = (p: ParamOrLiteral): number =>
@@ -673,7 +673,7 @@ function renderHoleTableAnnotation(
 function renderAnnotationGroup(
   ann: DrawingAnnotation,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): string {
   if (ann.kind === 'holeTable') {
     return renderHoleTableAnnotation(ann, sheet, source);

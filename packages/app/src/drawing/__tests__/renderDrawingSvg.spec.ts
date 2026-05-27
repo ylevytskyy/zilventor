@@ -8,7 +8,7 @@ import {
   makeFixtureDrawingWithRectDetailView,
   makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
-import type { DetailView } from '@zilventor/shared';
+import type { DetailView, DrawingDocument, DrawingSheet } from '@zilventor/shared';
 
 describe('renderDrawingSvg', () => {
   it('returns a string starting with <svg', () => {
@@ -215,5 +215,44 @@ describe('renderDrawingSvg — detail callout overlay', () => {
     const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
     const textMatches = svg.match(/<text[^>]*data-role="detail-callout-label"[^>]*>A<\/text>/);
     expect(textMatches).not.toBeNull();
+  });
+});
+
+describe('renderDrawingSvg — null source (source-optional export)', () => {
+  const sheetWithHoleTable: DrawingSheet = {
+    id: 'sh1',
+    name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views: [],
+    dimensions: [],
+    annotations: [
+      {
+        kind: 'holeTable',
+        id: 'ht1',
+        viewId: 'v1',
+        datum: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+        positionMm: { x: 100, y: 50 },
+        entries: [],
+      },
+    ],
+    titleBlock: {},
+    dimensionGroups: [],
+  };
+  const drawingWithHoleTable: DrawingDocument = {
+    id: 'dw1',
+    name: 'Null-Source Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [sheetWithHoleTable],
+    activeSheetId: 'sh1',
+  };
+
+  it('renders without throwing and skips the hole table when source is null', () => {
+    expect(() => renderDrawingSvg(drawingWithHoleTable, sheetWithHoleTable, null)).not.toThrow();
+    const svg = renderDrawingSvg(drawingWithHoleTable, sheetWithHoleTable, null);
+    expect(svg).toContain('</svg>');
+    expect(svg).not.toContain('data-ann-kind="holeTable"');
   });
 });
