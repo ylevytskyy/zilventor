@@ -115,6 +115,14 @@ type AppState = {
    *  Null for part-sourced drawings and when no drawing is active.
    *  NOT reset by drawingDocState() — same lifecycle contract as activeDrawingSourcePartId. */
   activeDrawingSourceComponents: import('@zilventor/kernel/src/adapter/drawing/getProjectorInput').AssemblyComponentInput[] | null;
+  /** The resolved source document (PartDocument | AssemblyDocument) for the active
+   *  drawing. Used by DrawingTab's export buttons for title-block metadata + the
+   *  'featureTree' in source part/assembly discriminator. Set wherever a drawing's
+   *  source loads (CreateDrawingCommand, activateDrawingDocument). NOT reset by
+   *  drawingDocState() / setActiveDocument — same lifecycle contract as
+   *  activeDrawingSourcePartId. Null when no source is loaded → export buttons
+   *  correctly stay disabled. */
+  activeDrawingSourceDocument: PartDocument | AssemblyDocument | null;
   kernelReady: boolean;
   statusMessage: string;
   selectedFeatureId: string | null;
@@ -353,6 +361,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeDrawingSourcePartId: null,
   activeDrawingSourceFingerprint: null,
   activeDrawingSourceComponents: null,
+  activeDrawingSourceDocument: null,
   kernelReady: false,
   statusMessage: 'Loading…',
   selectedFeatureId: null,
