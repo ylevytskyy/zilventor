@@ -234,25 +234,40 @@ git commit -m "feat(section-hatch): add activeDrawingSourceComponentColors store
 
 - [ ] **Step 1: Write the failing test**
 
-Mirror the existing `loadAssemblyForProjection` test harness (mock `opfs.read`, `kernel.loadFromBytes`/`execute`, and the assembly walkers). Mock the manifest unpack so each part's bytes resolve to a `document.materials` with a known color. Assert the returned `componentColors` maps each kernel partId → that color, and that two parts with different colors produce two entries.
+**Copy the ENTIRE mock scaffolding** from the existing `loadAssemblyForProjection.spec.ts` (the `opfs.read`/`kernel.loadFromBytes`/`execute` stubs + the `SubAssemblyCache`/`visibleLeaves`/`flattenForSolver`/`composedPoses` walker mocks + its dynamic-import pattern `const { loadAssemblyForProjection } = await import('../loadAssemblyForProjection')`). Set up a 2-leaf assembly whose two parts have distinct colors.
 
-Use `vi.mock` for the unpack module the impl uses (see Step 3 for which). Example skeleton (adapt mock module paths + walker mocks to the existing test):
+Then ADD these two module mocks at file top (hoisted by Vitest, so they intercept the dynamic import). `unpackProject` is mocked from `@zilventor/kernel/src/storage/ProjectPacker`; `migrateManifest` from `@zilventor/shared` as a passthrough (preserve all other shared exports via `importActual`):
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-// vi.mock the same module loadDrawingSource uses for unpackProject/migrateManifest —
-// resolve the real import path from loadDrawingSource.ts before writing this mock.
-// Make unpackProject return { manifest } and migrateManifest return { document: { materials: [{ id:'m', name:'n', defaultThickness:1, color: <perBytes> }] } }.
+
+vi.mock('@zilventor/kernel/src/storage/ProjectPacker', () => ({
+  unpackProject: vi.fn(),
+}));
+vi.mock('@zilventor/shared', async (importActual) => ({
+  ...(await importActual<typeof import('@zilventor/shared')>()),
+  migrateManifest: vi.fn((m: unknown) => m), // passthrough → migrated.document === manifest.document
+}));
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+// ...plus all the existing-spec imports/mocks (opfs, kernel, walkers)...
 
 describe('loadAssemblyForProjection componentColors', () => {
   it('maps each kernel partId to its primary material color', async () => {
-    // ...build args with 2 distinct leaf parts whose bytes decode to colors '#aa0000' and '#0000bb'
-    const { components, componentColors } = await loadAssemblyForProjection(args);
+    // One unpackProject result per UNIQUE part load (order = visibleLeaves traversal).
+    vi.mocked(unpackProject)
+      .mockResolvedValueOnce({ manifest: { document: { materials: [{ id: 'm1', name: 'oak', defaultThickness: 18, color: '#aa0000' }] } } } as never)
+      .mockResolvedValueOnce({ manifest: { document: { materials: [{ id: 'm2', name: 'steel', defaultThickness: 3, color: '#0000bb' }] } } } as never);
+
+    const { loadAssemblyForProjection } = await import('../loadAssemblyForProjection');
+    const { components, componentColors } = await loadAssemblyForProjection(args /* the 2-leaf args built above */);
+
     const colors = components.map((c) => componentColors[c.partId]);
     expect(new Set(colors)).toEqual(new Set(['#aa0000', '#0000bb']));
   });
 });
 ```
+
+Note: `migrateManifest` passthrough means `migrated.document` === `manifest.document`, so `document.materials[0].color` is the mocked color. If the existing spec already does a top-level `vi.mock('@zilventor/shared', ...)`, MERGE the `migrateManifest` override into that single mock rather than declaring a second one (Vitest dedupes by module, last wins).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -341,7 +356,11 @@ At the assembly success path (currently sets `activeDrawingSourceComponents`/`Fi
       } as never);
 ```
 
-In BOTH error/fallback `setState` blocks (assembly error ~53 and part error ~93), add `activeDrawingSourceComponentColors: null,`.
+There are **four** `setState` blocks in this file — add `activeDrawingSourceComponentColors` to **every** one (set the map only on assembly-success; `null` everywhere else, so opening a part drawing after an assembly drawing cannot leave a stale color map — same slot-divergence bug class as `project_active_drawing_audit`):
+- assembly **success** (~42): `activeDrawingSourceComponentColors: componentColors` (shown above).
+- assembly **error** (~53): `activeDrawingSourceComponentColors: null,`
+- part **success** (~76): `activeDrawingSourceComponentColors: null,`  ← do NOT omit this one.
+- part **error** (~93): `activeDrawingSourceComponentColors: null,`
 
 - [ ] **Step 4: Update `CreateDrawingCommand.ts`**
 
@@ -568,7 +587,7 @@ describe('hexToAci', () => {
 
 describe('line() optional ACI color', () => {
   it('emits group 62 when a color is given', () => {
-    const doc = createDxfDocument(/* args per real factory signature */);
+    const doc = createDxfDocument(); // zero-arg factory (verified)
     doc.line('SECTION-HATCH', 0, 0, 10, 10, 1);
     const out = doc.toString();
     expect(/\n\s*62\n\s*1\n/.test(out)).toBe(true);
