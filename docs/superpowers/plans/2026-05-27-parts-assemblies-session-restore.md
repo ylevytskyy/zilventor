@@ -208,7 +208,9 @@ it('part pointer: execute failure clears pointer, returns false, no setActiveDoc
 });
 ```
 
-Keep the EXISTING drawing-path tests (update only the function/module name + the `getLastOpenDrawing`→`getLastOpenDocument` mock symbol). The drawing happy-path test should now make `getLastOpenDocument` return `{ kind:'drawing', opfsPath }`.
+Keep the EXISTING drawing-path tests. Update in the renamed spec: the imported function (`restoreLastOpenDrawing`→`restoreLastOpenDocument`) and module path; the mocked symbol `getLastOpenDrawing`→`getLastOpenDocument` (rename ALL of its `mockReturnValue`/`mockImplementation` call sites — there are ~4); and the drawing happy-path test now makes `getLastOpenDocument` return `{ kind:'drawing', opfsPath }`. Reuse the spec's existing local `makeOpfs(existsResult)` helper for the new tests.
+
+Fixture note: `partDoc`/`asmDoc` below are reference-identity stand-ins — the tests assert `toBe(partDoc)`/`toBe(asmDoc)` (the SAME object flows through `setActiveDocument`), so full schema completeness is not required to validate behavior. They are passed through `vi.fn()` mocks (untyped), so they compile without casts. Include the commonly-required fields for realism, but verify exact field names against `PartDocument`/`AssemblyDocument` in `packages/shared/src/types.ts` (per CLAUDE.md reference-not-literal) — e.g. `PartDocument` also needs `parameters`/`properties`/`hardware`; `AssemblyDocument` also needs `units`/`parameters`/`constraints`/`groundedComponentPaths`/`colors`/`bomItemNumbers`/`cutListItemNumbers`/`colorOverrides`/`properties`.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -235,8 +237,8 @@ import type { OpfsForLoad } from './loadDrawingSource';
 
 export type KernelForRestore = {
   loadFromBytes(bytes: Uint8Array): Promise<string>;
-  execute(partId: string): Promise<{ ok: boolean; error?: unknown }>;
-  getPart(partId: string): Promise<PartDocument>;
+  execute(partId: string): Promise<{ ok: boolean; value?: unknown; error?: unknown }>;
+  getPart(partId: string): Promise<PartDocument | null>;   // real KernelApi.getPart is nullable
 };
 
 export async function restoreLastOpenDocument({
@@ -278,6 +280,10 @@ export async function restoreLastOpenDocument({
       return false;
     }
     const part = await kernel.getPart(partId);
+    if (!part) {              // getPart is nullable — a missing part must not become a null active doc
+      clearLastOpen();
+      return false;
+    }
     useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
     return true;
   } catch {
@@ -319,7 +325,7 @@ git commit -m "feat(session-restore): restoreLastOpenDocument dispatches part/as
 
 - [ ] **Step 1: Implement**
 
-Add `setLastOpenDocument` to the App.tsx import from `./storage/lastOpenDocument` (keep `clearLastOpen` — still used by the boot/restore failure paths). In the autosave effect, replace the two `clearLastOpen()` calls:
+Add `setLastOpenDocument` to the App.tsx import from `./storage/lastOpenDocument`. NOTE: `clearLastOpen` in App.tsx is used ONLY at these two autosave lines (the restore-failure paths live inside `restoreLastOpenDocument.ts`, not App.tsx). After replacing both, `clearLastOpen` becomes an orphaned import in App.tsx → **remove `clearLastOpen` from the App.tsx import** (grep App.tsx first to confirm no other use). In the autosave effect, replace the two `clearLastOpen()` calls:
 
 ```typescript
 // assembly branch (after `await opfs.write(`${doc.document.name}.ziasm`, archive);`):
@@ -396,7 +402,7 @@ Expected: green. Baseline 2986 (735 shared + 37 sketcher-worker + 350 kernel + 1
 - [ ] **Step 3: Drawing-restore e2e regression (must stay green)**
 
 Run: `pnpm test:e2e -- tests/e2e/drawing/T-6-20-drawing-opfs-autosave-reload.spec.ts --project=chromium`
-Expected: PASS — generalizing the pointer/restore must not break drawing restore.
+Expected: PASS — generalizing the pointer/restore must not break drawing restore. (Cosmetic: if T-6-20 has a header comment referencing the old `restoreLastOpenDrawing` name, update it to `restoreLastOpenDocument`.)
 
 - [ ] **Step 4: Lint**
 
