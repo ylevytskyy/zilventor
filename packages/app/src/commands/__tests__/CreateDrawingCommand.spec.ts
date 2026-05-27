@@ -15,7 +15,7 @@ vi.mock('../../storage/deleteDrawingFromOpfs', () => ({
 }));
 
 vi.mock('../../drawing/loadDrawingSource', () => ({
-  loadDrawingSource: vi.fn().mockResolvedValue({ partId: 'kernel-part-uuid-from-load', sourceFingerprint: 'fp-bytes-hash-abc' }),
+  loadDrawingSource: vi.fn().mockResolvedValue({ partId: 'kernel-part-uuid-from-load', sourceFingerprint: 'fp-bytes-hash-abc', sourceDocument: null }),
   _clearLoadDrawingSourceCache: vi.fn(),
 }));
 
@@ -203,5 +203,41 @@ describe('CreateDrawingCommand', () => {
     };
     expect(s.activeDrawingSourcePartId).toBeNull();
     expect(s.activeDrawingSourceFingerprint).toBeNull();
+  });
+
+  it('part: sets activeDrawingSourceDocument from the captured activePart (fallback when sourceDocument null)', async () => {
+    const partDoc = { id: 'p1', name: 'Widget', units: 'mm' as const, parameters: {},
+      featureTree: [], properties: {}, materials: [], hardware: [] };
+    useAppStore.setState({ activePart: partDoc, activeAssembly: null } as never);
+
+    await new CreateDrawingCommand({ sourcePath: 'p1.zipt', sourceKind: 'part' }).apply();
+
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
+    expect(s.activeDrawingSourceDocument).toMatchObject({ id: 'p1', name: 'Widget' });
+  });
+
+  it('assembly: sets activeDrawingSourceDocument from the captured activeAssembly', async () => {
+    const asmDoc = makeAsmDoc();
+    useAppStore.setState({ activePart: null, activeAssembly: asmDoc } as never);
+
+    await new CreateDrawingCommand({ sourcePath: 'a1.ziasm', sourceKind: 'assembly' }).apply();
+
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
+    expect(s.activeDrawingSourceDocument).toMatchObject({ id: 'asm-1', name: 'Cabinet' });
+  });
+
+  it('revert restores the prior activeDrawingSourceDocument', async () => {
+    const prior = { id: 'prev', name: 'Prev', units: 'mm' as const, parameters: {},
+      featureTree: [], properties: {}, materials: [], hardware: [] };
+    const partDoc = { id: 'p1', name: 'Widget', units: 'mm' as const, parameters: {},
+      featureTree: [], properties: {}, materials: [], hardware: [] };
+    useAppStore.setState({ activeDrawingSourceDocument: prior, activePart: partDoc } as never);
+
+    const cmd = new CreateDrawingCommand({ sourcePath: 'p1.zipt', sourceKind: 'part' });
+    await cmd.apply();
+    await cmd.revert();
+
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
+    expect(s.activeDrawingSourceDocument).toBe(prior);
   });
 });

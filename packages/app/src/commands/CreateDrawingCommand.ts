@@ -1,5 +1,5 @@
 import type { Command } from './Command';
-import type { DrawingDocument, DrawingSheet, SheetSize } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, SheetSize, PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { ActiveDocument } from '../store/useAppStore';
 import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
@@ -10,6 +10,7 @@ export class CreateDrawingCommand implements Command {
   private prevActiveDrawingSourcePartId: string | null = null;
   private prevActiveDrawingSourceFingerprint: string | null = null;
   private prevActiveDrawingSourceComponents: AssemblyComponentInput[] | null = null;
+  private prevActiveDrawingSourceDocument: PartDocument | AssemblyDocument | null = null;
   private createdId: string | null = null;
 
   constructor(
@@ -28,13 +29,16 @@ export class CreateDrawingCommand implements Command {
       activeDrawingSourcePartId: string | null;
       activeDrawingSourceFingerprint: string | null;
       activeDrawingSourceComponents: AssemblyComponentInput[] | null;
+      activeDrawingSourceDocument: PartDocument | AssemblyDocument | null;
     };
     this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
     this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
     this.prevActiveDrawingSourceComponents = prevSlots.activeDrawingSourceComponents;
-    // Capture activePart.id BEFORE setActiveDocument (which nulls activePart).
-    // Used as the OPFS-fallback partId when partPath = `${partId}.zipt` (e2e test path).
-    const activePartId = state.activePart?.id;
+    this.prevActiveDrawingSourceDocument = prevSlots.activeDrawingSourceDocument;
+    // Capture activePart BEFORE setActiveDocument (which nulls activePart).
+    const activePartDoc = state.activePart;
+    // Capture activePart.id for OPFS-fallback partId in loadDrawingSource.
+    const activePartId = activePartDoc?.id;
     // Capture activeAssembly BEFORE setActiveDocument (which could null it).
     const activeAsmDoc = state.activeAssembly;
 
@@ -83,7 +87,7 @@ export class CreateDrawingCommand implements Command {
           // Clear the module-level cache so re-activating the same drawing picks up
           // any edits made since the last activation (fresh OPFS read each time).
           _clearLoadDrawingSourceCache();
-          const { partId, sourceFingerprint } = await loadDrawingSource({
+          const { partId, sourceFingerprint, sourceDocument } = await loadDrawingSource({
             partPath: this.opts.sourcePath,
             kernel,
             opfs,
@@ -92,6 +96,7 @@ export class CreateDrawingCommand implements Command {
           useAppStore.setState({
             activeDrawingSourcePartId: partId,
             activeDrawingSourceFingerprint: sourceFingerprint,
+            activeDrawingSourceDocument: sourceDocument ?? activePartDoc,
           } as never);
         }
       } catch (e) {
@@ -117,6 +122,7 @@ export class CreateDrawingCommand implements Command {
           useAppStore.setState({
             activeDrawingSourceComponents: components,
             activeDrawingSourceFingerprint: sourceFingerprint,
+            activeDrawingSourceDocument: activeAsmDoc,
           } as never);
         }
       } catch (e) {
@@ -139,6 +145,7 @@ export class CreateDrawingCommand implements Command {
       activeDrawingSourcePartId: this.prevActiveDrawingSourcePartId,
       activeDrawingSourceFingerprint: this.prevActiveDrawingSourceFingerprint,
       activeDrawingSourceComponents: this.prevActiveDrawingSourceComponents,
+      activeDrawingSourceDocument: this.prevActiveDrawingSourceDocument,
     } as never);
 
     if (this.createdId) {
