@@ -92,7 +92,8 @@ export function projectSectionView(
   scale: number,
   getHatchSpec?: (materialId: string) => { angleDeg: number; spacingMm: number },
   sectionViewMatrix?: Mat4,
-  view?: SectionView,    // NEW in F1.2 — for the α-invariant layer-3 guard
+  view?: SectionView,    // F1.2 — for the α-invariant layer-3 guard
+  colorForFace?: (partId: string) => string,   // NEW — hex color per partId; absent = legacy (no color on segments)
 ): {
   edges: Edge2D[];
   hatchSegments: HatchSegment[];
@@ -138,7 +139,8 @@ export function projectSectionView(
 
     const hatchSpec = getHatchSpec ? getHatchSpec(faceInfo.materialId) : DEFAULT_HATCH_SPEC;
     const segments = generateHatchSegments(polygon, faceInfo.materialId, hatchSpec);
-    hatchSegments.push(...segments);
+    const color = colorForFace ? colorForFace(faceInfo.partId) : undefined;
+    hatchSegments.push(...(color ? segments.map((s) => ({ ...s, color })) : segments));
   }
 
   // 4. Fingerprint

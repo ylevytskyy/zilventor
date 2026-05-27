@@ -116,6 +116,7 @@ export type HatchSegment = {
   readonly p0: Vec2;
   readonly p1: Vec2;
   readonly materialId: string;
+  readonly color?: string;   // hex (#rrggbb); absent ⇒ renderer legacy default
 };
 
 // ---------------------------------------------------------------------------
