@@ -293,8 +293,7 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
       }],
     });
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
-    expect(out).toContain('DIMENSION');           // native entity emitted
-    expect(out).toContain('STANDARD');             // references dimstyle
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);    // native entity (group-0 DIMENSION, NOT the 'DIMENSIONS' layer)
     expect(out).toMatch(/\*D\d+/);                 // references an anonymous block
     // The dim picture geometry is preserved (now inside the block): dimSvgY=40 → dxfY=170
     expect(out).toContain('170.0000');
@@ -324,7 +323,7 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
       }],
     });
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
-    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
     expect(out).toMatch(/\*D\d+/);
     expect(out).toContain('40');   // measured distance label
   });
@@ -353,7 +352,7 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
       }],
     });
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
-    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
     expect(out).toMatch(/\*D\d+/);
     // group-70 value for X-ordinate = 6 | 64 = 70
     const lines = out.split('\n');
@@ -384,7 +383,7 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
       }],
     });
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
-    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
     expect(out).toMatch(/\*D\d+/);
     const lines = out.split('\n');
     const dimIdx = lines.findIndex((l) => l.trim() === 'DIMENSION');

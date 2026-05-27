@@ -218,7 +218,7 @@ describe('dxfWriter — native DIMENSION entity (DXF-NDIM)', () => {
       extraPoints: [[13, 0, 90], [14, 30, 90]],
     });
     const out = doc.toString();
-    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);   // group-0 DIMENSION entity, NOT the 'DIMENSIONS' layer
     // block reference (group 2 = *D name)
     expect(out).toContain(blk);
     // dimstyle reference (group 3)
