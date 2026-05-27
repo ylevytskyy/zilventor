@@ -89,7 +89,7 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { packDrawing } from './storage/DrawingPacker';
 import { autosaveDrawing } from './storage/autosaveDrawing';
-import { clearLastOpen } from './storage/lastOpenDocument';
+import { setLastOpenDocument } from './storage/lastOpenDocument';
 import type { ComponentInstance, AssemblyDocument } from '@zilventor/shared';
 import * as THREE from 'three';
 import { solveAssembly } from '@zilventor/kernel/src/assembly/AssemblyConstraintSolver';
@@ -3685,12 +3685,12 @@ export default function App() {
             const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
             const archive = await packAssembly(merged, new Uint8Array());
             await opfs.write(`${doc.document.name}.ziasm`, archive);
-            clearLastOpen();
+            setLastOpenDocument({ kind: 'assembly', opfsPath: `${doc.document.name}.ziasm` });
           } else {
             if (!kernel) return;
             const bytes = await kernel.saveToBytes(doc.document.id);
             await opfs.write(`${doc.document.name}.zipt`, bytes);
-            clearLastOpen();
+            setLastOpenDocument({ kind: 'part', opfsPath: `${doc.document.name}.zipt` });
           }
           autosaveStatsRef.current.writeCount += 1;
         } catch (e) {
