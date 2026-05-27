@@ -14,6 +14,20 @@ export type DxfDocument = {
   circle(layer: string, cx: number, cy: number, r: number): void;
   /** Emit a TEXT entity. rotation defaults to 0. */
   text(layer: string, x: number, y: number, height: number, value: string, rotation?: number): void;
+  /** Capture all geometry emitted inside `build` into an anonymous BLOCK; returns its *D name. */
+  block(build: () => void): string;
+  /** Emit a native DIMENSION entity (R12). Coordinates are already transformed/Y-flipped. */
+  dimension(opts: {
+    layer: string;
+    blockName: string;
+    dimStyle: string;
+    dimType: number;                                  // group 70 value (flags pre-baked)
+    defPoint: readonly [number, number];              // group 10/20
+    textMid: readonly [number, number];               // group 11/21
+    text: string;                                     // group 1
+    rotation?: number;                                // group 50 (rotated linear only)
+    extraPoints?: ReadonlyArray<readonly [number, number, number]>; // [code, x, y] → code/code+10/code+20
+  }): void;
   /** Serialize to DXF string. */
   toString(): string;
 };
@@ -89,17 +103,18 @@ export function createDxfDocument(): DxfDocument {
 
   tables.push('  0', 'ENDSEC');
 
-  // ── BLOCKS section (empty — required by R12 structure between TABLES and ENTITIES) ──
-  const blocks: string[] = [];
-  blocks.push('  0', 'SECTION', '  2', 'BLOCKS');
-  blocks.push('  0', 'ENDSEC');
+  // ── BLOCKS section accumulator (block definitions appended by block()) ──
+  const blockDefs: string[] = [];
 
   // Internal entities accumulator — populated by emitters
   const ents: string[] = [];
+  // Current emission target: ENTITIES by default, redirected into a block during block().
+  let sink: string[] = ents;
+  let anonCounter = 0;
 
   return {
     line(layer, x1, y1, x2, y2) {
-      ents.push(
+      sink.push(
         '  0', 'LINE',
         '  8', layer,
         ' 10', fmt(x1), ' 20', fmt(y1),
@@ -109,7 +124,7 @@ export function createDxfDocument(): DxfDocument {
 
     polyline(layer, points) {
       if (points.length < 2) return;
-      ents.push(
+      sink.push(
         '  0', 'POLYLINE',
         '  8', layer,
         ' 66', '     1',  // vertices follow flag
@@ -117,17 +132,17 @@ export function createDxfDocument(): DxfDocument {
         ' 70', '     0',  // open polyline
       );
       for (const [x, y] of points) {
-        ents.push(
+        sink.push(
           '  0', 'VERTEX',
           '  8', layer,
           ' 10', fmt(x), ' 20', fmt(y),
         );
       }
-      ents.push('  0', 'SEQEND', '  8', layer);
+      sink.push('  0', 'SEQEND', '  8', layer);
     },
 
     circle(layer, cx, cy, r) {
-      ents.push(
+      sink.push(
         '  0', 'CIRCLE',
         '  8', layer,
         ' 10', fmt(cx), ' 20', fmt(cy),
@@ -136,7 +151,7 @@ export function createDxfDocument(): DxfDocument {
     },
 
     text(layer, x, y, height, value, rotation = 0) {
-      ents.push(
+      sink.push(
         '  0', 'TEXT',
         '  8', layer,
         ' 10', fmt(x), ' 20', fmt(y),
@@ -146,7 +161,57 @@ export function createDxfDocument(): DxfDocument {
       );
     },
 
+    block(build) {
+      const name = `*D${++anonCounter}`;
+      const prev = sink;
+      const body: string[] = [];
+      sink = body;
+      try { build(); } finally { sink = prev; }
+      blockDefs.push(
+        '  0', 'BLOCK',
+        '  8', '0',
+        '  2', name,
+        ' 70', '     1',   // anonymous block flag
+        ' 10', '0.0', ' 20', '0.0', ' 30', '0.0',
+        '  3', name,
+        ...body,
+        '  0', 'ENDBLK',
+        '  8', '0',
+      );
+      return name;
+    },
+
+    dimension(opts) {
+      const pad = (n: number): string => {
+        const s = String(n);
+        return s.length >= 3 ? s : ' '.repeat(3 - s.length) + s;
+      };
+      ents.push(
+        '  0', 'DIMENSION',
+        '  8', opts.layer,
+        '  2', opts.blockName,
+        ' 10', fmt(opts.defPoint[0]), ' 20', fmt(opts.defPoint[1]), ' 30', '0.0',
+        ' 11', fmt(opts.textMid[0]), ' 21', fmt(opts.textMid[1]), ' 31', '0.0',
+        ' 70', `     ${opts.dimType}`,
+        '  1', opts.text,
+        '  3', opts.dimStyle,
+      );
+      if (opts.rotation !== undefined) ents.push(' 50', fmt(opts.rotation));
+      for (const [code, x, y] of opts.extraPoints ?? []) {
+        ents.push(
+          pad(code), fmt(x),
+          pad(code + 10), fmt(y),
+          pad(code + 20), '0.0',
+        );
+      }
+    },
+
     toString() {
+      const blockSection = [
+        '  0', 'SECTION', '  2', 'BLOCKS',
+        ...blockDefs,
+        '  0', 'ENDSEC',
+      ];
       const entSection = [
         '  0', 'SECTION', '  2', 'ENTITIES',
         ...ents,
@@ -155,7 +220,7 @@ export function createDxfDocument(): DxfDocument {
       return [
         ...header,
         ...tables,
-        ...blocks,
+        ...blockSection,
         ...entSection,
         '  0', 'EOF',
       ].join('\n') + '\n';

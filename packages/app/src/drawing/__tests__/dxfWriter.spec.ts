@@ -67,6 +67,51 @@ describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
   });
 });
 
+describe('dxfWriter — anonymous blocks (DXF-BLOCK)', () => {
+  it('DXF-BLOCK-1: block() emits BLOCK/ENDBLK in BLOCKS section and returns *D-name', () => {
+    const doc = createDxfDocument();
+    const name = doc.block(() => {
+      doc.polyline('DIMENSIONS', [[0, 0], [10, 0]]);
+      doc.text('DIMENSIONS', 5, 1, 3.5, '10');
+    });
+    const out = doc.toString();
+    expect(name).toMatch(/^\*D\d+$/);
+    expect(out).toContain('BLOCK');
+    expect(out).toContain('ENDBLK');
+    expect(out).toContain(name);
+    // BLOCK definition lives in the BLOCKS section (before ENTITIES)
+    expect(out.indexOf('BLOCK\n')).toBeGreaterThan(-1);
+    const blocksPos = out.indexOf('BLOCKS');
+    const entitiesPos = out.indexOf('ENTITIES');
+    expect(out.indexOf('ENDBLK')).toBeGreaterThan(blocksPos);
+    expect(out.indexOf('ENDBLK')).toBeLessThan(entitiesPos);
+  });
+
+  it('DXF-BLOCK-2: geometry inside block() is captured in the block, NOT the ENTITIES section', () => {
+    const doc = createDxfDocument();
+    doc.line('VISIBLE', 1, 2, 3, 4);            // goes to ENTITIES
+    doc.block(() => { doc.polyline('DIMENSIONS', [[0, 0], [9, 9]]); }); // goes to BLOCKS
+    const out = doc.toString();
+    const blocksPos = out.indexOf('BLOCKS');
+    const entitiesPos = out.indexOf('ENTITIES');
+    // The block's POLYLINE appears before ENTITIES (i.e. inside BLOCKS)
+    const polyPos = out.indexOf('POLYLINE');
+    expect(polyPos).toBeGreaterThan(blocksPos);
+    expect(polyPos).toBeLessThan(entitiesPos);
+    // The standalone LINE entity (group code 0 → LINE) appears in ENTITIES, not BLOCKS.
+    // Use the LINE entity group-code pair position: look for '\n  0\nLINE\n' pattern.
+    const lineEntityPos = out.indexOf('\n  0\nLINE\n');
+    expect(lineEntityPos).toBeGreaterThan(entitiesPos);
+  });
+
+  it('DXF-BLOCK-3: two block() calls produce distinct *D names', () => {
+    const doc = createDxfDocument();
+    const n1 = doc.block(() => { doc.polyline('DIMENSIONS', [[0, 0], [1, 0]]); });
+    const n2 = doc.block(() => { doc.polyline('DIMENSIONS', [[0, 0], [2, 0]]); });
+    expect(n1).not.toBe(n2);
+  });
+});
+
 describe('dxfWriter — entity emitters (DXF-ENT)', () => {
   it('DXF-ENT-1: line emits correct group codes', () => {
     const doc = createDxfDocument();
