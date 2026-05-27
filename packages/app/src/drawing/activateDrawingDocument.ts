@@ -42,6 +42,7 @@ export async function activateDrawingDocument(
       useAppStore.setState({
         activeDrawingSourceComponents: components,
         activeDrawingSourceFingerprint: sourceFingerprint,
+        activeDrawingSourceDocument: asmDoc,
       } as never);
       useAppStore.getState().setStatus('Opened');
     } catch (e) {
@@ -53,6 +54,7 @@ export async function activateDrawingDocument(
         activeDrawingSourceComponents: null,
         activeDrawingSourceFingerprint: null,
         activeDrawingSourcePartId: null,
+        activeDrawingSourceDocument: null,
       } as never);
     }
     return;
@@ -63,7 +65,7 @@ export async function activateDrawingDocument(
   _clearLoadDrawingSourceCache();
 
   try {
-    const { partId, sourceFingerprint } = await loadDrawingSource({
+    const { partId, sourceFingerprint, sourceDocument } = await loadDrawingSource({
       partPath: doc.source.partPath,
       kernel,
       opfs,
@@ -74,6 +76,7 @@ export async function activateDrawingDocument(
     useAppStore.setState({
       activeDrawingSourcePartId: partId,
       activeDrawingSourceFingerprint: sourceFingerprint,
+      activeDrawingSourceDocument: sourceDocument,
     } as never);
     // Step 5: confirm success in the status bar. Doing this here (rather than in
     // FileTab) means the assembly/missing-source notices set above are never overwritten.
@@ -91,6 +94,7 @@ export async function activateDrawingDocument(
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,
       activeDrawingSourceComponents: null,
+      activeDrawingSourceDocument: null,
     } as never);
   }
 }

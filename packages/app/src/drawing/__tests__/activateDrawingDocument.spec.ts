@@ -7,6 +7,7 @@ vi.mock('../loadDrawingSource', () => ({
   loadDrawingSource: vi.fn().mockResolvedValue({
     partId: 'kernel-part-uuid-mock',
     sourceFingerprint: 'fp-mock-bytes-hash',
+    sourceDocument: { id: 'p1', name: 'Widget', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [] },
   }),
   _clearLoadDrawingSourceCache: vi.fn(),
 }));
@@ -213,5 +214,43 @@ describe('activateDrawingDocument', () => {
     const opfs = makeOpfs(true);
     await activateDrawingDocument(baseDoc, { kernel: kernel as never, opfs: opfs as never });
     expect(_clearLoadDrawingSourceCache).toHaveBeenCalledOnce();
+  });
+
+  it('part reopen: sets activeDrawingSourceDocument from loadDrawingSource result', async () => {
+    const { activateDrawingDocument } = await import('../activateDrawingDocument');
+    const kernel = makeKernel();
+    const opfs = makeOpfs(true);
+    await activateDrawingDocument(baseDoc, { kernel: kernel as never, opfs: opfs as never });
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: { name?: string } | null };
+    expect(s.activeDrawingSourceDocument?.name).toBe('Widget');
+  });
+
+  it('assembly reopen: sets activeDrawingSourceDocument from the unpacked asmDoc', async () => {
+    const { activateDrawingDocument } = await import('../activateDrawingDocument');
+    const kernel = makeKernel();
+    const opfs = makeOpfs(true);
+    const asmDoc: DrawingDocument = {
+      ...baseDoc,
+      id: 'drw-asm-src',
+      source: { partPath: 'assemblies/wardrobe.ziasm', sourceKind: 'assembly' },
+    };
+    await activateDrawingDocument(asmDoc, { kernel: kernel as never, opfs: opfs as never });
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: { name?: string } | null };
+    // unpackAssembly mock returns name: 'Mock Assembly'
+    expect(s.activeDrawingSourceDocument?.name).toBe('Mock Assembly');
+  });
+
+  it('source load failure nulls activeDrawingSourceDocument', async () => {
+    useAppStore.setState({ activeDrawingSourceDocument: { id: 'stale', name: 'Stale' } } as never);
+    const { loadDrawingSource } = await import('../loadDrawingSource');
+    (loadDrawingSource as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('OPFS_READ_FAILED: cannot load source part "parts/cabinet.zipt"')
+    );
+    const { activateDrawingDocument } = await import('../activateDrawingDocument');
+    const kernel = makeKernel();
+    const opfs = makeOpfs(false);
+    await activateDrawingDocument(baseDoc, { kernel: kernel as never, opfs: opfs as never });
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
+    expect(s.activeDrawingSourceDocument).toBeNull();
   });
 });
