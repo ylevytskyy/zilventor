@@ -84,7 +84,7 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
               key={i}
               x1={seg.p0.x} y1={seg.p0.y}
               x2={seg.p1.x} y2={seg.p1.y}
-              stroke="black"
+              stroke={seg.color ?? 'black'}
               strokeWidth={0.25 / sheetZoom}
               data-role="hatch"
               data-material={seg.materialId}
