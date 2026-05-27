@@ -19,12 +19,13 @@
  * do NOT import it. This file inlines its own djb2Running variant.
  */
 import type { AssemblyDocument } from '@zilventor/shared';
-import { pathKey } from '@zilventor/shared';
+import { pathKey, migrateManifest } from '@zilventor/shared';
 import { SubAssemblyCache } from '../assembly/SubAssemblyCache';
 import { visibleLeaves } from '../assembly/walkers/visibleLeaves';
 import { flattenForSolver } from '../assembly/walkers/flattenForSolver';
 import { composedPoses } from '../assembly/walkers/composedPoses';
 import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 
 // ---- djb2 ----
 // NOTE: djb2Bytes in loadDrawingSource.ts is private/non-exported — inlined here.
@@ -60,6 +61,7 @@ export type LoadAssemblyForProjectionArgs = {
 export type LoadAssemblyForProjectionResult = {
   components: AssemblyComponentInput[];
   sourceFingerprint: string;
+  componentColors: Record<string, string>; // kernel partId → material color (hex)
 };
 
 export async function loadAssemblyForProjection(
@@ -109,6 +111,7 @@ export async function loadAssemblyForProjection(
   // Step 6: Load each unique part into the kernel and build AssemblyComponentInput[].
   // Fail fast on any missing file (spec: don't drop a part silently).
   const partIdCache = new Map<string, string>(); // partPath → kernel UUID
+  const componentColors: Record<string, string> = {}; // kernel partId → material color (hex)
   const components: AssemblyComponentInput[] = [];
 
   for (const leaf of leaves) {
@@ -129,6 +132,17 @@ export async function loadAssemblyForProjection(
         );
       }
       partIdCache.set(leaf.partPath, partId);
+
+      // Extract primary material color from the manifest (same bytes — no extra OPFS read).
+      try {
+        const { manifest } = await unpackProject(partBytes);
+        const migrated = migrateManifest(manifest as Parameters<typeof migrateManifest>[0]);
+        const color = (migrated as { document?: { materials?: ReadonlyArray<{ color?: string }> } })
+          .document?.materials?.[0]?.color;
+        if (color) componentColors[partId] = color;
+      } catch {
+        // malformed manifest → no entry → gray fallback at resolve time
+      }
     }
 
     // Compose world pose from flattenForSolver initial unknowns.
@@ -147,5 +161,5 @@ export async function loadAssemblyForProjection(
     });
   }
 
-  return { components, sourceFingerprint: fingerprint(fpHash) };
+  return { components, sourceFingerprint: fingerprint(fpHash), componentColors };
 }
