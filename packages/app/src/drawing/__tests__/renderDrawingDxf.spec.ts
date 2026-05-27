@@ -299,4 +299,33 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     // The dim picture geometry is preserved (now inside the block): dimSvgY=40 → dxfY=170
     expect(out).toContain('170.0000');
   });
+
+  it('DXF-NDIM-BASELINE-1: baseline dimension → DIMENSION entity + block', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [
+            { id: 'd0', kind: 'outline', points: [[0, 50], [0, 60]] as ReadonlyArray<readonly [number, number]> },
+            { id: 't1', kind: 'outline', points: [[40, 50], [40, 60]] as ReadonlyArray<readonly [number, number]> },
+          ],
+          hiddenEdges: [], bbox: { minX: 0, minY: 50, maxX: 40, maxY: 60 },
+        },
+      }],
+      dimensionGroups: [{
+        kind: 'baseline', id: 'g1', viewId: 'v1',
+        datum: { kind: 'edge-endpoint', edgeId: 'd0', end: 'start' },
+        direction: 'h', baseOffsetMm: 8, spacingMm: 6,
+      }],
+      dimensions: [{
+        kind: 'baseline', id: 'b1', viewId: 'v1', groupId: 'g1', slot: 0,
+        to: { kind: 'edge-endpoint', edgeId: 't1', end: 'start' },
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\*D\d+/);
+    expect(out).toContain('40');   // measured distance label
+  });
 });

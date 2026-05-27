@@ -365,17 +365,33 @@ function emitDimension(
 
     if (group.direction === 'h') {
       const dimSvgY = sdy - offset2;
-      doc.polyline('DIMENSIONS', [[dx, flipY(dimSvgY)], [tx2, flipY(dimSvgY)]]);
-      doc.polyline('DIMENSIONS', [[dx, flipY(sdy)], [dx, flipY(dimSvgY)]]);
-      doc.polyline('DIMENSIONS', [[tx2, flipY(sty)], [tx2, flipY(dimSvgY)]]);
-      doc.text('DIMENSIONS', (dx + tx2) / 2, flipY(dimSvgY - 1), 3.5, label2);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[dx, flipY(dimSvgY)], [tx2, flipY(dimSvgY)]]);
+        doc.polyline('DIMENSIONS', [[dx, flipY(sdy)], [dx, flipY(dimSvgY)]]);
+        doc.polyline('DIMENSIONS', [[tx2, flipY(sty)], [tx2, flipY(dimSvgY)]]);
+        doc.text('DIMENSIONS', (dx + tx2) / 2, flipY(dimSvgY - 1), 3.5, label2);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 0,
+        defPoint: [tx2, flipY(dimSvgY)], textMid: [(dx + tx2) / 2, flipY(dimSvgY - 1)],
+        text: label2, rotation: 0,
+        extraPoints: [[13, dx, flipY(sdy)], [14, tx2, flipY(sty)]],
+      });
     } else {
       const dimSvgX = dx + offset2;
       const midSvgY = (sdy + sty) / 2;
-      doc.polyline('DIMENSIONS', [[dimSvgX, flipY(sdy)], [dimSvgX, flipY(sty)]]);
-      doc.polyline('DIMENSIONS', [[dx, flipY(sdy)], [dimSvgX, flipY(sdy)]]);
-      doc.polyline('DIMENSIONS', [[tx2, flipY(sty)], [dimSvgX, flipY(sty)]]);
-      doc.text('DIMENSIONS', dimSvgX + 1, flipY(midSvgY), 3.5, label2);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[dimSvgX, flipY(sdy)], [dimSvgX, flipY(sty)]]);
+        doc.polyline('DIMENSIONS', [[dx, flipY(sdy)], [dimSvgX, flipY(sdy)]]);
+        doc.polyline('DIMENSIONS', [[tx2, flipY(sty)], [dimSvgX, flipY(sty)]]);
+        doc.text('DIMENSIONS', dimSvgX + 1, flipY(midSvgY), 3.5, label2);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 0,
+        defPoint: [dimSvgX, flipY(sty)], textMid: [dimSvgX + 1, flipY(midSvgY)],
+        text: label2, rotation: 90,
+        extraPoints: [[13, dx, flipY(sdy)], [14, tx2, flipY(sty)]],
+      });
     }
     return;
   }
