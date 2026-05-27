@@ -458,6 +458,63 @@ describe('DrawingTab — Stepped Section ribbon button (F1.2)', () => {
   });
 });
 
+describe('DrawingTab — All-sheets DXF export buttons', () => {
+  beforeEach(() => {
+    useToolModeStore.getState().reset();
+    useAppStore.getState().setActiveDocument(null);
+    // An earlier test in this file sets activeDrawingSourceDocument and never clears it;
+    // setActiveDocument(null) does NOT touch that slot. Clear it so `source` is truly null
+    // for ALLBTN-3 (the Zustand store is a shared singleton across describes in one file).
+    useAppStore.setState({ activeDrawingSourceDocument: null } as never);
+  });
+
+  const projView = {
+    id: 'bv1', kind: 'base' as const, positionMm: { x: 20, y: 20 },
+    scale: { numerator: 1, denominator: 1 }, orientation: 'front' as const, showHidden: false,
+    projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+    inputFingerprint: 'fp1',
+  };
+  const twoSheetDrawing = (withProjection: boolean): DrawingDocument => {
+    const base = seedDrawing();
+    const s1 = { ...base.sheets[0]!, views: withProjection ? [projView] : [] };
+    const s2 = { ...base.sheets[0]!, id: 'sh2', name: 'Sheet 2', views: withProjection ? [projView] : [] };
+    return { ...base, sheets: [s1, s2] };
+  };
+
+  it('ALLBTN-1: all-sheets buttons are ABSENT for a single-sheet drawing', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    expect(screen.queryByRole('button', { name: /^export all sheets \(dxf\)$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^export all sheets \(1:1\)$/i })).not.toBeInTheDocument();
+  });
+
+  it('ALLBTN-2: both all-sheets buttons are PRESENT for a multi-sheet drawing', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(true) });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export all sheets \(dxf\)$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^export all sheets \(1:1\)$/i })).toBeInTheDocument();
+  });
+
+  it('ALLBTN-3: all-sheets WYSIWYG is disabled without a source', () => {
+    // activePart/activeAssembly/activeDrawingSourceDocument all null
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(true) });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export all sheets \(dxf\)$/i })).toBeDisabled();
+  });
+
+  it('ALLBTN-4: all-sheets 1:1 is disabled when no sheet has a projected view', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(false) });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export all sheets \(1:1\)$/i })).toBeDisabled();
+  });
+
+  it('ALLBTN-5: all-sheets 1:1 is enabled when a sheet has a projected view', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(true) });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export all sheets \(1:1\)$/i })).not.toBeDisabled();
+  });
+});
+
 describe('DrawingTab — Edit Detail Region ribbon button (F2.4)', () => {
   const seedDrawingWithDetailView = (): DrawingDocument => ({
     ...seedDrawing(),

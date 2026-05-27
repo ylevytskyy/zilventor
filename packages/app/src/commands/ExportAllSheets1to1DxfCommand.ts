@@ -19,7 +19,7 @@ export class ExportAllSheets1to1DxfCommand {
     if (Object.keys(entries).length === 0) {
       throw new Error('No sheet has a projected view to export');
     }
-    const blob = new Blob([buildDxfZip(entries)], { type: 'application/zip' });
+    const blob = new Blob([buildDxfZip(entries) as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
     await triggerDownload(blob, {
       suggestedName: `${drawing.name}-all-sheets-1to1.zip`,
       mimeType: 'application/zip',

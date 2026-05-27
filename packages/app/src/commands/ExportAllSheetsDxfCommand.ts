@@ -21,7 +21,7 @@ export class ExportAllSheetsDxfCommand {
       const idx = String(i + 1).padStart(2, '0');
       entries[`${idx}-${sheet.name}.dxf`] = renderDrawingDxf(drawing, sheet, source);
     });
-    const blob = new Blob([buildDxfZip(entries)], { type: 'application/zip' });
+    const blob = new Blob([buildDxfZip(entries) as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
     await triggerDownload(blob, {
       suggestedName: `${drawing.name}-all-sheets.zip`,
       mimeType: 'application/zip',

@@ -8,6 +8,8 @@ import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand'
 import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
 import { ExportDrawingDxfCommand } from '../../commands/ExportDrawingDxfCommand';
 import { ExportDrawing1to1DxfCommand } from '../../commands/ExportDrawing1to1DxfCommand';
+import { ExportAllSheetsDxfCommand } from '../../commands/ExportAllSheetsDxfCommand';
+import { ExportAllSheets1to1DxfCommand } from '../../commands/ExportAllSheets1to1DxfCommand';
 import { StubTab } from './_stub';
 
 export default function DrawingTab(): JSX.Element {
@@ -24,6 +26,8 @@ export default function DrawingTab(): JSX.Element {
   const setMode = useToolModeStore.getState().setMode;
   const activeSheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
   const hasProjectedView = activeSheet?.views.some((v) => v.projection != null) ?? false;
+  const isMultiSheet = drawing.sheets.length > 1;
+  const anySheetHasProjectedView = drawing.sheets.some((s) => s.views.some((v) => v.projection != null));
   const hasDetailView = activeSheet?.views.some((v) => v.kind === 'detail') ?? false;
   const hasBreakableProjection =
     activeSheet?.views.some(
@@ -333,6 +337,35 @@ export default function DrawingTab(): JSX.Element {
         >
           Export DXF (1:1)
         </button>
+        {isMultiSheet && (
+          <>
+            <button
+              type="button"
+              className="text-xs hover:text-white disabled:text-neutral-500"
+              aria-label="Export All Sheets (DXF)"
+              disabled={!source}
+              title={source ? 'Export every sheet as a DXF (zip)' : 'Source document not loaded'}
+              onClick={() => {
+                if (!source) return;
+                void bus.execute(new ExportAllSheetsDxfCommand({ drawing, source }));
+              }}
+            >
+              Export All Sheets (DXF)
+            </button>
+            <button
+              type="button"
+              className="text-xs hover:text-white disabled:text-neutral-500"
+              aria-label="Export All Sheets (1:1)"
+              disabled={!anySheetHasProjectedView}
+              title={anySheetHasProjectedView ? 'Export every sheet at 1:1 (zip)' : 'No projected views to export'}
+              onClick={() => {
+                void bus.execute(new ExportAllSheets1to1DxfCommand({ drawing }));
+              }}
+            >
+              Export All Sheets (1:1)
+            </button>
+          </>
+        )}
       </RibbonPanel>
     </div>
   );
