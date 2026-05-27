@@ -412,14 +412,30 @@ function emitDimension(
 
     if (dim.axis === 'x') {
       const colSvgY = soy + group.xColumnOffsetMm;
-      doc.polyline('DIMENSIONS', [[tx3, flipY(sty3)], [tx3, flipY(colSvgY)]]);
-      doc.polyline('DIMENSIONS', [[tx3, flipY(colSvgY)], [ox2, flipY(colSvgY)]]);
-      doc.text('DIMENSIONS', ox2 - 1, flipY(colSvgY - 1), 3.5, label3);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[tx3, flipY(sty3)], [tx3, flipY(colSvgY)]]);
+        doc.polyline('DIMENSIONS', [[tx3, flipY(colSvgY)], [ox2, flipY(colSvgY)]]);
+        doc.text('DIMENSIONS', ox2 - 1, flipY(colSvgY - 1), 3.5, label3);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 6 + 64,
+        defPoint: [ox2, flipY(soy)], textMid: [ox2 - 1, flipY(colSvgY - 1)],
+        text: label3,
+        extraPoints: [[13, tx3, flipY(sty3)], [14, ox2, flipY(colSvgY)]],
+      });
     } else {
       const colSvgX = ox2 + group.yColumnOffsetMm;
-      doc.polyline('DIMENSIONS', [[tx3, flipY(sty3)], [colSvgX, flipY(sty3)]]);
-      doc.polyline('DIMENSIONS', [[colSvgX, flipY(sty3)], [colSvgX, flipY(soy)]]);
-      doc.text('DIMENSIONS', colSvgX + 1, flipY(soy - 1), 3.5, label3);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', [[tx3, flipY(sty3)], [colSvgX, flipY(sty3)]]);
+        doc.polyline('DIMENSIONS', [[colSvgX, flipY(sty3)], [colSvgX, flipY(soy)]]);
+        doc.text('DIMENSIONS', colSvgX + 1, flipY(soy - 1), 3.5, label3);
+      });
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 6,
+        defPoint: [ox2, flipY(soy)], textMid: [colSvgX + 1, flipY(soy - 1)],
+        text: label3,
+        extraPoints: [[13, tx3, flipY(sty3)], [14, colSvgX, flipY(sty3)]],
+      });
     }
     return;
   }

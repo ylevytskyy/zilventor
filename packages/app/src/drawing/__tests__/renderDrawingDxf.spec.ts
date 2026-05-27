@@ -328,4 +328,37 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     expect(out).toMatch(/\*D\d+/);
     expect(out).toContain('40');   // measured distance label
   });
+
+  it('DXF-NDIM-ORDINATE-1: ordinate dimension → DIMENSION entity (type 6) + block', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [
+            { id: 'o0', kind: 'outline', points: [[0, 0], [0, 10]] as ReadonlyArray<readonly [number, number]> },
+            { id: 'f1', kind: 'outline', points: [[25, 0], [25, 10]] as ReadonlyArray<readonly [number, number]> },
+          ],
+          hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 25, maxY: 10 },
+        },
+      }],
+      dimensionGroups: [{
+        kind: 'ordinate', id: 'og1', viewId: 'v1',
+        origin: { kind: 'edge-endpoint', edgeId: 'o0', end: 'start' },
+        xColumnOffsetMm: -10, yColumnOffsetMm: 10,
+      }],
+      dimensions: [{
+        kind: 'ordinate', id: 'od1', viewId: 'v1', groupId: 'og1', axis: 'x',
+        to: { kind: 'edge-endpoint', edgeId: 'f1', end: 'start' },
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\*D\d+/);
+    // group-70 value for X-ordinate = 6 | 64 = 70
+    const lines = out.split('\n');
+    const dimIdx = lines.findIndex((l) => l.trim() === 'DIMENSION');
+    const block = lines.slice(dimIdx, dimIdx + 30).join('\n');
+    expect(block).toMatch(/ 70\n\s*70/);
+  });
 });
