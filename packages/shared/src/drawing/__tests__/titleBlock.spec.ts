@@ -196,8 +196,7 @@ function nullSourceDrawing(sh: DrawingSheet): DrawingDocument {
 describe('resolveTitleBlock — null source', () => {
   it('degrades partName and material to blank when source is null and no override', () => {
     const sh = nullSourceSheet();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null as any, 0, 1, '');
+    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null, 0, 1, '');
     expect(tb.partName).toBe('');
     expect(tb.material).toBe('');
     expect(tb.drawingName).toBe('My Drawing');
@@ -207,8 +206,7 @@ describe('resolveTitleBlock — null source', () => {
 
   it('uses sheet overrides for partName and material when source is null', () => {
     const sh = nullSourceSheet({ partName: 'Widget', material: 'Steel' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null as any, 0, 1, '');
+    const tb = resolveTitleBlock(nullSourceDrawing(sh), sh, null, 0, 1, '');
     expect(tb.partName).toBe('Widget');
     expect(tb.material).toBe('Steel');
   });
