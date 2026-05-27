@@ -249,7 +249,6 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
                 }>;
               };
             } | null;
-            activeDrawingSourceComponents: unknown[] | null;
             activeDrawingSourceFingerprint: string | null;
             activeDrawingSourcePartId: string | null;
             activeDrawingSourceComponents: Array<{ partId: string; pose: unknown }> | null;
@@ -552,7 +551,7 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
         };
       }).__zilventorStore;
       const doc = store.getState().activeDocument;
-      if (doc?.kind !== 'drawing') return { regenHatchCount: 0, hatchXExtent: 0 };
+      if (doc?.kind !== 'drawing') return { regenHatchCount: 0, hatchXExtent: 0, hatchYExtent: 0 };
       const sh = doc.document.sheets.find((s) => s.id === shId);
       const sv = sh?.views.find((v) => v.id === svId) as {
         hatchSegments?: Array<{ p0?: { x: number; y: number }; p1?: { x: number; y: number } }>;
