@@ -7,6 +7,7 @@
 import type { Plane } from '@zilventor/shared/src/drawing/sectionPlane';
 import type { FaceTagMap } from '@zilventor/shared/src/drawing/projectSectionView';
 import type { ProjectorInput } from '@zilventor/shared';
+import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
 import { useAppStore } from '../store/useAppStore';
 
 export type CutResult =
@@ -94,4 +95,32 @@ export async function cutAssemblyByStepSegments(
   if (!r.ok) return r;
   const faceTags: FaceTagMap = new Map(r.faceTags);
   return { ok: true, compound: r.projectorInput, faceTags };
+}
+
+/** Pose-aware components-based assembly section cut (full/half). */
+export async function cutAssemblyComponentsBySectionPlane(
+  components: readonly AssemblyComponentInput[],
+  plane: Plane,
+  arrowDirection: -1 | 1 = 1,
+  splitPlane?: Plane,
+  splitSide?: -1 | 1,
+): Promise<CutResult> {
+  const kernel = useAppStore.getState().kernel;
+  if (!kernel) throw new Error('cutAssemblyComponentsBySectionPlane: kernel not ready');
+  const r = await kernel.cutAssemblyComponentsBySectionPlane(components, plane, arrowDirection, splitPlane, splitSide);
+  if (!r.ok) return r;
+  return { ok: true, compound: r.projectorInput, faceTags: new Map(r.faceTags) };
+}
+
+/** Pose-aware components-based assembly stepped-section cut. */
+export async function cutAssemblyComponentsByStepSegments(
+  components: readonly AssemblyComponentInput[],
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1 = 1,
+): Promise<CutResult> {
+  const kernel = useAppStore.getState().kernel;
+  if (!kernel) throw new Error('cutAssemblyComponentsByStepSegments: kernel not ready');
+  const r = await kernel.cutAssemblyComponentsByStepSegments(components, planes, arrowDirection);
+  if (!r.ok) return r;
+  return { ok: true, compound: r.projectorInput, faceTags: new Map(r.faceTags) };
 }
