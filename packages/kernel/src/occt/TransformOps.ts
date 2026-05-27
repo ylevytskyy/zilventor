@@ -32,6 +32,50 @@ export function translateShape(
   return { __brand: 'OcctShape', handle: out };
 }
 
+/**
+ * Return a new shape that is `shape` posed by `pose` (rotation then translation).
+ * Builds a gp_Trsf via SetValues from the quaternion-derived 3×3 rotation matrix
+ * + translation column, then BRepBuilderAPI_Transform_2(copy=true).
+ * The caller owns the returned shape and must disposeShape it.
+ */
+export function transformShapeByPose(
+  oc: OcctInstance,
+  shape: OcctShape,
+  pose: {
+    translation: { x: number; y: number; z: number };
+    quaternion: readonly [number, number, number, number];
+  },
+): OcctShape {
+  const [x, y, z, w] = pose.quaternion;
+  const { x: tx, y: ty, z: tz } = pose.translation;
+  // Quaternion [x,y,z,w] → row-major 3×3 rotation matrix.
+  const r00 = 1 - 2 * (y * y + z * z);
+  const r01 = 2 * (x * y - w * z);
+  const r02 = 2 * (x * z + w * y);
+  const r10 = 2 * (x * y + w * z);
+  const r11 = 1 - 2 * (x * x + z * z);
+  const r12 = 2 * (y * z - w * x);
+  const r20 = 2 * (x * z - w * y);
+  const r21 = 2 * (y * z + w * x);
+  const r22 = 1 - 2 * (x * x + y * y);
+
+  const trsf = new oc.gp_Trsf_1();
+  (trsf as { SetValues: (...a: number[]) => void }).SetValues(
+    r00, r01, r02, tx,
+    r10, r11, r12, ty,
+    r20, r21, r22, tz,
+  );
+  const transform = new oc.BRepBuilderAPI_Transform_2(
+    shape.handle as never,
+    trsf as never,
+    true as never,
+  );
+  const out = (transform as { Shape: () => unknown }).Shape();
+  (transform as { delete: () => void }).delete();
+  (trsf as { delete: () => void }).delete();
+  return { __brand: 'OcctShape', handle: out };
+}
+
 export type MirrorPlane = 'xy' | 'yz' | 'xz';
 
 /**
