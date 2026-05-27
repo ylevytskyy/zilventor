@@ -14,9 +14,12 @@ import { resolveRef, resolveCircularEdgeRef, realExtractorBundle, type PartLocal
 import {
   cutBySectionPlane as kernelCutBySectionPlane,
   cutByStepSegments as kernelCutByStepSegments,
+  cutLeavesBySectionPlane,
+  cutLeavesByStepSegments,
   type Plane,
   type FaceTagMap as KernelFaceTagMap,
 } from './section/cutBySectionPlane';
+import { transformShapeByPose } from './occt/TransformOps';
 import type { FaceTag } from '@zilventor/shared/src/drawing/projectSectionView';
 
 /**
@@ -122,6 +125,27 @@ export type KernelApi = {
    * results, and returns a serializable ProjectorInput + merged face tags.
    */
   cutAssemblyByStepSegments(asmId: string, planes: readonly Plane[], arrowDirection: -1 | 1): Promise<CutSectionResult>;
+
+  /**
+   * Pose-aware, components-based full/half-section cut for assembly sources.
+   * Each component is cut at its posed position (bodyResolver builds a fresh copy
+   * via transformShapeByPose). Replaces cutAssemblyBySectionPlane for drawings
+   * that were reopened without an asmId.
+   */
+  cutAssemblyComponentsBySectionPlane(
+    components: readonly { partId: string; pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] } }[],
+    plane: Plane, arrowDirection: -1 | 1, splitPlane?: Plane, splitSide?: -1 | 1,
+  ): Promise<CutSectionResult>;
+
+  /**
+   * Pose-aware, components-based stepped-section cut for assembly sources.
+   * Each component is cut at its posed position. Replaces cutAssemblyByStepSegments
+   * for drawings that were reopened without an asmId.
+   */
+  cutAssemblyComponentsByStepSegments(
+    components: readonly { partId: string; pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] } }[],
+    planes: readonly Plane[], arrowDirection: -1 | 1,
+  ): Promise<CutSectionResult>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -549,6 +573,42 @@ export function createKernelApi(): KernelApi {
       };
       const faceTags = serializeFaceTags(r.faceTags);
       void asmId;
+      return { ok: true, projectorInput, faceTags };
+    },
+
+    async cutAssemblyComponentsBySectionPlane(components, plane, arrowDirection, splitPlane, splitSide) {
+      if (!occt) throw new Error('kernel not initialized');
+      const bodyResolver = (partId: string, pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] }) => {
+        const ns = namedShapeCache.get(partId);
+        return ns ? transformShapeByPose(occt!, ns.shape, pose) : null;
+      };
+      const r = cutLeavesBySectionPlane(occt, components, plane, arrowDirection,
+        { bodyResolver, materialResolver: () => '' }, splitPlane, splitSide);
+      if (!r.ok) return r;
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = { triangles, edges: [], bbox: mesh.boundingBox };
+      const faceTags = serializeFaceTags(r.faceTags);
+      return { ok: true, projectorInput, faceTags };
+    },
+
+    async cutAssemblyComponentsByStepSegments(components, planes, arrowDirection) {
+      if (!occt) throw new Error('kernel not initialized');
+      const bodyResolver = (partId: string, pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] }) => {
+        const ns = namedShapeCache.get(partId);
+        return ns ? transformShapeByPose(occt!, ns.shape, pose) : null;
+      };
+      const r = cutLeavesByStepSegments(occt, components, planes, arrowDirection,
+        { bodyResolver, materialResolver: () => '' });
+      if (!r.ok) return r;
+      const cutShape: OcctShape = { __brand: 'OcctShape', handle: r.compound };
+      const mesh = tessellate(occt, cutShape, { linearDeflection: 0.05, angularDeflection: 0.3 });
+      (r.compound as unknown as { delete?(): void }).delete?.();
+      const triangles = buildTriangles(mesh);
+      const projectorInput: ProjectorInput = { triangles, edges: [], bbox: mesh.boundingBox };
+      const faceTags = serializeFaceTags(r.faceTags);
       return { ok: true, projectorInput, faceTags };
     },
   };
