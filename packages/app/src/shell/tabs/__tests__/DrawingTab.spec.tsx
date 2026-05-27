@@ -27,6 +27,17 @@ const seedDrawing = (): DrawingDocument => ({
   activeSheetId: 'sh1',
 });
 
+const projectedBaseView = {
+  id: 'bv1', kind: 'base' as const, positionMm: { x: 20, y: 20 },
+  scale: { numerator: 1, denominator: 1 }, orientation: 'front' as const, showHidden: false,
+  projection: { visibleEdges: [], hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 80, maxY: 60 } },
+  inputFingerprint: 'fp1',
+};
+const seedDrawingWithProjectedView = (): DrawingDocument => {
+  const base = seedDrawing();
+  return { ...base, sheets: [{ ...base.sheets[0]!, views: [projectedBaseView] }] };
+};
+
 describe('DrawingTab — drawing active doc', () => {
   beforeEach(() => {
     useToolModeStore.getState().reset();
@@ -110,8 +121,8 @@ describe('DrawingTab — drawing active doc', () => {
     expect(btn.getAttribute('title')).toMatch(/follow-up/i);
   });
 
-  it('renders a disabled Export DXF button when no activePart/activeAssembly is set', () => {
-    // activePart and activeAssembly are both null (default store state) — button must be disabled.
+  it('renders a disabled Export DXF button when no projected view exists', () => {
+    // seedDrawing() has views: [] → hasProjectedView=false → button disabled (source-independent gate).
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
     const btn = screen.getByRole('button', { name: /^export dxf$/i });
@@ -127,14 +138,23 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByRole('button', { name: /^export dxf \(1:1\)$/i })).toBeDisabled();
   });
 
-  it('enables export buttons from activeDrawingSourceDocument alone (drawing active, activePart null)', () => {
+  it('enables export buttons from activeDrawingSourceDocument + a projected view', () => {
     useAppStore.setState({
       activePart: null,
       activeAssembly: null,
       activeDrawingSourceDocument: { id: 'p1', name: 'Widget', units: 'mm', parameters: {},
         featureTree: [], properties: {}, materials: [], hardware: [] },
     } as never);
-    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawingWithProjectedView() });
+    render(<DrawingTab />);
+    for (const label of ['Export PDF', 'Export SVG', 'Export PNG', 'Export DXF']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
+    }
+  });
+
+  it('enables WYSIWYG export buttons when a projected view exists but no source is loaded', () => {
+    useAppStore.setState({ activePart: null, activeAssembly: null, activeDrawingSourceDocument: null } as never);
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawingWithProjectedView() });
     render(<DrawingTab />);
     for (const label of ['Export PDF', 'Export SVG', 'Export PNG', 'Export DXF']) {
       expect(screen.getByRole('button', { name: label })).toBeEnabled();
@@ -495,9 +515,15 @@ describe('DrawingTab — All-sheets DXF export buttons', () => {
     expect(screen.getByRole('button', { name: /^export all sheets \(1:1\)$/i })).toBeInTheDocument();
   });
 
-  it('ALLBTN-3: all-sheets WYSIWYG is disabled without a source', () => {
-    // activePart/activeAssembly/activeDrawingSourceDocument all null
+  it('ALLBTN-3: all-sheets WYSIWYG is ENABLED without a source when a sheet has a projected view', () => {
+    // activePart/activeAssembly/activeDrawingSourceDocument all null; twoSheetDrawing(true) has projected views.
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(true) });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export all sheets \(dxf\)$/i })).toBeEnabled();
+  });
+
+  it('ALLBTN-3b: all-sheets WYSIWYG is disabled when no sheet has a projected view', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: twoSheetDrawing(false) });
     render(<DrawingTab />);
     expect(screen.getByRole('button', { name: /^export all sheets \(dxf\)$/i })).toBeDisabled();
   });

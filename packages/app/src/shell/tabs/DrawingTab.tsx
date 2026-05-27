@@ -262,10 +262,9 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export PDF"
-          disabled={!source}
-          title={source ? 'Export to PDF' : 'Source document not loaded'}
+          disabled={!anySheetHasProjectedView}
+          title={anySheetHasProjectedView ? 'Export to PDF' : 'No projected views to export'}
           onClick={() => {
-            if (!source) return;
             void bus.execute(new ExportDrawingPdfCommand({ drawing, source }));
           }}
         >
@@ -275,10 +274,9 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export SVG"
-          disabled={!source}
-          title={source ? 'Export to SVG' : 'Source document not loaded'}
+          disabled={!hasProjectedView}
+          title={hasProjectedView ? 'Export to SVG' : 'No projected views to export'}
           onClick={() => {
-            if (!source) return;
             void bus.execute(new ExportDrawingSvgCommand({
               drawing,
               sheetId: drawing.activeSheetId,
@@ -292,10 +290,9 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export PNG"
-          disabled={!source}
-          title={source ? 'Export to PNG' : 'Source document not loaded'}
+          disabled={!hasProjectedView}
+          title={hasProjectedView ? 'Export to PNG' : 'No projected views to export'}
           onClick={() => {
-            if (!source) return;
             void bus.execute(new ExportDrawingPngCommand({
               drawing,
               sheetId: drawing.activeSheetId,
@@ -309,10 +306,9 @@ export default function DrawingTab(): JSX.Element {
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
           aria-label="Export DXF"
-          disabled={!source}
-          title={source ? 'Export to DXF' : 'Source document not loaded'}
+          disabled={!hasProjectedView}
+          title={hasProjectedView ? 'Export to DXF' : 'No projected views to export'}
           onClick={() => {
-            if (!source) return;
             void bus.execute(new ExportDrawingDxfCommand({
               drawing,
               sheetId: drawing.activeSheetId,
@@ -343,10 +339,9 @@ export default function DrawingTab(): JSX.Element {
               type="button"
               className="text-xs hover:text-white disabled:text-neutral-500"
               aria-label="Export All Sheets (DXF)"
-              disabled={!source}
-              title={source ? 'Export every sheet as a DXF (zip)' : 'Source document not loaded'}
+              disabled={!anySheetHasProjectedView}
+              title={anySheetHasProjectedView ? 'Export every sheet as a DXF (zip)' : 'No projected views to export'}
               onClick={() => {
-                if (!source) return;
                 void bus.execute(new ExportAllSheetsDxfCommand({ drawing, source }));
               }}
             >
