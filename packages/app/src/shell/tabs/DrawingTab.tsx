@@ -12,7 +12,7 @@ import { StubTab } from './_stub';
 export default function DrawingTab(): JSX.Element {
   const activeDocument = useAppStore((s) => s.activeDocument);
   const bus = useAppStore((s) => s.bus);
-  const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
+  const source = useAppStore((s) => s.activePart ?? s.activeAssembly ?? s.activeDrawingSourceDocument);
 
   if (activeDocument?.kind !== 'drawing') {
     return <StubTab subProject={6} what="Drawing generation" />;

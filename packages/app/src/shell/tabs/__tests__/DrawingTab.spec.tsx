@@ -117,6 +117,20 @@ describe('DrawingTab — drawing active doc', () => {
     expect(btn).toBeInTheDocument();
     expect(btn).toBeDisabled();
   });
+
+  it('enables export buttons from activeDrawingSourceDocument alone (drawing active, activePart null)', () => {
+    useAppStore.setState({
+      activePart: null,
+      activeAssembly: null,
+      activeDrawingSourceDocument: { id: 'p1', name: 'Widget', units: 'mm', parameters: {},
+        featureTree: [], properties: {}, materials: [], hardware: [] },
+    } as never);
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    for (const label of ['Export PDF', 'Export SVG', 'Export PNG', 'Export DXF']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
+    }
+  });
 });
 
 describe('DrawingTab ribbon — Detail button', () => {
