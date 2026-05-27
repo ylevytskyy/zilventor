@@ -3250,6 +3250,7 @@ export default function App() {
           activeDocument: { kind: 'drawing', document: syntheticDrawing } as never,
           activeDrawingSourceFingerprint: 'perf-fp',
           activeDrawingSourceComponents: syntheticComponents,
+          activeDrawingSourceComponentColors: {},
           activePart: null,
           activeAssembly: null,
         } as never);
@@ -3269,6 +3270,7 @@ export default function App() {
           activeAssembly: snapActiveAssembly,
           activeDrawingSourceFingerprint: snapFingerprint,
           activeDrawingSourceComponents: snapComponents,
+          activeDrawingSourceComponentColors: {},
         } as never);
       }
 

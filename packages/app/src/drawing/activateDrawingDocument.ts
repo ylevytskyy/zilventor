@@ -33,7 +33,7 @@ export async function activateDrawingDocument(
       const { unpackAssembly } = await import('@zilventor/kernel/src/storage/AssemblyPacker');
       const asmBytes = await opfs.read(doc.source.partPath);
       const asmDoc = await unpackAssembly(asmBytes);
-      const { components, sourceFingerprint } = await loadAssemblyForProjection({
+      const { components, sourceFingerprint, componentColors } = await loadAssemblyForProjection({
         asmPath: doc.source.partPath,
         asmDoc,
         opfs,
@@ -43,6 +43,7 @@ export async function activateDrawingDocument(
         activeDrawingSourceComponents: components,
         activeDrawingSourceFingerprint: sourceFingerprint,
         activeDrawingSourceDocument: asmDoc,
+        activeDrawingSourceComponentColors: componentColors,
       } as never);
       useAppStore.getState().setStatus('Opened');
     } catch (e) {
@@ -55,6 +56,7 @@ export async function activateDrawingDocument(
         activeDrawingSourceFingerprint: null,
         activeDrawingSourcePartId: null,
         activeDrawingSourceDocument: null,
+        activeDrawingSourceComponentColors: null,
       } as never);
     }
     return;
@@ -77,6 +79,7 @@ export async function activateDrawingDocument(
       activeDrawingSourcePartId: partId,
       activeDrawingSourceFingerprint: sourceFingerprint,
       activeDrawingSourceDocument: sourceDocument,
+      activeDrawingSourceComponentColors: null,
     } as never);
     // Step 5: confirm success in the status bar. Doing this here (rather than in
     // FileTab) means the assembly/missing-source notices set above are never overwritten.
@@ -95,6 +98,7 @@ export async function activateDrawingDocument(
       activeDrawingSourceFingerprint: null,
       activeDrawingSourceComponents: null,
       activeDrawingSourceDocument: null,
+      activeDrawingSourceComponentColors: null,
     } as never);
   }
 }

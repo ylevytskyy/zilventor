@@ -10,6 +10,7 @@ export class CreateDrawingCommand implements Command {
   private prevActiveDrawingSourcePartId: string | null = null;
   private prevActiveDrawingSourceFingerprint: string | null = null;
   private prevActiveDrawingSourceComponents: AssemblyComponentInput[] | null = null;
+  private prevActiveDrawingSourceComponentColors!: Record<string, string> | null;
   private prevActiveDrawingSourceDocument: PartDocument | AssemblyDocument | null = null;
   private createdId: string | null = null;
 
@@ -34,6 +35,7 @@ export class CreateDrawingCommand implements Command {
     this.prevActiveDrawingSourcePartId = prevSlots.activeDrawingSourcePartId;
     this.prevActiveDrawingSourceFingerprint = prevSlots.activeDrawingSourceFingerprint;
     this.prevActiveDrawingSourceComponents = prevSlots.activeDrawingSourceComponents;
+    this.prevActiveDrawingSourceComponentColors = (prevSlots as unknown as { activeDrawingSourceComponentColors: Record<string, string> | null }).activeDrawingSourceComponentColors;
     this.prevActiveDrawingSourceDocument = prevSlots.activeDrawingSourceDocument;
     // Capture activePart BEFORE setActiveDocument (which nulls activePart).
     const activePartDoc = state.activePart;
@@ -86,6 +88,9 @@ export class CreateDrawingCommand implements Command {
     // Load the source into the kernel so projection commands can call
     // getProjectorInput without a cache miss.
     if (this.opts.sourceKind === 'part') {
+      // Null the color slot unconditionally: part drawings never have per-component colors.
+      // This prevents stale assembly colors bleeding into a subsequently-opened part drawing.
+      useAppStore.setState({ activeDrawingSourceComponentColors: null } as never);
       try {
         const { loadDrawingSource, _clearLoadDrawingSourceCache } = await import('../drawing/loadDrawingSource');
         const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
@@ -120,7 +125,7 @@ export class CreateDrawingCommand implements Command {
         const kernel = useAppStore.getState().kernel;
         if (kernel && activeAsmDoc) {
           const opfs = await Opfs.forNavigator();
-          const { components, sourceFingerprint } = await loadAssemblyForProjection({
+          const { components, sourceFingerprint, componentColors } = await loadAssemblyForProjection({
             asmPath: this.opts.sourcePath,
             asmDoc: activeAsmDoc,
             opfs,
@@ -129,6 +134,7 @@ export class CreateDrawingCommand implements Command {
           useAppStore.setState({
             activeDrawingSourceComponents: components,
             activeDrawingSourceFingerprint: sourceFingerprint,
+            activeDrawingSourceComponentColors: componentColors,
           } as never);
         }
       } catch (e) {
@@ -151,6 +157,7 @@ export class CreateDrawingCommand implements Command {
       activeDrawingSourcePartId: this.prevActiveDrawingSourcePartId,
       activeDrawingSourceFingerprint: this.prevActiveDrawingSourceFingerprint,
       activeDrawingSourceComponents: this.prevActiveDrawingSourceComponents,
+      activeDrawingSourceComponentColors: this.prevActiveDrawingSourceComponentColors,
       activeDrawingSourceDocument: this.prevActiveDrawingSourceDocument,
     } as never);
 
