@@ -24,6 +24,10 @@
  * The djb2(partId) fingerprint is acceptable ONLY here — real OPFS reads must hash bytes.
  */
 
+import type { PartDocument } from '@zilventor/shared';
+import { migrateManifest } from '@zilventor/shared';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+
 /** djb2 over a string — browser-safe, synchronous. */
 function djb2Str(str: string): string {
   let h = 5381;
@@ -50,6 +54,9 @@ export type LoadDrawingSourceResult = {
   /** djb2 hash of raw OPFS bytes (REAL path) or djb2 of partId (fallback test path only).
    *  Changes whenever the source .zipt file changes → staleness detection is reliable. */
   sourceFingerprint: string;
+  /** The unpacked source PartDocument (real path) or null (fallback test path).
+   *  Used by DrawingTab to enable export buttons + by resolveTitleBlock for metadata. */
+  sourceDocument: PartDocument | null;
 };
 
 const cache = new Map<string, LoadDrawingSourceResult>(); // partPath → result
@@ -88,7 +95,17 @@ export async function loadDrawingSource(args: LoadDrawingSourceArgs): Promise<Lo
     if (!res.ok) {
       throw new Error(`kernel.execute failed: ${String((res as { error?: unknown }).error)}`);
     }
-    const result: LoadDrawingSourceResult = { partId, sourceFingerprint };
+    // Unpack the manifest envelope so DrawingTab/title-block have the source document.
+    // Geometry is unused here (already loaded into the kernel above); we only need name+materials.
+    let sourceDocument: PartDocument | null = null;
+    try {
+      const { manifest } = await unpackProject(bytes);
+      const migrated = migrateManifest(manifest as Parameters<typeof migrateManifest>[0]);
+      sourceDocument = (migrated as { document?: PartDocument }).document ?? null;
+    } catch {
+      sourceDocument = null; // malformed manifest → button stays disabled; non-fatal
+    }
+    const result: LoadDrawingSourceResult = { partId, sourceFingerprint, sourceDocument };
     cache.set(partPath, result);
     return result;
   } catch (opfsErr) {
@@ -101,6 +118,7 @@ export async function loadDrawingSource(args: LoadDrawingSourceArgs): Promise<Lo
       const result: LoadDrawingSourceResult = {
         partId: activePartId,
         sourceFingerprint: djb2Str(activePartId),  // synthetic; test-fixture path only
+        sourceDocument: null,
       };
       cache.set(partPath, result);
       return result;

@@ -1,6 +1,7 @@
 // packages/app/src/drawing/__tests__/loadDrawingSource.spec.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { loadDrawingSource } from '../loadDrawingSource';
+import { loadDrawingSource, _clearLoadDrawingSourceCache } from '../loadDrawingSource';
+import { packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 
 const FAKE_BYTES_A = new Uint8Array([1, 2, 3]);
 const FAKE_BYTES_B = new Uint8Array([9, 8, 7, 6]); // different bytes → different fingerprint
@@ -99,5 +100,36 @@ describe('loadDrawingSource', () => {
     await expect(
       loadDrawingSource({ partPath: 'missing.zipt', kernel: kernel as never, opfs: opfs as never })
     ).rejects.toThrow('OPFS_READ_FAILED');
+  });
+
+  it('real path returns sourceDocument unpacked from the source bytes', async () => {
+    _clearLoadDrawingSourceCache();
+    const partDoc = {
+      id: 'part-1', name: 'Widget', units: 'mm',
+      parameters: {}, featureTree: [], properties: {},
+      materials: [{ id: 'm1', name: 'Plywood 18mm', defaultThickness: 18, color: '#c8a96e' }], hardware: [],
+    };
+    const bytes = await packProject({
+      manifest: { formatVersion: 19, kind: 'part', createdAt: '2026-01-01', appVersion: 'test', document: partDoc },
+      blobs: {},
+    });
+    const kernel = { loadFromBytes: async () => 'kid-1', execute: async () => ({ ok: true }) };
+    const opfs = { exists: async () => true, read: async () => bytes };
+
+    const res = await loadDrawingSource({ partPath: 'parts/widget.zipt', kernel, opfs });
+
+    expect(res.sourceDocument?.name).toBe('Widget');
+    expect(res.sourceDocument?.materials?.[0]?.name).toBe('Plywood 18mm');
+  });
+
+  it('fallback (no OPFS bytes) returns sourceDocument null', async () => {
+    _clearLoadDrawingSourceCache();
+    const kernel = { loadFromBytes: async () => 'kid-x', execute: async () => ({ ok: true }) };
+    const opfs = { exists: async () => false, read: async () => { throw new Error('ENOENT'); } };
+
+    const res = await loadDrawingSource({ partPath: 'kid-x.zipt', kernel, opfs, activePartId: 'kid-x' });
+
+    expect(res.partId).toBe('kid-x');
+    expect(res.sourceDocument).toBeNull();
   });
 });
