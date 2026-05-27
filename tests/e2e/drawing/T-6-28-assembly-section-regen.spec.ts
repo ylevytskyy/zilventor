@@ -5,9 +5,16 @@
  * Proves that Tasks 1–5 (cutAssemblyComponentsBySectionPlane wired into both
  * AddSectionViewCommand and regenerateSectionView) work end-to-end in real Chromium.
  *
- * The non-trivial pose (Part B translated +100mm in X) ensures a poseless cut
- * (dumping all cached shapes at origin) would produce a different hatch footprint
- * than the pose-aware cut — so hatch > 0 is evidence the right branch ran.
+ * The non-trivial pose (Part B translated +100mm in X) ensures that a poseless cut
+ * (ignoring component transforms, dumping all cached shapes at origin) produces
+ * measurably different hatch geometry than the pose-aware cut:
+ *
+ * The section is a HORIZONTAL CUT looking along world-Y. In the section view's
+ * look-at matrix, world-X maps to view-Y. So Part A at world-X=0 lands at
+ * sectionView Y≈[−30,0] and Part B at world-X=+100mm lands at Y≈[−130,−100].
+ * Posed Y-extent ≈ 130mm. Poseless (both at origin) Y-extent ≈ 30mm.
+ * Teeth verified: TransformOps.ts stub (translateShape(0,0,0)) → assertion RED at 30mm.
+ * Reverted → assertion GREEN at 130mm. Threshold 80mm, 50mm margin both sides.
  *
  * Steps:
  *  1. Build Box A (30×30×20) via UI; save bytes to OPFS 'parts/t628-A.zipt'. Capture partIdA.
@@ -25,7 +32,7 @@
  *  9. Switch to Drawing tab; assert section view stale marker is visible.
  * 10. Click Regenerate on section stale marker.
  * 11. Assert: stale marker clears; hatchSegments.length > 0 (no "not yet supported" throw);
- *     and both partId "A" and partId "B" appear in the hatch data (pose-aware cut confirmed).
+ *     hatch Y-extent > 80mm (pose-separation: posed ≈ 130mm, poseless ≈ 30mm).
  *
  * Dev hooks used:
  *   - window.__zilventorStore
@@ -510,7 +517,14 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
   }).toPass({ timeout: 30_000 });
 
   // Read hatchSegments from the store to confirm real kernel cut ran.
-  const { regenHatchCount, hatchPartIds } = await page.evaluate(
+  // Compute both X and Y extents across all hatch p0/p1 points — pose-separation metric.
+  // With Part A at world-X=0 and Part B at world-X=+100mm (both 30×30×20), the section is
+  // a horizontal cut (looking along world-Y). In sectionViewMatrix space world-X maps to
+  // view-Y, so the Y-extent of hatch segments is the discriminating axis:
+  //   Posed (correct): Part A hatch at Y≈[−30,0], Part B at Y≈[−130,−100] → Y-extent ≈ 130mm
+  //   Poseless (bug):  Both at origin, Y≈[−30,0] → Y-extent ≈ 30mm
+  // Threshold 80mm cleanly separates both cases with ≥50mm margin either way.
+  const { regenHatchCount, hatchXExtent, hatchYExtent } = await page.evaluate(
     ({ svId, shId }: { svId: string; shId: string }) => {
       const store = (window as unknown as {
         __zilventorStore: {
@@ -522,7 +536,14 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
                   id: string;
                   views: Array<{
                     id: string;
-                    hatchSegments?: Array<{ materialId?: string; partId?: string }>;
+                    hatchSegments?: Array<{
+                      materialId?: string;
+                      p0?: { x: number; y: number };
+                      p1?: { x: number; y: number };
+                    }>;
+                    projection?: {
+                      visibleEdges: Array<{ points: ReadonlyArray<readonly [number, number]> }>;
+                    };
                   }>;
                 }>;
               };
@@ -531,32 +552,64 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
         };
       }).__zilventorStore;
       const doc = store.getState().activeDocument;
-      if (doc?.kind !== 'drawing') return { regenHatchCount: 0, hatchPartIds: [] };
+      if (doc?.kind !== 'drawing') return { regenHatchCount: 0, hatchXExtent: 0 };
       const sh = doc.document.sheets.find((s) => s.id === shId);
-      const sv = sh?.views.find((v) => v.id === svId);
-      const segments = (sv as { hatchSegments?: Array<Record<string, unknown>> } | undefined)?.hatchSegments ?? [];
-      // projectSectionView groups by materialId; peek at segment keys to find partId traces.
-      // hatchSegments entries have { materialId, segments[], angleDeg, spacingMm }.
-      // The number of segments > 0 is the primary evidence the cut ran.
+      const sv = sh?.views.find((v) => v.id === svId) as {
+        hatchSegments?: Array<{ p0?: { x: number; y: number }; p1?: { x: number; y: number } }>;
+        projection?: { visibleEdges: Array<{ points: ReadonlyArray<readonly [number, number]> }> };
+      } | undefined;
+
+      const segments = sv?.hatchSegments ?? [];
       const count = segments.length;
-      // Collect any partId / materialId values visible in the hatch data for diagnostics.
-      const ids: string[] = segments.map((seg) =>
-        [(seg['materialId'] as string | undefined) ?? '', (seg['partId'] as string | undefined) ?? ''].join(':')
+
+      // Compute X-extent from hatch p0/p1 coordinates.
+      // These are in view-space mm (pre-scale, from projectSectionView/generateHatchSegments).
+      // With Part A at X=0 and Part B at X=+100mm, posed output spans ~[0..130mm].
+      // Poseless (both at origin) spans only ~[0..30mm].
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      for (const seg of segments) {
+        if (seg.p0 != null) {
+          if (seg.p0.x < minX) minX = seg.p0.x; if (seg.p0.x > maxX) maxX = seg.p0.x;
+          if (seg.p0.y < minY) minY = seg.p0.y; if (seg.p0.y > maxY) maxY = seg.p0.y;
+        }
+        if (seg.p1 != null) {
+          if (seg.p1.x < minX) minX = seg.p1.x; if (seg.p1.x > maxX) maxX = seg.p1.x;
+          if (seg.p1.y < minY) minY = seg.p1.y; if (seg.p1.y > maxY) maxY = seg.p1.y;
+        }
+      }
+
+      const hatchXExtent = Number.isFinite(maxX) ? maxX - minX : 0;
+      const hatchYExtent = Number.isFinite(maxY) ? maxY - minY : 0;
+
+      console.log(
+        '[T-6-28] hatch bbox:',
+        'X:', minX.toFixed(1), '→', maxX.toFixed(1), '(', hatchXExtent.toFixed(1), 'mm)',
+        'Y:', minY.toFixed(1), '→', maxY.toFixed(1), '(', hatchYExtent.toFixed(1), 'mm)',
       );
-      return { regenHatchCount: count, hatchPartIds: ids };
+
+      return { regenHatchCount: count, hatchXExtent, hatchYExtent };
     },
     { svId: sectionViewId, shId: sheetId },
   );
 
-  console.log('[T-6-28] hatchSegments after Regenerate:', regenHatchCount, 'partIds:', hatchPartIds);
+  console.log('[T-6-28] hatchSegments after Regenerate:', regenHatchCount,
+    '| X-extent:', hatchXExtent.toFixed(1), 'mm | Y-extent:', hatchYExtent.toFixed(1), 'mm');
   expect(regenHatchCount, 'regenerated section view must have hatch segments > 0 (pose-aware assembly cut ran)').toBeGreaterThan(0);
 
-  // Pose-awareness check: both components (Part A at x=0 AND Part B at x=+100mm)
-  // should have been cut. The section cut at view-y=0 slices through the midplane
-  // of both boxes. A poseless cut (both at origin) would still yield > 0 hatch
-  // but with the same hatch footprint; the real test is that we did NOT throw.
-  // The primary correctness evidence is: no throw + hatch > 0.
-  // A deeper assertion — that hatch count matches or exceeds the CREATE-time count —
-  // confirms the full pipeline ran (not a partial/bail result).
-  expect(regenHatchCount, 'hatch count after Regenerate must be ≥ initial (at create time) count').toBeGreaterThanOrEqual(initialHatchCount);
+  // ── Pose-separation assertion (real teeth) ────────────────────────────────
+  // With Part A at world-X=0 and Part B at world-X=+100mm, the section is a
+  // horizontal cut (looking along world-Y). In sectionViewMatrix space:
+  //   world-X → view-Y  (the look-at maps world-X spread to Y spread)
+  //   world-Z → view-X  (depth of box, 20mm)
+  // Part A cut-face: sectionView Y ∈ [~-30, ~0] (30mm wide in Y)
+  // Part B cut-face: sectionView Y ∈ [~-130, ~-100] (same width, offset 100mm)
+  // Posed Y-extent: ~130mm. Poseless (both at origin): ~30mm.
+  // Threshold 80mm cleanly separates both cases with ≥50mm margin either way.
+  // This assertion FAILS if component poses are ignored (regressing to poseless cut).
+  expect(
+    hatchYExtent,
+    `pose-separation: Y-extent of regenerated section hatch must be > 80mm ` +
+    `(posed ≈ 130mm; poseless ≈ 30mm — got ${hatchYExtent.toFixed(1)}mm)`
+  ).toBeGreaterThan(80);
 });
