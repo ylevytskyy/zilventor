@@ -140,6 +140,11 @@ export async function regenerateSectionView(
     return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
   };
 
+  const colorForFace = (partId: string): string =>
+    state.activeDrawingSourceComponentColors?.[partId]
+    ?? state.activePart?.materials?.[0]?.color
+    ?? '#808080';
+
   // 6. Re-project: edges + hatchSegments in one call.
   const { edges, hatchSegments } = projectSectionView(
     compound as Parameters<typeof projectSectionView>[0],
@@ -148,6 +153,7 @@ export async function regenerateSectionView(
     hatchLookup,
     sectionViewMatrix,
     view,
+    colorForFace, // 7th arg: per-component color resolver
   );
 
   // 7. Atomic store write: projection + hatchSegments + inputFingerprint in ONE setState.

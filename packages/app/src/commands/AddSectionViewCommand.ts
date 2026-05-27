@@ -140,6 +140,11 @@ export class AddSectionViewCommand implements Command {
       return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
     };
 
+    const colorForFace = (partId: string): string =>
+      state.activeDrawingSourceComponentColors?.[partId]
+      ?? state.activePart?.materials?.[0]?.color
+      ?? '#808080';
+
     // Pass hatchLookup so per-material hatch patterns are applied.
     const scale = parentView.scale.numerator / parentView.scale.denominator;
     const { edges, hatchSegments, fingerprint } = projectSectionView(
@@ -148,6 +153,8 @@ export class AddSectionViewCommand implements Command {
       scale,
       hatchLookup,
       sectionViewMatrix,
+      undefined,    // view (not built yet here)
+      colorForFace, // 7th arg: per-component color resolver
     );
 
     const existingLabels = sheet.views
@@ -290,6 +297,11 @@ export class AddSectionViewCommand implements Command {
       return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
     };
 
+    const colorForFace = (partId: string): string =>
+      state.activeDrawingSourceComponentColors?.[partId]
+      ?? state.activePart?.materials?.[0]?.color
+      ?? '#808080';
+
     // For stepped views the projector still wants ONE sectionViewMatrix. Re-use the FIRST
     // segment's matrix as the canonical projection frame; the kernel has already merged all
     // face tags into a single FaceTagMap so projector hatch generation works uniformly.
@@ -307,6 +319,8 @@ export class AddSectionViewCommand implements Command {
       scale,
       hatchLookup,
       sectionViewMatrix,
+      undefined,    // view (not built yet here)
+      colorForFace, // 7th arg: per-component color resolver
     );
 
     const existingLabels = sheet.views
