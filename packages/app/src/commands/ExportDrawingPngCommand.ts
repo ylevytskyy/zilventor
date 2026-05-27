@@ -10,7 +10,7 @@ export class ExportDrawingPngCommand {
     private readonly opts: {
       drawing: DrawingDocument;
       sheetId: string;
-      source: PartDocument | AssemblyDocument;
+      source: PartDocument | AssemblyDocument | null;
       canvasWidthPx?: number;
       suggestedName?: string;
     },

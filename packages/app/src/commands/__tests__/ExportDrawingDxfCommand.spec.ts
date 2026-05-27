@@ -64,3 +64,20 @@ describe('ExportDrawingDxfCommand', () => {
     await expect(cmd.revert()).resolves.toBeUndefined();
   });
 });
+
+describe('ExportDrawingDxfCommand — null source (source-optional export)', () => {
+  it('constructs and applies with a null source', async () => {
+    const drawing: DrawingDocument = {
+      id: 'dw1', name: 'Null-Source', units: 'mm',
+      source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' }, properties: {},
+      sheets: [{
+        id: 'sh1', name: 'Sheet 1', size: { kind: 'iso', size: 'A3' },
+        orientation: 'landscape', views: [], dimensions: [], annotations: [],
+        titleBlock: {}, dimensionGroups: [],
+      }],
+      activeSheetId: 'sh1',
+    };
+    const cmd = new ExportDrawingDxfCommand({ drawing, sheetId: 'sh1', source: null });
+    await expect(cmd.apply()).resolves.toBeUndefined();
+  });
+});

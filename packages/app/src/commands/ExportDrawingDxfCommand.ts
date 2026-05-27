@@ -9,7 +9,7 @@ export class ExportDrawingDxfCommand {
     private readonly opts: {
       drawing: DrawingDocument;
       sheetId: string;
-      source: PartDocument | AssemblyDocument;
+      source: PartDocument | AssemblyDocument | null;
     },
   ) {}
 

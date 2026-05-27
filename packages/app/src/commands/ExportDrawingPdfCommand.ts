@@ -9,7 +9,7 @@ export class ExportDrawingPdfCommand {
   constructor(
     private readonly opts: {
       drawing: DrawingDocument;
-      source: PartDocument | AssemblyDocument;
+      source: PartDocument | AssemblyDocument | null;
       suggestedName?: string;
     },
   ) {}
