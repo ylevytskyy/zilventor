@@ -390,7 +390,9 @@ test('T-6-22: DXF export — real geometry download + parse', async ({ page }) =
   });
 
   // ─── Step 11: Click Export DXF + capture download ─────────────────────────
-  const exportBtn = page.getByRole('button', { name: 'Export DXF' });
+  // exact:true — "Export DXF" is a substring of "Export DXF (1:1)" (superstring-label trap);
+  // unanchored name matches both buttons → strict-mode violation. Anchor to the base button.
+  const exportBtn = page.getByRole('button', { name: 'Export DXF', exact: true });
   await expect(exportBtn).toBeEnabled({ timeout: 5_000 });
 
   const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
