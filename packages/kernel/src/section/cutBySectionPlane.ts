@@ -3,7 +3,7 @@ import type { OcctInstance } from '../occt/occtLoader';
 import type { OcctShape } from '../occt/SolidOps';
 import type { Vec3 } from '@zilventor/shared';
 import { hashFace, classifyFace, extractFaceBoundary3D } from './faceTag';
-import { computeBoundingBox } from '../occt/SolidOps';
+import { computeBoundingBox, disposeShape } from '../occt/SolidOps';
 import { quatMultiply, quatRotateVec } from '../assembly/quat';
 
 export type Plane = { origin: Vec3; normal: Vec3 };
@@ -337,6 +337,120 @@ export type AssemblyCutOptions = {
   materialResolver: (partId: string) => string;
 };
 
+export type ComponentLeaf = { partId: string; pose: Parameters<AssemblyBodyResolver>[1] };
+
+export type LeafCutOptions = {
+  bodyResolver: AssemblyBodyResolver;
+  materialResolver: (partId: string) => string;
+};
+
+/**
+ * Cut every leaf in `leaves` by `plane`/`arrowDirection` and compose the
+ * per-component results into a single compound + merged FaceTagMap.
+ * Each posed body is disposed after cutting (it is a fresh copy owned by this call).
+ */
+export function cutLeavesBySectionPlane(
+  oc: OcctInstance,
+  leaves: readonly ComponentLeaf[],
+  plane: Plane,
+  arrowDirection: -1 | 1,
+  opts: LeafCutOptions,
+  splitPlane?: Plane,
+  splitSide?: -1 | 1,
+): Result {
+  const builder = new oc.BRep_Builder();
+  const resultCompound = new oc.TopoDS_Compound();
+  builder.MakeCompound(resultCompound);
+  const mergedTags: FaceTagMap = new Map();
+  let anyOk = false;
+
+  for (const { partId, pose } of leaves) {
+    const body = opts.bodyResolver(partId, pose);
+    if (!body) continue;
+
+    const srcBuilder = new oc.BRep_Builder();
+    const srcComp = new oc.TopoDS_Compound();
+    srcBuilder.MakeCompound(srcComp);
+    srcBuilder.Add(srcComp, body.handle as never);
+    srcBuilder.delete();
+
+    const r = cutBySectionPlane(oc, srcComp, plane, arrowDirection, splitPlane, splitSide);
+    srcComp.delete();
+    disposeShape(body);   // posed body is a fresh copy — free it
+
+    if (!r.ok) {
+      if (r.reason === 'tangent') console.warn(`cutLeavesBySectionPlane: tangent on part ${partId}, skipping`);
+      continue;
+    }
+    anyOk = true;
+    builder.Add(resultCompound, r.compound as never);
+    (r.compound as unknown as { delete?(): void }).delete?.();
+
+    const matId = opts.materialResolver(partId);
+    for (const [key, val] of r.faceTags) {
+      mergedTags.set(key, {
+        tag: val.tag, partId, materialId: matId,
+        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
+      });
+    }
+  }
+  builder.delete();
+  if (!anyOk) { resultCompound.delete(); return { ok: false, reason: 'empty' }; }
+  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+}
+
+/**
+ * Cut every leaf in `leaves` by the stepped polyline `planes`/`arrowDirection`
+ * and compose the per-component results into a single compound + merged FaceTagMap.
+ * Each posed body is disposed after cutting (it is a fresh copy owned by this call).
+ */
+export function cutLeavesByStepSegments(
+  oc: OcctInstance,
+  leaves: readonly ComponentLeaf[],
+  planes: readonly Plane[],
+  arrowDirection: -1 | 1,
+  opts: LeafCutOptions,
+): Result {
+  const builder = new oc.BRep_Builder();
+  const resultCompound = new oc.TopoDS_Compound();
+  builder.MakeCompound(resultCompound);
+  const mergedTags: FaceTagMap = new Map();
+  let anyOk = false;
+
+  for (const { partId, pose } of leaves) {
+    const body = opts.bodyResolver(partId, pose);
+    if (!body) continue;
+
+    const srcBuilder = new oc.BRep_Builder();
+    const srcComp = new oc.TopoDS_Compound();
+    srcBuilder.MakeCompound(srcComp);
+    srcBuilder.Add(srcComp, body.handle as never);
+    srcBuilder.delete();
+
+    const r = cutByStepSegments(oc, srcComp, planes, arrowDirection);
+    srcComp.delete();
+    disposeShape(body);   // posed body is a fresh copy — free it
+
+    if (!r.ok) continue;
+    anyOk = true;
+    builder.Add(resultCompound, r.compound as never);
+    (r.compound as unknown as { delete?(): void }).delete?.();
+
+    const matId = opts.materialResolver(partId);
+    for (const [key, val] of r.faceTags) {
+      mergedTags.set(key, {
+        tag: val.tag, partId, materialId: matId,
+        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
+        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
+      });
+    }
+  }
+  builder.delete();
+  if (!anyOk) { resultCompound.delete(); return { ok: false, reason: 'empty' }; }
+  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+}
+
 /**
  * Cut every leaf part in `asm` by `plane`/`arrowDirection` and compose the
  * per-component results into a single compound + merged FaceTagMap.
@@ -357,59 +471,9 @@ export function cutAssemblyBySectionPlane(
   splitSide?: -1 | 1,  // which side of splitPlane to remove (omitted when splitPlane omitted)
 ): Result {
   const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
-
-  const builder = new oc.BRep_Builder();
-  const resultCompound = new oc.TopoDS_Compound();
-  builder.MakeCompound(resultCompound);
-
-  const mergedTags: FaceTagMap = new Map();
-  let anyOk = false;
-
-  for (const { partId, pose } of leaves) {
-    const body = opts.bodyResolver(partId, pose);
-    if (!body) continue;
-
-    // Wrap body in compound for cutBySectionPlane
-    const srcBuilder = new oc.BRep_Builder();
-    const srcComp = new oc.TopoDS_Compound();
-    srcBuilder.MakeCompound(srcComp);
-    srcBuilder.Add(srcComp, body.handle as never);
-    srcBuilder.delete();
-
-    const r = cutBySectionPlane(oc, srcComp, plane, arrowDirection, splitPlane, splitSide);
-    srcComp.delete();
-
-    if (!r.ok) {
-      if (r.reason === 'tangent') {
-        console.warn(`cutAssemblyBySectionPlane: tangent plane on part ${partId}, skipping`);
-      }
-      continue;
-    }
-
-    anyOk = true;
-    builder.Add(resultCompound, r.compound as never);
-    (r.compound as unknown as { delete?(): void }).delete?.();
-
-    const matId = opts.materialResolver(partId);
-    for (const [key, val] of r.faceTags) {
-      mergedTags.set(key, {
-        tag: val.tag,
-        partId,
-        materialId: matId,
-        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
-        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
-      });
-    }
-  }
-
-  builder.delete();
-
-  if (!anyOk) {
-    resultCompound.delete();
-    return { ok: false, reason: 'empty' };
-  }
-
-  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+  return cutLeavesBySectionPlane(oc, leaves, plane, arrowDirection,
+    { bodyResolver: opts.bodyResolver, materialResolver: opts.materialResolver },
+    splitPlane, splitSide);
 }
 
 // Minimal inline leaf-walker
@@ -462,59 +526,8 @@ export function cutAssemblyByStepSegments(
   opts: AssemblyCutOptions,
 ): Result {
   const leaves = flattenLeaves(asm, opts.lookupSubAsm, opts.partPathToId);
-
-  const builder = new oc.BRep_Builder();
-  const resultCompound = new oc.TopoDS_Compound();
-  builder.MakeCompound(resultCompound);
-
-  const mergedTags: FaceTagMap = new Map();
-  let anyOk = false;
-
-  for (const { partId, pose } of leaves) {
-    const body = opts.bodyResolver(partId, pose);
-    if (!body) continue;
-
-    // Wrap body in compound for cutByStepSegments
-    const srcBuilder = new oc.BRep_Builder();
-    const srcComp = new oc.TopoDS_Compound();
-    srcBuilder.MakeCompound(srcComp);
-    srcBuilder.Add(srcComp, body.handle as never);
-    srcBuilder.delete();
-
-    const r = cutByStepSegments(oc, srcComp, planes, arrowDirection);
-    srcComp.delete();
-
-    if (!r.ok) {
-      // 'empty' is non-fatal at the assembly level (matches F1's anyOk pattern).
-      // The kernel-module cutByStepSegments only ever returns 'empty' as its
-      // failure reason — never 'tangent' — so no console.warn branch is needed.
-      continue;
-    }
-
-    anyOk = true;
-    builder.Add(resultCompound, r.compound as never);
-    (r.compound as unknown as { delete?(): void }).delete?.();
-
-    const matId = opts.materialResolver(partId);
-    for (const [key, val] of r.faceTags) {
-      mergedTags.set(key, {
-        tag: val.tag,
-        partId,
-        materialId: matId,
-        ...(val.polygon3D ? { polygon3D: val.polygon3D } : {}),
-        ...(val.planeSource ? { planeSource: val.planeSource } : {}),
-      });
-    }
-  }
-
-  builder.delete();
-
-  if (!anyOk) {
-    resultCompound.delete();
-    return { ok: false, reason: 'empty' };
-  }
-
-  return { ok: true, compound: resultCompound, faceTags: mergedTags };
+  return cutLeavesByStepSegments(oc, leaves, planes, arrowDirection,
+    { bodyResolver: opts.bodyResolver, materialResolver: opts.materialResolver });
 }
 
 // ---------------------------------------------------------------------------

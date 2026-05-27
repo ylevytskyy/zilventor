@@ -5,6 +5,7 @@ import type { Mat4 } from '@zilventor/shared/src/drawing/viewMatrix';
 import type { StepSegment } from '@zilventor/shared/src/drawing/types';
 import { loadOcct, type OcctInstance } from '../occt/occtLoader';
 import { computeBoundingBox, makeBox, type OcctShape } from '../occt/SolidOps';
+import { transformShapeByPose } from '../occt/TransformOps';
 import {
   buildHalfSpace,
   buildQuarterBox,
@@ -12,6 +13,7 @@ import {
   cutAssemblyBySectionPlane,
   cutByStepSegments,                 // NEW (Drawing F1.2 Batch 2)
   cutAssemblyByStepSegments,         // NEW (Drawing F1.2 Batch 2 / Task 2.6)
+  cutLeavesBySectionPlane,           // NEW (assembly-section-regen Task 2)
   type Plane,
 } from './cutBySectionPlane';
 
@@ -676,5 +678,35 @@ describe('cutByStepSegments — invariants and core cut (SS-K-1..10)', () => {
     expect(splitFaces).toHaveLength(0);
 
     disposeOcctShape(oc, result.compound);
+  });
+});
+
+describe('cutLeavesBySectionPlane — pose-aware per-component', () => {
+  it('cuts two leaves at their posed positions (not stacked at origin)', () => {
+    // Leaf A at origin (box [0,20]); Leaf B posed +5 in X (box [5,25]).
+    // Plane at x=10 normal +X arrowDirection=1 cuts BOTH (removes x<10 side).
+    // Pose-awareness proof: if B's pose were ignored, B's box would be at [0,20]
+    // (same as A) → identical OCCT face positions → same hash keys → faceTags.set
+    // overwrites → only ONE partId would appear in the map. With B posed at x=5,
+    // B's faces are at different positions → different hashes → both partIds appear.
+    const leaves = [
+      { partId: 'A', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0,0,0,1] as const } },
+      { partId: 'B', pose: { translation: { x: 5, y: 0, z: 0 }, quaternion: [0,0,0,1] as const } },
+    ];
+    const bodyResolver = (_id: string, pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] }) =>
+      transformShapeByPose(oc, makeBox(oc, 20, 20, 20), pose);
+    const plane = { origin: { x: 10, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } };
+    const result = cutLeavesBySectionPlane(oc, leaves, plane, 1, {
+      bodyResolver,
+      materialResolver: () => '',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Both components contributed faces → merged faceTags from two partIds.
+      const partIds = new Set([...result.faceTags.values()].map((v) => v.partId));
+      expect(partIds.has('A')).toBe(true);
+      expect(partIds.has('B')).toBe(true);
+      disposeOcctShape(oc, result.compound); // spec-local disposal helper
+    }
   });
 });
