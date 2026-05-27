@@ -10,6 +10,8 @@ vi.mock('../../kernel/cutBySectionPlane', () => ({
   cutAssemblyBySectionPlane: vi.fn(),
   cutByStepSegments: vi.fn(),              // F1.2 — added in Batch 2
   cutAssemblyByStepSegments: vi.fn(),      // F1.2 — added in Batch 2
+  cutAssemblyComponentsBySectionPlane: vi.fn(), // Task 5 — pose-aware components cut
+  cutAssemblyComponentsByStepSegments: vi.fn(), // Task 5 — pose-aware components cut
 }));
 vi.mock('../../drawing/sectionCache', () => ({
   sectionCache: {
@@ -53,7 +55,7 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
   };
 });
 
-import { cutBySectionPlane, cutByStepSegments } from '../../kernel/cutBySectionPlane';
+import { cutBySectionPlane, cutByStepSegments, cutAssemblyComponentsBySectionPlane, cutAssemblyComponentsByStepSegments } from '../../kernel/cutBySectionPlane';
 import { sectionCache } from '../../drawing/sectionCache';
 import { validateSteppedInvariant } from '@zilventor/shared/src/drawing/sectionPlane';
 
@@ -700,5 +702,118 @@ describe('AddSectionViewCommand.revert() — stepped cache eviction (SS-CMD-4)',
     await cmd.apply();
     await cmd.revert();
     expect(useAppStore.getState().activeDocument).toEqual(snapshot);
+  });
+});
+
+// ── Task 5: Assembly-sourced create — pose-aware components cut ───────────
+// When resolveSectionSource returns kind:'assembly', AddSectionViewCommand must
+// call cutAssemblyComponentsBySectionPlane (full/half) or
+// cutAssemblyComponentsByStepSegments (stepped) using
+// state.activeDrawingSourceComponents — NOT the old cutAssemblyBySectionPlane.
+
+const ASM_COMPONENTS = [
+  { partId: 'p1', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as [number,number,number,number] } },
+];
+
+describe('AddSectionViewCommand.apply() — assembly create, pose-aware components cut (Task 5)', () => {
+  const asmDrawing = {
+    id: 'd1', name: 'Test', units: 'mm' as const,
+    source: { partPath: 'assemblies/asm1.ziasm', sourceKind: 'assembly' as const },
+    properties: {},
+    sheets: [] as typeof makeSheet extends () => infer S ? S[] : never[],
+    activeSheetId: 's1',
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    // Drawing with assembly source so resolveSectionSource returns kind:'assembly'.
+    const drawing = { ...asmDrawing, sheets: [makeSheet()] };
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: drawing },
+      activePart: null,
+      activeAssembly: { id: 'asm-uuid-1', materials: [], components: [] } as never,
+      activeDrawingSourceComponents: ASM_COMPONENTS,
+    } as never);
+
+    // Override resolveSectionSource to return assembly for this describe block.
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValue({
+      kind: 'assembly',
+      id: 'assemblies/asm1.ziasm',
+    });
+
+    // Default ok results for both component cut fns.
+    (cutAssemblyComponentsBySectionPlane as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, compound: {}, faceTags: new Map(),
+    });
+    (cutAssemblyComponentsByStepSegments as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true, compound: {}, faceTags: new Map(),
+    });
+    (sectionCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (validateSteppedInvariant as ReturnType<typeof vi.fn>).mockImplementation(() => undefined);
+  });
+
+  it('ASM-CMD-1: full-section assembly → calls cutAssemblyComponentsBySectionPlane with activeDrawingSourceComponents', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await cmd.apply();
+
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledTimes(1);
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      expect.objectContaining({ origin: expect.any(Object), normal: expect.any(Object) }), // plane
+      expect.any(Number), // arrowDirection
+      undefined,          // splitPlane (full mode)
+      undefined,          // cutSide (full mode)
+    );
+    // The OLD poseless cutter must NOT be called.
+    expect(cutBySectionPlane).not.toHaveBeenCalled();
+  });
+
+  it('ASM-CMD-2: half-section assembly → calls cutAssemblyComponentsBySectionPlane with splitPlane+cutSide', async () => {
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'half', cutSide: 1 });
+    await cmd.apply();
+
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledTimes(1);
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      expect.objectContaining({ origin: expect.any(Object), normal: expect.any(Object) }), // plane
+      expect.any(Number), // arrowDirection
+      expect.objectContaining({ origin: expect.any(Object), normal: expect.any(Object) }), // splitPlane
+      1,                  // cutSide
+    );
+    expect(cutBySectionPlane).not.toHaveBeenCalled();
+  });
+
+  it('ASM-CMD-3: stepped assembly → calls cutAssemblyComponentsByStepSegments with activeDrawingSourceComponents', async () => {
+    const segs = [
+      { startSheet: { x: 0,   y: 0 },  endSheet: { x: 60,  y: 0 } },
+      { startSheet: { x: 60,  y: 0 },  endSheet: { x: 60,  y: 30 } },
+      { startSheet: { x: 60,  y: 30 }, endSheet: { x: 120, y: 30 } },
+    ] as const;
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'stepped', stepSegments: segs });
+    await cmd.apply();
+
+    expect(cutAssemblyComponentsByStepSegments).toHaveBeenCalledTimes(1);
+    expect(cutAssemblyComponentsByStepSegments).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      expect.any(Array),  // planes derived from stepSegments
+      expect.any(Number), // arrowDirection
+    );
+    expect(cutByStepSegments).not.toHaveBeenCalled();
+  });
+
+  it('ASM-CMD-4: null components → cutAssemblyComponentsBySectionPlane called with [] (fallback ?? [])', async () => {
+    useAppStore.setState({ activeDrawingSourceComponents: null } as never);
+    const cmd = new AddSectionViewCommand({ ...basePayload, mode: 'full' });
+    await cmd.apply();
+
+    // Should call with empty array (fallback: ?? [])
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledWith(
+      [],
+      expect.any(Object),
+      expect.any(Number),
+      undefined,
+      undefined,
+    );
   });
 });

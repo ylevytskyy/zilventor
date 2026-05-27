@@ -4,7 +4,7 @@ import type { DrawingDocument, SectionView, DetailView } from '@zilventor/shared
 import { resolveSectionSource, getHatchSpec } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { deriveSectionPlane, deriveSplitPlane, deriveStepPlanes, validateSteppedInvariant } from '@zilventor/shared/src/drawing/sectionPlane';
-import { cutBySectionPlane, cutAssemblyBySectionPlane, cutByStepSegments, cutAssemblyByStepSegments } from '../kernel/cutBySectionPlane';
+import { cutBySectionPlane, cutByStepSegments, cutAssemblyComponentsBySectionPlane, cutAssemblyComponentsByStepSegments } from '../kernel/cutBySectionPlane';
 import { projectSectionView } from '../drawing/projectSectionView';
 import { sectionCache } from '../drawing/sectionCache';
 import { fingerprintPlane } from '../drawing/planeFingerprint';
@@ -110,16 +110,15 @@ export class AddSectionViewCommand implements Command {
       compound = cached.brep;
       faceTags = cached.faceTags;
     } else {
-      // Use the active kernel part/assembly UUID so namedShapeCache lookup succeeds.
-      // Priority: activeDrawingSourcePartId (set by loadDrawingSource / CreateDrawingCommand)
-      // then activePart.id (unit-test fallback), then source.id (partPath — last resort).
-      // For an assembly, cutAssemblyBySectionPlane iterates all cached parts.
-      const kernelId = source.kind === 'assembly'
-        ? (state.activeAssembly?.id ?? source.id)
-        : (state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id);
+      // Use pose-aware components cut for assembly sources; part UUID for part sources.
+      // Priority for part: activeDrawingSourcePartId → activePart.id → source.id.
       const result = source.kind === 'assembly'
-        ? await cutAssemblyBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide)
-        : await cutBySectionPlane(kernelId, plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide);
+        ? await cutAssemblyComponentsBySectionPlane(
+            state.activeDrawingSourceComponents ?? [],
+            plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide)
+        : await cutBySectionPlane(
+            state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id,
+            plane, this.payload.arrowDirection, splitPlane, this.payload.cutSide);
 
       if (!result.ok) {
         if (result.reason === 'tangent') {
@@ -266,12 +265,13 @@ export class AddSectionViewCommand implements Command {
       compound = cached.brep;
       faceTags = cached.faceTags;
     } else {
-      const kernelId = source.kind === 'assembly'
-        ? (state.activeAssembly?.id ?? source.id)
-        : (state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id);
       const result = source.kind === 'assembly'
-        ? await cutAssemblyByStepSegments(kernelId, planes, this.payload.arrowDirection)
-        : await cutByStepSegments(kernelId, planes, this.payload.arrowDirection);
+        ? await cutAssemblyComponentsByStepSegments(
+            state.activeDrawingSourceComponents ?? [],
+            planes, this.payload.arrowDirection)
+        : await cutByStepSegments(
+            state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id,
+            planes, this.payload.arrowDirection);
 
       if (!result.ok) {
         throw new Error('stepped-section-empty-cut');

@@ -5,6 +5,8 @@ import type { CommandBus } from '../commands/CommandBus';
 import {
   cutBySectionPlane,
   cutByStepSegments,
+  cutAssemblyComponentsBySectionPlane,
+  cutAssemblyComponentsByStepSegments,
 } from '../kernel/cutBySectionPlane';
 import { projectSectionView } from './projectSectionView';
 import { deriveSectionPlane, deriveStepPlanes } from '@zilventor/shared/src/drawing/sectionPlane';
@@ -48,44 +50,70 @@ export async function regenerateSectionView(
   // 1. Resolve the source (part vs assembly).
   const source = resolveSectionSource(view, drawing);
 
-  // 1a. Defer assembly-sourced section Regenerate: on drawing reopen only individual
-  //     component parts are loaded into the kernel (via activeDrawingSourceComponents),
-  //     not a single assembly handle that cutAssemblyBySectionPlane requires.
-  //     Throw before any kernel call so the caller keeps the stale marker intact.
-  if (source.kind === 'assembly') {
-    throw new Error('Assembly section Regenerate is not yet supported — re-create the section view.');
-  }
-
-  // 2. Determine kernel id: source.kind is always 'part' here (assembly is guarded above).
-  //    Priority: live slot (activeDrawingSourcePartId) → activePart → stored source.id.
-  const kernelId: string = state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id;
-
-  // 3. Run the kernel cut for the right mode.
+  // 2. Run the kernel cut for the right source kind and mode.
   let compound: unknown;
   let faceTags: Map<string, unknown>;
 
-  if (view.mode === 'stepped') {
-    if (!view.stepSegments || view.stepSegments.length < 2) {
-      throw new Error('REGEN_SECTION: stepped view missing stepSegments');
+  if (source.kind === 'assembly') {
+    // Assembly-sourced section: use pose-aware components cut.
+    // activeDrawingSourceComponents is set at every activation path (CreateDrawingCommand /
+    // activateDrawingDocument) and preserved across drawingDocState resets.
+    const components = state.activeDrawingSourceComponents;
+    if (!components || components.length === 0) {
+      throw new Error('REGEN_SECTION: assembly components not loaded — reopen the drawing.');
     }
-    // Find the parent view's viewMatrix to re-derive step planes.
-    const parentView = drawing.sheets
-      .flatMap((s) => s.views)
-      .find((v) => v.id === view.parentViewId);
-    const viewMatrix = ((parentView as { viewMatrix?: number[] })?.viewMatrix
-      ?? new Array(16).fill(0) as number[]) as Mat4;
-    const planes = deriveStepPlanes(view.stepSegments, viewMatrix, view.arrowDirection);
-    const result = await cutByStepSegments(kernelId, planes, view.arrowDirection);
-    if (!result.ok) throw new Error(`REGEN_SECTION stepped cut failed: ${result.reason}`);
-    compound = result.compound;
-    faceTags = result.faceTags;
+    if (view.mode === 'stepped') {
+      if (!view.stepSegments || view.stepSegments.length < 2) {
+        throw new Error('REGEN_SECTION: stepped view missing stepSegments');
+      }
+      const parentView = drawing.sheets
+        .flatMap((s) => s.views)
+        .find((v) => v.id === view.parentViewId);
+      const viewMatrix = ((parentView as { viewMatrix?: number[] })?.viewMatrix
+        ?? new Array(16).fill(0) as number[]) as Mat4;
+      const planes = deriveStepPlanes(view.stepSegments, viewMatrix, view.arrowDirection);
+      const result = await cutAssemblyComponentsByStepSegments(components, planes, view.arrowDirection);
+      if (!result.ok) throw new Error(`REGEN_SECTION assembly stepped cut failed: ${result.reason}`);
+      compound = result.compound;
+      faceTags = result.faceTags;
+    } else {
+      // full or half
+      if (!view.plane) throw new Error('REGEN_SECTION: full/half view missing plane');
+      const result = await cutAssemblyComponentsBySectionPlane(
+        components, view.plane, view.arrowDirection, view.splitPlane, view.cutSide,
+      );
+      if (!result.ok) throw new Error(`REGEN_SECTION assembly cut failed: ${result.reason}`);
+      compound = result.compound;
+      faceTags = result.faceTags;
+    }
   } else {
-    // full or half
-    if (!view.plane) throw new Error('REGEN_SECTION: full/half view missing plane');
-    const result = await cutBySectionPlane(kernelId, view.plane, view.arrowDirection, view.splitPlane, view.cutSide);
-    if (!result.ok) throw new Error(`REGEN_SECTION cut failed: ${result.reason}`);
-    compound = result.compound;
-    faceTags = result.faceTags;
+    // Part-sourced section: resolve the kernel UUID and run the part cut.
+    // Priority: live slot (activeDrawingSourcePartId) → activePart → stored source.id.
+    const kernelId: string = state.activeDrawingSourcePartId ?? state.activePart?.id ?? source.id;
+
+    if (view.mode === 'stepped') {
+      if (!view.stepSegments || view.stepSegments.length < 2) {
+        throw new Error('REGEN_SECTION: stepped view missing stepSegments');
+      }
+      // Find the parent view's viewMatrix to re-derive step planes.
+      const parentView = drawing.sheets
+        .flatMap((s) => s.views)
+        .find((v) => v.id === view.parentViewId);
+      const viewMatrix = ((parentView as { viewMatrix?: number[] })?.viewMatrix
+        ?? new Array(16).fill(0) as number[]) as Mat4;
+      const planes = deriveStepPlanes(view.stepSegments, viewMatrix, view.arrowDirection);
+      const result = await cutByStepSegments(kernelId, planes, view.arrowDirection);
+      if (!result.ok) throw new Error(`REGEN_SECTION stepped cut failed: ${result.reason}`);
+      compound = result.compound;
+      faceTags = result.faceTags;
+    } else {
+      // full or half
+      if (!view.plane) throw new Error('REGEN_SECTION: full/half view missing plane');
+      const result = await cutBySectionPlane(kernelId, view.plane, view.arrowDirection, view.splitPlane, view.cutSide);
+      if (!result.ok) throw new Error(`REGEN_SECTION cut failed: ${result.reason}`);
+      compound = result.compound;
+      faceTags = result.faceTags;
+    }
   }
 
   // 4. Re-derive sectionViewMatrix for projection.
@@ -127,7 +155,7 @@ export async function regenerateSectionView(
   //    inputFingerprint, forcing a second mutation for hatchSegments (transient inconsistency).
   //    Sections take their own atomic-write path; base/projected/iso continue using
   //    RegenerateViewCommand unchanged (no churn on those 15+ tests).
-  const inputFingerprint = state.activeDrawingSourceFingerprint ?? kernelId;
+  const inputFingerprint = state.activeDrawingSourceFingerprint ?? source.id;
   const freshDoc = useAppStore.getState().activeDocument;
   if (!freshDoc || freshDoc.kind !== 'drawing') return;
   const freshDrawing = freshDoc.document as DrawingDocument;

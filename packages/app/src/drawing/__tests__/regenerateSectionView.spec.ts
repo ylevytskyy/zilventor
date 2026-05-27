@@ -6,9 +6,10 @@ import type { DrawingDocument, SectionView, StepSegment } from '@zilventor/share
 
 // ── mock the kernel cut function ──────────────────────────────────────────
 vi.mock('../../kernel/cutBySectionPlane', () => {
+  const FAKE_PROJ = { meshes: [], faces: [] };
   const okResult = {
     ok: true as const,
-    compound: { meshes: [], faces: [] },
+    compound: FAKE_PROJ,
     faceTags: new Map([['face-1', 'mat-pine']]),
   };
   return {
@@ -16,6 +17,8 @@ vi.mock('../../kernel/cutBySectionPlane', () => {
     cutAssemblyBySectionPlane: vi.fn().mockResolvedValue(okResult),
     cutByStepSegments: vi.fn().mockResolvedValue(okResult),
     cutAssemblyByStepSegments: vi.fn().mockResolvedValue(okResult),
+    cutAssemblyComponentsBySectionPlane: vi.fn().mockResolvedValue(okResult),
+    cutAssemblyComponentsByStepSegments: vi.fn().mockResolvedValue(okResult),
   };
 });
 
@@ -254,54 +257,135 @@ describe('regenerateSectionView — cut failure', () => {
   });
 });
 
-// ── Task 9 (B5): Assembly-sourced section — deferred (graceful bail) ──────
-// Assembly section Regenerate is deferred: on drawing reopen only individual
-// component parts are loaded into the kernel (not a single assembly handle
-// that cutAssemblyBySectionPlane needs). The guard throws BEFORE any kernel
-// call so the view stays stale and the last-good projection is preserved.
+// ── Task 5: Assembly-sourced section — pose-aware components cut (all 3 modes) ──
+// Assembly section Regenerate now calls cutAssemblyComponentsBySectionPlane /
+// cutAssemblyComponentsByStepSegments using state.activeDrawingSourceComponents.
 
-describe('regenerateSectionView — assembly source (deferred)', () => {
+const ASM_COMPONENTS = [
+  { partId: 'p1', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as [number,number,number,number] } },
+];
+
+function makeAsmDrawingWithSection(): DrawingDocument {
+  return {
+    ...makeDrawingWithSection(),
+    source: { partPath: 'assemblies/asm1.ziasm', sourceKind: 'assembly' },
+  };
+}
+
+describe('regenerateSectionView — assembly source, full-section (Task 5)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const drawingAsm = makeAsmDrawingWithSection();
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: drawingAsm },
+      activeDrawing: drawingAsm,
+      activeDrawingSourcePartId: null,
+      activeDrawingSourceFingerprint: 'new-asm-fp',
+      activeDrawingSourceComponents: ASM_COMPONENTS,
+      activeAssembly: { id: 'asm-uuid-1', materials: [], components: [] } as never,
+      activePart: null,
+      kernel: {} as never,
+    });
   });
 
-  it('throws "not yet supported" and does NOT call any cut function when source.kind === "assembly"', async () => {
+  it('REGEN assembly full-section: resolves without throw and calls cutAssemblyComponentsBySectionPlane', async () => {
     const { resolveSectionSource } = await import('@zilventor/shared');
-    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'asm-uuid-1' });
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'assemblies/asm1.ziasm' });
 
-    const { cutAssemblyBySectionPlane, cutBySectionPlane } = await import('../../kernel/cutBySectionPlane');
+    const { cutAssemblyComponentsBySectionPlane } = await import('../../kernel/cutBySectionPlane');
 
+    await expect(
+      regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never),
+    ).resolves.toBeUndefined();
+
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledTimes(1);
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      SECTION_VIEW_FULL.plane,
+      SECTION_VIEW_FULL.arrowDirection,
+      undefined,  // splitPlane absent for full mode
+      undefined,  // cutSide absent for full mode
+    );
+    expect(fakeBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('REGEN assembly half-section: calls cutAssemblyComponentsBySectionPlane with splitPlane and cutSide', async () => {
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'assemblies/asm1.ziasm' });
+
+    const { cutAssemblyComponentsBySectionPlane } = await import('../../kernel/cutBySectionPlane');
+
+    // Inject the half view into the store's drawing
+    const doc = useAppStore.getState().activeDocument!.document as DrawingDocument;
+    const withHalf: DrawingDocument = {
+      ...doc,
+      sheets: doc.sheets.map((s) => ({
+        ...s,
+        views: [...s.views, SECTION_VIEW_HALF],
+      })),
+    };
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: withHalf }, activeDrawing: withHalf });
+
+    await expect(
+      regenerateSectionView(SECTION_VIEW_HALF, 'sheet-1', fakeBus as never),
+    ).resolves.toBeUndefined();
+
+    expect(cutAssemblyComponentsBySectionPlane).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      SECTION_VIEW_HALF.plane,
+      SECTION_VIEW_HALF.arrowDirection,
+      SECTION_VIEW_HALF.splitPlane,
+      SECTION_VIEW_HALF.cutSide,
+    );
+  });
+});
+
+describe('regenerateSectionView — assembly source, stepped-section (Task 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
     const drawingAsm: DrawingDocument = {
-      ...makeDrawingWithSection(),
-      source: { partPath: 'assemblies/asm1.ziasm', sourceKind: 'assembly' },
+      ...makeAsmDrawingWithSection(),
+      sheets: makeDrawingWithSection().sheets.map((s) => ({
+        ...s,
+        views: [...s.views, SECTION_VIEW_STEPPED],
+      })),
     };
     useAppStore.setState({
       activeDocument: { kind: 'drawing', document: drawingAsm },
       activeDrawing: drawingAsm,
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: 'new-asm-fp',
+      activeDrawingSourceComponents: ASM_COMPONENTS,
       activeAssembly: { id: 'asm-uuid-1', materials: [], components: [] } as never,
       activePart: null,
       kernel: {} as never,
     });
+  });
 
-    // (a) Must throw the "not yet supported" message.
+  it('REGEN assembly stepped-section: calls cutAssemblyComponentsByStepSegments', async () => {
+    const { resolveSectionSource } = await import('@zilventor/shared');
+    (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValueOnce({ kind: 'assembly', id: 'assemblies/asm1.ziasm' });
+
+    const { cutAssemblyComponentsByStepSegments } = await import('../../kernel/cutBySectionPlane');
+    const { deriveStepPlanes } = await import('@zilventor/shared/src/drawing/sectionPlane');
+
+    const mockPlanes = [
+      { origin: { x: 12, y: 10, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+      { origin: { x: 25, y: 25, z: 0 }, normal: { x: 1, y: 0, z: 0 } },
+      { origin: { x: 37, y: 40, z: 0 }, normal: { x: 0, y: 1, z: 0 } },
+    ];
+    (deriveStepPlanes as ReturnType<typeof vi.fn>).mockReturnValueOnce(mockPlanes);
+
     await expect(
-      regenerateSectionView(SECTION_VIEW_FULL, 'sheet-1', fakeBus as never),
-    ).rejects.toThrow('Assembly section Regenerate is not yet supported');
+      regenerateSectionView(SECTION_VIEW_STEPPED, 'sheet-1', fakeBus as never),
+    ).resolves.toBeUndefined();
 
-    // (b) Neither cut function must be called.
-    expect(cutAssemblyBySectionPlane).not.toHaveBeenCalled();
-    expect(cutBySectionPlane).not.toHaveBeenCalled();
-
-    // (c) Store not mutated — projection and inputFingerprint unchanged.
-    const liveDoc = useAppStore.getState().activeDocument;
-    const liveDrawing = (liveDoc as unknown as { kind: string; document: { sheets: Array<{ id: string; views: Array<{ id: string; inputFingerprint?: string }> }> } }).document;
-    const updatedView = liveDrawing.sheets[0]!.views.find((v) => v.id === SECTION_VIEW_FULL.id)!;
-    // inputFingerprint is 'old-source-fp' from the fixture — it must NOT be overwritten.
-    expect(updatedView.inputFingerprint).toBe('old-source-fp');
-
-    // bus not called (section skips it on the happy path too).
+    expect(cutAssemblyComponentsByStepSegments).toHaveBeenCalledTimes(1);
+    expect(cutAssemblyComponentsByStepSegments).toHaveBeenCalledWith(
+      ASM_COMPONENTS,
+      mockPlanes,
+      SECTION_VIEW_STEPPED.arrowDirection,
+    );
     expect(fakeBus.execute).not.toHaveBeenCalled();
   });
 });
