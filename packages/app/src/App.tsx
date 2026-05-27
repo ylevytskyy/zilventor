@@ -2939,6 +2939,35 @@ export default function App() {
       return _p95(samples);
     };
 
+    // T63n: dimension-heavy DXF render p95 < 50ms (exercises native DIMENSION + block path)
+    w.__zilventorRenderDxfDimsMs = (n: number): number => {
+      const baseSheet = _drawing4Sheet.sheets[0]!;
+      const view = baseSheet.views[0]!;
+      const edges = Array.from({ length: 21 }, (_, i) => ({
+        id: `pe${i}`, kind: 'outline' as const,
+        points: [[i * 5, 0], [i * 5, 60]] as ReadonlyArray<readonly [number, number]>,
+      }));
+      const dimsSheet: import('@zilventor/shared').DrawingSheet = {
+        ...baseSheet,
+        views: [{ ...view, projection: { visibleEdges: edges, hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 } } }],
+        dimensions: Array.from({ length: 20 }, (_, i) => ({
+          id: `pd${i}`, kind: 'linear-h' as const, viewId: view.id,
+          from: { kind: 'edge-endpoint' as const, edgeId: `pe${i}`, end: 'start' as const },
+          to:   { kind: 'edge-endpoint' as const, edgeId: `pe${i + 1}`, end: 'start' as const },
+          offsetMm: 10 + i,
+        })),
+      };
+      const dimsDrawing = { ..._drawing4Sheet, sheets: [dimsSheet] };
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        _renderDrawingDxf(dimsDrawing, dimsSheet, _perfPart);
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
     // T63l: DXF 1:1 export p95 < 50ms (pure string-building, no kernel call)
     w.__zilventorRenderDxf1to1Ms = (n: number): number => {
       const sheet = _drawing4Sheet.sheets[0]!;
@@ -3251,6 +3280,7 @@ export default function App() {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
       delete (w as unknown as { __zilventorRenderDxfMs?: unknown }).__zilventorRenderDxfMs;
+      delete (w as unknown as { __zilventorRenderDxfDimsMs?: unknown }).__zilventorRenderDxfDimsMs;
       delete (w as unknown as { __zilventorRenderDxf1to1Ms?: unknown }).__zilventorRenderDxf1to1Ms;
       delete (w as unknown as { __zilventorAllSheetsDxfMs?: unknown }).__zilventorAllSheetsDxfMs;
       delete w.__zilventorExportPdfMs;
