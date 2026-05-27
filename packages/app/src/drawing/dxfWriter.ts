@@ -6,8 +6,8 @@
  */
 
 export type DxfDocument = {
-  /** Emit a LINE entity. */
-  line(layer: string, x1: number, y1: number, x2: number, y2: number): void;
+  /** Emit a LINE entity. Optional aci (AutoCAD Color Index, group 62) overrides layer color. */
+  line(layer: string, x1: number, y1: number, x2: number, y2: number, aci?: number): void;
   /** Emit a POLYLINE/VERTEX[]/SEQEND entity sequence (R12 — not LWPOLYLINE). */
   polyline(layer: string, points: ReadonlyArray<readonly [number, number]>): void;
   /** Emit a CIRCLE entity. */
@@ -42,6 +42,33 @@ function fmt(n: number): string {
   // Guard against non-finite values and negative-zero — DXF parsers reject 'NaN'/'Infinity'.
   if (!Number.isFinite(n) || Object.is(n, -0)) return '0.0000';
   return n.toFixed(4);
+}
+
+// Minimal ACI palette (index → RGB). Enough to differentiate common furniture material colors.
+const ACI_PALETTE: ReadonlyArray<readonly [number, number, number, number]> = [
+  [1, 255, 0, 0], [2, 255, 255, 0], [3, 0, 255, 0], [4, 0, 255, 255],
+  [5, 0, 0, 255], [6, 255, 0, 255], [7, 255, 255, 255], [8, 128, 128, 128],
+  [9, 192, 192, 192], [30, 255, 127, 0], [40, 128, 64, 0], [250, 51, 51, 51],
+];
+
+/**
+ * Convert a CSS hex color to the nearest AutoCAD Color Index (ACI).
+ * Near-black → 7 (renders as default black/white, matching layer color).
+ * Invalid input → 7.
+ */
+export function hexToAci(hex: string): number {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return 7;
+  const n = parseInt(m[1]!, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  // near-black → 7 (renders as default black/white, matching layer color)
+  if (r < 24 && g < 24 && b < 24) return 7;
+  let best = 7, bestD = Infinity;
+  for (const [aci, pr, pg, pb] of ACI_PALETTE) {
+    const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+    if (d < bestD) { bestD = d; best = aci; }
+  }
+  return best;
 }
 
 export function createDxfDocument(): DxfDocument {
@@ -113,10 +140,11 @@ export function createDxfDocument(): DxfDocument {
   let anonCounter = 0;
 
   return {
-    line(layer, x1, y1, x2, y2) {
+    line(layer, x1, y1, x2, y2, aci) {
       sink.push(
         '  0', 'LINE',
         '  8', layer,
+        ...(aci !== undefined ? [' 62', String(aci)] : []),
         ' 10', fmt(x1), ' 20', fmt(y1),
         ' 11', fmt(x2), ' 21', fmt(y2),
       );

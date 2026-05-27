@@ -9,7 +9,7 @@ import { ISO_SIZES_MM } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
-import { createDxfDocument } from './dxfWriter';
+import { createDxfDocument, hexToAci } from './dxfWriter';
 
 // ── Sheet dimension helpers (mirrors renderDrawingSvg — not exported there) ──
 
@@ -153,6 +153,7 @@ function emitView(
       doc.line('SECTION-HATCH',
         tx(h.p0.x), ty(h.p0.y),
         tx(h.p1.x), ty(h.p1.y),
+        h.color ? hexToAci(h.color) : undefined,
       );
     }
   }
