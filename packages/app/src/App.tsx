@@ -121,6 +121,7 @@ import { projectView } from '@zilventor/shared/src/drawing/projector';
 import { renderDrawingSvg } from './drawing/renderDrawingSvg';
 import { renderDrawingDxf as _renderDrawingDxf } from './drawing/renderDrawingDxf';
 import { renderDrawingDxf1to1 as _renderDrawingDxf1to1 } from './drawing/renderDrawingDxf1to1';
+import { buildDxfZip as _buildDxfZip } from './drawing/dxfZip';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
 import { restoreLastOpenDrawing } from './drawing/restoreLastOpenDrawing';
@@ -2950,6 +2951,50 @@ export default function App() {
       return _p95(samples);
     };
 
+    // T63m: All-sheets render+zip p95 < 50ms (8 sheets, WYSIWYG DXF render + buildDxfZip)
+    (w as unknown as { __zilventorAllSheetsDxfMs: (n: number) => number }).__zilventorAllSheetsDxfMs = (n: number): number => {
+      // Build an 8-sheet drawing by replicating _drawing4Sheet's sheet structure.
+      const makeSheet8 = (id: string): import('@zilventor/shared').DrawingSheet => ({
+        id, name: `Sheet ${id}`,
+        size: { kind: 'iso' as const, size: 'A3' as const },
+        orientation: 'landscape' as const,
+        views: Array.from({ length: 2 }, (__, vi) => ({
+          id: `v${id}-${vi}`,
+          kind: 'base' as const,
+          positionMm: { x: 20 + vi * 90, y: 40 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [{ id: `e${id}-${vi}`, kind: 'outline' as const,
+              points: [[0,0],[100,0],[100,60],[0,60],[0,0]] as ReadonlyArray<readonly [number,number]> }],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 100, maxY: 60 },
+          },
+        })),
+        dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
+      });
+      const sheets8 = Array.from({ length: 8 }, (_, i) => makeSheet8(`m${i}`));
+      const drawing8: import('@zilventor/shared').DrawingDocument = {
+        id: 'perf-drawing-8', name: 'Perf Drawing 8', units: 'mm',
+        source: { partPath: 'parts/perf.zipt', sourceKind: 'part' },
+        properties: {},
+        sheets: sheets8,
+        activeSheetId: sheets8[0]!.id,
+      };
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        const entries: Record<string, string> = {};
+        drawing8.sheets.forEach((s, idx) => {
+          entries[`${String(idx + 1).padStart(2, '0')}-${s.name}.dxf`] = _renderDrawingDxf(drawing8, s, _perfPart);
+        });
+        _buildDxfZip(entries);
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
     // T62c: PDF export of 4-sheet drawing p95 < 500ms
     w.__zilventorExportPdfMs = (n: number): number => {
       const samples: number[] = [];
@@ -3207,6 +3252,7 @@ export default function App() {
       delete w.__zilventorRenderSheetMs;
       delete (w as unknown as { __zilventorRenderDxfMs?: unknown }).__zilventorRenderDxfMs;
       delete (w as unknown as { __zilventorRenderDxf1to1Ms?: unknown }).__zilventorRenderDxf1to1Ms;
+      delete (w as unknown as { __zilventorAllSheetsDxfMs?: unknown }).__zilventorAllSheetsDxfMs;
       delete w.__zilventorExportPdfMs;
       delete w.__zilventorSectionCutMs;
       delete w.__zilventorFingerprintPartStateMs;
