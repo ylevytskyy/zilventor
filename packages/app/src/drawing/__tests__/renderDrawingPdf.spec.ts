@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderDrawingPdf, renderDrawingPdfBytes } from '../renderDrawingPdf';
+import type { DrawingDocument } from '@zilventor/shared';
 import {
   makeFixtureDrawing,
   makeFixturePart,
@@ -88,5 +89,35 @@ describe('renderDrawingPdf — rect detail view (F2.1)', () => {
     const drawing = makeFixtureDrawingWithParentAndRectDetail();
     const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
     expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
+  });
+});
+
+describe('renderDrawingPdf — null source (source-optional export)', () => {
+  const drawingNoSource: DrawingDocument = {
+    id: 'dw1',
+    name: 'Null-Source Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [
+      {
+        id: 'sh1',
+        name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' },
+        orientation: 'landscape',
+        views: [],
+        dimensions: [],
+        annotations: [],
+        titleBlock: {},
+        dimensionGroups: [],
+      },
+    ],
+    activeSheetId: 'sh1',
+  };
+
+  it('produces PDF bytes when source is null', () => {
+    const bytes = renderDrawingPdfBytes(drawingNoSource, null);
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.length).toBeGreaterThan(0);
   });
 });

@@ -17,7 +17,7 @@ const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
 /** Returns a PDF Blob (application/pdf), one page per sheet. */
 export function renderDrawingPdf(
   drawing: DrawingDocument,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): Blob {
   return buildPdf(drawing, source).output('blob') as Blob;
 }
@@ -25,14 +25,14 @@ export function renderDrawingPdf(
 /** Returns raw PDF bytes (Uint8Array). Used by ExportDrawingPdfCommand. */
 export function renderDrawingPdfBytes(
   drawing: DrawingDocument,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): Uint8Array {
   return new Uint8Array(buildPdf(drawing, source).output('arraybuffer') as ArrayBuffer);
 }
 
 function buildPdf(
   drawing: DrawingDocument,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): jsPDF {
   const sheets = drawing.sheets;
   if (sheets.length === 0) {
@@ -79,7 +79,7 @@ function drawSheetPdf(
   pdf: jsPDF,
   sheet: DrawingSheet,
   drawing: DrawingDocument,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
   sheetIndex: number,
   totalSheets: number,
 ): void {

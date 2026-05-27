@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { DrawingDocument, DrawingSheet } from '@zilventor/shared';
 import {
   makeFixtureDrawing,
   makeFixturePart,
@@ -158,5 +159,40 @@ describe('renderDrawingPngForSheet — rect detail view (F2.1)', () => {
     await expect(
       renderDrawingPngForSheet(drawing, sheet, makeFixturePart(), { canvasWidthPx: 256 })
     ).resolves.toBeInstanceOf(Blob);
+  });
+});
+
+describe('renderDrawingPngForSheet — null source (source-optional export)', () => {
+  beforeEach(() => {
+    mockCanvasWidth = 0;
+    mockCanvasHeight = 0;
+    vi.clearAllMocks();
+    (globalThis as unknown as Record<string, unknown>).OffscreenCanvas = MockOffscreenCanvas;
+  });
+
+  afterEach(() => {
+    delete (globalThis as unknown as Record<string, unknown>).OffscreenCanvas;
+  });
+
+  it('produces a PNG blob when source is null', async () => {
+    const sheet: DrawingSheet = {
+      id: 'sh1',
+      name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+    };
+    const drawing: DrawingDocument = {
+      id: 'dw1', name: 'Null-Source', units: 'mm',
+      source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' }, properties: {},
+      sheets: [sheet], activeSheetId: 'sh1',
+    };
+    const { renderDrawingPngForSheet } = await import('../renderDrawingPngForSheet');
+    const blob = await renderDrawingPngForSheet(drawing, sheet, null);
+    expect(blob).toBeInstanceOf(Blob);
   });
 });

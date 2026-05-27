@@ -16,7 +16,7 @@ const DEFAULT_CANVAS_WIDTH_PX = 1024;
 export async function renderDrawingPngForSheet(
   drawing: DrawingDocument,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
   opts: RenderPngOptions = {},
 ): Promise<Blob> {
   const canvasWidthPx = opts.canvasWidthPx ?? DEFAULT_CANVAS_WIDTH_PX;
