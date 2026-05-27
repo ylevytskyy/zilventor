@@ -120,6 +120,7 @@ import type { NestInputRow } from '@zilventor/shared';
 import { projectView } from '@zilventor/shared/src/drawing/projector';
 import { renderDrawingSvg } from './drawing/renderDrawingSvg';
 import { renderDrawingDxf as _renderDrawingDxf } from './drawing/renderDrawingDxf';
+import { renderDrawingDxf1to1 as _renderDrawingDxf1to1 } from './drawing/renderDrawingDxf1to1';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
 import { restoreLastOpenDrawing } from './drawing/restoreLastOpenDrawing';
@@ -2937,6 +2938,18 @@ export default function App() {
       return _p95(samples);
     };
 
+    // T63l: DXF 1:1 export p95 < 50ms (pure string-building, no kernel call)
+    w.__zilventorRenderDxf1to1Ms = (n: number): number => {
+      const sheet = _drawing4Sheet.sheets[0]!;
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        _renderDrawingDxf1to1(_drawing4Sheet, sheet);
+        samples.push(performance.now() - t0);
+      }
+      return _p95(samples);
+    };
+
     // T62c: PDF export of 4-sheet drawing p95 < 500ms
     w.__zilventorExportPdfMs = (n: number): number => {
       const samples: number[] = [];
@@ -3193,6 +3206,7 @@ export default function App() {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
       delete (w as unknown as { __zilventorRenderDxfMs?: unknown }).__zilventorRenderDxfMs;
+      delete (w as unknown as { __zilventorRenderDxf1to1Ms?: unknown }).__zilventorRenderDxf1to1Ms;
       delete w.__zilventorExportPdfMs;
       delete w.__zilventorSectionCutMs;
       delete w.__zilventorFingerprintPartStateMs;

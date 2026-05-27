@@ -43,7 +43,7 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByText('Export')).toBeInTheDocument();
   });
 
-  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 4 Annotate buttons, 4 Export buttons', () => {
+  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 4 Annotate buttons, 5 Export buttons', () => {
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
     // Sheet panel: New Sheet + Sheet… (disabled follow-up)
@@ -68,7 +68,8 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByRole('button', { name: /export pdf/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export svg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export png/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export dxf/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^export dxf$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^export dxf \(1:1\)$/i })).toBeInTheDocument();
   });
 
   it('clicking Linear (H) calls setMode("addLinearH")', () => {
@@ -113,7 +114,7 @@ describe('DrawingTab — drawing active doc', () => {
     // activePart and activeAssembly are both null (default store state) — button must be disabled.
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
-    const btn = screen.getByRole('button', { name: /export dxf/i });
+    const btn = screen.getByRole('button', { name: /^export dxf$/i });
     expect(btn).toBeInTheDocument();
     expect(btn).toBeDisabled();
   });

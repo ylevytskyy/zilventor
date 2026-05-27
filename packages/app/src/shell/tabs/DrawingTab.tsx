@@ -7,6 +7,7 @@ import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand'
 import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
 import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
 import { ExportDrawingDxfCommand } from '../../commands/ExportDrawingDxfCommand';
+import { ExportDrawing1to1DxfCommand } from '../../commands/ExportDrawing1to1DxfCommand';
 import { StubTab } from './_stub';
 
 export default function DrawingTab(): JSX.Element {
@@ -316,6 +317,21 @@ export default function DrawingTab(): JSX.Element {
           }}
         >
           Export DXF
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Export DXF (1:1)"
+          disabled={!hasProjectedView}
+          title={hasProjectedView ? 'Export geometry at 1:1 (machining size)' : 'No projected views to export'}
+          onClick={() => {
+            void bus.execute(new ExportDrawing1to1DxfCommand({
+              drawing,
+              sheetId: drawing.activeSheetId,
+            }));
+          }}
+        >
+          Export DXF (1:1)
         </button>
       </RibbonPanel>
     </div>
