@@ -392,6 +392,7 @@ export default function App() {
         viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
       w.__zilventorPackProject = packProject;
+      w.__zilventorUnpackProject = unpackProject;
       w.__zilventorPackAssembly = packAssembly;
       w.__zilventorUnpackAssembly = unpackAssembly;
       w.__zilventorGetOpfs = async () => {
