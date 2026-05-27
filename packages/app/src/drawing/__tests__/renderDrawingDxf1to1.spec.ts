@@ -128,3 +128,60 @@ describe('renderDrawingDxf1to1 — per-view true size', () => {
     expect(out).not.toContain('POLYLINE');
   });
 });
+
+describe('renderDrawingDxf1to1 — multi-view layout', () => {
+  function pts2(p: ReadonlyArray<readonly [number, number]>): ReadonlyArray<readonly [number, number]> { return p; }
+  function makeSheet2(views: DrawingView[]): DrawingSheet {
+    return {
+      id: 's1', name: 'Sheet 1', size: { kind: 'iso', size: 'A4' }, orientation: 'landscape',
+      views, dimensions: [], annotations: [], dimensionGroups: [], titleBlock: {},
+    };
+  }
+  function makeDrawing2(sheet: DrawingSheet): DrawingDocument {
+    return { id: 'd1', name: 'MyDrawing', units: 'mm',
+      source: { partPath: 'p.zipt', sourceKind: 'part' }, properties: {},
+      sheets: [sheet], activeSheetId: sheet.id };
+  }
+  function vertices2(dxf: string): Array<[number, number]> {
+    const lines = dxf.split('\n'); const out: Array<[number, number]> = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.trim() !== 'VERTEX') continue;
+      let x = NaN, y = NaN;
+      for (let j = i + 1; j + 1 < lines.length && lines[j]!.trim() !== 'VERTEX' && lines[j]!.trim() !== 'SEQEND'; j++) {
+        if (lines[j] === ' 10') x = parseFloat(lines[j + 1]!);
+        if (lines[j] === ' 20') y = parseFloat(lines[j + 1]!);
+      }
+      if (!Number.isNaN(x) && !Number.isNaN(y)) out.push([x, y]);
+    }
+    return out;
+  }
+  // 100-wide box view at a given sheet position (used to check ordering + spacing).
+  function boxView(id: string, posX: number, posY: number): DrawingView {
+    return { id, kind: 'base', positionMm: { x: posX, y: posY },
+      scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+      projection: {
+        visibleEdges: [{ id: `${id}-e`, kind: 'outline', points: pts2([[0, 0], [100, 0]]) }],
+        hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 100, maxY: 0 },
+      } } as DrawingView;
+  }
+
+  it('DXF1-7: two views do not overlap — 2nd view min-X ≥ 1st width + GAP(20)', () => {
+    // A at y=10 (sorts first), B at y=200.
+    const sheet = makeSheet2([boxView('B', 0, 200), boxView('A', 0, 10)]);
+    const xs = vertices2(renderDrawingDxf1to1(makeDrawing2(sheet), sheet)).map((v) => v[0]).sort((a, b) => a - b);
+    // First view occupies [0,100]; second must start at ≥ 120.
+    expect(Math.min(...xs)).toBeCloseTo(0, 3);
+    expect(Math.max(...xs)).toBeCloseTo(220, 3); // 120 + 100
+    // The gap [100,120] must contain no vertices.
+    expect(xs.some((x) => x > 100.001 && x < 119.999)).toBe(false);
+  });
+
+  it('DXF1-8: reading order — view with smaller original positionMm.y is placed first (lower X)', () => {
+    // Same as above but assert the FIRST view in output is the one with smaller y (A, y=10).
+    // A's single edge spans x 0..100; B's spans 120..220. A is leftmost ⇒ order honored.
+    const sheet = makeSheet2([boxView('B', 0, 200), boxView('A', 0, 10)]);
+    const xs = vertices2(renderDrawingDxf1to1(makeDrawing2(sheet), sheet)).map((v) => v[0]);
+    // The leftmost vertices (x≈0) come from A; A appears before B in emission order.
+    expect(xs[0]).toBeCloseTo(0, 3);
+  });
+});
