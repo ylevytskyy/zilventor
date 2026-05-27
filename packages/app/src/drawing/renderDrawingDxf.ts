@@ -59,7 +59,7 @@ function resolvePointRef(
 export function renderDrawingDxf(
   drawing: DrawingDocument,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
 ): string {
   const sheetW = getSheetWidthMm(sheet);
   const sheetH = getSheetHeightMm(sheet);
@@ -550,7 +550,7 @@ function emitAnnotation(
   doc: ReturnType<typeof createDxfDocument>,
   ann: DrawingAnnotation,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
   flipY: (y: number) => number,
 ): void {
   if (ann.kind === 'balloon') {
@@ -594,10 +594,10 @@ function emitHoleTable(
   doc: ReturnType<typeof createDxfDocument>,
   ann: HoleTableAnnotation,
   sheet: DrawingSheet,
-  source: PartDocument | AssemblyDocument,
+  source: PartDocument | AssemblyDocument | null,
   flipY: (y: number) => number,
 ): void {
-  const part = 'featureTree' in source ? (source as PartDocument) : null;
+  const part = source != null && 'featureTree' in source ? (source as PartDocument) : null;
   if (!part) return;
   const resolveParam = (p: ParamOrLiteral): number =>
     p.kind === 'literal' ? p.value : (part.parameters[p.paramName]?.value ?? 0);

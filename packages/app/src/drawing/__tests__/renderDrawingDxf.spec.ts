@@ -391,3 +391,43 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     expect(block).toMatch(/ 70\n\s*2/);   // angular type 2
   });
 });
+
+describe('renderDrawingDxf — null source (source-optional export)', () => {
+  const sheetWithHoleTable: DrawingSheet = {
+    id: 'sh1',
+    name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views: [],
+    dimensions: [],
+    annotations: [
+      {
+        kind: 'holeTable',
+        id: 'ht1',
+        viewId: 'v1',
+        datum: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' },
+        positionMm: { x: 100, y: 50 },
+        entries: [],
+      },
+    ],
+    titleBlock: {},
+    dimensionGroups: [],
+  };
+  const drawingWithHoleTable: DrawingDocument = {
+    id: 'dw1',
+    name: 'Null-Source Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/dummy.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [sheetWithHoleTable],
+    activeSheetId: 'sh1',
+  };
+
+  it('renders a complete DXF without throwing when source is null', () => {
+    expect(() => renderDrawingDxf(drawingWithHoleTable, sheetWithHoleTable, null)).not.toThrow();
+    const dxf = renderDrawingDxf(drawingWithHoleTable, sheetWithHoleTable, null);
+    expect(dxf).toContain('EOF');
+    // Title block emitted with blank part name.
+    expect(dxf).toContain('Part: ');
+  });
+});
