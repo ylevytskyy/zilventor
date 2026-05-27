@@ -124,8 +124,7 @@ import { renderDrawingDxf1to1 as _renderDrawingDxf1to1 } from './drawing/renderD
 import { buildDxfZip as _buildDxfZip } from './drawing/dxfZip';
 import { renderDrawingPdfBytes } from './drawing/renderDrawingPdf';
 import { fingerprintPartState as _fpFn } from './drawing/fingerprintPartState';
-import { restoreLastOpenDrawing } from './drawing/restoreLastOpenDrawing';
-import type { KernelForLoad } from './drawing/loadDrawingSource';
+import { restoreLastOpenDocument, type KernelForRestore } from './drawing/restoreLastOpenDocument';
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
@@ -980,8 +979,8 @@ export default function App() {
         const kernel = useAppStore.getState().kernel;
         if (!kernel) return;
         if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
-        await restoreLastOpenDrawing({
-          kernel: kernel as unknown as KernelForLoad,
+        await restoreLastOpenDocument({
+          kernel: kernel as unknown as KernelForRestore,
           opfs: opfsRef.current,
         });
       } catch (e) {
