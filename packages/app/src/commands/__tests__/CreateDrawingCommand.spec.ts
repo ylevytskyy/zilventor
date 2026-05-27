@@ -240,4 +240,25 @@ describe('CreateDrawingCommand', () => {
     const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
     expect(s.activeDrawingSourceDocument).toBe(prior);
   });
+
+  it('part: activeDrawingSourceDocument is set to the fresh activePart even when kernel is null (no stale-source leak)', async () => {
+    // Seed a STALE source document from a hypothetically previous drawing.
+    const staleDoc = { id: 'stale', name: 'StaleDrawing' };
+    const freshPart = { id: 'p-fresh', name: 'FreshPart', units: 'mm' as const, parameters: {},
+      featureTree: [], properties: {}, materials: [], hardware: [] };
+    // kernel=null so the `if (kernel)` branch is skipped entirely — previously the
+    // only place that wrote activeDrawingSourceDocument was INSIDE that branch.
+    useAppStore.setState({
+      activeDrawingSourceDocument: staleDoc,
+      activePart: freshPart,
+      kernel: null,
+    } as never);
+
+    const cmd = new CreateDrawingCommand({ sourcePath: 'p-fresh.zipt', sourceKind: 'part' });
+    await cmd.apply();
+
+    const s = useAppStore.getState() as unknown as { activeDrawingSourceDocument: unknown };
+    // Must be the fresh part, NOT the stale doc from the previous drawing.
+    expect(s.activeDrawingSourceDocument).toMatchObject({ id: 'p-fresh' });
+  });
 });

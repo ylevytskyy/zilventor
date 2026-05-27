@@ -75,6 +75,14 @@ export class CreateDrawingCommand implements Command {
 
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: doc });
 
+    // Set the export source document unconditionally — independent of kernel readiness or
+    // source-load success — so a prior drawing's source can never leak into this one. For a
+    // create-from-part/assembly the captured activePartDoc/activeAsmDoc IS the source document.
+    useAppStore.setState({
+      activeDrawingSourceDocument:
+        (this.opts.sourceKind === 'assembly' ? activeAsmDoc : activePartDoc) ?? null,
+    } as never);
+
     // Load the source into the kernel so projection commands can call
     // getProjectorInput without a cache miss.
     if (this.opts.sourceKind === 'part') {
@@ -87,7 +95,7 @@ export class CreateDrawingCommand implements Command {
           // Clear the module-level cache so re-activating the same drawing picks up
           // any edits made since the last activation (fresh OPFS read each time).
           _clearLoadDrawingSourceCache();
-          const { partId, sourceFingerprint, sourceDocument } = await loadDrawingSource({
+          const { partId, sourceFingerprint } = await loadDrawingSource({
             partPath: this.opts.sourcePath,
             kernel,
             opfs,
@@ -96,7 +104,6 @@ export class CreateDrawingCommand implements Command {
           useAppStore.setState({
             activeDrawingSourcePartId: partId,
             activeDrawingSourceFingerprint: sourceFingerprint,
-            activeDrawingSourceDocument: sourceDocument ?? activePartDoc,
           } as never);
         }
       } catch (e) {
@@ -122,7 +129,6 @@ export class CreateDrawingCommand implements Command {
           useAppStore.setState({
             activeDrawingSourceComponents: components,
             activeDrawingSourceFingerprint: sourceFingerprint,
-            activeDrawingSourceDocument: activeAsmDoc,
           } as never);
         }
       } catch (e) {
