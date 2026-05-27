@@ -341,7 +341,7 @@ function emitDimension(
         defPoint: [dimSvgX, flipY(sy2)],
         textMid: [dimSvgX + 1, flipY((sy1 + sy2) / 2)],
         text: label,
-        rotation: dim.kind === 'aligned' ? undefined : 90,
+        ...(dim.kind === 'aligned' ? {} : { rotation: 90 }),
         extraPoints: [[13, x1, flipY(sy1)], [14, x2, flipY(sy2)]],
       });
     }
@@ -478,11 +478,22 @@ function emitDimension(
         const sy = vy + (ccy + arcR * Math.sin(a)) * vScale;
         arcPts.push([sx, flipY(sy)]);
       }
-      doc.polyline('DIMENSIONS', arcPts);
+      const blockName = doc.block(() => {
+        doc.polyline('DIMENSIONS', arcPts);
+        const midA = startAngle + (dim.arcSide === 'outside' ? -1 : 1) * sweep / 2;
+        const tx4 = vx + (ccx + (arcR + 1.5) * Math.cos(midA)) * vScale;
+        const sy4 = vy + (ccy + (arcR + 1.5) * Math.sin(midA)) * vScale;
+        doc.text('DIMENSIONS', tx4, flipY(sy4), 3.5, formatAngleDeg(sweep));
+      });
       const midA = startAngle + (dim.arcSide === 'outside' ? -1 : 1) * sweep / 2;
       const tx4 = vx + (ccx + (arcR + 1.5) * Math.cos(midA)) * vScale;
       const sy4 = vy + (ccy + (arcR + 1.5) * Math.sin(midA)) * vScale;
-      doc.text('DIMENSIONS', tx4, flipY(sy4), 3.5, formatAngleDeg(sweep));
+      doc.dimension({
+        layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 5,
+        defPoint: [vx + ccx * vScale, flipY(vy + ccy * vScale)],
+        textMid: [tx4, flipY(sy4)],
+        text: formatAngleDeg(sweep),
+      });
       return;
     }
 
@@ -516,10 +527,20 @@ function emitDimension(
       const a = startAngle2 + sweepSign * sweepRad * i / SEGS;
       arcPts2.push([apexSvgX + arcR2 * Math.cos(a), flipY(apexSvgY + arcR2 * Math.sin(a))]);
     }
-    doc.polyline('DIMENSIONS', arcPts2);
+    const blockName = doc.block(() => {
+      doc.polyline('DIMENSIONS', arcPts2);
+      const midA2b = startAngle2 + sweepSign * sweepRad / 2;
+      const textR2b = (dim.offsetMm + 1.5) * vScale;
+      doc.text('DIMENSIONS', apexSvgX + textR2b * Math.cos(midA2b), flipY(apexSvgY + textR2b * Math.sin(midA2b)), 3.5, formatAngleDeg(sweepRad));
+    });
     const midA2 = startAngle2 + sweepSign * sweepRad / 2;
     const textR2 = (dim.offsetMm + 1.5) * vScale;
-    doc.text('DIMENSIONS', apexSvgX + textR2 * Math.cos(midA2), flipY(apexSvgY + textR2 * Math.sin(midA2)), 3.5, formatAngleDeg(sweepRad));
+    doc.dimension({
+      layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 2,
+      defPoint: [apexSvgX, flipY(apexSvgY)],
+      textMid: [apexSvgX + textR2 * Math.cos(midA2), flipY(apexSvgY + textR2 * Math.sin(midA2))],
+      text: formatAngleDeg(sweepRad),
+    });
   }
 }
 

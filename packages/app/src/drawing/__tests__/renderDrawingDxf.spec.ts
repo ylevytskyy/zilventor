@@ -361,4 +361,34 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     const block = lines.slice(dimIdx, dimIdx + 30).join('\n');
     expect(block).toMatch(/ 70\n\s*70/);
   });
+
+  it('DXF-NDIM-ANGULAR-1: angular (two-edges) dimension → DIMENSION entity (type 2) + block', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [
+            { id: 'g1', kind: 'outline', points: [[0, 0], [20, 0]] as ReadonlyArray<readonly [number, number]> },
+            { id: 'g2', kind: 'outline', points: [[0, 0], [0, 20]] as ReadonlyArray<readonly [number, number]> },
+          ],
+          hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
+        },
+      }],
+      dimensions: [{
+        kind: 'angular', id: 'an1', viewId: 'v1',
+        ref: { kind: 'two-edges',
+          edge1: { viewId: 'v1', edgeId: 'g1' },
+          edge2: { viewId: 'v1', edgeId: 'g2' } },
+        arcSide: 'inside', offsetMm: 8,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSION');
+    expect(out).toMatch(/\*D\d+/);
+    const lines = out.split('\n');
+    const dimIdx = lines.findIndex((l) => l.trim() === 'DIMENSION');
+    const block = lines.slice(dimIdx, dimIdx + 30).join('\n');
+    expect(block).toMatch(/ 70\n\s*2/);   // angular type 2
+  });
 });
