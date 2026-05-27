@@ -3276,6 +3276,47 @@ export default function App() {
       return samples[Math.floor(samples.length * 0.95)] ?? 0;
     };
 
+    // T63m: N-component assembly section cut p95 — real kernel, N posed boxes.
+    // Builds N synthetic leaves, each reusing the active part ID but with
+    // distinct X translations, then calls cutAssemblyComponentsBySectionPlane
+    // via the Comlink kernel bridge. Measures real OCCT cut latency (not just projection).
+    (w as unknown as { __zilventorAsmSectionCutMs: (n: number, leafCount?: number) => Promise<number> }).__zilventorAsmSectionCutMs = async (
+      n: number = 10,
+      leafCount: number = 10,
+    ): Promise<number> => {
+      const kernel = useAppStore.getState().kernel;
+      const activePart = useAppStore.getState().activePart;
+      if (!kernel || !activePart) return 0;
+
+      const { cutAssemblyComponentsBySectionPlane: cutFn } = await import('./kernel/cutBySectionPlane');
+
+      // N leaves: the active part repeated at x=0, x=30, x=60, ... (non-overlapping).
+      // Box is 20×20×15mm; 30mm stride keeps them separated and all intersecting
+      // the section plane (y=0, normal +Y → cuts through each box at mid-height).
+      const components = Array.from({ length: leafCount }, (_, i) => ({
+        partId: activePart.id,
+        pose: {
+          translation: { x: i * 30, y: 0, z: 0 },
+          quaternion: [0, 0, 0, 1] as [number, number, number, number],
+        },
+      }));
+      // Section plane: cuts through y=0 (which is the assembled centroid of the boxes,
+      // each 20mm tall, so the plane at y=10 bisects every component).
+      const plane = { origin: { x: 0, y: 10, z: 0 }, normal: { x: 0, y: 1, z: 0 } };
+
+      const samples: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        const result = await cutFn(components, plane, 1);
+        samples.push(performance.now() - t0);
+        if (!result.ok && i === 0) {
+          console.warn('[T63m] cutAssemblyComponentsBySectionPlane failed:', (result as { reason?: string }).reason);
+        }
+      }
+      samples.sort((a, b) => a - b);
+      return samples[Math.floor(samples.length * 0.95)] ?? 0;
+    };
+
     return () => {
       delete w.__zilventorProjectViewMs;
       delete w.__zilventorRenderSheetMs;
@@ -3288,6 +3329,7 @@ export default function App() {
       delete w.__zilventorFingerprintPartStateMs;
       delete (w as unknown as { __zilventorProjectionRoundTripMs?: unknown }).__zilventorProjectionRoundTripMs;
       delete (w as unknown as { __zilventorAsmProjectViewMs?: unknown }).__zilventorAsmProjectViewMs;
+      delete (w as unknown as { __zilventorAsmSectionCutMs?: unknown }).__zilventorAsmSectionCutMs;
     };
   }, []);
 
