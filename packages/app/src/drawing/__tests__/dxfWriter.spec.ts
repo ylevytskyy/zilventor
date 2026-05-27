@@ -56,6 +56,15 @@ describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
       expect(out, `layer ${layer} must appear in TABLES`).toContain(layer);
     }
   });
+
+  it('DXF-DIMSTYLE-1: DIMSTYLE table with STANDARD style defined in TABLES', () => {
+    const out = createDxfDocument().toString();
+    expect(out).toContain('DIMSTYLE');
+    expect(out).toContain('STANDARD');
+    // DIMSTYLE table must sit inside the TABLES section (before BLOCKS)
+    expect(out.indexOf('DIMSTYLE')).toBeGreaterThan(out.indexOf('TABLES'));
+    expect(out.indexOf('DIMSTYLE')).toBeLessThan(out.indexOf('BLOCKS'));
+  });
 });
 
 describe('dxfWriter — entity emitters (DXF-ENT)', () => {

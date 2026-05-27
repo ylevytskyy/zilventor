@@ -72,6 +72,21 @@ export function createDxfDocument(): DxfDocument {
   }
   tables.push('  0', 'ENDTAB');
 
+  // DIMSTYLE table — one shared STANDARD style (drives native DIMENSION regen)
+  tables.push('  0', 'TABLE', '  2', 'DIMSTYLE', ' 70', '     1');
+  tables.push(
+    '  0', 'DIMSTYLE',
+    '  2', 'STANDARD',
+    ' 70', '     0',
+    '140', '3.5',     // DIMTXT  — text height (matches dim-label text height)
+    ' 41', '2.5',     // DIMASZ  — arrow size
+    '147', '0.625',   // DIMGAP
+    ' 77', '     1',  // DIMTAD  — text above the dimension line
+    ' 73', '     0',  // DIMTIH  — inside text aligned with dim line
+    ' 74', '     0',  // DIMTOH  — outside text aligned with dim line
+  );
+  tables.push('  0', 'ENDTAB');
+
   tables.push('  0', 'ENDSEC');
 
   // ── BLOCKS section (empty — required by R12 structure between TABLES and ENTITIES) ──
