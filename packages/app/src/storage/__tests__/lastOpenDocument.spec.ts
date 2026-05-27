@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setLastOpenDrawing, getLastOpenDrawing, clearLastOpen } from '../lastOpenDocument';
+import { setLastOpenDrawing, getLastOpenDrawing, clearLastOpen, setLastOpenDocument, getLastOpenDocument } from '../lastOpenDocument';
 
 // test-setup.ts installs a working in-memory localStorage shim for Node 25.
 // No additional setup needed.
@@ -40,5 +40,25 @@ describe('lastOpenDocument', () => {
     setLastOpenDrawing('drawings/old.zidw');
     setLastOpenDrawing('drawings/new.zidw');
     expect(getLastOpenDrawing()).toEqual({ kind: 'drawing', opfsPath: 'drawings/new.zidw' });
+  });
+
+  it('setLastOpenDocument round-trips a part pointer', () => {
+    setLastOpenDocument({ kind: 'part', opfsPath: 'Cabinet.zipt' });
+    expect(getLastOpenDocument()).toEqual({ kind: 'part', opfsPath: 'Cabinet.zipt' });
+  });
+
+  it('setLastOpenDocument round-trips an assembly pointer', () => {
+    setLastOpenDocument({ kind: 'assembly', opfsPath: 'Kitchen.ziasm' });
+    expect(getLastOpenDocument()).toEqual({ kind: 'assembly', opfsPath: 'Kitchen.ziasm' });
+  });
+
+  it('getLastOpenDocument reads a legacy drawing pointer', () => {
+    setLastOpenDocument({ kind: 'drawing', opfsPath: 'drawings/d1.zidw' });
+    expect(getLastOpenDocument()).toEqual({ kind: 'drawing', opfsPath: 'drawings/d1.zidw' });
+  });
+
+  it('getLastOpenDocument returns null on an unknown kind', () => {
+    localStorage.setItem('zilventor:lastOpenDocument', JSON.stringify({ kind: 'widget', opfsPath: 'x' }));
+    expect(getLastOpenDocument()).toBeNull();
   });
 });
