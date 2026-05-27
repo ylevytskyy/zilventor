@@ -177,11 +177,29 @@ describe('renderDrawingDxf1to1 — multi-view layout', () => {
   });
 
   it('DXF1-8: reading order — view with smaller original positionMm.y is placed first (lower X)', () => {
-    // Same as above but assert the FIRST view in output is the one with smaller y (A, y=10).
-    // A's single edge spans x 0..100; B's spans 120..220. A is leftmost ⇒ order honored.
-    const sheet = makeSheet2([boxView('B', 0, 200), boxView('A', 0, 10)]);
+    // TEETH: two views have DIFFERENT widths so the sort is distinguishable.
+    // View A: posY=10 (sorts FIRST), width=40 — edge [[0,0],[40,0]].
+    // View B: posY=200 (sorts SECOND), width=100 — edge [[0,0],[100,0]].
+    //
+    // CORRECT sort (A first at lx=0 → x∈{0,40}; B at lx=60 → x∈{60,160}):
+    //   sorted unique xs = {0, 40, 60, 160} → sx[1] === 40
+    // BROKEN/removed sort (B first at lx=0 → x∈{0,100}; A at lx=120 → x∈{120,160}):
+    //   sorted unique xs = {0, 100, 120, 160} → sx[1] === 100
+    // So sx[1]===40 IFF sort is present and correct (40 correct vs 100 broken).
+    function boxViewW(id: string, posY: number, width: number): DrawingView {
+      return {
+        id, kind: 'base', positionMm: { x: 0, y: posY },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: `${id}-e`, kind: 'outline', points: pts2([[0, 0], [width, 0]]) }],
+          hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: width, maxY: 0 },
+        },
+      } as DrawingView;
+    }
+    const sheet = makeSheet2([boxViewW('B', 200, 100), boxViewW('A', 10, 40)]);
     const xs = vertices2(renderDrawingDxf1to1(makeDrawing2(sheet), sheet)).map((v) => v[0]);
-    // The leftmost vertices (x≈0) come from A; A appears before B in emission order.
-    expect(xs[0]).toBeCloseTo(0, 3);
+    const sx = [...new Set(xs.map(Math.round))].sort((a, b) => a - b);
+    // The SECOND-smallest x is 40 (A's far edge) only when A is placed first.
+    expect(sx[1]).toBe(40);
   });
 });

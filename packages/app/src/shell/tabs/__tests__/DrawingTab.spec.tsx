@@ -119,6 +119,14 @@ describe('DrawingTab — drawing active doc', () => {
     expect(btn).toBeDisabled();
   });
 
+  it('renders a disabled Export DXF (1:1) button when no projected view exists', () => {
+    // seedDrawing() has views: [] → hasProjectedView=false → button disabled.
+    // Guards the `disabled={!hasProjectedView}` gate on the 1:1 export button.
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
+    render(<DrawingTab />);
+    expect(screen.getByRole('button', { name: /^export dxf \(1:1\)$/i })).toBeDisabled();
+  });
+
   it('enables export buttons from activeDrawingSourceDocument alone (drawing active, activePart null)', () => {
     useAppStore.setState({
       activePart: null,
