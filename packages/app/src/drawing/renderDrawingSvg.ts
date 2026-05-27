@@ -177,6 +177,15 @@ function renderViewGroup(view: DrawingView): string {
     ? `<text x="0" y="-2" font-size="3" fill="red" data-stale-marker="${escapeAttr(view.id)}">&#x26A0; Source changed</text>`
     : '';
 
+  // Section-specific: material-colored hatch (mm space, inside the scaled group).
+  let hatchMarkup = '';
+  if (view.kind === 'section') {
+    const sv = view as SectionView;
+    for (const seg of sv.hatchSegments) {
+      hatchMarkup += `\n    <line x1="${seg.p0.x}" y1="${seg.p0.y}" x2="${seg.p1.x}" y2="${seg.p1.y}" stroke="${escapeAttr(seg.color ?? '#000')}" stroke-width="0.25" data-role="hatch" data-material="${escapeAttr(seg.materialId)}"/>`;
+    }
+  }
+
   // Detail-specific: border shape + caption.
   let detailMarkup = '';
   if (view.kind === 'detail') {
@@ -202,7 +211,7 @@ function renderViewGroup(view: DrawingView): string {
      data-view-id="${escapeAttr(view.id)}" data-view-kind="${view.kind}">
     ${staleMarker}
     ${visibleLines}
-    ${hiddenLines}${detailMarkup}
+    ${hiddenLines}${hatchMarkup}${detailMarkup}
   </g>`;
 }
 
