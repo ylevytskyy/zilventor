@@ -207,3 +207,47 @@ describe('dxfWriter — entity emitters (DXF-ENT)', () => {
     expect(coordValues.length).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe('dxfWriter — native DIMENSION entity (DXF-NDIM)', () => {
+  it('DXF-NDIM-1: dimension() emits DIMENSION with block ref, dimstyle, type, def/text points', () => {
+    const doc = createDxfDocument();
+    const blk = doc.block(() => { doc.polyline('DIMENSIONS', [[0, 0], [30, 0]]); });
+    doc.dimension({
+      layer: 'DIMENSIONS', blockName: blk, dimStyle: 'STANDARD', dimType: 0,
+      defPoint: [30, 100], textMid: [15, 101], text: '30', rotation: 0,
+      extraPoints: [[13, 0, 90], [14, 30, 90]],
+    });
+    const out = doc.toString();
+    expect(out).toContain('DIMENSION');
+    // block reference (group 2 = *D name)
+    expect(out).toContain(blk);
+    // dimstyle reference (group 3)
+    expect(out).toContain('STANDARD');
+    // dim type flag (group 70 = 0) and measurement text (group 1)
+    const pairs = out.split('\n');
+    const dimIdx = pairs.findIndex((l) => l.trim() === 'DIMENSION');
+    expect(dimIdx).toBeGreaterThan(-1);
+    const block = pairs.slice(dimIdx, dimIdx + 40).join('\n');
+    expect(block).toContain('30');            // text
+    // extension-line def points (13/14 → x; 23/24 → y; 33/34 → 0.0)
+    expect(block).toContain(' 13');
+    expect(block).toContain(' 14');
+    expect(block).toContain(' 50');           // rotation present
+  });
+
+  it('DXF-NDIM-2: ordinate X-type sets group-70 flag 70 (= 6 | 64)', () => {
+    const doc = createDxfDocument();
+    const blk = doc.block(() => { doc.polyline('DIMENSIONS', [[0, 0], [0, 10]]); });
+    doc.dimension({
+      layer: 'DIMENSIONS', blockName: blk, dimStyle: 'STANDARD', dimType: 6 + 64,
+      defPoint: [0, 0], textMid: [1, 1], text: '12.00',
+      extraPoints: [[13, 5, 5], [14, 0, 5]],
+    });
+    const out = doc.toString();
+    const pairs = out.split('\n');
+    const dimIdx = pairs.findIndex((l) => l.trim() === 'DIMENSION');
+    const block = pairs.slice(dimIdx, dimIdx + 30).join('\n');
+    // group 70 value 70 (6 ordinate + 64 X-bit)
+    expect(block).toMatch(/ 70\n\s*70/);
+  });
+});
