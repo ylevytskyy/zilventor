@@ -115,6 +115,11 @@ type AppState = {
    *  Null for part-sourced drawings and when no drawing is active.
    *  NOT reset by drawingDocState() — same lifecycle contract as activeDrawingSourcePartId. */
   activeDrawingSourceComponents: import('@zilventor/kernel/src/adapter/drawing/getProjectorInput').AssemblyComponentInput[] | null;
+  /** partId → material color (hex) for the active assembly-sourced drawing's components.
+   *  Parallel to activeDrawingSourceComponents; built by loadAssemblyForProjection from each
+   *  component part's materials[0].color. Null for part-sourced drawings / no active drawing.
+   *  NOT reset by drawingDocState() — same lifecycle contract as activeDrawingSourceComponents. */
+  activeDrawingSourceComponentColors: Record<string, string> | null;
   /** The resolved source document (PartDocument | AssemblyDocument) for the active
    *  drawing. Used by DrawingTab's export buttons for title-block metadata + the
    *  'featureTree' in source part/assembly discriminator. Set wherever a drawing's
@@ -361,6 +366,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeDrawingSourcePartId: null,
   activeDrawingSourceFingerprint: null,
   activeDrawingSourceComponents: null,
+  activeDrawingSourceComponentColors: null,
   activeDrawingSourceDocument: null,
   kernelReady: false,
   statusMessage: 'Loading…',
