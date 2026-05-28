@@ -75,6 +75,12 @@ export type KernelApi = {
   saveToBytes(partId: string, thumbnail?: Uint8Array): Promise<Uint8Array>;
   load(handle: FileSystemFileHandle): Promise<string>;
   loadFromBytes(bytes: Uint8Array): Promise<string>;
+  /** Direct-insert a fully-constructed PartDocument into the kernel's parts map.
+   *  Used by the stand-alone STEP importer, where the imported brep blob is
+   *  already in the kernel's importedShapeCache (populated by importStep) and
+   *  no archive round-trip is needed. Throws if the kernel is not initialized
+   *  or if a part with the same id is already registered. */
+  registerPart(part: PartDocument): Promise<void>;
   extractAssemblyRef(partId: string, ref: AssemblyConstraintRef): Promise<Result<PartLocalGeometry, KernelError>>;
   extractAssemblyCircularEdge(partId: string, edge: EdgeName): Promise<Result<PartLocalGeometry, KernelError>>;
   importStep(params: {
@@ -378,6 +384,12 @@ export function createKernelApi(): KernelApi {
 
       parts.set(part.id, part);
       return part.id;
+    },
+
+    async registerPart(part) {
+      if (!occt) throw new Error('kernel not initialized');
+      if (parts.has(part.id)) throw new Error(`registerPart: part ${part.id} is already registered`);
+      parts.set(part.id, part);
     },
 
     async extractAssemblyRef(partId, ref) {
