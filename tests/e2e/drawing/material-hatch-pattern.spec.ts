@@ -8,10 +8,17 @@
  *   3. EditMaterialCommand to set hatchAngleDeg=20, hatchSpacingMm=2.
  *   4. Create drawing + base view (front, 1:1, patch viewMatrix) + horizontal section view.
  *   5. Read hatchSegments; assert every segment's normalized line angle ≈ 20° (±2°), NOT ≈ 45°.
- *   6. Wait 700ms (OPFS autosave debounce = 500ms), reload, confirm persistence.
+ *   6. Repack the part with hatch-materials spliced into the manifest via
+ *      __zilventorPackProject + write to OPFS, then reload — confirm hatch fields
+ *      round-trip. Bypasses the natural autosave because EditMaterialCommand
+ *      mutates the Zustand store only; the kernel's PartDocument copy stays stale
+ *      until the next load, so kernel.saveToBytes would drop the edits. Mirrors
+ *      the pattern used by material-hatch-color.spec.ts. Pre-existing kernel-sync
+ *      gap is outside this feature's scope.
  *
- * Teeth: relies on Task 4's materials[0] fallback in hatchLookup. If the
- * fallback regresses, every segment stays at 45° and step 5 fails.
+ * Teeth: relies on Task 4's materials[0] fallback + Task 5's
+ * activeDrawingSourceDocument fallback in hatchLookup. If either regresses,
+ * every segment stays at 45° and step 5 fails (teeth-verified).
  */
 import { test, expect } from '@playwright/test';
 import { buildBox, waitForKernelReady } from '../helpers/buildBox';

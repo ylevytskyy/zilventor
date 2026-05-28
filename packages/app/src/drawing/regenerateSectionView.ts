@@ -139,7 +139,7 @@ export async function regenerateSectionView(
   const materials =
     state.activePart?.materials ??
     state.activeAssembly?.materials ??
-    (state.activeDrawingSourceDocument as { materials?: import('@zilventor/shared').MaterialEntry[] } | null)?.materials ??
+    state.activeDrawingSourceDocument?.materials ??
     [];
   const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
     // Empty materialId is the single-part case (kernel stamps '' on every faceTag for non-assembly cuts).
