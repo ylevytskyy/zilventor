@@ -10,6 +10,7 @@ import { addFeature, newPart } from '@zilventor/kernel/src/adapter/PartDocument'
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import type { Command } from './Command';
 import { useAppStore } from '../store/useAppStore';
+import { syncPartMaterials } from '../store/syncPartMaterials';
 import {
   reconcileMaterials,
   type PanelMaterialRef,
@@ -88,6 +89,12 @@ export class CreateAndPlacePanelCommand implements Command {
         useAppStore.getState().addMaterial(m);
       }
     }
+    // syncPartMaterials() is a no-op here because CreateAndPlacePanelCommand always
+    // runs in an assembly context (activePart is null). The call is wired per the
+    // kernel-sync spec so future part-targeted variants don't reintroduce the gap.
+    // See: packages/app/src/commands/__tests__/CreateAndPlacePanelCommand.spec.ts
+    //      "CreateAndPlacePanelCommand — kernel sync" describe block.
+    await syncPartMaterials();
 
     // 5. Place the new part into the assembly at origin.
     const placedId = `C${Date.now()}`;

@@ -8,6 +8,7 @@ import type {
 } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION, isPanelFeature, migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { syncPartMaterials } from '../store/syncPartMaterials';
 import { wouldCreateCycle } from '../assembly/cycleCheck';
 import type { OpfsLike } from '../assembly/SubAssemblyCache';
 import {
@@ -155,6 +156,10 @@ export class PlaceComponentCommand implements Command {
           useAppStore.getState().addMaterial(m);
         }
       }
+      // Mirror post-loop materials into kernel (no-op when assembly active; activePart is null).
+      // See: packages/app/src/commands/__tests__/PlaceComponentCommand.spec.ts
+      //      "PlaceComponentCommand — kernel sync" describe blocks.
+      await syncPartMaterials();
     }
   }
 }

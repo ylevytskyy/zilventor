@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { AssemblyDocument, MaterialEntry, PanelFeature } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { CreateAndPlacePanelCommand } from '../CreateAndPlacePanelCommand';
@@ -122,5 +122,38 @@ describe('CreateAndPlacePanelCommand', () => {
       opfs,
     });
     await expect(cmd.apply()).rejects.toThrow(/NO_ACTIVE_ASSEMBLY/);
+  });
+});
+
+// CreateAndPlacePanelCommand always asserts activeAssembly (activePart is null).
+// syncPartMaterials() is wired per the kernel-sync spec but is a no-op here.
+describe('CreateAndPlacePanelCommand — kernel sync (assembly active)', () => {
+  beforeEach(() => {
+    // Ensure assembly is active before injecting kernel mock.
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: emptyAssembly() });
+  });
+
+  afterEach(() => {
+    useAppStore.setState({ kernel: null } as never);
+    vi.restoreAllMocks();
+  });
+
+  it('addMaterial call does NOT call kernel.setMaterials (null guard, assembly active)', async () => {
+    const mockSetMaterials = vi.fn().mockResolvedValue(undefined);
+    // Partial mock — no setKernel action on store.
+    useAppStore.setState({ kernel: { setMaterials: mockSetMaterials } as never } as never);
+
+    const opfs = new MemOpfs();
+    const cmd = new CreateAndPlacePanelCommand({
+      partName: 'Sync Test Panel',
+      partPath: 'parts/sync-panel.zipt',
+      panel: PANEL,
+      partMaterials: PART_MATS,
+      opfs,
+    });
+    await cmd.apply();
+
+    // Assembly active — activePart is null — syncPartMaterials is a no-op.
+    expect(mockSetMaterials).not.toHaveBeenCalled();
   });
 });
