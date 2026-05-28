@@ -111,7 +111,8 @@ describe('FileTab', () => {
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
 
-    const fakeHandle = { kind: 'file' } as unknown as FileSystemFileHandle;
+    const fakeWritable = { write: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) };
+    const fakeHandle = { kind: 'file', createWritable: vi.fn().mockResolvedValue(fakeWritable) } as unknown as FileSystemFileHandle;
     (window as any).showSaveFilePicker = vi.fn().mockResolvedValue(fakeHandle);
 
     render(<FileTab />);

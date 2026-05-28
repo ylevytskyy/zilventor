@@ -4,13 +4,12 @@ import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
-import { writeToHandle } from '@zilventor/kernel/src/storage/FileSystemAccess';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
+import { saveBlob } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 type FSAWindow = Window & {
-  showSaveFilePicker: (o: unknown) => Promise<FileSystemFileHandle>;
   showOpenFilePicker: (o: unknown) => Promise<FileSystemFileHandle[]>;
 };
 
@@ -45,35 +44,36 @@ export default function FileTab() {
 
       if (activeDocument.kind === 'drawing') {
         const doc = activeDocument.document;
-        const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
-          suggestedName: `${doc.name}.zidw`,
-          types: [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }]
-        });
         const archive = await packDrawing(doc);
-        await writeToHandle(handle, archive);
-        setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        const saved = await saveBlob(
+          new Blob([archive]),
+          `${doc.name}.zidw`,
+          [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
+        );
+        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
         return;
       }
       if (activeDocument.kind === 'assembly') {
         const doc = activeDocument.document;
-        const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
-          suggestedName: `${doc.name}.ziasm`,
-          types: [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }]
-        });
         const archive = await packAssembly(doc, thumbnail ?? new Uint8Array());
-        await writeToHandle(handle, archive);
-        setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        const saved = await saveBlob(
+          new Blob([archive]),
+          `${doc.name}.ziasm`,
+          [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
+        );
+        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
         return;
       }
 
-      // Part path (existing behavior)
+      // Part path
       if (!kernel || !activePart) return;
-      const handle = await (window as unknown as FSAWindow).showSaveFilePicker({
-        suggestedName: `${activePart.name}.zipt`,
-        types: [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }]
-      });
-      await kernel.save(activePart.id, handle, thumbnail);
-      setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+      const bytes = await kernel.saveToBytes(activePart.id, thumbnail);
+      const saved = await saveBlob(
+        new Blob([bytes]),
+        `${activePart.name}.zipt`,
+        [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
+      );
+      if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setErrorDialog(`Save failed: ${(e as Error).message}`);
