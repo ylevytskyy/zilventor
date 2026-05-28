@@ -5,7 +5,7 @@ import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
 import { disposeShape, type OcctShape } from './occt/SolidOps';
 import { writeBRep, readBRep } from './occt/BRepIO';
-import { readStep } from './occt/StepIO';
+import { readStep, extractStepSolids as extractStepSolidsHelper } from './occt/StepIO';
 import { tessellate } from './occt/Tessellator';
 import { getProjectorInput as getProjectorInputFn, type GetProjectorInputArgs } from './adapter/drawing/getProjectorInput';
 import { packProject, unpackProject } from './storage/ProjectPacker';
@@ -92,6 +92,10 @@ export type KernelApi = {
     boundingBox: BoundingBox;
     faceCount: number;
   }>;
+  extractStepSolids(params: { stepBytes: ArrayBuffer }): Promise<Array<{
+    brepBlobId: string;
+    boundingBox: BoundingBox;
+  }>>;
   /** Returns projection-ready triangles+edges+bbox for a part or assembly.
    *
    *  For a part: pass `{ kind: 'part'; partId: string }`.  Returns null if
@@ -427,6 +431,15 @@ export function createKernelApi(): KernelApi {
         boundingBox: result.boundingBox,
         faceCount: result.faceCount,
       };
+    },
+
+    async extractStepSolids({ stepBytes }) {
+      if (!occt) throw new Error('kernel not initialized');
+      const solids = extractStepSolidsHelper(occt, stepBytes);
+      return solids.map((s) => {
+        registerImportedShape(s.brepBlobId, s.shape);
+        return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox };
+      });
     },
 
     async extractAssemblyCircularEdge(partId, edge) {
