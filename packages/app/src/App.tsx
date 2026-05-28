@@ -422,6 +422,16 @@ export default function App() {
           kernel: kernel as unknown as Parameters<typeof runInventorImport>[0]['kernel'],
         });
       };
+      w.__zilventorImportStepFromBytes = async (bytes: number[], filename: string) => {
+        const { kernel: k, setActivePart: sap, setStatus: ss } = useAppStore.getState();
+        if (!k) throw new Error('__zilventorImportStepFromBytes: kernel not ready');
+        const { importStepIntoNewPart } = await import('./import/importStepIntoNewPart');
+        const file = new File([new Uint8Array(bytes)], filename, { type: 'application/step' });
+        const { partId, part } = await importStepIntoNewPart(file, k);
+        sap(part);
+        ss('Imported');
+        return { partId, partName: part.name };
+      };
       w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
       // Cut-list E2E hook: load panel specs from OPFS for all leaf components in
       // the active assembly and populate the panelSpecCacheRef so useCutListResult
