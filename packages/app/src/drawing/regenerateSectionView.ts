@@ -136,7 +136,11 @@ export async function regenerateSectionView(
   // 5. Resolve materials for hatch lookup.
   const materials = state.activePart?.materials ?? state.activeAssembly?.materials ?? [];
   const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
-    const mat = materials.find((m) => m.id === materialId);
+    // Empty materialId is the single-part case (kernel stamps '' on every faceTag for non-assembly cuts).
+    // Fall back to materials[0] as the implicit "primary material" — symmetric with colorForFace's part-source fallback.
+    const mat = materialId
+      ? materials.find((m) => m.id === materialId)
+      : materials[0];
     return getHatchSpec(mat ?? { id: materialId, name: '', defaultThickness: 0, color: '#808080' });
   };
 
