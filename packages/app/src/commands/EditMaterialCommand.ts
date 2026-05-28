@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { MaterialEntry } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { syncPartMaterials } from '../store/syncPartMaterials';
 
 export type EditMaterialPatch = Partial<Omit<MaterialEntry, 'id'>> & {
   /** When true, the reducer removes sheetLengthMm + sheetWidthMm from the entry (atomic with any other patch fields). */
@@ -33,6 +34,7 @@ export class EditMaterialCommand implements Command {
     }
     this.prev = existing;
     useAppStore.getState().updateMaterial(this.id, this.patch);
+    await syncPartMaterials();
   }
 
   async revert(): Promise<void> {
@@ -50,6 +52,7 @@ export class EditMaterialCommand implements Command {
         : rest;
       useAppStore.getState().updateMaterial(this.id, patch);
       this.prev = null;
+      await syncPartMaterials();
     }
   }
 }

@@ -208,3 +208,64 @@ describe('AddMaterialCommand — kernel sync', () => {
     expect(revertedPart.materials).toHaveLength(0);
   });
 });
+
+describe('EditMaterialCommand — kernel sync', () => {
+  let mockSetMaterials: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSetMaterials = vi.fn().mockResolvedValue(undefined);
+    // Inject mock kernel into store. Partial mock — no setKernel action on store.
+    useAppStore.setState({ kernel: { setMaterials: mockSetMaterials } as never } as never);
+  });
+
+  afterEach(() => {
+    useAppStore.setState({ kernel: null } as never);
+    vi.restoreAllMocks();
+  });
+
+  it('apply() calls kernel.setMaterials with updated materials (part active)', async () => {
+    const mat: MaterialEntry = { id: 'm-edit', name: 'Pine', defaultThickness: 18, color: '#a0a0a0' };
+    const part: PartDocument = {
+      id: 'p-edit-1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [mat], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new EditMaterialCommand('m-edit', { name: 'Pine 20', defaultThickness: 20, color: '#b0b0b0' });
+    await cmd.apply();
+
+    const updated = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(updated.id, updated.materials);
+    expect(updated.materials[0]!.name).toBe('Pine 20');
+  });
+
+  it('apply() does NOT call kernel.setMaterials when assembly is active', async () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: emptyAssembly() });
+    useAppStore.getState().addMaterial({ id: 'm-asm', name: 'Oak', defaultThickness: 22, color: '#8b5e3c' });
+
+    const cmd = new EditMaterialCommand('m-asm', { name: 'Oak 22' });
+    await cmd.apply();
+
+    expect(mockSetMaterials).not.toHaveBeenCalled();
+  });
+
+  it('revert() calls kernel.setMaterials restoring prior materials (part active)', async () => {
+    const mat: MaterialEntry = { id: 'm-rev', name: 'Spruce', defaultThickness: 15, color: '#c0c0c0' };
+    const part: PartDocument = {
+      id: 'p-edit-2', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [mat], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new EditMaterialCommand('m-rev', { name: 'Spruce Edited', color: '#d0d0d0' });
+    await cmd.apply();
+    mockSetMaterials.mockClear();
+
+    await cmd.revert();
+    const reverted = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(reverted.id, reverted.materials);
+    expect(reverted.materials[0]!.name).toBe('Spruce');
+  });
+});
