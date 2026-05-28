@@ -432,6 +432,22 @@ export default function App() {
         ss('Imported');
         return { partId, partName: part.name };
       };
+      w.__zilventorImportStepIntoAssembly = async (bytes: number[], filename: string) => {
+        const { kernel: k, bus: b } = useAppStore.getState();
+        if (!k) throw new Error('kernel not ready');
+        const { ImportStepAsComponentCommand } = await import('./commands/ImportStepAsComponentCommand');
+        const { Opfs: OpfsClass } = await import('@zilventor/kernel/src/storage/Opfs');
+        const opfs = await OpfsClass.forNavigator();
+        const stepBuf = new Uint8Array(bytes).buffer;
+        const cmd = new ImportStepAsComponentCommand({ stepBytes: stepBuf, fileName: filename, kernel: k, opfs });
+        await b.execute(cmd);
+        const s = useAppStore.getState();
+        const doc = s.activeDocument;
+        return {
+          componentCount: doc?.kind === 'assembly' ? doc.document.components.length : -1,
+          statusMessage: s.statusMessage,
+        };
+      };
       w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
       // Cut-list E2E hook: load panel specs from OPFS for all leaf components in
       // the active assembly and populate the panelSpecCacheRef so useCutListResult
