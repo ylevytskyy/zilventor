@@ -1,4 +1,4 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput, MaterialEntry } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
@@ -66,6 +66,7 @@ export type KernelApi = {
   removePrimitive(partId: string, sketchId: string, primitiveId: string): Promise<void>;
   setParameter(partId: string, param: Parameter): Promise<void>;
   deleteParameter(partId: string, name: string): Promise<void>;
+  setMaterials(partId: string, materials: MaterialEntry[]): Promise<void>;
   deletePart(partId: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   previewFeature(partId: string, feature: Feature): Promise<Result<ExecuteResult, KernelError>>;
@@ -234,6 +235,12 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
       parts.set(partId, removeParameterFromPart(p, name));
+    },
+
+    async setMaterials(partId, materials) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`setMaterials: unknown partId ${partId}`);
+      parts.set(partId, { ...p, materials: [...materials] });
     },
 
     async deletePart(partId) {
