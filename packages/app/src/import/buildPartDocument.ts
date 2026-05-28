@@ -1,15 +1,6 @@
 import type { PartDocument, ImportedFeature, SketchParameter, Feature } from '@zilventor/shared';
 import type { ImporterPartJson, ImporterParameter } from './inventorJsonSchema';
-
-const ORIGIN_FEATURES: Feature[] = [
-  { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
-  { kind: 'workAxis', id: 'origin.Y', visible: false, source: { mode: 'origin', axis: 'Y' } },
-  { kind: 'workAxis', id: 'origin.Z', visible: false, source: { mode: 'origin', axis: 'Z' } },
-  { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
-  { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
-  { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
-  { kind: 'workPoint', id: 'origin.O', visible: false, source: { mode: 'origin' } },
-];
+import { ORIGIN_FEATURES, stepFilenameBasename } from './originFeatures';
 
 export type BuildPartArgs = {
   partJson: ImporterPartJson;
@@ -17,11 +8,6 @@ export type BuildPartArgs = {
   partId: string;
   importedFeatureId: string;
 };
-
-function stepFilenameBasename(stepRef: string): string {
-  const base = stepRef.split('/').pop() ?? stepRef;
-  return base.replace(/\.step$/i, '');
-}
 
 function toSketchParameter(name: string, p: ImporterParameter): SketchParameter {
   switch (p.unit) {
