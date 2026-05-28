@@ -448,6 +448,37 @@ export default function App() {
           statusMessage: s.statusMessage,
         };
       };
+      (window as unknown as {
+        __zilventorMultiBodyStepImport?: (
+          fileName: string,
+          stepBytesBase64: string,
+        ) => Promise<{
+          componentCount: number;
+          statusMessage: string;
+          partNames: string[];
+        }>;
+      }).__zilventorMultiBodyStepImport = async (fileName, stepBytesBase64) => {
+        const bin = atob(stepBytesBase64);
+        const bytesArr: number[] = new Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytesArr[i] = bin.charCodeAt(i);
+
+        const result = await (window as unknown as {
+          __zilventorImportStepIntoAssembly: (
+            bytes: number[],
+            filename: string,
+          ) => Promise<{ componentCount: number; statusMessage: string }>;
+        }).__zilventorImportStepIntoAssembly(bytesArr, fileName);
+
+        const asm = useAppStore.getState().activeAssembly;
+        const partPaths = (asm?.components ?? []).map((c) => c.partPath);
+        const partNames = partPaths.map((p) => p.replace(/\.zipt$/, ''));
+
+        return {
+          componentCount: result.componentCount,
+          statusMessage: result.statusMessage,
+          partNames,
+        };
+      };
       w.__zilventorAssemblyGeomCacheSize = () => geometryCacheRef.current.size;
       // Cut-list E2E hook: load panel specs from OPFS for all leaf components in
       // the active assembly and populate the panelSpecCacheRef so useCutListResult
