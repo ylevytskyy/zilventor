@@ -1,4 +1,4 @@
-import type { PartDocument, ImportedFeature, SketchParameter, Feature } from '@zilventor/shared';
+import type { PartDocument, ImportedFeature, SketchParameter } from '@zilventor/shared';
 import type { ImporterPartJson, ImporterParameter } from './inventorJsonSchema';
 import { ORIGIN_FEATURES, stepFilenameBasename } from './originFeatures';
 
