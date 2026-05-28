@@ -46,6 +46,8 @@ describe('kernel.registerPart (integration)', () => {
     // 3. Register and verify getPart round-trips.
     await api.registerPart(part);
     const fetched = await api.getPart(part.id);
+    expect(fetched).not.toBeNull();
+    if (!fetched) throw new Error('unreachable');
     expect(fetched.id).toBe(part.id);
     expect(fetched.featureTree).toHaveLength(8);
 
