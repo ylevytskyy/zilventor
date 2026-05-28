@@ -1,6 +1,7 @@
 import type { KernelApi } from '@zilventor/kernel/src/api';
-import type { PartDocument, ImportedFeature } from '@zilventor/shared';
-import { ORIGIN_FEATURES, stepFilenameBasename } from './originFeatures';
+import type { PartDocument } from '@zilventor/shared';
+import { stepFilenameBasename } from './originFeatures';
+import { buildImportedPartDocument } from './buildImportedPartDocument';
 
 /**
  * Imports a stand-alone STEP file as a new PartDocument and registers it
@@ -20,26 +21,8 @@ export async function importStepIntoNewPart(
 
   const importResult = await kernel.importStep({ stepBytes, partName });
 
-  const partId = crypto.randomUUID();
-  const importedFeatureId = crypto.randomUUID();
-  const importedFeature: ImportedFeature = {
-    kind: 'imported',
-    id: importedFeatureId,
-    sourceStep: file.name,
-    bodyRef: importResult.brepBlobId,
-  };
-
-  const part: PartDocument = {
-    id: partId,
-    name: partName,
-    units: 'mm',
-    parameters: {},
-    featureTree: [...ORIGIN_FEATURES, importedFeature],
-    properties: {},
-    materials: [],
-    hardware: [],
-  };
+  const part = buildImportedPartDocument(partName, importResult.brepBlobId, file.name);
 
   await kernel.registerPart(part);
-  return { partId, part };
+  return { partId: part.id, part };
 }
