@@ -98,6 +98,6 @@ describe('importStepIntoNewParts', () => {
     });
 
     expect(results).toHaveLength(1);
-    expect(kernel._registered[0]?.name).toBe('cube_1');
+    expect(kernel._registered[0]?.name).toBe('cube');
   });
 });

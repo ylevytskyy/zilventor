@@ -27,8 +27,9 @@ export type ImportStepIntoNewPartsResult = {
  * 1:N variant of importStepIntoNewPart. Calls kernel.extractStepSolids, then
  * for each sub-solid: build → registerPart → saveToBytes → opfs.write.
  *
- * Names are `${baseName}_1` … `${baseName}_N` with dedupeName against existing
- * `.zipt` files in OPFS. Does NOT setActiveDocument or addComponent — caller decides.
+ * Names: N==1 → `${baseName}` (bare, no suffix); N>1 → `${baseName}_1` … `${baseName}_N`.
+ * All names are passed through dedupeName against existing `.zipt` files in OPFS.
+ * Does NOT setActiveDocument or addComponent — caller decides.
  *
  * On partial failure mid-loop, rolls back: deletes parts registered so far + opfs entries.
  * (Kernel-side extractStepSolids is atomic — runs once, before any registerPart call.)
@@ -46,7 +47,7 @@ export async function importStepIntoNewParts(
 
   try {
     for (let i = 0; i < solids.length; i++) {
-      const candidateName = `${baseName}_${i + 1}`;
+      const candidateName = solids.length === 1 ? baseName : `${baseName}_${i + 1}`;
       const name = dedupeName(candidateName, [...existing, ...registered.map((r) => r.part.name)]);
       const solid = solids[i];
       if (!solid) continue;

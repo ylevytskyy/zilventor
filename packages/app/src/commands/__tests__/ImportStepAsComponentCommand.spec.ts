@@ -80,7 +80,7 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     const { activeAssembly } = useAppStore.getState();
     expect(activeAssembly?.components).toHaveLength(1);
     const c = activeAssembly!.components[0]!;
-    expect(c.partPath).toBe('hinge_1.zipt');
+    expect(c.partPath).toBe('hinge.zipt');
     expect(c.position).toEqual({ x: 0, y: 0, z: 0 });
     expect(c.rotation).toEqual({ rx: 0, ry: 0, rz: 0 });
     expect(c.visible).toBe(true);
@@ -99,7 +99,7 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
 
     expect(kernel.registerPart).toHaveBeenCalledOnce();
     const registered = (kernel.registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-    expect(registered.name).toBe('hinge_1');
+    expect(registered.name).toBe('hinge');
     expect(registered.featureTree.at(-1)?.kind).toBe('imported');
   });
 
@@ -114,7 +114,7 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     });
     await cmd.apply();
 
-    expect(await opfs.exists('hinge_1.zipt')).toBe(true);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
     // saveToBytes was called → the written bytes are the archive
     expect(kernel.saveToBytes).toHaveBeenCalledOnce();
   });
@@ -134,6 +134,9 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     expect(kernel.extractStepSolids).toHaveBeenCalledOnce();
     const arg = (kernel.extractStepSolids as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(new Uint8Array(arg.stepBytes as ArrayBuffer)).toEqual(STEP_BYTES);
+    // partName flows through baseName → dedupeName → registered part (N=1 → bare name, no suffix)
+    const registered = (kernel.registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(registered.name).toBe('MyHinge');
   });
 });
 
@@ -173,7 +176,7 @@ describe('ImportStepAsComponentCommand — part-active path', () => {
     });
     await cmd.apply();
 
-    expect(useAppStore.getState().activePart?.name).toBe('bolt_1');
+    expect(useAppStore.getState().activePart?.name).toBe('bolt');
   });
 });
 
@@ -212,7 +215,7 @@ describe('ImportStepAsComponentCommand — drawing-active path', () => {
     });
     await cmd.apply();
 
-    expect(useAppStore.getState().activePart?.name).toBe('bracket_1');
+    expect(useAppStore.getState().activePart?.name).toBe('bracket');
   });
 });
 
@@ -226,7 +229,7 @@ describe('ImportStepAsComponentCommand — name dedupe', () => {
     });
   });
 
-  it('uses base_1 name when no collision exists', async () => {
+  it('uses base name when no collision exists', async () => {
     const kernel = makeKernel();
     const opfs = new MemOpfs();
     const cmd = new ImportStepAsComponentCommand({
@@ -236,10 +239,10 @@ describe('ImportStepAsComponentCommand — name dedupe', () => {
       opfs: opfs as any,
     });
     await cmd.apply();
-    expect(await opfs.exists('hinge_1.zipt')).toBe(true);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
   });
 
-  it('appends (2) when base_1 name is taken', async () => {
+  it('appends (2) when base name is taken', async () => {
     const kernel1 = makeKernel();
     const kernel2 = makeKernel();
     const opfs = new MemOpfs();
@@ -256,8 +259,8 @@ describe('ImportStepAsComponentCommand — name dedupe', () => {
     });
     await cmd2.apply();
 
-    expect(await opfs.exists('hinge_1.zipt')).toBe(true);
-    expect(await opfs.exists('hinge_1 (2).zipt')).toBe(true);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
+    expect(await opfs.exists('hinge (2).zipt')).toBe(true);
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(2);
   });
 });
@@ -294,10 +297,10 @@ describe('ImportStepAsComponentCommand — undo / redo', () => {
       kernel: kernel as any, opfs: opfs as any,
     });
     await cmd.apply();
-    expect(await opfs.exists('hinge_1.zipt')).toBe(true);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
 
     await cmd.revert();
-    expect(await opfs.exists('hinge_1.zipt')).toBe(false);
+    expect(await opfs.exists('hinge.zipt')).toBe(false);
   });
 
   it('revert() calls kernel.deletePart with the registered partId', async () => {
@@ -328,7 +331,7 @@ describe('ImportStepAsComponentCommand — undo / redo', () => {
     // redo = call apply() again
     await cmd.apply();
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(1);
-    expect(await opfs.exists('hinge_1.zipt')).toBe(true);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
 
     // Regression guard: redo MUST take the redoState branch and skip the
     // expensive STEP parse + archive serialize. If redoState were removed,
