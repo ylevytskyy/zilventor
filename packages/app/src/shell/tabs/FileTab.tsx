@@ -89,12 +89,22 @@ export default function FileTab() {
           { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
           { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
           { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
+          { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
         ]
       });
       if (!handle) return;
 
       // Peek the manifest to discriminate kind before branching
       const file = await handle.getFile();
+
+      // STEP early-branch: must run BEFORE the tar.gz manifest peek
+      if (/\.(step|stp)$/i.test(file.name)) {
+        const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
+        const { part } = await importStepIntoNewPart(file, kernel);
+        setActivePart(part);
+        setStatus('Imported');
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       const entries = await readTarGz(bytes);
       const manifestEntry = entries.find((e) => e.name === 'manifest.json');

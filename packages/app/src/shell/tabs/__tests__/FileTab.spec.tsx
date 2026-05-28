@@ -4,6 +4,12 @@ import FileTab from '../FileTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
 
+// Mock importStepIntoNewPart so the STEP branch doesn't hit the real kernel
+vi.mock('../../../import/importStepIntoNewPart', () => ({
+  importStepIntoNewPart: vi.fn(),
+}));
+import { importStepIntoNewPart } from '../../../import/importStepIntoNewPart';
+
 // Mock kernel storage utilities so jsdom tests don't depend on tar-stream/streamx
 vi.mock('@zilventor/kernel/src/storage/tarGzipUtil', () => ({
   readTarGz: vi.fn(),
@@ -96,5 +102,46 @@ describe('FileTab', () => {
     const args = (window as any).showSaveFilePicker.mock.calls[0]![0];
     expect(args.suggestedName).toBe('cabinet.ziasm');
     expect(args.types[0].accept['application/zilinventor-assembly']).toContain('.ziasm');
+  });
+});
+
+describe('handleOpen — STEP branch', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: {} as any,
+    }));
+  });
+
+  it('routes a .step file through importStepIntoNewPart and activates the part', async () => {
+    const stepBytes = new Uint8Array([1, 2, 3]);
+    const fakeFile = new File([stepBytes], 'Knob.step', { type: 'application/step' });
+    // jsdom's File may lack arrayBuffer(); duck-type to ensure it's present.
+    Object.defineProperty(fakeFile, 'arrayBuffer', { value: async () => stepBytes.buffer });
+    const fakeHandle = { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+    (window as unknown as { showOpenFilePicker: () => Promise<[FileSystemFileHandle]> })
+      .showOpenFilePicker = async () => [fakeHandle];
+
+    const fakePart = {
+      id: 'step-part-1',
+      name: 'Knob',
+      units: 'mm' as const,
+      parameters: {},
+      featureTree: [],
+      properties: {},
+      materials: [],
+      hardware: [],
+    };
+    vi.mocked(importStepIntoNewPart).mockResolvedValue({ partId: 'step-part-1', part: fakePart });
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(useAppStore.getState().activePart?.name).toBe('Knob');
+    });
+
+    expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
+    expect(useAppStore.getState().statusMessage).toBe('Imported');
   });
 });
