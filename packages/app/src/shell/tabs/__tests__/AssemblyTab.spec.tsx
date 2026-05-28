@@ -17,6 +17,11 @@ vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   Opfs: { forNavigator: vi.fn().mockResolvedValue({}) },
 }));
 
+vi.mock('../../../import/extractStepFromZip', () => ({
+  extractStepFromZip: vi.fn(),
+}));
+import { extractStepFromZip } from '../../../import/extractStepFromZip';
+
 describe('AssemblyTab', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);
@@ -189,5 +194,54 @@ describe('AssemblyTab — Insert From STEP… button', () => {
     });
     const args = vi.mocked(ImportStepAsComponentCommand).mock.calls[0]?.[0];
     expect(args?.fileName).toBe('hinge.step');
+  });
+});
+
+describe('AssemblyTab — Insert From STEP… ZIP branch', () => {
+  const FAKE_STEP_BYTES = new Uint8Array([1, 2, 3, 4]);
+
+  beforeEach(() => {
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+    vi.mocked(extractStepFromZip).mockClear();
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: makeDoc('cabinet') });
+  });
+
+  it('clicking Insert with a ZIP containing STEP dispatches ImportStepAsComponentCommand', async () => {
+    vi.mocked(extractStepFromZip).mockReturnValue({
+      fileName: 'Cadeira_preta.stp',
+      stepBytes: FAKE_STEP_BYTES.buffer,
+    });
+
+    const zipBytes = new Uint8Array([80, 75, 3, 4]);
+    const fakeFile = { name: 'Cadeira_preta.zip', arrayBuffer: async () => zipBytes.buffer };
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([{ getFile: async () => fakeFile }]);
+
+    render(<AssemblyTab />);
+    const btn = screen.getByRole('button', { name: /insert from step/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(vi.mocked(ImportStepAsComponentCommand)).toHaveBeenCalledOnce();
+    });
+    const args = vi.mocked(ImportStepAsComponentCommand).mock.calls[0]?.[0];
+    expect(args?.fileName).toBe('Cadeira_preta.stp');
+  });
+
+  it('clicking Insert with a ZIP without STEP sets the no-STEP status', async () => {
+    vi.mocked(extractStepFromZip).mockReturnValue(null);
+
+    const zipBytes = new Uint8Array([80, 75, 3, 4]);
+    const fakeFile = { name: 'textures-only.zip', arrayBuffer: async () => zipBytes.buffer };
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([{ getFile: async () => fakeFile }]);
+
+    render(<AssemblyTab />);
+    const btn = screen.getByRole('button', { name: /insert from step/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(useAppStore.getState().statusMessage).toMatch(/no step\/stp file found in archive/i);
+    });
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
   });
 });

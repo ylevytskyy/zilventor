@@ -35,8 +35,29 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
     try {
       const file = await pickFile([
         { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
+        { description: 'ZIP archive (with STEP inside)', accept: { 'application/zip': ['.zip'] } },
       ]);
       if (!file) return;
+
+      // ZIP branch: extract first STEP entry
+      if (/\.zip$/i.test(file.name)) {
+        const { extractStepFromZip } = await import('../../import/extractStepFromZip');
+        const zipBytes = new Uint8Array(await file.arrayBuffer());
+        const extracted = extractStepFromZip(zipBytes);
+        if (!extracted) {
+          useAppStore.getState().setStatus(
+            'Insert From STEP failed: No STEP/STP file found in archive',
+          );
+          return;
+        }
+        const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+        const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+        const opfs = await Opfs.forNavigator();
+        const cmd = new ImportStepAsComponentCommand({ stepBytes: extracted.stepBytes, fileName: extracted.fileName, kernel, opfs });
+        await bus.execute(cmd);
+        return;
+      }
+
       const stepBytes = await file.arrayBuffer();
       const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
       const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
