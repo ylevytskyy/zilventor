@@ -129,3 +129,82 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     expect(new Uint8Array(arg.stepBytes as ArrayBuffer)).toEqual(STEP_BYTES);
   });
 });
+
+// ---------- tests: non-assembly-active paths ----------------------------------
+
+describe('ImportStepAsComponentCommand — part-active path', () => {
+  beforeEach(() => {
+    // Set active document to a part (no assembly)
+    useAppStore.getState().setActivePart({
+      id: 'part-1', name: 'MyPart', units: 'mm', parameters: {},
+      featureTree: [], properties: {}, materials: [], hardware: [],
+    });
+  });
+
+  it('apply() does NOT mutate any assembly (there is none)', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'bolt.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+
+    expect(useAppStore.getState().activeAssembly).toBeNull();
+  });
+
+  it('apply() switches activePart to the imported part', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'bolt.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+
+    expect(useAppStore.getState().activePart?.name).toBe('bolt');
+  });
+});
+
+describe('ImportStepAsComponentCommand — drawing-active path', () => {
+  beforeEach(() => {
+    // Set active document to a drawing
+    const drawing = {
+      id: 'd1', name: 'Sheet1', kind: 'drawing' as const,
+      sheets: [], properties: {}, parameters: {},
+    } as unknown as import('@zilventor/shared').DrawingDocument;
+    useAppStore.getState().setActiveDocument({ kind: 'drawing', document: drawing });
+  });
+
+  it('apply() does NOT insert into an assembly', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'bracket.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+
+    expect(useAppStore.getState().activeAssembly).toBeNull();
+  });
+
+  it('apply() switches activePart to the new standalone part', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'bracket.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+
+    expect(useAppStore.getState().activePart?.name).toBe('bracket');
+  });
+});
