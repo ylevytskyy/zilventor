@@ -208,3 +208,119 @@ describe('ImportStepAsComponentCommand — drawing-active path', () => {
     expect(useAppStore.getState().activePart?.name).toBe('bracket');
   });
 });
+
+// ---------- tests: name dedupe -----------------------------------------------
+
+describe('ImportStepAsComponentCommand — name dedupe', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument({
+      kind: 'assembly',
+      document: makeDoc('cabinet'),
+    });
+  });
+
+  it('uses base name when no collision exists', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'hinge.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
+  });
+
+  it('appends (2) when base name is taken', async () => {
+    const kernel1 = makeKernel();
+    const kernel2 = makeKernel();
+    const opfs = new MemOpfs();
+
+    const cmd1 = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel1 as any, opfs: opfs as any,
+    });
+    await cmd1.apply();
+
+    const cmd2 = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel2 as any, opfs: opfs as any,
+    });
+    await cmd2.apply();
+
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
+    expect(await opfs.exists('hinge (2).zipt')).toBe(true);
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(2);
+  });
+});
+
+// ---------- tests: undo / redo -----------------------------------------------
+
+describe('ImportStepAsComponentCommand — undo / redo', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument({
+      kind: 'assembly',
+      document: makeDoc('cabinet'),
+    });
+  });
+
+  it('revert() removes the component from the assembly', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel as any, opfs: opfs as any,
+    });
+    await cmd.apply();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(1);
+
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
+  });
+
+  it('revert() deletes the .zipt from OPFS', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel as any, opfs: opfs as any,
+    });
+    await cmd.apply();
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
+
+    await cmd.revert();
+    expect(await opfs.exists('hinge.zipt')).toBe(false);
+  });
+
+  it('revert() calls kernel.deletePart with the registered partId', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel as any, opfs: opfs as any,
+    });
+    await cmd.apply();
+    const registeredId = (kernel.registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0].id;
+
+    await cmd.revert();
+    expect(kernel.deletePart).toHaveBeenCalledWith(registeredId);
+  });
+
+  it('apply() after revert() (redo) re-inserts and re-persists', async () => {
+    const kernel = makeKernel();
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer, fileName: 'hinge.step',
+      kernel: kernel as any, opfs: opfs as any,
+    });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
+
+    // redo = call apply() again
+    await cmd.apply();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(1);
+    expect(await opfs.exists('hinge.zipt')).toBe(true);
+  });
+});
