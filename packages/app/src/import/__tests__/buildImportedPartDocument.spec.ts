@@ -20,7 +20,7 @@ describe('buildImportedPartDocument', () => {
     expect(imported.bodyRef).toBe('blob-abc');
   });
 
-  it('generates a stable UUID when no partId supplied', () => {
+  it('generates a fresh UUID per call when no partId supplied', () => {
     const a = buildImportedPartDocument('x', 'b', 'x.step');
     const b = buildImportedPartDocument('x', 'b', 'x.step');
     expect(a.id).toMatch(/[0-9a-f-]{36}/);
