@@ -280,7 +280,7 @@ type AppState = {
   setCutListItemNumbers(map: Record<string, number>): void;
   setComponentDiagnostics(diags: Array<{ componentId: string; message: string }>): void;
   addMaterial(entry: MaterialEntry): void;
-  updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>> & { clearSheetStock?: true }): void;
+  updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>> & { clearSheetStock?: true; clearHatch?: true }): void;
   removeMaterial(id: string): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
@@ -690,13 +690,17 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 
   updateMaterial: (id, patch) => set((s) => {
-    const { clearSheetStock, ...rest } = patch as typeof patch & { clearSheetStock?: true };
+    const { clearSheetStock, clearHatch, ...rest } = patch as typeof patch & { clearSheetStock?: true; clearHatch?: true };
     const applyPatch = (m: MaterialEntry): MaterialEntry => {
       if (m.id !== id) return m;
-      const merged: MaterialEntry = { ...m, ...rest };
+      let merged: MaterialEntry = { ...m, ...rest };
       if (clearSheetStock) {
         const { sheetLengthMm: _l, sheetWidthMm: _w, ...stripped } = merged;
-        return stripped as MaterialEntry;
+        merged = stripped as MaterialEntry;
+      }
+      if (clearHatch) {
+        const { hatchAngleDeg: _a, hatchSpacingMm: _sp, ...stripped } = merged;
+        merged = stripped as MaterialEntry;
       }
       return merged;
     };
