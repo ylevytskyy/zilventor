@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { AssemblyDocument, MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { AddMaterialCommand } from '../AddMaterialCommand';
@@ -144,5 +144,67 @@ describe('EditMaterialCommand — sheet stock fields', () => {
     const reverted = useAppStore.getState().activeAssembly!.materials.find((m) => m.id === entry.id)!;
     expect(reverted.sheetLengthMm).toBe(2440);
     expect(reverted.sheetWidthMm).toBe(1220);
+  });
+});
+
+describe('AddMaterialCommand — kernel sync', () => {
+  let mockSetMaterials: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSetMaterials = vi.fn().mockResolvedValue(undefined);
+    // Inject mock kernel into store. Partial mock — no setKernel action on store.
+    useAppStore.setState({
+      kernel: { setMaterials: mockSetMaterials } as never,
+    } as never);
+  });
+
+  afterEach(() => {
+    useAppStore.setState({ kernel: null } as never);
+    vi.restoreAllMocks();
+  });
+
+  it('apply() calls kernel.setMaterials with the part id and updated materials (part active)', async () => {
+    // Seed a part as active document.
+    const part: PartDocument = {
+      id: 'p-sync-1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new AddMaterialCommand({ name: 'Walnut', defaultThickness: 18, color: '#5a3a1a' });
+    await cmd.apply();
+
+    const updatedPart = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(updatedPart.id, updatedPart.materials);
+    expect(updatedPart.materials).toHaveLength(1);
+  });
+
+  it('apply() does NOT call kernel.setMaterials when assembly is active', async () => {
+    // Assembly active — activePart is null — syncPartMaterials no-ops.
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: emptyAssembly() });
+
+    const cmd = new AddMaterialCommand({ name: 'Walnut', defaultThickness: 18, color: '#5a3a1a' });
+    await cmd.apply();
+
+    expect(mockSetMaterials).not.toHaveBeenCalled();
+  });
+
+  it('revert() calls kernel.setMaterials after removing the material (part active)', async () => {
+    const part: PartDocument = {
+      id: 'p-sync-2', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new AddMaterialCommand({ name: 'Cherry', defaultThickness: 15, color: '#8b1a1a' });
+    await cmd.apply();
+    mockSetMaterials.mockClear();
+
+    await cmd.revert();
+    const revertedPart = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(revertedPart.id, revertedPart.materials);
+    expect(revertedPart.materials).toHaveLength(0);
   });
 });

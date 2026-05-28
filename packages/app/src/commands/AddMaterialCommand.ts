@@ -1,6 +1,7 @@
 import type { Command } from './Command';
 import type { MaterialEntry } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { syncPartMaterials } from '../store/syncPartMaterials';
 
 export type AddMaterialOpts = {
   name: string;
@@ -42,12 +43,14 @@ export class AddMaterialCommand implements Command {
     };
     useAppStore.getState().addMaterial(entry);
     this.addedId = entry.id;
+    await syncPartMaterials();
   }
 
   async revert(): Promise<void> {
     if (this.addedId) {
       useAppStore.getState().removeMaterial(this.addedId);
       this.addedId = null;
+      await syncPartMaterials();
     }
   }
 }
