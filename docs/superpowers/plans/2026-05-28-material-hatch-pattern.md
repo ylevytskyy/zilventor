@@ -845,12 +845,10 @@ describe('hatchLookup — part-source fallback to materials[0]', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: Run the test — it should PASS immediately (spec-pinning, not red gate)**
 
 Run: `pnpm --filter app exec vitest run src/commands/__tests__/AddSectionViewCommand.hatchLookup.spec.ts`
-Expected: PASS. (This test is over a local helper that already encodes the desired behavior — it serves as the spec.) Then we mirror this exact pattern into the three production sites; if any drifts, an integration test would catch it. The teeth come from the e2e in Task 5.
-
-Note: the test does not import production code yet — it pins the shape that production must match. Run it green from the start.
+Expected: PASS (5 tests). This is a deliberate departure from the strict red→green cycle: the test exercises a LOCAL `makeHatchLookup` helper that already encodes the desired behavior, serving as the BEHAVIORAL CONTRACT that the three production sites must match. The contract is enforced by the e2e in Task 5 (which will FAIL if any production site drifts from this shape). Mocked unit tests in the existing suite stub `projectSectionView` and never invoke the real closure, so an integration test here adds no coverage. Acceptable TDD exception.
 
 - [ ] **Step 3: Apply the fallback at `AddSectionViewCommand.ts:138-140`**
 
