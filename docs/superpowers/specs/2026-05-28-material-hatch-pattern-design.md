@@ -4,20 +4,20 @@
 
 ## Why
 
-`MaterialEntry.hatchAngleDeg?` / `hatchSpacingMm?` already exist (optional, `packages/shared/src/material.ts:10–11`), `getHatchSpec` reads them with `45°/3mm` fallback, and `projectSectionView` already plumbs a per-face `getHatchSpec` callback at all three call sites (`AddSectionViewCommand` full/half + stepped, `regenerateSectionView`) for **both** part-source and assembly-source views. Three renderers (canvas/SVG/DXF) draw the pre-baked segments untouched.
+`MaterialEntry.hatchAngleDeg?` / `hatchSpacingMm?` already exist (optional, `packages/shared/src/material.ts:10–11`), `getHatchSpec` reads them with `45°/3mm` fallback, and `projectSectionView` already plumbs a per-face `getHatchSpec` callback at all three call sites (`AddSectionViewCommand` full/half + stepped, `regenerateSectionView`). Three renderers (canvas/SVG/DXF) draw the pre-baked segments untouched.
 
-Yet **no material anywhere in the codebase sets these fields** and the **`MaterialRegistryEditor` UI has no controls for them**, so every section view falls back to the 45°/3mm default. Different materials therefore look identical in section — the engineering-drawing convention of distinguishing materials by hatch pattern is dormant.
+Yet **no material anywhere in the codebase sets these fields** and the **`MaterialRegistryEditor` UI has no controls for them**. Worse, for single-PART section views the kernel stamps `materialId: ''` on every face tag (`packages/kernel/src/section/cutBySectionPlane.ts:226/231/234/304/674`) so the existing `hatchLookup` always misses and returns the default — only ASSEMBLY-sourced sections (where the kernel rewrites `materialId` to `partId → materials[0].id` at lines 392/443) get per-material lookup. As a result, every section view today renders 45°/3mm regardless of any material settings. Different materials look identical in section — the engineering-drawing convention is dormant for both data and wiring (in the single-part case).
 
-This feature makes the dormant fields settable.
+This feature makes the dormant fields settable AND extends the single-part hatchLookup with a `materials[0]` fallback symmetric to the existing color-feature fallback (`colorForFace` falls back to `state.activePart?.materials?.[0]?.color` when the per-component override isn't present).
 
 ## Scope (surgical)
 
-Add **"Hatch angle (°)"** and **"Hatch spacing (mm)"** inputs to `MaterialRegistryEditor`'s **edit-row form only** (Add form stays minimal; new materials inherit the default until edited). Two new table columns. Pair them as a both-or-neither override with a `clearHatch` flag, mirroring the existing `Sheet L/W` + `clearSheetStock` pattern exactly. No manifest bump, no renderer change, no projection change, no `AddMaterialCommand` change.
+Add **"Hatch angle (°)"** and **"Hatch spacing (mm)"** inputs to `MaterialRegistryEditor`'s **edit-row form only** (Add form stays minimal; new materials inherit the default until edited). Two new table columns. Pair them as a both-or-neither override with a `clearHatch` flag, mirroring the existing `Sheet L/W` + `clearSheetStock` pattern exactly. **Plus** extend the three `hatchLookup` definitions (`AddSectionViewCommand` full/half + stepped + `regenerateSectionView`) with a `materials[0]` fallback when `materialId === ''`, mirroring the color feature's part-source fallback. No manifest bump, no renderer change, no `AddMaterialCommand` change.
 
 ### Premise refinements (vs the seed brainstorm)
 
 1. **No seed catalog.** Materials start with an empty registry (`materials: []` in `newPart()` + v9→v10 migration); the "seed sensible defaults per material" half of the original seed has nothing to attach to. Feature collapses to editable fields. Per-material auto-distinct-on-create and name-keyword presets were both rejected in brainstorming.
-2. **Part-source already wired.** The premise's "decide whether to apply pattern to part-source hatch too" is moot — both `state.activePart?.materials ?? state.activeAssembly?.materials ?? []` lookups already exist at every section-projection call site.
+2. **Part-source projection only LOOKS wired.** Each of the three call sites does build `hatchLookup` from `state.activePart?.materials ?? state.activeAssembly?.materials ?? []`, but the kernel's single-part cut paths leave `materialId: ''` on every face tag, so `hatchLookup('')` never finds a match. For ASSEMBLY-source the kernel rewrites `materialId` to the component part's `materials[0].id`, so assembly lookup works as-is. The fix is a 1-line tweak per site: `materialId ? materials.find(…) : materials[0]`, exactly mirroring `colorForFace = state.activeDrawingSourceComponentColors?.[partId] ?? state.activePart?.materials?.[0]?.color`.
 
 ## Decisions (from brainstorming)
 
@@ -30,7 +30,7 @@ Add **"Hatch angle (°)"** and **"Hatch spacing (mm)"** inputs to `MaterialRegis
 | Validation | angle finite in **[0, 180)**; spacing finite **> 0** | Hatch angle is modulo 180 (a line is direction-less); spacing must be positive. |
 | Manifest | **No bump** | Fields are already optional on `MaterialEntry` (`v10` added the `materials` array; subsequent versions are unrelated). Old materials without the fields keep working. |
 
-## Files touched (3, all small)
+## Files touched (5, all small)
 
 1. **`packages/app/src/shell/MaterialRegistryEditor.tsx`** — the only substantial change
    - Two new `<th>` between Sheet W and Actions: "Hatch angle (°)", "Hatch spacing (mm)".
@@ -59,12 +59,18 @@ Add **"Hatch angle (°)"** and **"Hatch spacing (mm)"** inputs to `MaterialRegis
    - In the `applyPatch` reducer, after the existing `clearSheetStock` strip, mirror it for `clearHatch`: strip `hatchAngleDeg` and `hatchSpacingMm`.
    - Update the type on `updateMaterial` in the store interface (around line 283) to include `clearHatch?: true`.
 
+4. **`packages/app/src/commands/AddSectionViewCommand.ts`** — 2 lines (full/half site + stepped site)
+   - `AddSectionViewCommand.ts:138-140` and `:295-297` — change the `hatchLookup` body so empty `materialId` falls back to `materials[0]`: `const mat = materialId ? materials.find((m) => m.id === materialId) : materials[0];`. The `getHatchSpec(mat ?? synthetic)` line is unchanged.
+
+5. **`packages/app/src/drawing/regenerateSectionView.ts`** — 1 line (lines 138-140)
+   - Same edit as above. Same rationale.
+
 ### Files explicitly NOT touched
 
 - `packages/shared/src/material.ts` — type already correct; `getHatchSpec` already correct; `isMaterialEntry` is intentionally left alone (it isn't on the load path per `restoreLastOpenDocument`/`unpackProject` audits, so adding validation there has no runtime effect and would be tangential to the request — §3 surgical).
 - `packages/shared/src/drawing/projectSectionView.ts` — already calls `getHatchSpec` per face for both sources.
 - `packages/shared/src/drawing/hatchGenerator.ts` (a.k.a. `generateHatchSegments`) — already consumes angle/spacing correctly (covered by existing material-hatch unit tests).
-- `packages/app/src/commands/AddSectionViewCommand.ts` / `regenerateSectionView.ts` — `hatchLookup` already builds from `state.activePart?.materials ?? state.activeAssembly?.materials ?? []`.
+- `packages/kernel/src/section/cutBySectionPlane.ts` — the `materialId: ''` stamp is intentional kernel behavior; the fix lives in the APP layer's `hatchLookup` fallback so we don't perturb the kernel section API (which would impact assembly section + regen).
 - All 3 renderers (`ViewElement.tsx`, `renderDrawingSvg.ts`, `renderDrawingDxf.ts`) — draw pre-baked segments; nothing to change.
 - `AddMaterialCommand.ts` / `AddMaterialOpts` — Add form stays minimal (sheet-stock precedent).
 
@@ -95,18 +101,16 @@ Add **"Hatch angle (°)"** and **"Hatch spacing (mm)"** inputs to `MaterialRegis
 
 ### Real-environment e2e (CLAUDE.md §6, gate per `next_session_resume.md`)
 
-`tests/e2e/material-hatch-pattern.e2e.ts` (new), modeled on the existing material-hatch-color e2e:
+`tests/e2e/drawing/material-hatch-pattern.spec.ts` (new). Uses a SINGLE-PART section view to exercise the new `materials[0]` fallback path. Modeled on the existing material-hatch-color e2e's dev-hook usage but simpler (one part, one material, no manifest splicing needed).
 
 Flow:
-1. Boot the dev app, create/open a part with at least one section-cutting box face.
-2. Open the Material Registry editor; edit the existing material; set Hatch angle to **20°**, Hatch spacing to **2 mm**; Save.
-3. Create a section view through that material via the existing AddSectionView UI path.
-4. Read the resulting projected section's `hatchSegments` out of `window.__zilventorStore`. Compute the **angle of the first segment**: `atan2(p1.y - p0.y, p1.x - p0.x)`; assert close to **20°** (mod 180°) with a small tolerance — **NOT 45°**.
-5. Compute the perpendicular spacing between adjacent parallel segments; assert close to **2 mm** — NOT 3 mm.
-6. Save the part to disk, reload the app, re-open the file, re-read the material: hatch fields persist as 20 / 2.
-7. Open the Material Registry, edit, clear both hatch fields; Save; re-create section; assert angle ≈ 45° again (default restored).
+1. Boot the dev app and `buildBox` (30×30×20).
+2. Via the bus: `AddMaterialCommand` (name, color), then `EditMaterialCommand` setting `hatchAngleDeg: 20, hatchSpacingMm: 2`. Read the resulting `activePart.materials[0]` — assert both fields landed.
+3. Via the bus: `CreateDrawingCommand` (part source), `AddBaseViewCommand` (front), patch viewMatrix, `AddSectionViewCommand` (full mode, horizontal cut).
+4. Read `hatchSegments` from the resulting section view. Compute each segment's line angle: `atan2(p1.y - p0.y, p1.x - p0.x) * 180/π`, normalized to `[0, 180)`. Assert every segment's angle ≈ **20° ± 2°**, and explicitly **NOT ≈ 45°**.
+5. `await page.waitForTimeout(700)` (let the 500ms autosave debounce fire), then `page.reload()`. After `waitForKernelReady`, assert the restored part's `materials[0]` still has `hatchAngleDeg: 20, hatchSpacingMm: 2`.
 
-**Teeth verification (per `feedback_verify_before_done_claim` + `feedback_plan_snippets_are_reference`):** before merging, temporarily back out the `hatchLookup` wiring (e.g. replace it with the default-only callback) → e2e fails on step 4 (angle ≈ 45° instead of 20°). Restore.
+**Teeth verification (per `feedback_verify_before_done_claim` + `feedback_plan_snippets_are_reference`):** before merging, temporarily back out the new `materials[0]` fallback in `hatchLookup` → e2e fails on step 4 (angle ≈ 45° instead of 20°). Restore. This proves the new fallback is what's making the test pass, not pre-existing wiring.
 
 ### Perf gate
 
