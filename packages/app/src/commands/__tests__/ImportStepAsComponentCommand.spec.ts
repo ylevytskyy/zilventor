@@ -322,5 +322,11 @@ describe('ImportStepAsComponentCommand — undo / redo', () => {
     await cmd.apply();
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(1);
     expect(await opfs.exists('hinge.zipt')).toBe(true);
+
+    // Regression guard: redo MUST take the redoState branch and skip the
+    // expensive STEP parse + archive serialize. If redoState were removed,
+    // these would be called twice (once per apply) and the test would fail.
+    expect(kernel.importStep).toHaveBeenCalledTimes(1);
+    expect(kernel.saveToBytes).toHaveBeenCalledTimes(1);
   });
 });
