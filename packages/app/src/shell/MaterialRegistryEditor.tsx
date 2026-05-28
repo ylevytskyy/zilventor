@@ -83,9 +83,21 @@ function validateSheetStock(lStr: string, wStr: string): string | null {
   return null;
 }
 
+function validateHatchPattern(angleStr: string, spacingStr: string): string | null {
+  const aEmpty = angleStr.trim() === '';
+  const sEmpty = spacingStr.trim() === '';
+  if (aEmpty && sEmpty) return null;
+  if (aEmpty || sEmpty) return 'Set both Hatch angle and Hatch spacing, or leave both empty.';
+  const a = Number(angleStr), s = Number(spacingStr);
+  if (!Number.isFinite(a) || !Number.isFinite(s)) return 'Hatch angle/spacing must be numbers.';
+  if (a < 0 || a >= 180) return 'Hatch angle must be in [0, 180).';
+  if (s <= 0) return 'Hatch spacing must be > 0.';
+  return null;
+}
+
 type RowEditState =
   | { mode: 'idle' }
-  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; error: string | null }
+  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; hatchAngleDeg: string; hatchSpacingMm: string; error: string | null }
   | { mode: 'confirmDelete'; id: string; error: string | null };
 
 export type MaterialRegistryEditorProps = {
@@ -161,11 +173,30 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       setRowState({ ...rowState, error: sheetErr });
       return;
     }
+    const hatchErr = validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm);
+    if (hatchErr) {
+      setRowState({ ...rowState, error: hatchErr });
+      return;
+    }
     const lEmpty = rowState.sheetLengthMm.trim() === '';
     const wEmpty = rowState.sheetWidthMm.trim() === '';
-    const patch: EditMaterialPatch = (!lEmpty && !wEmpty)
-      ? { name, defaultThickness: thicknessNum, color: rowState.color, sheetLengthMm: Number(rowState.sheetLengthMm), sheetWidthMm: Number(rowState.sheetWidthMm) }
-      : { name, defaultThickness: thicknessNum, color: rowState.color, clearSheetStock: true };
+    const hAEmpty = rowState.hatchAngleDeg.trim() === '';
+    const hSEmpty = rowState.hatchSpacingMm.trim() === '';
+
+    const sheetPart: Partial<EditMaterialPatch> = (!lEmpty && !wEmpty)
+      ? { sheetLengthMm: Number(rowState.sheetLengthMm), sheetWidthMm: Number(rowState.sheetWidthMm) }
+      : { clearSheetStock: true };
+    const hatchPart: Partial<EditMaterialPatch> = (!hAEmpty && !hSEmpty)
+      ? { hatchAngleDeg: Number(rowState.hatchAngleDeg), hatchSpacingMm: Number(rowState.hatchSpacingMm) }
+      : { clearHatch: true };
+
+    const patch: EditMaterialPatch = {
+      name,
+      defaultThickness: thicknessNum,
+      color: rowState.color,
+      ...sheetPart,
+      ...hatchPart,
+    };
     try {
       await bus.execute(new EditMaterialCommand(rowState.id, patch));
       setRowState({ mode: 'idle' });
@@ -200,6 +231,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             <th style={{ ...cellStyle, textAlign: 'left' }}>Color</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet L (mm)</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet W (mm)</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch angle (°)</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch spacing (mm)</th>
             <th style={{ ...cellStyle, width: 120 }}></th>
           </tr>
         </thead>
@@ -246,7 +279,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                       value={rowState.sheetLengthMm}
                       onChange={(e) => setRowState({
                         ...rowState, sheetLengthMm: e.target.value,
-                        error: validateSheetStock(e.target.value, rowState.sheetWidthMm),
+                        error: validateSheetStock(e.target.value, rowState.sheetWidthMm)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm),
                       })}
                       style={inputStyle}
                     />
@@ -259,7 +293,36 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                       value={rowState.sheetWidthMm}
                       onChange={(e) => setRowState({
                         ...rowState, sheetWidthMm: e.target.value,
-                        error: validateSheetStock(rowState.sheetLengthMm, e.target.value),
+                        error: validateSheetStock(rowState.sheetLengthMm, e.target.value)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm),
+                      })}
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <input
+                      aria-label="Edit hatch angle"
+                      type="text"
+                      inputMode="numeric"
+                      value={rowState.hatchAngleDeg}
+                      onChange={(e) => setRowState({
+                        ...rowState, hatchAngleDeg: e.target.value,
+                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm)
+                            ?? validateHatchPattern(e.target.value, rowState.hatchSpacingMm),
+                      })}
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td style={cellStyle}>
+                    <input
+                      aria-label="Edit hatch spacing"
+                      type="text"
+                      inputMode="numeric"
+                      value={rowState.hatchSpacingMm}
+                      onChange={(e) => setRowState({
+                        ...rowState, hatchSpacingMm: e.target.value,
+                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, e.target.value),
                       })}
                       style={inputStyle}
                     />
@@ -278,7 +341,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             if (isConfirmingDelete && rowState.mode === 'confirmDelete') {
               return (
                 <tr key={m.id} data-testid={`material-row-${m.id}`}>
-                  <td colSpan={6} style={cellStyle}>
+                  <td colSpan={8} style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span>Delete "{m.name}"?</span>
                       <button type="button" style={dangerBtnStyle} onClick={onDeleteConfirm}>Confirm delete</button>
@@ -319,6 +382,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                 </td>
                 <td style={cellStyle}>{m.sheetLengthMm ?? ''}</td>
                 <td style={cellStyle}>{m.sheetWidthMm ?? ''}</td>
+                <td style={cellStyle}>{m.hatchAngleDeg ?? ''}</td>
+                <td style={cellStyle}>{m.hatchSpacingMm ?? ''}</td>
                 <td style={cellStyle}>
                   {(showActions || hoveredId === m.id) && (
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -334,6 +399,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                           color: m.color,
                           sheetLengthMm: m.sheetLengthMm !== undefined ? String(m.sheetLengthMm) : '',
                           sheetWidthMm: m.sheetWidthMm !== undefined ? String(m.sheetWidthMm) : '',
+                          hatchAngleDeg: m.hatchAngleDeg !== undefined ? String(m.hatchAngleDeg) : '',
+                          hatchSpacingMm: m.hatchSpacingMm !== undefined ? String(m.hatchSpacingMm) : '',
                           error: null,
                         })}
                       >
@@ -355,7 +422,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
           })}
           {materials.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
+              <td colSpan={8} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
                 No materials defined.
               </td>
             </tr>
