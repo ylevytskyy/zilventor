@@ -3,8 +3,8 @@ import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { ComponentInstance, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
-import { dedupeName } from '../import/dedupeName';
 import { stepFilenameBasename } from '../import/originFeatures';
+import { importStepIntoNewParts } from '../import/importStepIntoNewParts';
 
 export type OpfsLike = {
   write(path: string, data: Uint8Array): Promise<void>;
@@ -16,151 +16,188 @@ export type OpfsLike = {
 export type ImportStepAsComponentOpts = {
   stepBytes: ArrayBuffer;
   fileName: string;
-  kernel: Pick<KernelApi, 'importStep' | 'registerPart' | 'deletePart' | 'saveToBytes'>;
+  kernel: Pick<KernelApi, 'extractStepSolids' | 'registerPart' | 'deletePart' | 'saveToBytes'>;
   opfs: OpfsLike;
 };
 
 /**
  * Atomic command: import a STEP file and (when an assembly is active)
- * insert it as a new component at the assembly origin.
+ * insert it as N new components at the assembly origin (one per sub-solid).
+ *
+ * Multi-body STEPs become N PartDocuments + N ComponentInstances at origin.
+ * Single-body case (N=1) reduces cleanly to one component — unchanged behaviour.
  *
  * When no assembly is active (part- or drawing-active), behaves like
- * importStepIntoNewPart: creates a standalone top-level part and switches
- * the active document to it.
+ * importStepIntoNewPart: creates a standalone top-level part (first solid only)
+ * and switches the active document to it.
  *
- * Undo: removes the component + evicts the part from OPFS + kernel cache.
- * Redo: re-registers from in-memory bytes + re-persists + re-inserts.
+ * Undo: removes all N components + evicts all N parts from OPFS + kernel cache.
+ * Redo: re-registers from in-memory bytes + re-persists + re-inserts (skips
+ *       extractStepSolids — relies on deletePart NOT evicting importedShapeCache).
  */
 export class ImportStepAsComponentCommand implements Command {
   readonly name = 'ImportStepAsComponent';
 
-  // Captured during apply() for undo/redo
-  private placedId: string | null = null;
-  private placedPartId: string | null = null;
-  private placedPartPath: string | null = null;
-  private placedPart: PartDocument | null = null;
-  private placedArchiveBytes: Uint8Array | null = null;
+  // Captured during apply() for undo/redo — arrays for multi-body
+  private placedIds: string[] = [];         // componentInstance IDs
+  private placedPartIds: string[] = [];
+  private placedPartPaths: string[] = [];
+  private placedParts: PartDocument[] = [];
+  private placedArchiveBytes: Uint8Array[] = [];
+
   /** Whether apply() ran the assembly path (true) or standalone-part path (false). */
   private wasAssemblyInsert = false;
 
-  /** Saved state for redo: avoids re-calling importStep (blob stays in cache). */
-  private redoState: {
+  /** Saved state for redo: avoids re-calling extractStepSolids (blobs stay in cache). */
+  private redoState: Array<{
     partName: string;
     brepBlobId: string;
     fileName: string;
     partPath: string;
     archiveBytes: Uint8Array;
-  } | null = null;
+  }> | null = null;
 
-  constructor(private opts: ImportStepAsComponentOpts) {}
+  constructor(private readonly input: ImportStepAsComponentOpts) {}
 
   async apply(): Promise<void> {
-    const { stepBytes, fileName, kernel, opfs } = this.opts;
-    const { setActivePart, setStatus, activeDocument } = useAppStore.getState();
+    const { stepBytes, fileName, kernel, opfs } = this.input;
+    const { activeDocument } = useAppStore.getState();
+    this.wasAssemblyInsert = activeDocument?.kind === 'assembly';
 
-    let partName: string;
-    let partPath: string;
-    let archiveBytes: Uint8Array;
-    let part: PartDocument;
-
+    // ---- Redo-optimized path: re-register cached parts + re-add components ----
     if (this.redoState) {
-      // Redo path: reuse cached bytes, skip STEP re-parse
-      const rs = this.redoState;
-      partName = rs.partName;
-      partPath = rs.partPath;
-      archiveBytes = rs.archiveBytes;
+      // Reset placed arrays (they were cleared in revert)
+      this.placedPartIds = [];
+      this.placedPartPaths = [];
+      this.placedParts = [];
+      this.placedArchiveBytes = [];
+      this.placedIds = [];
 
-      // Rebuild with stable partId so kernel + assembly references stay consistent
-      part = buildImportedPartDocument(partName, rs.brepBlobId, rs.fileName, this.placedPartId ?? undefined);
-      await kernel.registerPart(part);
-      await opfs.write(partPath, archiveBytes);
-    } else {
-      // First-apply path: full STEP parse pipeline
-      const baseName = stepFilenameBasename(fileName);
+      for (const r of this.redoState) {
+        // Rebuild with stable partId if we had one before
+        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName);
+        await kernel.registerPart(part);
+        await opfs.write(r.partPath, r.archiveBytes);
+        this.placedPartIds.push(part.id);
+        this.placedPartPaths.push(r.partPath);
+        this.placedParts.push(part);
+        this.placedArchiveBytes.push(r.archiveBytes);
+      }
 
-      // Dedupe against existing OPFS entries
-      const existingFiles = await opfs.listAll();
-      const existingNames = existingFiles
-        .filter((p) => p.endsWith('.zipt'))
-        .map((p) => p.replace(/\.zipt$/, '').split('/').pop() ?? '');
-      partName = dedupeName(baseName, existingNames);
-      partPath = `${partName}.zipt`;
-
-      // Step 1: parse STEP → blob in kernel cache
-      const importResult = await kernel.importStep({ stepBytes, partName });
-
-      // Step 2: build PartDocument
-      part = buildImportedPartDocument(partName, importResult.brepBlobId, fileName);
-
-      // Step 3: register with kernel
-      await kernel.registerPart(part);
-
-      // Step 4: persist to OPFS via kernel.saveToBytes (bakes the ImportedFeature blob)
-      archiveBytes = await kernel.saveToBytes(part.id);
-      await opfs.write(partPath, archiveBytes);
-
-      // Save state for redo (no second STEP parse needed)
-      this.redoState = {
-        partName,
-        brepBlobId: importResult.brepBlobId,
-        fileName,
-        partPath,
-        archiveBytes,
-      };
+      if (this.wasAssemblyInsert) {
+        for (const partPath of this.placedPartPaths) {
+          const instance = makeOriginInstance(partPath);
+          useAppStore.getState().addComponent(instance);
+          this.placedIds.push(instance.id);
+        }
+      } else if (this.placedParts[0]) {
+        useAppStore.getState().setActivePart(this.placedParts[0]);
+      }
+      return;
     }
 
-    this.placedPart = part;
-    this.placedPartId = part.id;
-    this.placedPartPath = partPath;
-    this.placedArchiveBytes = archiveBytes;
+    // ---- Fresh apply: call importStepIntoNewParts ----
+    const results = await importStepIntoNewParts({
+      baseName: stepFilenameBasename(fileName),
+      sourceFileName: fileName,
+      stepBytes,
+      kernel: kernel as KernelApi,
+      opfs,
+    });
 
-    // Step 5: dispatch based on active document kind
-    if (activeDocument?.kind === 'assembly') {
-      this.wasAssemblyInsert = true;
-      const componentId = this.placedId ?? `C${Date.now()}`;
-      const instance: ComponentInstance = {
-        id: componentId,
-        partPath,
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { rx: 0, ry: 0, rz: 0 },
-        visible: true,
-      };
-      useAppStore.getState().addComponent(instance);
-      this.placedId = componentId;
-      setStatus(`Imported '${partPath}' and inserted into assembly`);
+    for (const r of results) {
+      this.placedPartIds.push(r.partId);
+      this.placedPartPaths.push(r.opfsPath);
+      this.placedParts.push(r.part);
+      this.placedArchiveBytes.push(r.archiveBytes);
+    }
+
+    if (this.wasAssemblyInsert) {
+      for (const partPath of this.placedPartPaths) {
+        const instance = makeOriginInstance(partPath);
+        useAppStore.getState().addComponent(instance);
+        this.placedIds.push(instance.id);
+      }
+      useAppStore.getState().setStatus(
+        results.length === 1
+          ? `Imported ${results[0]?.part.name ?? fileName}`
+          : `Imported ${results.length} bodies from ${fileName}`,
+      );
     } else {
-      // Standalone-part path: switch active document to the new part
-      this.wasAssemblyInsert = false;
-      setActivePart(part);
-      setStatus('Imported');
+      // Part-mode: register first part as active document
+      if (results[0]) {
+        useAppStore.getState().setActivePart(results[0].part);
+        if (results.length > 1) {
+          useAppStore.getState().setStatus(
+            `Imported first body of ${results.length} from ${fileName}`,
+          );
+        } else {
+          useAppStore.getState().setStatus('Imported');
+        }
+      }
     }
   }
 
   async revert(): Promise<void> {
-    if (!this.placedPartId || !this.placedPartPath) return;
-    const { kernel, opfs } = this.opts;
+    const { kernel, opfs } = this.input;
 
-    if (this.wasAssemblyInsert && this.placedId) {
-      useAppStore.getState().removeComponent(this.placedId);
-      // Keep this.placedId so redo reuses the same component id
+    // Remove components first (reverse order for cleanliness)
+    for (const id of [...this.placedIds].reverse()) {
+      useAppStore.getState().removeComponent(id);
     }
 
-    // Evict from OPFS
-    try {
-      await opfs.delete(this.placedPartPath);
-    } catch {
-      // Best-effort; file may not exist if apply() failed mid-flight
+    // Capture redo state BEFORE deleting parts (blob IDs still valid in kernel cache)
+    this.redoState = this.placedParts.map((part, i) => ({
+      partName: part.name,
+      brepBlobId: extractBrepBlobIdFromPart(part),
+      fileName: this.input.fileName,
+      partPath: this.placedPartPaths[i] ?? '',
+      archiveBytes: this.placedArchiveBytes[i] ?? new Uint8Array(0),
+    }));
+
+    // Delete all registered parts from kernel (does NOT evict importedShapeCache)
+    for (const partId of this.placedPartIds) {
+      try {
+        await kernel.deletePart(partId);
+      } catch {
+        // best-effort
+      }
     }
 
-    // Evict from kernel cache
-    try {
-      await kernel.deletePart(this.placedPartId);
-    } catch {
-      // Best-effort
+    // Delete OPFS files (best-effort)
+    for (const path of this.placedPartPaths) {
+      try {
+        await opfs.delete(path);
+      } catch {
+        // best-effort
+      }
     }
 
-    // Clear current-apply state (redoState preserved for redo)
-    this.placedPartId = null;
-    this.placedPartPath = null;
+    // Clear placed arrays so redo flows through the redoState path
+    this.placedIds = [];
+    this.placedPartIds = [];
+    this.placedPartPaths = [];
+    this.placedParts = [];
+    this.placedArchiveBytes = [];
   }
+}
+
+// ---------- helpers ----------------------------------------------------------
+
+function makeOriginInstance(partPath: string): ComponentInstance {
+  return {
+    id: `comp-${crypto.randomUUID()}`,
+    partPath,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { rx: 0, ry: 0, rz: 0 },
+    visible: true,
+  };
+}
+
+function extractBrepBlobIdFromPart(part: PartDocument): string {
+  const imported = part.featureTree.find((f) => f.kind === 'imported');
+  if (!imported || imported.kind !== 'imported') {
+    throw new Error('ImportStepAsComponent: missing imported feature in revert state');
+  }
+  return imported.bodyRef;
 }
