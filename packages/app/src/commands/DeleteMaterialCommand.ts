@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { MaterialEntry, PartDocument, PanelFeature } from '@zilventor/shared';
 import { isPanelFeature } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import { syncPartMaterials } from '../store/syncPartMaterials';
 
 function activeMaterials(): readonly MaterialEntry[] {
   const s = useAppStore.getState();
@@ -53,12 +54,14 @@ export class DeleteMaterialCommand implements Command {
     if (!existing) throw new Error(`MATERIAL_NOT_FOUND: ${this.id}`);
     this.prev = existing;
     useAppStore.getState().removeMaterial(this.id);
+    await syncPartMaterials();
   }
 
   async revert(): Promise<void> {
     if (this.prev) {
       useAppStore.getState().addMaterial(this.prev);
       this.prev = null;
+      await syncPartMaterials();
     }
   }
 }

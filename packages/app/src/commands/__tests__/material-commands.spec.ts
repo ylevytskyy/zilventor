@@ -269,3 +269,66 @@ describe('EditMaterialCommand — kernel sync', () => {
     expect(reverted.materials[0]!.name).toBe('Spruce');
   });
 });
+
+describe('DeleteMaterialCommand — kernel sync', () => {
+  let mockSetMaterials: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSetMaterials = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({ kernel: { setMaterials: mockSetMaterials } as never } as never);
+  });
+
+  afterEach(() => {
+    useAppStore.setState({ kernel: null } as never);
+    vi.restoreAllMocks();
+  });
+
+  it('apply() calls kernel.setMaterials with post-delete materials (part active)', async () => {
+    const mat: MaterialEntry = { id: 'm-del-1', name: 'Birch', defaultThickness: 18, color: '#f0e0c0' };
+    const part: PartDocument = {
+      id: 'p-del-1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [mat], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new DeleteMaterialCommand('m-del-1');
+    await cmd.apply();
+
+    const updated = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(updated.id, updated.materials);
+    expect(updated.materials).toHaveLength(0);
+  });
+
+  it('apply() does NOT call kernel.setMaterials when assembly is active', async () => {
+    const asm = emptyAssembly();
+    const mat: MaterialEntry = { id: 'm-del-asm', name: 'Ash', defaultThickness: 20, color: '#d0d0b0' };
+    asm.materials.push(mat);
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+
+    const cmd = new DeleteMaterialCommand('m-del-asm');
+    await cmd.apply();
+
+    expect(mockSetMaterials).not.toHaveBeenCalled();
+  });
+
+  it('revert() calls kernel.setMaterials restoring the deleted material (part active)', async () => {
+    const mat: MaterialEntry = { id: 'm-del-2', name: 'Maple', defaultThickness: 16, color: '#e8d5b0' };
+    const part: PartDocument = {
+      id: 'p-del-2', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [], materials: [mat], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'part', document: part });
+
+    const cmd = new DeleteMaterialCommand('m-del-2');
+    await cmd.apply();
+    mockSetMaterials.mockClear();
+
+    await cmd.revert();
+    const reverted = useAppStore.getState().activePart!;
+    expect(mockSetMaterials).toHaveBeenCalledOnce();
+    expect(mockSetMaterials).toHaveBeenCalledWith(reverted.id, reverted.materials);
+    expect(reverted.materials).toHaveLength(1);
+    expect(reverted.materials[0]!.id).toBe('m-del-2');
+  });
+});
