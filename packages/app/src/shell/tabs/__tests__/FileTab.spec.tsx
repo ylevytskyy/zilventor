@@ -13,6 +13,11 @@ vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
 }));
 import { ImportStepAsComponentCommand } from '../../../commands/ImportStepAsComponentCommand';
 
+vi.mock('../../../import/extractStepFromZip', () => ({
+  extractStepFromZip: vi.fn(),
+}));
+import { extractStepFromZip } from '../../../import/extractStepFromZip';
+
 vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   Opfs: {
     forNavigator: vi.fn().mockResolvedValue({
@@ -215,6 +220,94 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
       expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
     });
     expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleOpen — ZIP branch', () => {
+  const FAKE_STEP_BYTES = new Uint8Array([1, 2, 3, 4]);
+
+  function makeFakeZipHandle(name: string, zipBytes: Uint8Array) {
+    const fakeFile = { name, arrayBuffer: async () => zipBytes.buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    useAppStore.getState().setActiveDocument(null);
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+    vi.mocked(importStepIntoNewPart).mockClear();
+    vi.mocked(extractStepFromZip).mockClear();
+  });
+
+  it('ZIP + assembly active + zip contains STEP → dispatches ImportStepAsComponentCommand', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [], constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+
+    vi.mocked(extractStepFromZip).mockReturnValue({
+      fileName: 'Cadeira_preta.stp',
+      stepBytes: FAKE_STEP_BYTES.buffer,
+    });
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      makeFakeZipHandle('Cadeira_preta.zip', new Uint8Array([80, 75, 3, 4])),
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(vi.mocked(ImportStepAsComponentCommand)).toHaveBeenCalledOnce();
+    });
+
+    const args = vi.mocked(ImportStepAsComponentCommand).mock.calls[0]?.[0];
+    expect(args?.fileName).toBe('Cadeira_preta.stp');
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+  });
+
+  it('ZIP + part active + zip contains STEP → dispatches importStepIntoNewPart', async () => {
+    const fakePart = {
+      id: 'p1', name: 'ZipPart', units: 'mm' as const,
+      parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [],
+    };
+    useAppStore.getState().setActivePart(fakePart);
+    vi.mocked(importStepIntoNewPart).mockResolvedValue({ partId: 'p1', part: fakePart });
+
+    vi.mocked(extractStepFromZip).mockReturnValue({
+      fileName: 'model.step',
+      stepBytes: FAKE_STEP_BYTES.buffer,
+    });
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      makeFakeZipHandle('model.zip', new Uint8Array([80, 75, 3, 4])),
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
+    });
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+  });
+
+  it('ZIP without STEP → shows error dialog, dispatches nothing', async () => {
+    vi.mocked(extractStepFromZip).mockReturnValue(null);
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      makeFakeZipHandle('textures-only.zip', new Uint8Array([80, 75, 3, 4])),
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/no step\/stp file found/i);
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
   });
 });
 

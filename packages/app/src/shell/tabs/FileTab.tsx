@@ -85,8 +85,38 @@ export default function FileTab() {
         { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
         { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
         { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
+        { description: 'ZIP archive (with STEP inside)', accept: { 'application/zip': ['.zip'] } },
       ]);
       if (!file) return;
+
+      // ZIP branch: extract first STEP entry and re-dispatch through the same pipeline
+      if (/\.zip$/i.test(file.name)) {
+        const { extractStepFromZip } = await import('../../import/extractStepFromZip');
+        const zipBytes = new Uint8Array(await file.arrayBuffer());
+        const extracted = extractStepFromZip(zipBytes);
+        if (!extracted) {
+          setErrorDialog(
+            "No STEP/STP file found in archive. The site you downloaded from may offer a 'STEP' format option — try re-downloading in that format.",
+          );
+          return;
+        }
+        const { activeDocument } = useAppStore.getState();
+        if (activeDocument?.kind === 'assembly') {
+          const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+          const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+          const opfs = await Opfs.forNavigator();
+          const cmd = new ImportStepAsComponentCommand({ stepBytes: extracted.stepBytes, fileName: extracted.fileName, kernel, opfs });
+          await bus.execute(cmd);
+        } else {
+          const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
+          // importStepIntoNewPart expects a File; synthesize one from the extracted bytes
+          const stepFile = new File([extracted.stepBytes], extracted.fileName, { type: 'application/step' });
+          const { part } = await importStepIntoNewPart(stepFile, kernel);
+          setActivePart(part);
+          setStatus('Imported');
+        }
+        return;
+      }
 
       // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
