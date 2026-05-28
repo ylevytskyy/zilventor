@@ -8,13 +8,11 @@
  *   3. EditMaterialCommand to set hatchAngleDeg=20, hatchSpacingMm=2.
  *   4. Create drawing + base view (front, 1:1, patch viewMatrix) + horizontal section view.
  *   5. Read hatchSegments; assert every segment's normalized line angle ≈ 20° (±2°), NOT ≈ 45°.
- *   6. Repack the part with hatch-materials spliced into the manifest via
- *      __zilventorPackProject + write to OPFS, then reload — confirm hatch fields
- *      round-trip. Bypasses the natural autosave because EditMaterialCommand
- *      mutates the Zustand store only; the kernel's PartDocument copy stays stale
- *      until the next load, so kernel.saveToBytes would drop the edits. Mirrors
- *      the pattern used by material-hatch-color.spec.ts. Pre-existing kernel-sync
- *      gap is outside this feature's scope.
+ *   6. Wait for autosave (natural path) + localStorage pointer override → reload
+ *      — confirm hatch fields round-trip. EditMaterialCommand now calls
+ *      syncPartMaterials() which mirrors store materials into the kernel's parts
+ *      map before saveToBytes runs. waitForAutosave fires BEFORE CreateDrawingCommand
+ *      to prevent the drawing-creation debounce from racing the part autosave.
  *
  * Teeth: relies on Task 4's materials[0] fallback + Task 5's
  * activeDrawingSourceDocument fallback in hatchLookup. If either regresses,
@@ -22,6 +20,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { buildBox, waitForKernelReady } from '../helpers/buildBox';
+import { waitForAutosave } from '../helpers/waitForAutosave';
 
 // Normalize a directed segment angle (-180..180] into [0, 180) for line-direction comparison.
 function normLineAngleDeg(p0: { x: number; y: number }, p1: { x: number; y: number }): number {
@@ -89,6 +88,11 @@ test('material-hatch-pattern: per-material angle/spacing override flows to part-
   console.log('[mhp] material after edit:', matInfo);
   expect(matInfo.angle, 'hatchAngleDeg must be 20 after Edit').toBe(20);
   expect(matInfo.spacing, 'hatchSpacingMm must be 2 after Edit').toBe(2);
+
+  // Wait for the natural part autosave to fire with the edited materials.
+  // (kernel-sync ensures kernel.saveToBytes packs the hatch fields.)
+  // Must happen BEFORE CreateDrawingCommand resets the debounce timer.
+  await waitForAutosave(page);
 
   // Step 4: Create drawing + base view (with viewMatrix patch) + section view.
   const { sheetId, sectionViewId } = await page.evaluate(async () => {
@@ -195,83 +199,21 @@ test('material-hatch-pattern: per-material angle/spacing override flows to part-
   }
 
   // Step 6: Persistence across reload.
-  // The kernel's saveToBytes packs the kernel-worker's copy of the part (which has materials:[]).
-  // To test real persistence, we: (a) pack the store's part (with hatch fields) to OPFS via
-  // __zilventorPackProject — mirroring the material-hatch-color.spec.ts pattern — (b) set the
-  // localStorage pointer, (c) reload, (d) verify the restored activePart has the hatch fields.
-  //
-  // After CreateDrawingCommand, activePart is null. The source part doc is in activeDrawingSourceDocument.
-  const partName = await page.evaluate(async ({ matId }: { matId: string }) => {
-    type PartLike = {
-      id: string; name: string; units: string; parameters: unknown; properties: unknown;
-      featureTree: unknown[]; materials: Array<{ id: string; hatchAngleDeg?: number; hatchSpacingMm?: number }>;
-      hardware: unknown[];
-    };
-    const store = (window as unknown as {
-      __zilventorStore: {
-        getState(): {
-          activePart: PartLike | null;
-          activeDrawingSourceDocument: PartLike | null;
-          activeDrawingSourcePartId: string | null;
-          kernel: { saveToBytes(id: string): Promise<Uint8Array> } | null;
-        };
-      };
-    }).__zilventorStore;
-
-    const s = store.getState();
-    // After CreateDrawingCommand, activePart is null; use the source document captured by CreateDrawingCommand.
-    const partDoc = s.activePart ?? s.activeDrawingSourceDocument;
-    const partId = s.activeDrawingSourcePartId ?? s.activePart?.id;
-    if (!partDoc || !partId) throw new Error(`mhp step6: no part doc (activePart=${JSON.stringify(s.activePart?.id)}, sourceDoc=${JSON.stringify(s.activeDrawingSourceDocument?.id)}, sourcePartId=${partId})`);
-
-    // Ensure partDoc has the hatch materials (from the store, not the kernel).
-    const mat = partDoc.materials.find((m) => m.id === matId);
-    if (!mat || mat.hatchAngleDeg !== 20) {
-      throw new Error(`mhp step6: source doc materials don't have hatch. mat=${JSON.stringify(mat)}`);
-    }
-
-    // Pack the store's part (with hatch materials) via __zilventorPackProject.
-    // This is the correct way to persist app-layer metadata that the kernel worker doesn't track.
-    const w2 = window as unknown as {
-      __zilventorPackProject: (input: { manifest: unknown; blobs: Record<string, Uint8Array> }) => Promise<Uint8Array>;
-    };
-    if (!w2.__zilventorPackProject) throw new Error('mhp step6: __zilventorPackProject not found');
-
-    // Get the kernel BREP bytes for the part geometry.
-    if (!s.kernel) throw new Error('mhp step6: kernel not available');
-    const kBytes = await s.kernel.saveToBytes(partId);
-
-    // Unpack the kernel bytes to get the manifest + blobs, then splice in the store's full part doc.
-    const w3 = window as unknown as {
-      __zilventorUnpackProject: (bytes: Uint8Array) => Promise<{ manifest: unknown; blobs: Record<string, Uint8Array>; thumbnail?: Uint8Array }>;
-    };
-    if (!w3.__zilventorUnpackProject) throw new Error('mhp step6: __zilventorUnpackProject not found');
-    const { manifest: kManifest, blobs } = await w3.__zilventorUnpackProject(kBytes);
-
-    // Replace the manifest document with the store's partDoc (which has hatch materials).
-    const fullManifest = {
-      ...(kManifest as object),
-      document: partDoc,
-    };
-
-    const packed = await w2.__zilventorPackProject({ manifest: fullManifest, blobs });
-
-    // Write to OPFS at ${name}.zipt — the path the restore system expects.
-    const opfsPath = `${partDoc.name}.zipt`;
-    const root = await navigator.storage.getDirectory();
-    const fh = await root.getFileHandle(opfsPath, { create: true });
-    const wh = await fh.createWritable();
-    await wh.write(packed as unknown as FileSystemWriteChunkType);
-    await wh.close();
-
-    // Set the localStorage pointer so restoreLastOpenDocument picks this file.
-    localStorage.setItem('zilventor:lastOpenDocument', JSON.stringify({ kind: 'part', opfsPath }));
-
-    console.log('[mhp] step6: packed part with hatch materials to OPFS at', opfsPath,
-      'matId=', matId, 'angle=',
-      partDoc.materials.find((m) => m.id === matId)?.hatchAngleDeg);
+  // After CreateDrawingCommand, lastOpenDocument is the drawing. Override it to point
+  // at the part — the part was naturally autosaved with hatch materials in Step 3
+  // (kernel-sync ensures kernel.saveToBytes packs the hatch fields).
+  const partName = await page.evaluate(() => {
+    const s = (window as unknown as {
+      __zilventorStore: { getState(): { activeDrawingSourceDocument: { name: string } | null } };
+    }).__zilventorStore.getState();
+    const partDoc = s.activeDrawingSourceDocument;
+    if (!partDoc) throw new Error('mhp step6: no activeDrawingSourceDocument');
+    localStorage.setItem('zilventor:lastOpenDocument', JSON.stringify({
+      kind: 'part',
+      opfsPath: `${partDoc.name}.zipt`,
+    }));
     return partDoc.name;
-  }, { matId: matInfo.materialId });
+  });
 
   console.log('[mhp] part name for reload:', partName);
 
