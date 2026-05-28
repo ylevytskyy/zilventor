@@ -1,7 +1,6 @@
 import type { OcctInstance } from './occtLoader';
 import { type OcctShape, computeBoundingBox } from './SolidOps';
 import type { BoundingBox } from '@zilventor/shared';
-import { writeBRep } from './BRepIO';
 
 export type StepReadResult = {
   shape: OcctShape;
@@ -88,10 +87,10 @@ export type ExtractedSolid = {
  * TopAbs_SOLID. Each entry holds a fresh brepBlobId and the bounding box of
  * that sub-solid. Throws if the STEP contains zero solids.
  *
- * Direct writeBRep path: each raw handle from explorer.Current() is wrapped
- * in an OcctShape and passed directly to writeBRep. If OCCT serialization of
- * sub-shapes misbehaves on the pinned opencascade.js build, the caller should
- * switch to the compound-wrap fallback (see Task 1.4 in the plan).
+ * Lifetime: each returned `shape.handle` is a fresh TopoDS_Compound that must
+ * be owned by the caller (typically via importedShapeCache.set in api.ts). On
+ * partial failure mid-iteration, already-allocated compounds are NOT disposed —
+ * caller should treat the whole import as atomic.
  */
 export function extractStepSolids(
   oc: OcctInstance,
@@ -133,8 +132,8 @@ export function extractStepSolids(
 
       const subShape: OcctShape = { __brand: 'OcctShape' as const, handle: comp };
       const boundingBox = computeBoundingBox(oc, subShape);
-      const brepBytes = writeBRep(oc, subShape);
-      void brepBytes; // bytes used downstream by saveToBytes; registering via brepBlobId
+      // Shape lifetime: handed off to importedShapeCache via registerImportedShape
+      // (in api.ts); saveToBytes(partId) lazily re-serializes from the cache on demand.
       const brepBlobId = `imp-${crypto.randomUUID()}`;
       solids.push({ brepBlobId, boundingBox, shape: subShape });
       exp.Next();
