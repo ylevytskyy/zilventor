@@ -5,7 +5,7 @@ import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
-import { saveBlob, pickFile } from '../fsaFallback';
+import { saveBlob, pickFile, hasDirectoryPicker } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
@@ -42,7 +42,7 @@ export default function FileTab() {
         const doc = activeDocument.document;
         const archive = await packDrawing(doc);
         const saved = await saveBlob(
-          new Blob([archive]),
+          new Blob([archive.buffer as ArrayBuffer]),
           `${doc.name}.zidw`,
           [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
         );
@@ -53,7 +53,7 @@ export default function FileTab() {
         const doc = activeDocument.document;
         const archive = await packAssembly(doc, thumbnail ?? new Uint8Array());
         const saved = await saveBlob(
-          new Blob([archive]),
+          new Blob([archive.buffer as ArrayBuffer]),
           `${doc.name}.ziasm`,
           [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
         );
@@ -65,7 +65,7 @@ export default function FileTab() {
       if (!kernel || !activePart) return;
       const bytes = await kernel.saveToBytes(activePart.id, thumbnail);
       const saved = await saveBlob(
-        new Blob([bytes]),
+        new Blob([bytes.buffer as ArrayBuffer]),
         `${activePart.name}.zipt`,
         [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
       );
@@ -153,7 +153,9 @@ export default function FileTab() {
       <button className="hover:text-white" disabled>Save</button>
       <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
       <button
-        className="hover:text-white"
+        className="hover:text-white disabled:text-neutral-500"
+        disabled={!hasDirectoryPicker()}
+        title={hasDirectoryPicker() ? undefined : 'Import from Inventor requires Chrome, Edge, Brave, or Arc (uses showDirectoryPicker)'}
         onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
       >
         Import from Inventor

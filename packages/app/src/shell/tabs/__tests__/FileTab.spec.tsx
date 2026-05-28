@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import FileTab from '../FileTab';
 import { useAppStore } from '../../../store/useAppStore';
@@ -215,5 +215,27 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
       expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
     });
     expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+  });
+});
+
+describe('Import from Inventor button — directory picker gating', () => {
+  afterEach(() => {
+    delete (window as any).showDirectoryPicker;
+  });
+
+  it('is disabled and has a tooltip when showDirectoryPicker is absent', () => {
+    delete (window as any).showDirectoryPicker;
+    render(<FileTab />);
+    const btn = screen.getByRole('button', { name: /import from inventor/i });
+    expect(btn).toBeDisabled();
+    expect(btn.title).toMatch(/chrome|edge|brave|arc/i);
+  });
+
+  it('is enabled when showDirectoryPicker is present', () => {
+    (window as any).showDirectoryPicker = vi.fn();
+    render(<FileTab />);
+    const btn = screen.getByRole('button', { name: /import from inventor/i });
+    expect(btn).not.toBeDisabled();
+    expect(btn.title).toBeFalsy();
   });
 });
