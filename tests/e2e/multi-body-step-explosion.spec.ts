@@ -91,10 +91,14 @@ test('multi-body STEP explodes into N components, persists, undoes', async ({ pa
     { timeout: 15_000 },
   );
 
-  const afterReload = await page.evaluate(() => {
-    const w = window as any;
-    const doc = w.__zilventorStore?.getState().activeDocument;
-    return doc?.kind === 'assembly' ? doc.document.components.length : -1;
+  const afterReload = await page.evaluate(async () => {
+    const { useAppStore } = await import('/src/store/useAppStore.ts');
+    const asm = useAppStore.getState().activeAssembly;
+    return {
+      count: asm?.components.length ?? 0,
+      partPaths: (asm?.components ?? []).map((c) => c.partPath).sort(),
+    };
   });
-  expect(afterReload).toBe(2);
+  expect(afterReload.count).toBe(2);
+  expect(afterReload.partPaths).toEqual(['two-bodies_1.zipt', 'two-bodies_2.zipt']);
 });

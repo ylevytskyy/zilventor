@@ -380,6 +380,7 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     const writtenPaths = [...opfs.files.keys()];
     expect(writtenPaths).toHaveLength(3);
     expect(writtenPaths.every((p) => p.endsWith('.zipt'))).toBe(true);
+    expect([...writtenPaths].sort()).toEqual(['chair_1.zipt', 'chair_2.zipt', 'chair_3.zipt']);
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(3);
     const comps = useAppStore.getState().activeAssembly!.components;
     for (const c of comps) {
