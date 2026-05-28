@@ -5,6 +5,8 @@ import { useAppStore } from '../store/useAppStore';
 export type EditMaterialPatch = Partial<Omit<MaterialEntry, 'id'>> & {
   /** When true, the reducer removes sheetLengthMm + sheetWidthMm from the entry (atomic with any other patch fields). */
   clearSheetStock?: true;
+  /** When true, the reducer removes hatchAngleDeg + hatchSpacingMm from the entry (atomic with any other patch fields). */
+  clearHatch?: true;
 };
 
 function activeMaterials(): readonly MaterialEntry[] {
@@ -36,7 +38,17 @@ export class EditMaterialCommand implements Command {
   async revert(): Promise<void> {
     if (this.prev) {
       const { id: _id, ...rest } = this.prev;
-      useAppStore.getState().updateMaterial(this.id, rest);
+      // The spread-merge reducer can't REMOVE keys absent from `rest`. If prev
+      // is missing either side of the hatch pair, emit clearHatch so the merge
+      // doesn't leak newly-added hatch keys from the post-apply state. The
+      // both-or-neither invariant means a partial pair shouldn't occur in normal
+      // operation, but the defensive `||` keeps us safe under legacy data too.
+      const prevLacksHatchPair = this.prev.hatchAngleDeg === undefined
+        || this.prev.hatchSpacingMm === undefined;
+      const patch = prevLacksHatchPair
+        ? { ...rest, clearHatch: true as const }
+        : rest;
+      useAppStore.getState().updateMaterial(this.id, patch);
       this.prev = null;
     }
   }
