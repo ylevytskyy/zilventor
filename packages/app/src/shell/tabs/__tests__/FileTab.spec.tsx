@@ -4,6 +4,27 @@ import FileTab from '../FileTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
 
+vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
+  ImportStepAsComponentCommand: vi.fn().mockImplementation(() => ({
+    name: 'ImportStepAsComponent',
+    apply: vi.fn().mockResolvedValue(undefined),
+    revert: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+import { ImportStepAsComponentCommand } from '../../../commands/ImportStepAsComponentCommand';
+
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
+  Opfs: {
+    forNavigator: vi.fn().mockResolvedValue({
+      write: vi.fn().mockResolvedValue(undefined),
+      exists: vi.fn().mockResolvedValue(false),
+      delete: vi.fn().mockResolvedValue(undefined),
+      listAll: vi.fn().mockResolvedValue([]),
+    }),
+    forRoot: vi.fn(),
+  },
+}));
+
 // Mock importStepIntoNewPart so the STEP branch doesn't hit the real kernel
 vi.mock('../../../import/importStepIntoNewPart', () => ({
   importStepIntoNewPart: vi.fn(),
@@ -143,5 +164,55 @@ describe('handleOpen — STEP branch', () => {
 
     expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
     expect(useAppStore.getState().statusMessage).toBe('Imported');
+  });
+});
+
+describe('handleOpen — STEP branch dispatches by active-document kind', () => {
+  function makeFakeStepHandle(name: string) {
+    const fakeFile = { name, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+    vi.mocked(importStepIntoNewPart).mockClear();
+  });
+
+  it('STEP + assembly active → dispatches ImportStepAsComponentCommand, NOT importStepIntoNewPart', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [], constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('bolt.step')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(vi.mocked(ImportStepAsComponentCommand)).toHaveBeenCalledOnce();
+    });
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+  });
+
+  it('STEP + part active → dispatches importStepIntoNewPart (regression guard)', async () => {
+    const fakePart = {
+      id: 'p1', name: 'MyPart', units: 'mm' as const,
+      parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [],
+    };
+    useAppStore.getState().setActivePart(fakePart);
+    vi.mocked(importStepIntoNewPart).mockResolvedValue({ partId: 'p1', part: fakePart });
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('hinge.step')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => {
+      expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
+    });
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
   });
 });

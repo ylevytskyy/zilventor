@@ -81,7 +81,7 @@ export default function FileTab() {
   };
 
   const handleOpen = async () => {
-    const { kernel, setActivePart, setActiveDocument, setStatus } = useAppStore.getState();
+    const { kernel, setActivePart, setActiveDocument, setStatus, bus } = useAppStore.getState();
     if (!kernel) return;
     try {
       const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
@@ -97,12 +97,22 @@ export default function FileTab() {
       // Peek the manifest to discriminate kind before branching
       const file = await handle.getFile();
 
-      // STEP early-branch: must run BEFORE the tar.gz manifest peek
+      // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
-        const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
-        const { part } = await importStepIntoNewPart(file, kernel);
-        setActivePart(part);
-        setStatus('Imported');
+        const { activeDocument } = useAppStore.getState();
+        if (activeDocument?.kind === 'assembly') {
+          const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+          const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+          const opfs = await Opfs.forNavigator();
+          const stepBytes = await file.arrayBuffer();
+          const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
+          await bus.execute(cmd);
+        } else {
+          const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
+          const { part } = await importStepIntoNewPart(file, kernel);
+          setActivePart(part);
+          setStatus('Imported');
+        }
         return;
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
