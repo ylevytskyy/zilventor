@@ -9,6 +9,7 @@ import { ToggleConstraintSuppressionCommand } from '../../commands/ToggleConstra
 import { OpenBomTabCommand } from '../../commands/OpenBomTabCommand';
 import { RenumberBomCommand } from '../../commands/RenumberBomCommand';
 import type { PartInfo } from '@zilventor/shared';
+import { pickFile } from '../fsaFallback';
 
 const btn: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
@@ -32,14 +33,10 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
     const { kernel, bus } = useAppStore.getState();
     if (!kernel) return;
     try {
-      type FSAWindow = Window & {
-        showOpenFilePicker: (o: unknown) => Promise<FileSystemFileHandle[]>;
-      };
-      const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
-        types: [{ description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } }],
-      });
-      if (!handle) return;
-      const file = await handle.getFile();
+      const file = await pickFile([
+        { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
+      ]);
+      if (!file) return;
       const stepBytes = await file.arrayBuffer();
       const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
       const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');

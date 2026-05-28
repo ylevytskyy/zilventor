@@ -5,13 +5,9 @@ import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
-import { saveBlob } from '../fsaFallback';
+import { saveBlob, pickFile } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
-
-type FSAWindow = Window & {
-  showOpenFilePicker: (o: unknown) => Promise<FileSystemFileHandle[]>;
-};
 
 export default function FileTab() {
   const activePart = useAppStore((s) => s.activePart);
@@ -84,18 +80,13 @@ export default function FileTab() {
     const { kernel, setActivePart, setActiveDocument, setStatus, bus } = useAppStore.getState();
     if (!kernel) return;
     try {
-      const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
-        types: [
-          { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
-          { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
-          { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
-          { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
-        ]
-      });
-      if (!handle) return;
-
-      // Peek the manifest to discriminate kind before branching
-      const file = await handle.getFile();
+      const file = await pickFile([
+        { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
+        { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
+        { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
+        { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
+      ]);
+      if (!file) return;
 
       // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
@@ -135,8 +126,8 @@ export default function FileTab() {
         setActiveDocument({ kind: 'assembly', document: doc });
         setStatus('Opened');
       } else {
-        // part path — keep calling kernel.load(handle) to preserve existing behaviour
-        const partId = await kernel.load(handle);
+        // part path
+        const partId = await kernel.loadFromBytes(bytes);
         const part = await kernel.getPart(partId);
         setActivePart(part);
         setStatus('Opened');
