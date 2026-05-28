@@ -134,6 +134,9 @@ export class AddSectionViewCommand implements Command {
     const materials =
       state.activePart?.materials ??
       state.activeAssembly?.materials ??
+      // After CreateDrawingCommand, activePart is null; fall back to the source document
+      // that CreateDrawingCommand captured before calling setActiveDocument.
+      (state.activeDrawingSourceDocument as { materials?: import('@zilventor/shared').MaterialEntry[] } | null)?.materials ??
       [];
     const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
       // Empty materialId is the single-part case (kernel stamps '' on every faceTag for non-assembly cuts).
@@ -295,6 +298,9 @@ export class AddSectionViewCommand implements Command {
     const materials =
       state.activePart?.materials ??
       state.activeAssembly?.materials ??
+      // After CreateDrawingCommand, activePart is null; fall back to the source document
+      // that CreateDrawingCommand captured before calling setActiveDocument.
+      (state.activeDrawingSourceDocument as { materials?: import('@zilventor/shared').MaterialEntry[] } | null)?.materials ??
       [];
     const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
       // Empty materialId is the single-part case (kernel stamps '' on every faceTag for non-assembly cuts).

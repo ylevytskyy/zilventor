@@ -134,7 +134,13 @@ export async function regenerateSectionView(
   }
 
   // 5. Resolve materials for hatch lookup.
-  const materials = state.activePart?.materials ?? state.activeAssembly?.materials ?? [];
+  // After CreateDrawingCommand, activePart is null; fall back to activeDrawingSourceDocument
+  // (set unconditionally by CreateDrawingCommand before nulling activePart).
+  const materials =
+    state.activePart?.materials ??
+    state.activeAssembly?.materials ??
+    (state.activeDrawingSourceDocument as { materials?: import('@zilventor/shared').MaterialEntry[] } | null)?.materials ??
+    [];
   const hatchLookup = (materialId: string): { angleDeg: number; spacingMm: number } => {
     // Empty materialId is the single-part case (kernel stamps '' on every faceTag for non-assembly cuts).
     // Fall back to materials[0] as the implicit "primary material" — symmetric with colorForFace's part-source fallback.
