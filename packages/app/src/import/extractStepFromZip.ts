@@ -21,8 +21,10 @@ export function extractStepFromZip(zipBytes: Uint8Array): ExtractedStep | null {
   for (const [path, bytes] of Object.entries(entries)) {
     if (/\.(step|stp)$/i.test(path)) {
       const fileName = path.split('/').pop() ?? path;
-      // ArrayBuffer slice avoids exposing the underlying fflate buffer
-      const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      // Copy into a fresh ArrayBuffer — bytes.buffer is typed ArrayBuffer | SharedArrayBuffer
+      // under stricter lib typings, and the caller's contract requires plain ArrayBuffer.
+      const buf = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buf).set(bytes);
       return { fileName, stepBytes: buf };
     }
   }
