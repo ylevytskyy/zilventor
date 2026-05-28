@@ -1,8 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AssemblyTab } from '../AssemblyTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
+
+vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
+  ImportStepAsComponentCommand: vi.fn().mockImplementation(() => ({
+    name: 'ImportStepAsComponent',
+    apply: vi.fn().mockResolvedValue(undefined),
+    revert: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+import { ImportStepAsComponentCommand } from '../../../commands/ImportStepAsComponentCommand';
+
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
+  Opfs: { forNavigator: vi.fn().mockResolvedValue({}) },
+}));
 
 describe('AssemblyTab', () => {
   beforeEach(() => {
@@ -127,5 +140,54 @@ describe('AssemblyTab BOM panel', () => {
     const map = useAppStore.getState().activeAssembly!.bomItemNumbers;
     expect(map['parts/alpha.zipt::none']).toBe(1);
     expect(map['parts/zelda.zipt::none']).toBe(2);
+  });
+});
+
+function makeDoc(name: string): AssemblyDocument {
+  return {
+    id: name, name, units: 'mm', parameters: {}, properties: {},
+    components: [], constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+    materials: [], hardware: [],
+  };
+}
+
+describe('AssemblyTab — Insert From STEP… button', () => {
+  beforeEach(() => {
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+    useAppStore.getState().setActiveDocument(null);
+  });
+
+  it('button is disabled when no active assembly', () => {
+    render(<AssemblyTab />);
+    const btn = screen.getByRole('button', { name: /insert from step/i });
+    expect(btn).toBeDisabled();
+  });
+
+  it('button is enabled when an assembly is active', () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: makeDoc('cabinet') });
+    render(<AssemblyTab />);
+    const btn = screen.getByRole('button', { name: /insert from step/i });
+    expect(btn).not.toBeDisabled();
+  });
+
+  it('clicking the button calls ImportStepAsComponentCommand when a file is picked', async () => {
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: makeDoc('cabinet') });
+
+    const stepBytes = new Uint8Array([1, 2, 3]);
+    const fakeFile = { name: 'hinge.step', arrayBuffer: async () => stepBytes.buffer };
+    const fakeHandle = { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([fakeHandle]);
+
+    render(<AssemblyTab />);
+    const btn = screen.getByRole('button', { name: /insert from step/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(vi.mocked(ImportStepAsComponentCommand)).toHaveBeenCalledOnce();
+    });
+    const args = vi.mocked(ImportStepAsComponentCommand).mock.calls[0]?.[0];
+    expect(args?.fileName).toBe('hinge.step');
   });
 });

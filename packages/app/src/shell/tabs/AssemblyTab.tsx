@@ -28,6 +28,30 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   const selectedConstraint = activeAssembly?.constraints.find((c) => c.id === selectedConstraintId) ?? null;
   const isSuppressed = selectedConstraint?.suppressed ?? false;
 
+  const handleInsertFromStep = async () => {
+    const { kernel, bus } = useAppStore.getState();
+    if (!kernel) return;
+    try {
+      type FSAWindow = Window & {
+        showOpenFilePicker: (o: unknown) => Promise<FileSystemFileHandle[]>;
+      };
+      const [handle] = await (window as unknown as FSAWindow).showOpenFilePicker({
+        types: [{ description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } }],
+      });
+      if (!handle) return;
+      const file = await handle.getFile();
+      const stepBytes = await file.arrayBuffer();
+      const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+      const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+      const opfs = await Opfs.forNavigator();
+      const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
+      await bus.execute(cmd);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      useAppStore.getState().setStatus(`Insert From STEP failed: ${(e as Error).message}`);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: 4 }}>
       <div style={{ marginRight: 12 }}>
@@ -39,6 +63,14 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           style={btn}
         >
           Place
+        </button>
+        <button
+          aria-label="Insert From STEP…"
+          disabled={!hasAssembly}
+          onClick={handleInsertFromStep}
+          style={btn}
+        >
+          Insert From STEP…
         </button>
         <button
           aria-label="Edit"
