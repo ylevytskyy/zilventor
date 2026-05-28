@@ -12,7 +12,7 @@ export type ImportStepIntoNewPartsInput = {
   baseName: string;
   sourceFileName: string;
   stepBytes: ArrayBuffer;
-  kernel: KernelApi;
+  kernel: Pick<KernelApi, 'extractStepSolids' | 'registerPart' | 'saveToBytes'>;
   opfs: OpfsLike;
 };
 
@@ -64,7 +64,7 @@ export async function importStepIntoNewParts(
     // method on a mock degrades to a no-op via optional chaining.
     for (const r of [...registered].reverse()) {
       try {
-        await (kernel as KernelApi & { deletePart?: (id: string) => Promise<void> }).deletePart?.(r.partId);
+        await (kernel as Pick<KernelApi, 'extractStepSolids' | 'registerPart' | 'saveToBytes'> & { deletePart?: (id: string) => Promise<void> }).deletePart?.(r.partId);
       } catch { /* swallow rollback errors */ }
       try {
         await (opfs as OpfsLike & { delete?: (p: string) => Promise<void> }).delete?.(r.opfsPath);

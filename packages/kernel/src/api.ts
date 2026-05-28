@@ -91,6 +91,7 @@ export type KernelApi = {
     triangleCount: number;
     boundingBox: BoundingBox;
     faceCount: number;
+    solidCount: number;
   }>;
   extractStepSolids(params: { stepBytes: ArrayBuffer }): Promise<Array<{
     brepBlobId: string;
@@ -430,6 +431,7 @@ export function createKernelApi(): KernelApi {
         triangleCount: mesh.indices.length / 3,
         boundingBox: result.boundingBox,
         faceCount: result.faceCount,
+        solidCount: result.solidCount,
       };
     },
 

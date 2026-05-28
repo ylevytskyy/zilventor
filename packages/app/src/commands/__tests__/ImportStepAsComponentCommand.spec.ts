@@ -439,4 +439,34 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     expect(kernel.importStep).not.toHaveBeenCalled();
     expect(kernel.extractStepSolids).toHaveBeenCalledTimes(1);
   });
+
+  it('redo: apply → revert → apply re-registers all N + reuses cached blobs', async () => {
+    const extractMock = vi.fn(async () => [
+      { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+      { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
+      { brepBlobId: 'blob-3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
+    ]);
+    const kernel = {
+      importStep: vi.fn(),
+      extractStepSolids: extractMock,
+      registerPart: vi.fn(async () => undefined),
+      saveToBytes: vi.fn(async () => new Uint8Array([1])),
+      deletePart: vi.fn(async () => undefined),
+    };
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'chair.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(3);
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
+    await cmd.apply();  // redo path
+    expect(useAppStore.getState().activeAssembly?.components).toHaveLength(3);
+    // The redo path must NOT re-parse the STEP — extractStepSolids called once total.
+    expect(extractMock).toHaveBeenCalledTimes(1);
+  });
 });

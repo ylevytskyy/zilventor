@@ -101,7 +101,7 @@ export class ImportStepAsComponentCommand implements Command {
       baseName: stepFilenameBasename(fileName),
       sourceFileName: fileName,
       stepBytes,
-      kernel: kernel as KernelApi,
+      kernel,
       opfs,
     });
 

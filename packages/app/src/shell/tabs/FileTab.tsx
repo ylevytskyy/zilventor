@@ -130,24 +130,31 @@ export default function FileTab() {
           await bus.execute(cmd);
         } else {
           // Part-mode: no active assembly.
+          // Peek solidCount via importStep (one parse). Single-body reuses that
+          // result directly — no second parse, no orphaned shape in importedShapeCache.
+          // Multi-body falls through to extractStepSolids (second parse accepted;
+          // multi-body part-mode is rare and user is told "first body of N").
           const stepBytes = await file.arrayBuffer();
+          const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
+          const { stepFilenameBasename } = await import('../../import/originFeatures');
+          const baseName = stepFilenameBasename(file.name);
+          const importResult = await kernel.importStep({ stepBytes, partName: baseName });
+          if (importResult.solidCount <= 1) {
+            // Single-body: build PartDocument from the importStep result directly.
+            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
+            await kernel.registerPart(part);
+            setActivePart(part);
+            setStatus('Imported');
+            return;
+          }
+          // Multi-body in part-mode: extractStepSolids for proper per-solid blobs.
+          // (The importStep result above is now orphaned — the accepted trade-off
+          // for this rare path.)
           const solids = await kernel.extractStepSolids({ stepBytes });
           if (solids.length === 0) {
             setStatus(`No solids in ${file.name}`);
             return;
           }
-          if (solids.length === 1) {
-            // Single-body: delegate to the existing helper (kernel.importStep path).
-            const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
-            const { part } = await importStepIntoNewPart(file, kernel);
-            setActivePart(part);
-            setStatus('Imported');
-            return;
-          }
-          // Multi-body in part-mode: register only the first sub-solid.
-          const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
-          const { stepFilenameBasename } = await import('../../import/originFeatures');
-          const baseName = stepFilenameBasename(file.name);
           const firstSolid = solids[0];
           if (!firstSolid) {
             setStatus(`No solids in ${file.name}`);

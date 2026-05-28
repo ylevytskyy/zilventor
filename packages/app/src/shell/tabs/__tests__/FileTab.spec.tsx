@@ -135,47 +135,46 @@ describe('FileTab', () => {
 describe('handleOpen — STEP branch', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);
-    // Provide extractStepSolids returning 1 solid so the code routes through
-    // the single-body path (importStepIntoNewPart).
-    useAppStore.setState((s) => ({
-      ...s,
-      kernel: {
-        extractStepSolids: vi.fn(async () => [
-          { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-        ]),
-      } as any,
-    }));
+    vi.mocked(importStepIntoNewPart).mockClear();
   });
 
-  it('routes a .step file through importStepIntoNewPart and activates the part', async () => {
+  it('single-body .step in part-mode: importStep called once, extractStepSolids NOT called, part activated', async () => {
     const stepBytes = new Uint8Array([1, 2, 3]);
     const fakeFile = new File([stepBytes], 'Knob.step', { type: 'application/step' });
-    // jsdom's File may lack arrayBuffer(); duck-type to ensure it's present.
     Object.defineProperty(fakeFile, 'arrayBuffer', { value: async () => stepBytes.buffer });
     const fakeHandle = { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
     (window as unknown as { showOpenFilePicker: () => Promise<[FileSystemFileHandle]> })
       .showOpenFilePicker = async () => [fakeHandle];
 
-    const fakePart = {
-      id: 'step-part-1',
-      name: 'Knob',
-      units: 'mm' as const,
-      parameters: {},
-      featureTree: [],
-      properties: {},
-      materials: [],
-      hardware: [],
-    };
-    vi.mocked(importStepIntoNewPart).mockResolvedValue({ partId: 'step-part-1', part: fakePart });
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'blob-solo',
+      triangleCount: 12,
+      boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
+      faceCount: 6,
+      solidCount: 1,
+    }));
+    const extractStepSolids = vi.fn();
+    const registerPart = vi.fn(async () => {});
+
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: { importStep, extractStepSolids, registerPart } as any,
+    }));
 
     render(<FileTab />);
     fireEvent.click(screen.getByRole('button', { name: /^open/i }));
     await waitFor(() => {
-      expect(useAppStore.getState().activePart?.name).toBe('Knob');
+      expect(registerPart).toHaveBeenCalledOnce();
     });
 
-    expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
+    // Single parse: importStep called once, extractStepSolids NOT called.
+    expect(importStep).toHaveBeenCalledOnce();
+    expect(extractStepSolids).not.toHaveBeenCalled();
+    // Part is activated with the correct name.
+    expect(useAppStore.getState().activePart?.name).toBe('Knob');
     expect(useAppStore.getState().statusMessage).toBe('Imported');
+    // importStepIntoNewPart helper is no longer used in this path.
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
   });
 });
 
@@ -186,16 +185,6 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
   }
 
   beforeEach(() => {
-    // Provide extractStepSolids returning 1 solid so part-mode routes through
-    // the single-body path (importStepIntoNewPart) for the regression guard test.
-    useAppStore.setState((s) => ({
-      ...s,
-      kernel: {
-        extractStepSolids: vi.fn(async () => [
-          { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-        ]),
-      } as any,
-    }));
     vi.mocked(ImportStepAsComponentCommand).mockClear();
     vi.mocked(importStepIntoNewPart).mockClear();
   });
@@ -209,6 +198,7 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
 
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('bolt.step')]);
 
     render(<FileTab />);
@@ -219,21 +209,38 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
   });
 
-  it('STEP + part active → dispatches importStepIntoNewPart (regression guard)', async () => {
+  it('STEP + part active → uses importStep (single parse, no extractStepSolids, regression guard)', async () => {
     const fakePart = {
       id: 'p1', name: 'MyPart', units: 'mm' as const,
       parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [],
     };
     useAppStore.getState().setActivePart(fakePart);
-    vi.mocked(importStepIntoNewPart).mockResolvedValue({ partId: 'p1', part: fakePart });
+
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'blob-solo',
+      triangleCount: 12,
+      boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
+      faceCount: 6,
+      solidCount: 1,
+    }));
+    const extractStepSolids = vi.fn();
+    const registerPart = vi.fn(async () => {});
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: { importStep, extractStepSolids, registerPart } as any,
+    }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('hinge.step')]);
 
     render(<FileTab />);
     fireEvent.click(screen.getByRole('button', { name: /^open/i }));
     await waitFor(() => {
-      expect(vi.mocked(importStepIntoNewPart)).toHaveBeenCalledOnce();
+      expect(registerPart).toHaveBeenCalledOnce();
     });
+    // Single parse via importStep; importStepIntoNewPart no longer used.
+    expect(importStep).toHaveBeenCalledOnce();
+    expect(extractStepSolids).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
     expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
   });
 });
@@ -340,6 +347,14 @@ describe('handleOpen — STEP part-mode multi-body branch', () => {
 
   it('multi-body STEP in part-mode registers only the first sub-solid and emits setStatus', async () => {
     const registerPart = vi.fn(async () => {});
+    // importStep returns solidCount=3 → triggers extractStepSolids path
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'blob-peek',
+      triangleCount: 36,
+      boundingBox: [0, 0, 0, 50, 10, 10] as [number, number, number, number, number, number],
+      faceCount: 18,
+      solidCount: 3,
+    }));
     const extractStepSolids = vi.fn(async () => [
       { brepBlobId: 'b1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
       { brepBlobId: 'b2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
@@ -348,7 +363,7 @@ describe('handleOpen — STEP part-mode multi-body branch', () => {
 
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { extractStepSolids, registerPart } as any,
+      kernel: { importStep, extractStepSolids, registerPart } as any,
     }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('gizmo.step')]);
@@ -360,6 +375,8 @@ describe('handleOpen — STEP part-mode multi-body branch', () => {
       expect(registerPart).toHaveBeenCalledTimes(1);
     });
 
+    // importStep called once (peek), extractStepSolids called once (multi-body fallback)
+    expect(importStep).toHaveBeenCalledTimes(1);
     expect(extractStepSolids).toHaveBeenCalledTimes(1);
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
     const statusMsg = useAppStore.getState().statusMessage;
