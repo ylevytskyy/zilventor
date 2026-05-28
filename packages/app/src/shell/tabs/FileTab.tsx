@@ -129,10 +129,34 @@ export default function FileTab() {
           const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
           await bus.execute(cmd);
         } else {
-          const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
-          const { part } = await importStepIntoNewPart(file, kernel);
+          // Part-mode: no active assembly.
+          const stepBytes = await file.arrayBuffer();
+          const solids = await kernel.extractStepSolids({ stepBytes });
+          if (solids.length === 0) {
+            setStatus(`No solids in ${file.name}`);
+            return;
+          }
+          if (solids.length === 1) {
+            // Single-body: delegate to the existing helper (kernel.importStep path).
+            const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
+            const { part } = await importStepIntoNewPart(file, kernel);
+            setActivePart(part);
+            setStatus('Imported');
+            return;
+          }
+          // Multi-body in part-mode: register only the first sub-solid.
+          const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
+          const { stepFilenameBasename } = await import('../../import/originFeatures');
+          const baseName = stepFilenameBasename(file.name);
+          const firstSolid = solids[0];
+          if (!firstSolid) {
+            setStatus(`No solids in ${file.name}`);
+            return;
+          }
+          const part = buildImportedPartDocument(`${baseName}_1`, firstSolid.brepBlobId, file.name);
+          await kernel.registerPart(part);
           setActivePart(part);
-          setStatus('Imported');
+          setStatus(`Imported first body of ${solids.length} from ${file.name}`);
         }
         return;
       }

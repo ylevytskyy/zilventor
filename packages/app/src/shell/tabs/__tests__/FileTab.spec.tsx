@@ -135,9 +135,15 @@ describe('FileTab', () => {
 describe('handleOpen — STEP branch', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);
+    // Provide extractStepSolids returning 1 solid so the code routes through
+    // the single-body path (importStepIntoNewPart).
     useAppStore.setState((s) => ({
       ...s,
-      kernel: {} as any,
+      kernel: {
+        extractStepSolids: vi.fn(async () => [
+          { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+        ]),
+      } as any,
     }));
   });
 
@@ -180,7 +186,16 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
   }
 
   beforeEach(() => {
-    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    // Provide extractStepSolids returning 1 solid so part-mode routes through
+    // the single-body path (importStepIntoNewPart) for the regression guard test.
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: {
+        extractStepSolids: vi.fn(async () => [
+          { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+        ]),
+      } as any,
+    }));
     vi.mocked(ImportStepAsComponentCommand).mockClear();
     vi.mocked(importStepIntoNewPart).mockClear();
   });
@@ -308,6 +323,48 @@ describe('handleOpen — ZIP branch', () => {
     expect(screen.getByRole('alertdialog').textContent).toMatch(/no step\/stp file found/i);
     expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleOpen — STEP part-mode multi-body branch', () => {
+  function makeFakeStepHandle(name: string) {
+    const fakeFile = { name, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    vi.mocked(importStepIntoNewPart).mockClear();
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+  });
+
+  it('multi-body STEP in part-mode registers only the first sub-solid and emits setStatus', async () => {
+    const registerPart = vi.fn(async () => {});
+    const extractStepSolids = vi.fn(async () => [
+      { brepBlobId: 'b1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+      { brepBlobId: 'b2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
+      { brepBlobId: 'b3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
+    ]);
+
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: { extractStepSolids, registerPart } as any,
+    }));
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('gizmo.step')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(registerPart).toHaveBeenCalledTimes(1);
+    });
+
+    expect(extractStepSolids).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+    const statusMsg = useAppStore.getState().statusMessage;
+    expect(statusMsg).toContain('first body of 3');
+    expect(statusMsg).toContain('gizmo.step');
   });
 });
 
