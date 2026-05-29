@@ -7,6 +7,7 @@ import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
+import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
 
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
   A0: { w: 1189, h: 841 },
@@ -416,16 +417,13 @@ function renderDimensionGroup(
         ?? view.projection.hiddenEdges.find((e) => e.id === ref.edge.edgeId);
       if (!arcEdge || arcEdge.points.length < 3) return '';
 
-      // Estimate arc center, radius, start/end angles from first, mid, last polyline points
+      // Estimate arc center, radius, start/end angles from the polyline
       const pts = arcEdge.points;
       const pStart = pts[0]!;
       const pEnd   = pts[pts.length - 1]!;
-      const pMid   = pts[Math.floor(pts.length / 2)]!;
 
-      // Arc center via circumcircle of 3 points
-      const cx_arc = circumcenterX(pStart, pMid, pEnd);
-      const cy_arc = circumcenterY(pStart, pMid, pEnd);
-      const r_arc = Math.sqrt((pStart[0] - cx_arc) ** 2 + (pStart[1] - cy_arc) ** 2);
+      // Arc center via shared circumcenter util (first/mid/last selection)
+      const { cx: cx_arc, cy: cy_arc, r: r_arc } = circumcenterFromPolyline(pts);
 
       const startAngle = Math.atan2(pStart[1] - cy_arc, pStart[0] - cx_arc);
       const endAngle   = Math.atan2(pEnd[1]   - cy_arc, pEnd[0]   - cx_arc);
@@ -538,6 +536,71 @@ function renderDimensionGroup(
     </g>`;
   }
 
+  if (dim.kind === 'radial') {
+    if (!view?.projection) return '';
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return '';
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    // Leader: from center to rim point at angleDeg, then extends offsetMm beyond rim
+    const rimX = cx + r * Math.cos(angleRad);
+    const rimY = cy + r * Math.sin(angleRad);
+    const tipX = cx + (r + dim.offsetMm) * Math.cos(angleRad);
+    const tipY = cy + (r + dim.offsetMm) * Math.sin(angleRad);
+
+    const sx1 = vx + cx  * vScale;
+    const sy1 = vy + cy  * vScale;
+    const sx2 = vx + rimX * vScale;
+    const sy2 = vy + rimY * vScale;
+    const tx  = vx + (tipX + 1) * vScale;
+    const ty  = vy + tipY * vScale;
+
+    const label = `R${Math.round(r)}`;
+    return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="radial" stroke="#00c" stroke-width="0.2" fill="none">
+      <line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}"/>
+      <text x="${tx}" y="${ty}" font-size="3.5" fill="#00c" stroke="none">${label}</text>
+    </g>`;
+  }
+
+  if (dim.kind === 'diametric') {
+    if (!view?.projection) return '';
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return '';
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    // Leader: spans full diameter through center along angleDeg direction
+    const rimAx = cx + r * Math.cos(angleRad);
+    const rimAy = cy + r * Math.sin(angleRad);
+    const rimBx = cx - r * Math.cos(angleRad);
+    const rimBy = cy - r * Math.sin(angleRad);
+
+    const sx1 = vx + rimAx * vScale;
+    const sy1 = vy + rimAy * vScale;
+    const sx2 = vx + rimBx * vScale;
+    const sy2 = vy + rimBy * vScale;
+    // Text positioned just beyond rim A
+    const tx  = vx + (rimAx + 1) * vScale;
+    const ty  = vy + (rimAy - 1) * vScale;
+
+    const label = `⌀${Math.round(2 * r)}`;
+    return `  <g data-dim-id="${escapeAttr(dim.id)}" data-dim-kind="diametric" stroke="#00c" stroke-width="0.2" fill="none">
+      <line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}"/>
+      <text x="${tx}" y="${ty}" font-size="3.5" fill="#00c" stroke="none">${label}</text>
+    </g>`;
+  }
+
   return '';
 }
 
@@ -557,32 +620,6 @@ function normalizeAngle(a: number): number {
   let r = a % (2 * Math.PI);
   if (r < 0) r += 2 * Math.PI;
   return r;
-}
-
-function circumcenterX(
-  p0: readonly [number, number],
-  p1: readonly [number, number],
-  p2: readonly [number, number],
-): number {
-  const ax = p0[0], ay = p0[1];
-  const bx = p1[0], by = p1[1];
-  const cx = p2[0], cy = p2[1];
-  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (Math.abs(D) < 1e-12) return (ax + bx + cx) / 3;
-  return ((ax*ax + ay*ay) * (by - cy) + (bx*bx + by*by) * (cy - ay) + (cx*cx + cy*cy) * (ay - by)) / D;
-}
-
-function circumcenterY(
-  p0: readonly [number, number],
-  p1: readonly [number, number],
-  p2: readonly [number, number],
-): number {
-  const ax = p0[0], ay = p0[1];
-  const bx = p1[0], by = p1[1];
-  const cx = p2[0], cy = p2[1];
-  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (Math.abs(D) < 1e-12) return (ay + by + cy) / 3;
-  return ((ax*ax + ay*ay) * (cx - bx) + (bx*bx + by*by) * (ax - cx) + (cx*cx + cy*cy) * (bx - ax)) / D;
 }
 
 // ---------------------------------------------------------------------------
@@ -754,6 +791,10 @@ function resolvePointRef(
   if (!edge || edge.points.length === 0) return null;
   if (r.end === 'end') return (edge.points[edge.points.length - 1] as readonly [number, number]);
   if (r.kind === 'edge-midpoint') return (edge.points[Math.floor(edge.points.length / 2)] as readonly [number, number]);
+  if (r.kind === 'arc-center') {
+    const { cx, cy } = circumcenterFromPolyline(edge.points);
+    return [cx, cy] as const;
+  }
   return (edge.points[0] as readonly [number, number]);
 }
 

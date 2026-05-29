@@ -9,6 +9,7 @@ import { ISO_SIZES_MM } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
+import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
 import { createDxfDocument, hexToAci } from './dxfWriter';
 
 // ── Sheet dimension helpers (mirrors renderDrawingSvg — not exported there) ──
@@ -47,6 +48,10 @@ function resolvePointRef(
   if (!edge || edge.points.length === 0) return null;
   if (r.end === 'end') return edge.points[edge.points.length - 1] as readonly [number, number];
   if (r.kind === 'edge-midpoint') return edge.points[Math.floor(edge.points.length / 2)] as readonly [number, number];
+  if (r.kind === 'arc-center') {
+    const { cx, cy } = circumcenterFromPolyline(edge.points);
+    return [cx, cy] as const;
+  }
   return edge.points[0] as readonly [number, number];
 }
 

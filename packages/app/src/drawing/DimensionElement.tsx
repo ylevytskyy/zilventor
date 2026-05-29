@@ -4,6 +4,7 @@ import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { useAppStore } from '../store/useAppStore';
 import { resolveF5DimText } from './DimensionElementF5Utils';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
+import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
 
 // Resolve a PointRef to sheet-space mm coords within the view's projection.
 function resolvePoint(ref: PointRef, view: DrawingView): { x: number; y: number } | null {
@@ -28,8 +29,8 @@ function resolvePoint(ref: PointRef, view: DrawingView): { x: number; y: number 
     return { x: px + pt[0] * s, y: py + pt[1] * s };
   }
   if (ref.kind === 'arc-center') {
-    const sum = edge.points.reduce((acc, p) => ({ x: acc.x + p[0], y: acc.y + p[1] }), { x: 0, y: 0 });
-    return { x: px + (sum.x / edge.points.length) * s, y: py + (sum.y / edge.points.length) * s };
+    const { cx, cy } = circumcenterFromPolyline(edge.points);
+    return { x: px + cx * s, y: py + cy * s };
   }
   return null;
 }
@@ -320,32 +321,6 @@ function normalizeAngle(a: number): number {
   return r;
 }
 
-function circumcenterX(
-  p0: readonly [number, number],
-  p1: readonly [number, number],
-  p2: readonly [number, number],
-): number {
-  const ax = p0[0], ay = p0[1];
-  const bx = p1[0], by = p1[1];
-  const cx = p2[0], cy = p2[1];
-  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (Math.abs(D) < 1e-12) return (ax + bx + cx) / 3;
-  return ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / D;
-}
-
-function circumcenterY(
-  p0: readonly [number, number],
-  p1: readonly [number, number],
-  p2: readonly [number, number],
-): number {
-  const ax = p0[0], ay = p0[1];
-  const bx = p1[0], by = p1[1];
-  const cx = p2[0], cy = p2[1];
-  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (Math.abs(D) < 1e-12) return (ay + by + cy) / 3;
-  return ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / D;
-}
-
 function distSqPt(a: { x: number; y: number }, b: { x: number; y: number }): number {
   const dx = a.x - b.x, dy = a.y - b.y;
   return dx * dx + dy * dy;
@@ -373,11 +348,8 @@ function AngularDimension({ dim, view }: { dim: AngularDim; view: DrawingView })
     const pts = arcEdge.points;
     const pStart = pts[0]!;
     const pEnd   = pts[pts.length - 1]!;
-    const pMid   = pts[Math.floor(pts.length / 2)]!;
 
-    const cx_arc = circumcenterX(pStart, pMid, pEnd);
-    const cy_arc = circumcenterY(pStart, pMid, pEnd);
-    const r_arc  = Math.sqrt((pStart[0] - cx_arc) ** 2 + (pStart[1] - cy_arc) ** 2);
+    const { cx: cx_arc, cy: cy_arc, r: r_arc } = circumcenterFromPolyline(pts);
 
     const startAngle = Math.atan2(pStart[1] - cy_arc, pStart[0] - cx_arc);
     const endAngle   = Math.atan2(pEnd[1]   - cy_arc, pEnd[0]   - cx_arc);

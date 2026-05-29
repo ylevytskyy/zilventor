@@ -53,3 +53,4 @@ export { applyBreaks } from './drawing/applyBreaks';
 export type { ApplyBreaksResult } from './drawing/applyBreaks';
 export { intersectLines, subtendedAngle, formatAngleDeg, computeBaselineMemberOffset, nextBaselineSlot } from './drawing/dimensionMath';
 export type { Point2, Vec2D } from './drawing/dimensionMath';
+export { circumcenterFromPolyline } from './drawing/circumcenter';

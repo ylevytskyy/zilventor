@@ -5,6 +5,7 @@
 
 import type { DrawingView, PointRef, HoleTableAnnotation } from './types';
 import type { HoleFeature, HoleTermination, PartDocument, ParamOrLiteral } from '../types';
+import { circumcenterFromPolyline } from './circumcenter';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -128,7 +129,10 @@ function resolvePointRefLocal(
   if (ref.kind === 'edge-midpoint') {
     return edge.points[Math.floor(edge.points.length / 2)] ?? null;
   }
-  // arc-center: matches app's resolver fallthrough (returns points[0])
+  if (ref.kind === 'arc-center') {
+    const { cx, cy } = circumcenterFromPolyline(edge.points);
+    return [cx, cy] as const;
+  }
   return edge.points[0] ?? null;
 }
 

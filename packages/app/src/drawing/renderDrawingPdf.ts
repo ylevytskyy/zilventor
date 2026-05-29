@@ -273,6 +273,7 @@ function drawPolylinePdf(
 
 import type { DrawingDimension } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
+import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
 
 function drawDimensionPdf(
   pdf: jsPDF,
@@ -327,5 +328,9 @@ function resolvePointRef(
   if (!edge || edge.points.length === 0) return null;
   if (r.end === 'end') return (edge.points[edge.points.length - 1] as readonly [number, number]);
   if (r.kind === 'edge-midpoint') return (edge.points[Math.floor(edge.points.length / 2)] as readonly [number, number]);
+  if (r.kind === 'arc-center') {
+    const { cx, cy } = circumcenterFromPolyline(edge.points);
+    return [cx, cy] as const;
+  }
   return (edge.points[0] as readonly [number, number]);
 }
