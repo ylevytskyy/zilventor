@@ -382,6 +382,23 @@ export type TitleBlockOverrides = {
 };
 
 // ---------------------------------------------------------------------------
+// DxfUnderlay — F7: DXF underlay import (additive; no manifest bump)
+// ---------------------------------------------------------------------------
+
+export type UnderlayEntity =
+  | { kind: 'line';     x1: number; y1: number; x2: number; y2: number }
+  | { kind: 'polyline'; points: ReadonlyArray<readonly [number, number]>; closed: boolean }
+  | { kind: 'circle';   cx: number; cy: number; r: number }
+  | { kind: 'arc';      cx: number; cy: number; r: number; startAngle: number; endAngle: number }
+  | { kind: 'text';     x: number; y: number; height: number; value: string; rotation: number };
+
+export type DxfUnderlay = {
+  readonly name: string;
+  readonly entities: ReadonlyArray<UnderlayEntity>;
+  readonly sourceBBoxMm?: { minX: number; minY: number; maxX: number; maxY: number };
+};
+
+// ---------------------------------------------------------------------------
 // DrawingSheet
 // ---------------------------------------------------------------------------
 
@@ -395,6 +412,7 @@ export type DrawingSheet = {
   readonly annotations: readonly DrawingAnnotation[];
   readonly titleBlock: TitleBlockOverrides;
   readonly dimensionGroups: readonly DimensionGroup[];   // F5: additive on v18; defaults to [] on load
+  readonly underlay?: DxfUnderlay;                       // F7: DXF underlay (additive; absent = none)
 };
 
 // ---------------------------------------------------------------------------
