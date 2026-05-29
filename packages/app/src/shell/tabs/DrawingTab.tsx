@@ -26,6 +26,7 @@ export default function DrawingTab(): JSX.Element {
   const isAssembly = drawing.source?.sourceKind === 'assembly';
   const setMode = useToolModeStore.getState().setMode;
   const activeSheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
+  const hasUnderlay = activeSheet?.underlay !== undefined;
   const hasProjectedView = activeSheet?.views.some((v) => v.projection != null) ?? false;
   const isMultiSheet = drawing.sheets.length > 1;
   const anySheetHasProjectedView = drawing.sheets.some((s) => s.views.some((v) => v.projection != null));
@@ -287,6 +288,21 @@ export default function DrawingTab(): JSX.Element {
           }}
         >
           Import DXF Underlay…
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Remove Underlay"
+          disabled={!hasUnderlay}
+          title={hasUnderlay ? 'Remove DXF underlay from active sheet' : 'No underlay to remove'}
+          onClick={() => {
+            void (async () => {
+              const { RemoveDxfUnderlayCommand } = await import('../../commands/RemoveDxfUnderlayCommand');
+              await bus.execute(new RemoveDxfUnderlayCommand({}));
+            })();
+          }}
+        >
+          Remove Underlay
         </button>
       </RibbonPanel>
 
