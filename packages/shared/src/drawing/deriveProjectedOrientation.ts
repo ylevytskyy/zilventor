@@ -1,5 +1,5 @@
 // packages/shared/src/drawing/deriveProjectedOrientation.ts
-// Third-angle orthographic projection neighbour table (ANSI standard).
+// First-angle orthographic projection neighbour table (ISO standard).
 // Given a base view's orientation and the direction the user clicked relative
 // to it, returns the orientation of the projected view.
 
@@ -8,16 +8,16 @@ type Direction = 'top' | 'bottom' | 'left' | 'right';
 import type { ViewOrientation } from './viewMatrix';
 
 const TABLE: Record<BaseOrient, Record<Direction, ViewOrientation>> = {
-  front:  { top: 'top',    bottom: 'bottom', right: 'right', left: 'left'   },
-  top:    { top: 'back',   bottom: 'front',  right: 'right', left: 'left'   },
-  right:  { top: 'top',    bottom: 'bottom', right: 'back',  left: 'front'  },
-  back:   { top: 'top',    bottom: 'bottom', right: 'left',  left: 'right'  },
-  bottom: { top: 'front',  bottom: 'back',   right: 'right', left: 'left'   },
-  left:   { top: 'top',    bottom: 'bottom', right: 'front', left: 'back'   },
+  front:  { top: 'bottom', bottom: 'top',   right: 'left',  left: 'right'  },
+  top:    { top: 'front',  bottom: 'back',  right: 'left',  left: 'right'  },
+  right:  { top: 'bottom', bottom: 'top',   right: 'front', left: 'back'   },
+  back:   { top: 'bottom', bottom: 'top',   right: 'right', left: 'left'   },
+  bottom: { top: 'back',   bottom: 'front', right: 'left',  left: 'right'  },
+  left:   { top: 'bottom', bottom: 'top',   right: 'back',  left: 'front'  },
 };
 
 /**
- * Derive the ViewOrientation of a projected view in third-angle (ANSI) projection.
+ * Derive the ViewOrientation of a projected view in first-angle (ISO) projection.
  * @param baseOrientation - orientation of the parent base view
  * @param direction - position of projected view relative to base ('top'=above, etc.)
  * @returns the ViewOrientation to pass to projectView()
