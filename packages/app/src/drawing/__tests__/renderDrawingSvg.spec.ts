@@ -422,3 +422,128 @@ describe('renderDrawingSvg — null source (source-optional export)', () => {
     expect(svg).not.toContain('data-ann-kind="holeTable"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// F3 SVG underlay (DXF underlay backdrop)
+// ---------------------------------------------------------------------------
+import type { DxfUnderlay, DrawingSheet as DrawingSheetType } from '@zilventor/shared';
+
+describe('renderDrawingSvg — DXF underlay (F3)', () => {
+  function makeUnderlaySheet(): DrawingSheetType {
+    const underlay: DxfUnderlay = {
+      name: 'test.dxf',
+      entities: [
+        { kind: 'line',     x1: 0,  y1: 0,  x2: 100, y2: 0 },
+        { kind: 'polyline', points: [[0, 0], [50, 0], [50, 50]] as ReadonlyArray<readonly [number, number]>, closed: false },
+        { kind: 'circle',   cx: 50, cy: 50, r: 20 },
+        { kind: 'arc',      cx: 0,  cy: 0,  r: 10,   startAngle: 0, endAngle: 90 },
+        { kind: 'text',     x: 10,  y: 10,  height: 5, value: 'Label', rotation: 0 },
+      ],
+    };
+    return {
+      id: 's-underlay',
+      name: 'Sheet with underlay',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [
+        {
+          id: 'v-ul-1',
+          kind: 'base',
+          positionMm: { x: 50, y: 50 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front',
+          showHidden: false,
+          projection: {
+            visibleEdges: [{ id: 'e1', kind: 'outline', points: [[0, 0], [10, 0]] as ReadonlyArray<readonly [number, number]> }],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+          },
+        },
+      ],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+      underlay,
+    };
+  }
+
+  function makeUnderlayDrawing(sheet: DrawingSheetType): DrawingDocument {
+    return {
+      id: 'd-ul',
+      name: 'Underlay Drawing',
+      units: 'mm',
+      source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+      properties: {},
+      sheets: [sheet],
+      activeSheetId: sheet.id,
+    };
+  }
+
+  it('emits <g data-underlay> when sheet has an underlay', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    expect(svg).toContain('data-underlay');
+  });
+
+  it('underlay group has pointer-events="none"', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    // The group must carry pointer-events="none"
+    expect(svg).toMatch(/data-underlay[^>]*pointer-events="none"|pointer-events="none"[^>]*data-underlay/);
+  });
+
+  it('underlay group contains a <line> for the line entity', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    // Line entity should produce a <line> element inside the underlay group
+    const underlayStart = svg.indexOf('data-underlay');
+    const underlayEnd = svg.indexOf('</g>', underlayStart);
+    const underlaySection = svg.slice(underlayStart, underlayEnd);
+    expect(underlaySection).toContain('<line');
+  });
+
+  it('underlay group contains a <circle> for the circle entity', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    const underlayStart = svg.indexOf('data-underlay');
+    const underlayEnd = svg.indexOf('</g>', underlayStart);
+    const underlaySection = svg.slice(underlayStart, underlayEnd);
+    expect(underlaySection).toContain('<circle');
+  });
+
+  it('underlay group contains a <path> for the arc entity', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    const underlayStart = svg.indexOf('data-underlay');
+    const underlayEnd = svg.indexOf('</g>', underlayStart);
+    const underlaySection = svg.slice(underlayStart, underlayEnd);
+    expect(underlaySection).toContain('<path');
+  });
+
+  it('underlay group contains a <text> for the text entity', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    const underlayStart = svg.indexOf('data-underlay');
+    const underlayEnd = svg.indexOf('</g>', underlayStart);
+    const underlaySection = svg.slice(underlayStart, underlayEnd);
+    expect(underlaySection).toContain('<text');
+    expect(underlaySection).toContain('Label');
+  });
+
+  it('underlay group appears BEFORE the first data-view-id in document order', () => {
+    const sheet = makeUnderlaySheet();
+    const svg = renderDrawingSvg(makeUnderlayDrawing(sheet), sheet, makeFixturePart());
+    const underlayPos = svg.indexOf('data-underlay');
+    const firstViewPos = svg.indexOf('data-view-id=');
+    expect(underlayPos).toBeGreaterThan(0);
+    expect(underlayPos).toBeLessThan(firstViewPos);
+  });
+
+  it('sheet without underlay emits no data-underlay group', () => {
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).not.toContain('data-underlay');
+  });
+});

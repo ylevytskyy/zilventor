@@ -761,3 +761,26 @@ describe('renderDrawingDxf — partsList annotation', () => {
     expect(dxf).toContain('Corner Bracket');
   });
 });
+
+// ---------------------------------------------------------------------------
+// DXF underlay exclusion: underlay entities must NOT be re-exported to DXF
+// ---------------------------------------------------------------------------
+import type { DxfUnderlay } from '@zilventor/shared';
+
+describe('renderDrawingDxf — underlay NOT re-exported', () => {
+  it('sheet with underlay: DXF output does not contain data-underlay marker or underlay entity text', () => {
+    const underlay: DxfUnderlay = {
+      name: 'test.dxf',
+      entities: [
+        { kind: 'line', x1: 0, y1: 0, x2: 100, y2: 0 },
+        { kind: 'text', x: 5, y: 5, height: 4, value: 'UNDERLAY_MARKER_UNIQUE_XYZ', rotation: 0 },
+      ],
+    };
+    const sheet = makeSheet({ underlay });
+    const dxf = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    // The unique marker from the text entity must not appear in DXF output
+    expect(dxf).not.toContain('UNDERLAY_MARKER_UNIQUE_XYZ');
+    // No data-underlay (SVG concept only)
+    expect(dxf).not.toContain('data-underlay');
+  });
+});

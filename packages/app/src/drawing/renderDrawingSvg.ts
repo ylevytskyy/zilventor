@@ -8,6 +8,7 @@ import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
 import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
+import { underlayEntityToSvg } from './renderUnderlayEntity';
 
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
   A0: { w: 1189, h: 841 },
@@ -39,6 +40,9 @@ export function renderDrawingSvg(
     '',
   );
 
+  const underlayGroup = sheet.underlay
+    ? renderUnderlayGroup(sheet)
+    : '';
   const viewGroups = sheet.views.map((v) => renderViewGroup(v)).join('\n');
   const calloutGroups = renderDetailCalloutGroups(sheet.views);
   const steppedSectionLineGroups = renderSteppedSectionLines(sheet.views);
@@ -73,6 +77,7 @@ export function renderDrawingSvg(
   data-sheet-id="${escapeAttr(sheet.id)}">
   <rect x="10" y="10" width="${sheetW - 20}" height="${sheetH - 20 - titleH}"
     fill="white" stroke="#000" stroke-width="0.5"/>
+${underlayGroup}
 ${viewGroups}
 ${calloutGroups}
 ${steppedSectionLineGroups}
@@ -80,6 +85,17 @@ ${dimGroups}
 ${annGroups}
 ${titleBlockSvg}
 </svg>`;
+}
+
+/**
+ * F3: Render the DXF underlay as a muted <g data-underlay> backdrop.
+ * Must appear BEFORE view groups so it renders behind all views.
+ */
+function renderUnderlayGroup(sheet: DrawingSheet): string {
+  const { underlay } = sheet;
+  if (!underlay) return '';
+  const entityLines = underlay.entities.map((e) => `    ${underlayEntityToSvg(e)}`).join('\n');
+  return `  <g data-underlay="${escapeAttr(underlay.name)}" pointer-events="none">\n${entityLines}\n  </g>`;
 }
 
 /**

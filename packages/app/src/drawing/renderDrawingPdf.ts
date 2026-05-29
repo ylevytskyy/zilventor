@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { DrawingSheet, DrawingView, DetailView, SectionView, DrawingAnnotation } from '@zilventor/shared';
+import type { DrawingSheet, DrawingView, DetailView, SectionView, DrawingAnnotation, UnderlayEntity } from '@zilventor/shared';
 import type { PartsListAnnotation } from '@zilventor/shared';
 import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
@@ -102,6 +102,11 @@ function drawSheetPdf(
   const sheetPhysH = getSheetHeightMm(sheet);
   const scaleX = drawAreaW / sheetPhysW;
   const scaleY = drawAreaH / sheetPhysH;
+
+  // F4: render DXF underlay BEFORE views so it's behind all geometry
+  if (sheet.underlay) {
+    drawUnderlayPdf(pdf, sheet.underlay.entities, MARGIN, MARGIN, scaleX, scaleY);
+  }
 
   for (const view of sheet.views) {
     drawViewPdf(pdf, view, MARGIN, MARGIN, scaleX, scaleY);
@@ -329,6 +334,93 @@ function getSheetHeightMm(sheet: DrawingSheet): number {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const base = ISO_SIZES_MM[sheet.size.size]!;
   return sheet.orientation === 'landscape' ? base.h : base.w;
+}
+
+/**
+ * F4: Draw DXF underlay entities in muted gray BEFORE view geometry.
+ * Style: gray (156, 163, 175), stroke-width 0.2mm, opacity-equivalent thinness.
+ */
+function drawUnderlayPdf(
+  pdf: jsPDF,
+  entities: ReadonlyArray<UnderlayEntity>,
+  ox: number,
+  oy: number,
+  scaleX: number,
+  scaleY: number,
+): void {
+  // Gray color matching #9ca3af (156, 163, 175)
+  pdf.setDrawColor(156, 163, 175);
+  pdf.setLineWidth(0.2);
+
+  for (const entity of entities) {
+    switch (entity.kind) {
+      case 'line': {
+        const x1 = ox + entity.x1 * scaleX;
+        const y1 = oy + entity.y1 * scaleY;
+        const x2 = ox + entity.x2 * scaleX;
+        const y2 = oy + entity.y2 * scaleY;
+        pdf.line(x1, y1, x2, y2);
+        break;
+      }
+      case 'polyline': {
+        const pts = entity.points;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i]!;
+          const p1 = pts[i + 1]!;
+          pdf.line(
+            ox + p0[0] * scaleX, oy + p0[1] * scaleY,
+            ox + p1[0] * scaleX, oy + p1[1] * scaleY,
+          );
+        }
+        if (entity.closed && pts.length >= 2) {
+          const pFirst = pts[0]!;
+          const pLast  = pts[pts.length - 1]!;
+          pdf.line(
+            ox + pLast[0] * scaleX, oy + pLast[1] * scaleY,
+            ox + pFirst[0] * scaleX, oy + pFirst[1] * scaleY,
+          );
+        }
+        break;
+      }
+      case 'circle': {
+        const cx = ox + entity.cx * scaleX;
+        const cy = oy + entity.cy * scaleY;
+        const r  = entity.r * scaleX;  // use scaleX for radius (uniform scale assumed)
+        pdf.circle(cx, cy, r, 'S');
+        break;
+      }
+      case 'arc': {
+        // jsPDF doesn't have a native arc-to-point API; approximate with line segments
+        const { cx, cy, r, startAngle, endAngle } = entity;
+        let sweep = endAngle - startAngle;
+        if (sweep <= 0) sweep += 360;
+        // ~18 segments per full circle → ~1 per 20°
+        const segments = Math.max(3, Math.ceil(sweep / 20));
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        for (let i = 0; i < segments; i++) {
+          const a0 = toRad(startAngle + (sweep * i) / segments);
+          const a1 = toRad(startAngle + (sweep * (i + 1)) / segments);
+          pdf.line(
+            ox + (cx + r * Math.cos(a0)) * scaleX,
+            oy + (cy + r * Math.sin(a0)) * scaleY,
+            ox + (cx + r * Math.cos(a1)) * scaleX,
+            oy + (cy + r * Math.sin(a1)) * scaleY,
+          );
+        }
+        break;
+      }
+      case 'text': {
+        pdf.setFontSize(Math.max(3, entity.height * scaleY * 2.835)); // mm to pt
+        pdf.setTextColor(156, 163, 175);
+        pdf.text(entity.value, ox + entity.x * scaleX, oy + entity.y * scaleY);
+        pdf.setTextColor(0);
+        break;
+      }
+    }
+  }
+
+  // Restore draw color for subsequent view rendering
+  pdf.setDrawColor(0);
 }
 
 function drawViewPdf(

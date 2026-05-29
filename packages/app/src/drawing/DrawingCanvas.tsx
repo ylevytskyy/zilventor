@@ -1,5 +1,6 @@
 // packages/app/src/drawing/DrawingCanvas.tsx
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { underlayEntityToSvg } from './renderUnderlayEntity';
 import { useAppStore } from '../store/useAppStore';
 import { useToolModeStore } from './toolMode';
 import { TitleBlock } from './TitleBlock';
@@ -1005,6 +1006,16 @@ export function DrawingCanvas() {
         x={0} y={0} width={sheetW} height={sheetH}
         fill="white" stroke="#888" strokeWidth={0.5}
       />
+
+      {/* DXF underlay backdrop — rendered BEFORE views so it's behind all geometry (F3) */}
+      {sheet.underlay && (
+        <g data-underlay={sheet.underlay.name} pointerEvents="none">
+          {sheet.underlay.entities.map((entity, i) => (
+            // eslint-disable-next-line react/no-danger
+            <g key={i} dangerouslySetInnerHTML={{ __html: underlayEntityToSvg(entity) }} />
+          ))}
+        </g>
+      )}
 
       {/* Views */}
       {sheet.views.map((v) => (

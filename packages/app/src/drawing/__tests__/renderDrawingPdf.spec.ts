@@ -357,3 +357,68 @@ describe('renderDrawingPdf — holeTable annotation (PDF gap closure)', () => {
     expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
   });
 });
+
+// ---------------------------------------------------------------------------
+// F4 PDF underlay rendering
+// ---------------------------------------------------------------------------
+import type { DxfUnderlay, DrawingSheet as DrawingSheetU } from '@zilventor/shared';
+
+describe('renderDrawingPdf — DXF underlay (F4)', () => {
+  function makeUnderlaySheet(): DrawingSheetU {
+    const underlay: DxfUnderlay = {
+      name: 'test.dxf',
+      entities: [
+        { kind: 'line',     x1: 0,  y1: 0,  x2: 100, y2: 0 },
+        { kind: 'circle',   cx: 50, cy: 50, r: 20 },
+        { kind: 'arc',      cx: 0,  cy: 0,  r: 10,  startAngle: 0, endAngle: 90 },
+        { kind: 'text',     x: 10,  y: 10,  height: 5, value: 'Under', rotation: 0 },
+        { kind: 'polyline', points: [[0, 0], [10, 0]] as ReadonlyArray<readonly [number, number]>, closed: false },
+      ],
+    };
+    return {
+      id: 's-u',
+      name: 'Sheet with underlay',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+      underlay,
+    };
+  }
+
+  function makeUnderlayDrawing(sheet: DrawingSheetU): DrawingDocument {
+    return {
+      id: 'd-u',
+      name: 'Underlay PDF Drawing',
+      units: 'mm',
+      source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+      properties: {},
+      sheets: [sheet],
+      activeSheetId: sheet.id,
+    };
+  }
+
+  it('does not throw and returns valid PDF bytes when sheet has underlay', () => {
+    const sheet = makeUnderlaySheet();
+    const drawing = makeUnderlayDrawing(sheet);
+    expect(() => renderDrawingPdfBytes(drawing, null)).not.toThrow();
+    const bytes = renderDrawingPdfBytes(drawing, null);
+    expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
+  });
+
+  it('PDF output contains a gray stroke color set for the underlay (RGB ~0.612 0.639 0.686 RG)', () => {
+    const sheet = makeUnderlaySheet();
+    const drawing = makeUnderlayDrawing(sheet);
+    const bytes = renderDrawingPdfBytes(drawing, null);
+    // jsPDF emits RGB stroke color via "r g b RG" in the PDF stream
+    // 156/255 ≈ 0.612, 163/255 ≈ 0.639, 175/255 ≈ 0.686
+    // Parse the PDF text content to find any RG (stroke color) command
+    const text = new TextDecoder('latin1').decode(bytes);
+    // RG = stroke color in PDF. Gray-ish values: look for values in ~0.5–0.7 range
+    // jsPDF rounds to 3 decimal places: 0.612 0.639 0.686 RG
+    expect(text).toMatch(/0\.6[0-9]+ 0\.6[0-9]+ 0\.6[0-9]+ RG/);
+  });
+});
