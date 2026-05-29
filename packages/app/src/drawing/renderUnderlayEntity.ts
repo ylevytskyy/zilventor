@@ -12,10 +12,23 @@
 import type { UnderlayEntity } from '@zilventor/shared';
 
 /**
+ * Options for underlayEntityToSvg.
+ * yFlipped: when true, the parent group has scale(1,-1); text elements need a counter-flip
+ * so their glyphs appear upright (not upside-down). Geometry entities are unaffected.
+ */
+export type UnderlayEntitySvgOpts = {
+  /** When true, apply scale(1,-1) counter-transform on text so it reads correctly. */
+  yFlipped?: boolean;
+};
+
+/**
  * Convert a UnderlayEntity to an SVG element string.
  * Coordinates are in mm (sheet space — callers apply no further transform).
+ *
+ * @param entity  The DXF underlay entity to render.
+ * @param opts    Optional rendering options (e.g. yFlipped for counter-scale on text).
  */
-export function underlayEntityToSvg(entity: UnderlayEntity): string {
+export function underlayEntityToSvg(entity: UnderlayEntity, opts?: UnderlayEntitySvgOpts): string {
   const style = 'stroke="#9ca3af" stroke-width="0.2" fill="none" opacity="0.5"';
 
   switch (entity.kind) {
@@ -39,9 +52,26 @@ export function underlayEntityToSvg(entity: UnderlayEntity): string {
     }
 
     case 'text': {
-      const transform = entity.rotation !== 0
-        ? ` transform="rotate(${fmt(-entity.rotation)} ${fmt(entity.x)} ${fmt(entity.y)})"`
-        : '';
+      // Counter-flip for text when parent group has scale(1,-1):
+      // Without counter-flip, glyphs would appear upside-down.
+      // The fix: apply translate(x,y) scale(1,-1) translate(-x,-y) = scale(1,-1) centered at (x,y).
+      // This cancels the parent y-flip for the glyph bounding box.
+      let transform: string;
+      if (opts?.yFlipped) {
+        const cx = fmt(entity.x);
+        const cy = fmt(entity.y);
+        if (entity.rotation !== 0) {
+          // Combine counter-flip + rotation: rotate first (DXF rotation is CCW y-up, negate for y-down),
+          // then counter-flip at the anchor point.
+          transform = ` transform="translate(${cx},${cy}) scale(1,-1) rotate(${fmt(-entity.rotation)}) translate(-${cx},-${cy})"`;
+        } else {
+          transform = ` transform="translate(${cx},${cy}) scale(1,-1) translate(-${cx},-${cy})"`;
+        }
+      } else {
+        transform = entity.rotation !== 0
+          ? ` transform="rotate(${fmt(-entity.rotation)} ${fmt(entity.x)} ${fmt(entity.y)})"`
+          : '';
+      }
       return `<text x="${fmt(entity.x)}" y="${fmt(entity.y)}" font-size="${fmt(entity.height)}" font-family="sans-serif" stroke="none" fill="#9ca3af" opacity="0.5"${transform}>${escapeText(entity.value)}</text>`;
     }
   }

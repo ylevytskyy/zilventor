@@ -135,6 +135,43 @@ describe('DrawingCanvas — DXF underlay (F3 canvas)', () => {
     expect(textEl?.textContent).toContain('UnderlayText');
   });
 
+  it('underlay group carries a transform with scale(1,-1) for y-flip when offsetMm is set', () => {
+    // Override store with underlay that has offsetMm
+    const sheetWithOffset: DrawingSheet = {
+      id: 's-off',
+      name: 'Sheet with offset',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [],
+      dimensions: [],
+      annotations: [],
+      titleBlock: {},
+      dimensionGroups: [],
+      underlay: {
+        name: 'offset-test.dxf',
+        entities: [{ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }],
+        offsetMm: { x: 5, y: -10 },
+      },
+    };
+    useAppStore.setState({
+      activeDrawing: {
+        id: 'd-off',
+        name: 'Offset Drawing',
+        units: 'mm',
+        source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+        properties: {},
+        sheets: [sheetWithOffset],
+        activeSheetId: sheetWithOffset.id,
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+    render(<DrawingCanvas />);
+    const underlayGroup = document.querySelector('[data-underlay]') as SVGGElement | null;
+    expect(underlayGroup).not.toBeNull();
+    const transform = underlayGroup?.getAttribute('transform') ?? '';
+    expect(transform).toContain('scale(1,-1)');
+  });
+
   it('sheet without underlay renders no [data-underlay] group', () => {
     useAppStore.setState({
       activeDrawing: {

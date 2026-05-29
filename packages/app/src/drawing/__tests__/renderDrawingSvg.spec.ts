@@ -546,4 +546,95 @@ describe('renderDrawingSvg — DXF underlay (F3)', () => {
     const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
     expect(svg).not.toContain('data-underlay');
   });
+
+  // --- fit-to-sheet centering + y-flip transform tests ---
+
+  it('underlay group carries a transform that encodes the y-flip (scale(1,-1))', () => {
+    // An underlay with offsetMm must have scale(1,-1) in its group transform
+    const underlayWithOffset: DxfUnderlay = {
+      name: 'offset-test.dxf',
+      entities: [{ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }],
+      sourceBBoxMm: { minX: 0, minY: 0, maxX: 10, maxY: 0 },
+      offsetMm: { x: 160, y: -133.5 },
+    };
+    const sheet: DrawingSheetType = {
+      id: 's-off', name: 'Sheet', size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape', views: [], dimensions: [], annotations: [],
+      titleBlock: {}, dimensionGroups: [], underlay: underlayWithOffset,
+    };
+    const drawing = makeUnderlayDrawing(sheet);
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    // The underlay group must contain scale(1,-1) to y-flip DXF coords
+    expect(svg).toMatch(/data-underlay[^>]*transform="[^"]*scale\(1,-1\)/);
+  });
+
+  it('underlay group transform produces correct sheet-y for a text entity at known DXF coords', () => {
+    // Underlay: text at DXF (10, 20) with offsetMm = {x:5, y:-7}
+    // sheetH = 297 (A3 landscape)
+    // Expected: the transform "translate(5, 297 + (-7)) scale(1,-1)" = translate(5, 290) scale(1,-1)
+    // After transform: x_sheet = 5 + 10 = 15, y_sheet = 290 + (-20) = 270 (because scale flips y)
+    // The <text> element's y attribute stays as 20 (DXF), and the group transform handles flipping.
+    const underlayWithOffset: DxfUnderlay = {
+      name: 'text-test.dxf',
+      entities: [{ kind: 'text', x: 10, y: 20, height: 5, value: 'ORIENT_CHECK', rotation: 0 }],
+      sourceBBoxMm: { minX: 10, minY: 20, maxX: 10, maxY: 20 },
+      offsetMm: { x: 5, y: -7 },
+    };
+    const sheet: DrawingSheetType = {
+      id: 's-txt', name: 'Sheet', size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape', views: [], dimensions: [], annotations: [],
+      titleBlock: {}, dimensionGroups: [], underlay: underlayWithOffset,
+    };
+    const drawing = makeUnderlayDrawing(sheet);
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    // Group transform: translate(offsetMm.x, sheetH + offsetMm.y) scale(1,-1)
+    // sheetH = 297, offsetMm = {x:5, y:-7} → translate(5, 290) scale(1,-1)
+    expect(svg).toContain('translate(5,290)');
+    // text element keeps DXF coords: x=10, y=20
+    expect(svg).toContain('ORIENT_CHECK');
+  });
+
+  it('text entity in y-flipped underlay has counter-scale(1,-1) so glyphs read upright', () => {
+    // When offsetMm is present → group has scale(1,-1) → text needs counter-flip on element
+    const underlayWithText: DxfUnderlay = {
+      name: 'text-flip.dxf',
+      entities: [{ kind: 'text', x: 10, y: 20, height: 5, value: 'ReadableText', rotation: 0 }],
+      offsetMm: { x: 0, y: 0 },
+    };
+    const sheet: DrawingSheetType = {
+      id: 's-txt2', name: 'Sheet', size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape', views: [], dimensions: [], annotations: [],
+      titleBlock: {}, dimensionGroups: [], underlay: underlayWithText,
+    };
+    const drawing = makeUnderlayDrawing(sheet);
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    // The text element must contain a transform with scale(1,-1)
+    expect(svg).toContain('ReadableText');
+    // Find the text element's transform — it should have a scale(1,-1) counter-flip
+    const textMatch = svg.match(/<text[^>]*ReadableText|ReadableText[^<]*<\/text>/);
+    // The <text> tag should have a transform with scale(1,-1)
+    const textTagEnd = svg.indexOf('ReadableText');
+    const textTagStart = svg.lastIndexOf('<text', textTagEnd);
+    const textTag = svg.slice(textTagStart, textTagEnd + 15);
+    expect(textTag).toContain('scale(1,-1)');
+  });
+
+  it('underlay group with offsetMm={0,0} uses translate(0, sheetH) scale(1,-1)', () => {
+    // This pins the behavior for the y-flip-only case (no centering displacement)
+    const underlayZero: DxfUnderlay = {
+      name: 'zero-offset.dxf',
+      entities: [{ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }],
+      offsetMm: { x: 0, y: 0 },
+    };
+    const sheet: DrawingSheetType = {
+      id: 's-z', name: 'Sheet', size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape', views: [], dimensions: [], annotations: [],
+      titleBlock: {}, dimensionGroups: [], underlay: underlayZero,
+    };
+    const drawing = makeUnderlayDrawing(sheet);
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    // A3 landscape sheetH = 297 → translate(0, 297) scale(1,-1)
+    expect(svg).toContain('translate(0,297)');
+    expect(svg).toContain('scale(1,-1)');
+  });
 });

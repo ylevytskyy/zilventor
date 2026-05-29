@@ -90,12 +90,27 @@ ${titleBlockSvg}
 /**
  * F3: Render the DXF underlay as a muted <g data-underlay> backdrop.
  * Must appear BEFORE view groups so it renders behind all views.
+ *
+ * Applies y-flip + centering via a group transform:
+ *   translate(offsetMm.x, sheetH + offsetMm.y) scale(1,-1)
+ * DXF is y-up; SVG/PDF is y-down. The scale(1,-1) flips the y axis,
+ * and the translate centers the bbox on the drawable area above the title block.
+ * When offsetMm is absent, defaults to translate(0, sheetH) scale(1,-1) (y-flip only, no center).
  */
 function renderUnderlayGroup(sheet: DrawingSheet): string {
   const { underlay } = sheet;
   if (!underlay) return '';
-  const entityLines = underlay.entities.map((e) => `    ${underlayEntityToSvg(e)}`).join('\n');
-  return `  <g data-underlay="${escapeAttr(underlay.name)}" pointer-events="none">\n${entityLines}\n  </g>`;
+  const sheetH = getSheetHeightMm(sheet);
+  const offX = underlay.offsetMm?.x ?? 0;
+  const offY = underlay.offsetMm?.y ?? 0;
+  // Compose y-flip + centering offset into a single group transform
+  const tx = offX;
+  const ty = sheetH + offY;
+  const fmtN = (n: number) => parseFloat(n.toFixed(4)).toString();
+  const transform = `translate(${fmtN(tx)},${fmtN(ty)}) scale(1,-1)`;
+  const yFlipped = underlay.offsetMm !== undefined;
+  const entityLines = underlay.entities.map((e) => `    ${underlayEntityToSvg(e, { yFlipped })}`).join('\n');
+  return `  <g data-underlay="${escapeAttr(underlay.name)}" pointer-events="none" transform="${transform}">\n${entityLines}\n  </g>`;
 }
 
 /**

@@ -1007,15 +1007,27 @@ export function DrawingCanvas() {
         fill="white" stroke="#888" strokeWidth={0.5}
       />
 
-      {/* DXF underlay backdrop — rendered BEFORE views so it's behind all geometry (F3) */}
-      {sheet.underlay && (
-        <g data-underlay={sheet.underlay.name} pointerEvents="none">
-          {sheet.underlay.entities.map((entity, i) => (
-            // eslint-disable-next-line react/no-danger
-            <g key={i} dangerouslySetInnerHTML={{ __html: underlayEntityToSvg(entity) }} />
-          ))}
-        </g>
-      )}
+      {/* DXF underlay backdrop — rendered BEFORE views so it's behind all geometry (F3).
+          When offsetMm is present, applies y-flip + centering:
+            transform="translate(offsetMm.x, sheetH + offsetMm.y) scale(1,-1)"
+          Without offsetMm, falls back to raw DXF coords (legacy behavior). */}
+      {sheet.underlay && (() => {
+        const { underlay } = sheet;
+        let transform: string | undefined;
+        if (underlay.offsetMm !== undefined) {
+          const tx = underlay.offsetMm.x;
+          const ty = sheetH + underlay.offsetMm.y;
+          transform = `translate(${tx},${ty}) scale(1,-1)`;
+        }
+        return (
+          <g data-underlay={underlay.name} pointerEvents="none" transform={transform}>
+            {underlay.entities.map((entity, i) => (
+              // eslint-disable-next-line react/no-danger
+              <g key={i} dangerouslySetInnerHTML={{ __html: underlayEntityToSvg(entity, { yFlipped: underlay.offsetMm !== undefined }) }} />
+            ))}
+          </g>
+        );
+      })()}
 
       {/* Views */}
       {sheet.views.map((v) => (

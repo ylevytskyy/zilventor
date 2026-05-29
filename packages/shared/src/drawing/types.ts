@@ -396,6 +396,8 @@ export type DxfUnderlay = {
   readonly name: string;
   readonly entities: ReadonlyArray<UnderlayEntity>;
   readonly sourceBBoxMm?: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Sheet-space offset (mm) applied after the DXF y-flip to center the underlay. Absent = {0,0}. */
+  readonly offsetMm?: { readonly x: number; readonly y: number };
 };
 
 // ---------------------------------------------------------------------------

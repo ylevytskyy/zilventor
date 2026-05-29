@@ -1,9 +1,11 @@
 // packages/app/src/commands/ImportDxfUnderlayCommand.ts
 import type { Command } from './Command';
 import type { DrawingDocument, DxfUnderlay } from '@zilventor/shared';
+import { ISO_SIZES_MM } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
 import { parseDxfUnderlay } from '../drawing/parseDxfUnderlay';
+import { computeUnderlayOffset } from '../drawing/underlayTransform';
 
 export class ImportDxfUnderlayCommand implements Command {
   readonly name = 'ImportDxfUnderlay';
@@ -26,7 +28,27 @@ export class ImportDxfUnderlayCommand implements Command {
     // Capture prior underlay for undo
     this.priorUnderlay = activeSheet?.underlay;
 
-    const underlay = parseDxfUnderlay(this.opts.dxfText, this.opts.fileName);
+    const underlayRaw = parseDxfUnderlay(this.opts.dxfText, this.opts.fileName);
+
+    // Compute sheet dimensions for fit-to-sheet centering.
+    const MARGIN = 10;
+    const TITLE_H = 20;
+    let sheetW = 420; // A3 landscape default
+    let sheetH = 297;
+    if (activeSheet) {
+      if (activeSheet.size.kind === 'iso') {
+        const base = ISO_SIZES_MM[activeSheet.size.size];
+        sheetW = activeSheet.orientation === 'landscape' ? base.w : base.h;
+        sheetH = activeSheet.orientation === 'landscape' ? base.h : base.w;
+      } else {
+        const { widthMm, heightMm } = activeSheet.size;
+        sheetW = activeSheet.orientation === 'landscape' ? Math.max(widthMm, heightMm) : Math.min(widthMm, heightMm);
+        sheetH = activeSheet.orientation === 'landscape' ? Math.min(widthMm, heightMm) : Math.max(widthMm, heightMm);
+      }
+    }
+
+    const offsetMm = computeUnderlayOffset(underlayRaw.sourceBBoxMm, sheetW, sheetH, MARGIN, TITLE_H);
+    const underlay: DxfUnderlay = { ...underlayRaw, offsetMm };
 
     const next: DrawingDocument = {
       ...drawing,

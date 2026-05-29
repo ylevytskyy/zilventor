@@ -95,4 +95,41 @@ describe('underlayEntityToSvg — arc path conversion', () => {
     expect(svg).toContain('<text');
     expect(svg).toContain('Hello');
   });
+
+  it('text entity with yFlipped=true has a counter-scale(1,-1) transform to remain upright', () => {
+    // When the parent group has scale(1,-1), text glyphs appear upside-down.
+    // underlayEntityToSvg must apply a counter-flip on the text element so it reads correctly.
+    // The counter-flip is: scale(1,-1) centered at (x, y) → translate(x,y) scale(1,-1) translate(-x,-y)
+    const entity: UnderlayEntity = {
+      kind: 'text',
+      x: 10, y: 20, height: 5, value: 'Upright', rotation: 0,
+    };
+    const svg = underlayEntityToSvg(entity, { yFlipped: true });
+    expect(svg).toContain('<text');
+    expect(svg).toContain('Upright');
+    // Must have a transform that includes scale(1,-1) to counter the parent flip
+    expect(svg).toContain('scale(1,-1)');
+    // The counter-flip should be anchored at the text position (x=10, y=20)
+    expect(svg).toMatch(/translate\(10[^)]*\)/);
+  });
+
+  it('text entity with yFlipped=false does NOT add counter-scale', () => {
+    const entity: UnderlayEntity = {
+      kind: 'text',
+      x: 10, y: 20, height: 5, value: 'NoFlip', rotation: 0,
+    };
+    const svg = underlayEntityToSvg(entity, { yFlipped: false });
+    expect(svg).toContain('<text');
+    // No scale(1,-1) on the element when not y-flipped
+    expect(svg).not.toContain('scale(1,-1)');
+  });
+
+  it('text entity without opts does NOT add counter-scale (legacy/default)', () => {
+    const entity: UnderlayEntity = {
+      kind: 'text',
+      x: 10, y: 20, height: 5, value: 'Legacy', rotation: 0,
+    };
+    const svg = underlayEntityToSvg(entity);
+    expect(svg).not.toContain('scale(1,-1)');
+  });
 });

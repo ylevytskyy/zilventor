@@ -176,4 +176,33 @@ describe('ImportDxfUnderlayCommand', () => {
     expect(doc.sheets[0]!.underlay!.entities).toHaveLength(0);
     expect(doc.sheets[0]!.underlay!.name).toBe('bad');
   });
+
+  it('(i) apply() computes and stores offsetMm on the underlay (fit-to-sheet centering)', async () => {
+    // MINIMAL_DXF has a LINE from (0,0)→(100,50); bbox center = (50,25)
+    // Sheet: A3 landscape, sheetW=420, sheetH=297, MARGIN=10, TITLE_H=20
+    // drawableCx = 10 + (420-20)/2 = 210
+    // drawableCy = 10 + (297-20-20)/2 = 10 + 128.5 = 138.5
+    // offsetX = 210 - 50 = 160
+    // flippedCy = 297 - 25 = 272 → offsetY = 138.5 - 272 = -133.5
+    const cmd = new ImportDxfUnderlayCommand({ dxfText: MINIMAL_DXF, fileName: 'floor-plan.dxf' });
+    await cmd.apply();
+
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as unknown as DrawingActive).document;
+    const underlay = doc.sheets[0]!.underlay!;
+    expect(underlay.offsetMm).toBeDefined();
+    expect(underlay.offsetMm!.x).toBeCloseTo(160, 1);
+    expect(underlay.offsetMm!.y).toBeCloseTo(-133.5, 1);
+  });
+
+  it('(j) apply() sets offsetMm to {0,0} when DXF has no valid entities (no bbox)', async () => {
+    const cmd = new ImportDxfUnderlayCommand({ dxfText: 'NOT_VALID_DXF', fileName: 'bad.dxf' });
+    await cmd.apply();
+
+    const state = useAppStore.getState();
+    const doc = (state.activeDocument as unknown as DrawingActive).document;
+    const underlay = doc.sheets[0]!.underlay!;
+    // No bbox → offsetMm = {x:0, y:0}
+    expect(underlay.offsetMm).toEqual({ x: 0, y: 0 });
+  });
 });

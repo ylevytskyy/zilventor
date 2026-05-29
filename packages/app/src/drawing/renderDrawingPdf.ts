@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { DrawingSheet, DrawingView, DetailView, SectionView, DrawingAnnotation, UnderlayEntity } from '@zilventor/shared';
+import type { DrawingSheet, DrawingView, DetailView, SectionView, DrawingAnnotation, UnderlayEntity, DxfUnderlay } from '@zilventor/shared';
 import type { PartsListAnnotation } from '@zilventor/shared';
 import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
@@ -105,7 +105,7 @@ function drawSheetPdf(
 
   // F4: render DXF underlay BEFORE views so it's behind all geometry
   if (sheet.underlay) {
-    drawUnderlayPdf(pdf, sheet.underlay.entities, MARGIN, MARGIN, scaleX, scaleY);
+    drawUnderlayPdf(pdf, sheet.underlay, sheetPhysH, MARGIN, MARGIN, scaleX, scaleY);
   }
 
   for (const view of sheet.views) {
@@ -339,15 +339,35 @@ function getSheetHeightMm(sheet: DrawingSheet): number {
 /**
  * F4: Draw DXF underlay entities in muted gray BEFORE view geometry.
  * Style: gray (156, 163, 175), stroke-width 0.2mm, opacity-equivalent thinness.
+ *
+ * When underlay.offsetMm is present, applies y-flip + centering:
+ *   x_pdf = ox + (entity.x + offsetMm.x) * scaleX
+ *   y_pdf = oy + (sheetPhysH - entity.y + offsetMm.y) * scaleY
+ * When offsetMm is absent, falls back to raw DXF coords (legacy behavior).
  */
 function drawUnderlayPdf(
   pdf: jsPDF,
-  entities: ReadonlyArray<UnderlayEntity>,
+  underlay: DxfUnderlay,
+  sheetPhysH: number,
   ox: number,
   oy: number,
   scaleX: number,
   scaleY: number,
 ): void {
+  const entities = underlay.entities;
+  const hasOffset = underlay.offsetMm !== undefined;
+  const offX = underlay.offsetMm?.x ?? 0;
+  const offY = underlay.offsetMm?.y ?? 0;
+
+  // Coordinate transform helpers
+  // When y-flip is active: x_pdf = ox + (x + offX) * scaleX
+  //                        y_pdf = oy + (sheetPhysH - y + offY) * scaleY
+  // Without y-flip: x_pdf = ox + x * scaleX,  y_pdf = oy + y * scaleY
+  const pdfX = (x: number) => ox + (x + offX) * scaleX;
+  const pdfY = (y: number) => hasOffset
+    ? oy + (sheetPhysH - y + offY) * scaleY
+    : oy + y * scaleY;
+
   // Gray color matching #9ca3af (156, 163, 175)
   pdf.setDrawColor(156, 163, 175);
   pdf.setLineWidth(0.2);
@@ -355,11 +375,7 @@ function drawUnderlayPdf(
   for (const entity of entities) {
     switch (entity.kind) {
       case 'line': {
-        const x1 = ox + entity.x1 * scaleX;
-        const y1 = oy + entity.y1 * scaleY;
-        const x2 = ox + entity.x2 * scaleX;
-        const y2 = oy + entity.y2 * scaleY;
-        pdf.line(x1, y1, x2, y2);
+        pdf.line(pdfX(entity.x1), pdfY(entity.y1), pdfX(entity.x2), pdfY(entity.y2));
         break;
       }
       case 'polyline': {
@@ -367,30 +383,28 @@ function drawUnderlayPdf(
         for (let i = 0; i < pts.length - 1; i++) {
           const p0 = pts[i]!;
           const p1 = pts[i + 1]!;
-          pdf.line(
-            ox + p0[0] * scaleX, oy + p0[1] * scaleY,
-            ox + p1[0] * scaleX, oy + p1[1] * scaleY,
-          );
+          pdf.line(pdfX(p0[0]), pdfY(p0[1]), pdfX(p1[0]), pdfY(p1[1]));
         }
         if (entity.closed && pts.length >= 2) {
           const pFirst = pts[0]!;
           const pLast  = pts[pts.length - 1]!;
-          pdf.line(
-            ox + pLast[0] * scaleX, oy + pLast[1] * scaleY,
-            ox + pFirst[0] * scaleX, oy + pFirst[1] * scaleY,
-          );
+          pdf.line(pdfX(pLast[0]), pdfY(pLast[1]), pdfX(pFirst[0]), pdfY(pFirst[1]));
         }
         break;
       }
       case 'circle': {
-        const cx = ox + entity.cx * scaleX;
-        const cy = oy + entity.cy * scaleY;
+        // Circle center: apply transform. Radius is not flipped (absolute size).
+        // Note: y-flip changes the visual shape of an arc but circle is symmetric so cy only.
+        const cx = pdfX(entity.cx);
+        const cy = pdfY(entity.cy);
         const r  = entity.r * scaleX;  // use scaleX for radius (uniform scale assumed)
         pdf.circle(cx, cy, r, 'S');
         break;
       }
       case 'arc': {
-        // jsPDF doesn't have a native arc-to-point API; approximate with line segments
+        // jsPDF doesn't have a native arc-to-point API; approximate with line segments.
+        // When y-flipped, sin component negates (y-flip reverses arc winding) —
+        // the approximated segments handle this correctly via pdfY.
         const { cx, cy, r, startAngle, endAngle } = entity;
         let sweep = endAngle - startAngle;
         if (sweep <= 0) sweep += 360;
@@ -401,10 +415,10 @@ function drawUnderlayPdf(
           const a0 = toRad(startAngle + (sweep * i) / segments);
           const a1 = toRad(startAngle + (sweep * (i + 1)) / segments);
           pdf.line(
-            ox + (cx + r * Math.cos(a0)) * scaleX,
-            oy + (cy + r * Math.sin(a0)) * scaleY,
-            ox + (cx + r * Math.cos(a1)) * scaleX,
-            oy + (cy + r * Math.sin(a1)) * scaleY,
+            pdfX(cx + r * Math.cos(a0)),
+            pdfY(cy + r * Math.sin(a0)),
+            pdfX(cx + r * Math.cos(a1)),
+            pdfY(cy + r * Math.sin(a1)),
           );
         }
         break;
@@ -412,7 +426,7 @@ function drawUnderlayPdf(
       case 'text': {
         pdf.setFontSize(Math.max(3, entity.height * scaleY * 2.835)); // mm to pt
         pdf.setTextColor(156, 163, 175);
-        pdf.text(entity.value, ox + entity.x * scaleX, oy + entity.y * scaleY);
+        pdf.text(entity.value, pdfX(entity.x), pdfY(entity.y));
         pdf.setTextColor(0);
         break;
       }
