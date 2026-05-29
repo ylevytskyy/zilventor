@@ -406,3 +406,77 @@ describe('Import from Inventor button — directory picker gating', () => {
     expect(btn.title).toBeFalsy();
   });
 });
+
+describe('handleOpen — STEP import progress ticker (integration)', () => {
+  /**
+   * This test verifies that the FileTab wires the ticker correctly:
+   * importStep status shows "Importing" before the kernel call resolves,
+   * and switches to "Imported" once done.
+   *
+   * We use real timers here (not fake timers) to avoid interactions with
+   * waitFor's internal polling. The ticker unit tests in importTicker.spec.ts
+   * use fake timers and cover the elapsed-time ticking behavior in detail.
+   */
+  function makeFakeStepHandle(name: string) {
+    const fakeFile = { name, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setStatus('');
+  });
+
+  afterEach(() => {
+    vi.mocked(importStepIntoNewPart).mockClear();
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+  });
+
+  it('sets "Importing STEP…" status before kernel.importStep resolves, then "Imported" after', async () => {
+    let resolveImport!: (value: {
+      brepBlobId: string; triangleCount: number;
+      boundingBox: [number, number, number, number, number, number];
+      faceCount: number; solidCount: number;
+    }) => void;
+
+    const slowImportStep = vi.fn(
+      () =>
+        new Promise<{
+          brepBlobId: string; triangleCount: number;
+          boundingBox: [number, number, number, number, number, number];
+          faceCount: number; solidCount: number;
+        }>((res) => { resolveImport = res; }),
+    );
+    const registerPart = vi.fn(async () => {});
+
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: { importStep: slowImportStep, extractStepSolids: vi.fn(), registerPart } as any,
+    }));
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('BigAssembly.step')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    // Wait until the status changes to "Importing…" (before importStep resolves)
+    await waitFor(() => {
+      expect(useAppStore.getState().statusMessage).toMatch(/importing/i);
+    });
+
+    // Resolve the slow import
+    resolveImport({
+      brepBlobId: 'blob-big',
+      triangleCount: 100,
+      boundingBox: [0, 0, 0, 100, 100, 100],
+      faceCount: 50,
+      solidCount: 1,
+    });
+
+    // Wait for import to complete and final status to be set
+    await waitFor(() => expect(registerPart).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(useAppStore.getState().statusMessage).toBe('Imported');
+    });
+  });
+});

@@ -160,6 +160,30 @@ describe('KernelApi (end-to-end, in-process)', () => {
   }, 120_000);
 });
 
+describe('importStep metadata (no tessellation)', () => {
+  it('returns faceCount=6, solidCount=1, correct bbox, non-empty brepBlobId, and triangleCount===0 for cube-10mm.step', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const bytes = readFileSync(
+      resolve(__dirname, '../occt/__tests__/fixtures/step/cube-10mm.step')
+    );
+    const result = await api.importStep({
+      stepBytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      partName: 'Cube',
+    });
+    expect(result.faceCount).toBe(6);
+    expect(result.solidCount).toBe(1);
+    expect(result.brepBlobId).toMatch(/^imp-/);
+    // bbox of a 10mm cube: each span ≈ 10mm (allow ±0.01mm rounding)
+    const [minX, minY, minZ, maxX, maxY, maxZ] = result.boundingBox;
+    expect(maxX - minX).toBeCloseTo(10, 1);
+    expect(maxY - minY).toBeCloseTo(10, 1);
+    expect(maxZ - minZ).toBeCloseTo(10, 1);
+    // Dead tessellation removed — always 0
+    expect(result.triangleCount).toBe(0);
+  }, 120_000);
+});
+
 describe('importStep + ImportedFeature roundtrip', () => {
   it('imports a STEP, attaches it as an imported feature, and execute() returns a mesh with 6 face names', async () => {
     const api = createKernelApi();
@@ -172,7 +196,9 @@ describe('importStep + ImportedFeature roundtrip', () => {
       partName: 'Cube',
     });
     expect(result.faceCount).toBe(6);
-    expect(result.triangleCount).toBeGreaterThan(0);
+    // importStep no longer tessellates — triangleCount is always 0 (dead
+    // tessellation removed; mesh is recomputed by executeTree on demand).
+    expect(result.triangleCount).toBe(0);
 
     const partId = await api.createPart('Cube');
     await api.addFeature(partId, {

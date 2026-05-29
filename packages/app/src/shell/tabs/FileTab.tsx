@@ -8,6 +8,7 @@ import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
 import { saveBlob, pickFile, hasDirectoryPicker } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { startImportTicker } from '../../import/importTicker';
 
 export default function FileTab() {
   const activePart = useAppStore((s) => s.activePart);
@@ -79,6 +80,7 @@ export default function FileTab() {
   const handleOpen = async () => {
     const { kernel, setActivePart, setActiveDocument, setStatus, bus } = useAppStore.getState();
     if (!kernel) return;
+
     try {
       const file = await pickFile([
         { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
@@ -100,70 +102,85 @@ export default function FileTab() {
           );
           return;
         }
-        const { activeDocument } = useAppStore.getState();
-        if (activeDocument?.kind === 'assembly') {
-          const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
-          const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
-          const opfs = await Opfs.forNavigator();
-          const cmd = new ImportStepAsComponentCommand({ stepBytes: extracted.stepBytes, fileName: extracted.fileName, kernel, opfs });
-          await bus.execute(cmd);
-        } else {
-          const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
-          // importStepIntoNewPart expects a File; synthesize one from the extracted bytes
-          const stepFile = new File([extracted.stepBytes], extracted.fileName, { type: 'application/step' });
-          const { part } = await importStepIntoNewPart(stepFile, kernel);
-          setActivePart(part);
-          setStatus('Imported');
+        const stopTicker = startImportTicker(setStatus);
+        try {
+          const { activeDocument } = useAppStore.getState();
+          if (activeDocument?.kind === 'assembly') {
+            const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+            const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+            const opfs = await Opfs.forNavigator();
+            const cmd = new ImportStepAsComponentCommand({ stepBytes: extracted.stepBytes, fileName: extracted.fileName, kernel, opfs });
+            await bus.execute(cmd);
+          } else {
+            const { importStepIntoNewPart } = await import('../../import/importStepIntoNewPart');
+            // importStepIntoNewPart expects a File; synthesize one from the extracted bytes
+            const stepFile = new File([extracted.stepBytes], extracted.fileName, { type: 'application/step' });
+            const { part } = await importStepIntoNewPart(stepFile, kernel);
+            stopTicker();
+            setActivePart(part);
+            setStatus('Imported');
+          }
+        } finally {
+          stopTicker();
         }
         return;
       }
 
       // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
-        const { activeDocument } = useAppStore.getState();
-        if (activeDocument?.kind === 'assembly') {
-          const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
-          const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
-          const opfs = await Opfs.forNavigator();
-          const stepBytes = await file.arrayBuffer();
-          const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
-          await bus.execute(cmd);
-        } else {
-          // Part-mode: no active assembly.
-          // Peek solidCount via importStep (one parse). Single-body reuses that
-          // result directly — no second parse, no orphaned shape in importedShapeCache.
-          // Multi-body falls through to extractStepSolids (second parse accepted;
-          // multi-body part-mode is rare and user is told "first body of N").
-          const stepBytes = await file.arrayBuffer();
-          const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
-          const { stepFilenameBasename } = await import('../../import/originFeatures');
-          const baseName = stepFilenameBasename(file.name);
-          const importResult = await kernel.importStep({ stepBytes, partName: baseName });
-          if (importResult.solidCount <= 1) {
-            // Single-body: build PartDocument from the importStep result directly.
-            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
+        const stopTicker = startImportTicker(setStatus);
+        try {
+          const { activeDocument } = useAppStore.getState();
+          if (activeDocument?.kind === 'assembly') {
+            const { ImportStepAsComponentCommand } = await import('../../commands/ImportStepAsComponentCommand');
+            const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+            const opfs = await Opfs.forNavigator();
+            const stepBytes = await file.arrayBuffer();
+            const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
+            await bus.execute(cmd);
+          } else {
+            // Part-mode: no active assembly.
+            // Peek solidCount via importStep (one parse). Single-body reuses that
+            // result directly — no second parse, no orphaned shape in importedShapeCache.
+            // Multi-body falls through to extractStepSolids (second parse accepted;
+            // multi-body part-mode is rare and user is told "first body of N").
+            const stepBytes = await file.arrayBuffer();
+            const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
+            const { stepFilenameBasename } = await import('../../import/originFeatures');
+            const baseName = stepFilenameBasename(file.name);
+            const importResult = await kernel.importStep({ stepBytes, partName: baseName });
+            if (importResult.solidCount <= 1) {
+              // Single-body: build PartDocument from the importStep result directly.
+              const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
+              await kernel.registerPart(part);
+              stopTicker();
+              setActivePart(part);
+              setStatus('Imported');
+              return;
+            }
+            // Multi-body in part-mode: extractStepSolids for proper per-solid blobs.
+            // (The importStep result above is now orphaned — the accepted trade-off
+            // for this rare path.)
+            const solids = await kernel.extractStepSolids({ stepBytes });
+            if (solids.length === 0) {
+              stopTicker();
+              setStatus(`No solids in ${file.name}`);
+              return;
+            }
+            const firstSolid = solids[0];
+            if (!firstSolid) {
+              stopTicker();
+              setStatus(`No solids in ${file.name}`);
+              return;
+            }
+            const part = buildImportedPartDocument(`${baseName}_1`, firstSolid.brepBlobId, file.name);
             await kernel.registerPart(part);
+            stopTicker();
             setActivePart(part);
-            setStatus('Imported');
-            return;
+            setStatus(`Imported first body of ${solids.length} from ${file.name}`);
           }
-          // Multi-body in part-mode: extractStepSolids for proper per-solid blobs.
-          // (The importStep result above is now orphaned — the accepted trade-off
-          // for this rare path.)
-          const solids = await kernel.extractStepSolids({ stepBytes });
-          if (solids.length === 0) {
-            setStatus(`No solids in ${file.name}`);
-            return;
-          }
-          const firstSolid = solids[0];
-          if (!firstSolid) {
-            setStatus(`No solids in ${file.name}`);
-            return;
-          }
-          const part = buildImportedPartDocument(`${baseName}_1`, firstSolid.brepBlobId, file.name);
-          await kernel.registerPart(part);
-          setActivePart(part);
-          setStatus(`Imported first body of ${solids.length} from ${file.name}`);
+        } finally {
+          stopTicker();
         }
         return;
       }

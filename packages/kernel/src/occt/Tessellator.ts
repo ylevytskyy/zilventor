@@ -1,7 +1,21 @@
-import type { Mesh, TessellatedEdge, TessellatedFace, Vec3, FaceName } from '@zilventor/shared';
+import type { BoundingBox, Mesh, TessellatedEdge, TessellatedFace, Vec3, FaceName } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
 import { computeBoundingBox, type OcctShape } from './SolidOps';
+
+/**
+ * Compute an adaptive `linearDeflection` from a bounding box.
+ *
+ * Formula: longestEdge × 0.001, floored at 0.1 mm.
+ * This keeps tessellation quality reasonable for small parts (≤100 mm) while
+ * dramatically reducing triangle counts for large assemblies (e.g. 2000 mm
+ * furniture panels produce deflection 2.0 instead of the previous fixed 0.1).
+ */
+export function adaptiveLinearDeflection(bbox: BoundingBox): number {
+  const [minX, minY, minZ, maxX, maxY, maxZ] = bbox;
+  const longestEdge = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
+  return Math.max(0.1, longestEdge * 0.001);
+}
 
 export type TessellateOptions = {
   linearDeflection: number;

@@ -24,8 +24,8 @@ import { executeHoleFeature } from './features/HoleFeature';
 import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
-import { tessellate, tessellateEdges, tessellateFaces } from '../occt/Tessellator';
-import { disposeShape, type OcctShape } from '../occt/SolidOps';
+import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
+import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, namedFace, attachName } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
@@ -889,7 +889,9 @@ export async function executeTree(
     });
   }
 
-  const mesh = tessellate(oc, finalSolid.shape, { linearDeflection: 0.1 });
+  const mesh = tessellate(oc, finalSolid.shape, {
+    linearDeflection: adaptiveLinearDeflection(computeBoundingBox(oc, finalSolid.shape)),
+  });
   const tessellatedEdges = tessellateEdges(oc, finalSolid);
   const tessellatedFaces = tessellateFaces(oc, finalSolid);
   // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw

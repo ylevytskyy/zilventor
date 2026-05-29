@@ -421,14 +421,13 @@ export function createKernelApi(): KernelApi {
     async importStep({ stepBytes, partName: _partName }) {
       if (!occt) throw new Error('kernel not initialized');
       const result = readStep(occt, stepBytes);
-      // Tessellate so we can return triangleCount; the mesh itself is
-      // recomputed later by execute() when the feature tree runs.
-      const mesh = tessellate(occt, result.shape, { linearDeflection: 0.1 });
+      // triangleCount is always 0 — tessellation was removed because no
+      // caller reads it and the render mesh is recomputed by executeTree.
       const brepBlobId = `imp-${crypto.randomUUID()}`;
       registerImportedShape(brepBlobId, result.shape);
       return {
         brepBlobId,
-        triangleCount: mesh.indices.length / 3,
+        triangleCount: 0,
         boundingBox: result.boundingBox,
         faceCount: result.faceCount,
         solidCount: result.solidCount,

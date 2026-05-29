@@ -1,13 +1,31 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occtLoader';
 import { makeBox, disposeShape } from '../SolidOps';
-import { tessellate, tessellateEdges } from '../Tessellator';
+import { tessellate, tessellateEdges, adaptiveLinearDeflection } from '../Tessellator';
 import { namedFace, attachName, type NamedShape } from '../FaceNaming';
 
 let occt: OcctInstance;
 beforeAll(async () => {
   occt = await loadOcct();
 }, 60_000);
+
+describe('adaptiveLinearDeflection (pure, no OCCT)', () => {
+  it('returns the floor 0.1 for a 10mm cube', () => {
+    expect(adaptiveLinearDeflection([0, 0, 0, 10, 10, 10])).toBe(0.1);
+  });
+
+  it('returns 1.0 for a 1000mm span', () => {
+    expect(adaptiveLinearDeflection([0, 0, 0, 1000, 1, 1])).toBe(1.0);
+  });
+
+  it('returns 2.0 for a 2000mm longest edge', () => {
+    expect(adaptiveLinearDeflection([0, 0, 0, 1, 1, 2000])).toBe(2.0);
+  });
+
+  it('returns the floor 0.1 for a degenerate/flat bbox', () => {
+    expect(adaptiveLinearDeflection([5, 5, 5, 5, 5, 5])).toBe(0.1);
+  });
+});
 
 describe('Tessellator', () => {
   it('produces triangles for a box and all are within bounds', () => {
