@@ -11,9 +11,118 @@ export function createKernelClient(proxy: KernelApi): KernelClient {
   return proxy;
 }
 
+// ---------------------------------------------------------------------------
+// createPendingTracker
+// ---------------------------------------------------------------------------
+
+export interface PendingTracker {
+  /** Number of in-flight async calls on the wrapped proxy. */
+  readonly pending: number;
+  /**
+   * Returns a Proxy around `obj` whose function-valued props are intercepted:
+   * each call increments `pending`, and the returned promise decrements it
+   * (via `.finally`) on both resolve and reject.
+   * Non-function props are passed through unchanged.
+   * IMPORTANT: Comlink callable-proxy props report typeof 'function' — call
+   * as `orig(...args)` not `orig.apply(...)` to stay compatible.
+   */
+  wrap<T extends object>(obj: T): T;
+}
+
+export function createPendingTracker(): PendingTracker {
+  let n = 0;
+  return {
+    get pending() { return n; },
+    wrap<T extends object>(obj: T): T {
+      return new Proxy(obj, {
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value !== 'function') return value;
+          // Capture original; call as plain function (Comlink proxies work this way)
+          const orig = value as (...args: unknown[]) => unknown;
+          return (...args: unknown[]) => {
+            n++;
+            return Promise.resolve(orig(...args)).finally(() => { n--; });
+          };
+        }
+      });
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// startHeartbeat
+// ---------------------------------------------------------------------------
+
+export interface HeartbeatOptions {
+  /** Async function that pings the worker (uses the RAW proxy, not wrapped). */
+  ping: () => Promise<unknown>;
+  /** Returns true when a kernel call is currently in flight. */
+  isBusy: () => boolean;
+  /** Called when maxFailures consecutive idle-ping timeouts have occurred. */
+  onOffline: () => void;
+  /** Interval between heartbeat ticks in ms (default 3000). */
+  intervalMs?: number;
+  /** Per-ping timeout in ms (default 2000). */
+  timeoutMs?: number;
+  /** Consecutive failures needed to trigger onOffline (default 2). */
+  maxFailures?: number;
+}
+
+/**
+ * Starts a heartbeat that monitors whether the kernel worker is alive.
+ * While any kernel call is pending (`isBusy()` returns true) the ping is
+ * skipped and the failure counter is reset — an in-flight Comlink call IS
+ * proof of life on a single-threaded worker.
+ * Returns a `stop()` function that clears the interval.
+ */
+export function startHeartbeat({
+  ping,
+  isBusy,
+  onOffline,
+  intervalMs = 3000,
+  timeoutMs = 2000,
+  maxFailures = 2
+}: HeartbeatOptions): () => void {
+  let failures = 0;
+  let interval: ReturnType<typeof setInterval> | null = setInterval(async () => {
+    // Skip ping while a kernel call is in flight — that's proof of life.
+    if (isBusy()) {
+      failures = 0;
+      return;
+    }
+    try {
+      await Promise.race([
+        ping(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('heartbeat timeout')), timeoutMs)
+        )
+      ]);
+      failures = 0;
+    } catch {
+      failures += 1;
+      if (failures >= maxFailures) {
+        if (interval) clearInterval(interval);
+        interval = null;
+        onOffline();
+      }
+    }
+  }, intervalMs);
+
+  return () => {
+    if (interval) clearInterval(interval);
+    interval = null;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SpawnKernelOptions / spawnKernel
+// ---------------------------------------------------------------------------
+
 export type SpawnKernelOptions = {
   /**
-   * Fired if two consecutive heartbeat pings fail (each with a 2s timeout).
+   * Fired if two consecutive heartbeat pings fail (each with a 2s timeout),
+   * OR if the worker emits an error event during a long operation.
    * When this fires the heartbeat is stopped — the caller is expected to
    * tear down and respawn the worker.
    */
@@ -41,38 +150,29 @@ export async function spawnKernel(
   (globalThis as unknown as { __comlink?: typeof Comlink }).__comlink = Comlink;
   await proxy.init();
 
-  // Heartbeat: every 3s ping; after 2 consecutive failures (2s timeout each),
-  // fire onOffline. Best-effort — we don't need airtight coverage here, just
-  // a signal the worker is stuck or dead.
-  let interval: ReturnType<typeof setInterval> | null = null;
+  const tracker = createPendingTracker();
+
+  let stopHeartbeat: (() => void) | null = null;
   if (opts?.onOffline) {
     const onOffline = opts.onOffline;
-    let failures = 0;
-    interval = setInterval(async () => {
-      try {
-        await Promise.race([
-          proxy.ping('heartbeat'),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('heartbeat timeout')), 2000)
-          )
-        ]);
-        failures = 0;
-      } catch {
-        failures += 1;
-        if (failures >= 2) {
-          if (interval) clearInterval(interval);
-          interval = null;
-          onOffline();
-        }
-      }
-    }, 3000);
+
+    // Wire worker hard-crash → onOffline (catches crashes during long ops
+    // when the idle-ping gate means heartbeat can't detect them).
+    worker.addEventListener('error', () => { onOffline(); });
+
+    // Heartbeat uses the RAW proxy for ping (not counted as pending).
+    stopHeartbeat = startHeartbeat({
+      ping: () => proxy.ping('heartbeat'),
+      isBusy: () => tracker.pending > 0,
+      onOffline
+    });
   }
 
   return {
-    client: createKernelClient(proxy),
+    client: createKernelClient(tracker.wrap(proxy)),
     terminate: () => {
-      if (interval) clearInterval(interval);
-      interval = null;
+      if (stopHeartbeat) stopHeartbeat();
+      stopHeartbeat = null;
       worker.terminate();
     }
   };
