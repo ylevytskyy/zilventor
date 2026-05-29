@@ -1,7 +1,7 @@
 import type { DrawingDocument, DrawingSheet, DrawingView, DrawingAnnotation, DetailView, SectionView } from '@zilventor/shared';
 import type { DrawingDimension, DimensionGroup } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
-import type { HoleTableAnnotation } from '@zilventor/shared';
+import type { HoleTableAnnotation, PartsListAnnotation } from '@zilventor/shared';
 import type { ParamOrLiteral } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
@@ -740,11 +740,82 @@ function renderHoleTableAnnotation(
   return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="holeTable">\n${gridParts.join('\n')}\n  </g>`;
 }
 
+// ---------------------------------------------------------------------------
+// Parts List annotation renderer (Chunk E — type + renderers; rows are a snapshot)
+// ---------------------------------------------------------------------------
+
+// Layout constants — 6 columns: ITEM / QTY / PART NAME / MATERIAL / DIMENSIONS / EDGE BANDS
+const PL_COL_ITEM_W   = 12;
+const PL_COL_QTY_W    = 12;
+const PL_COL_NAME_W   = 50;
+const PL_COL_MAT_W    = 35;
+const PL_COL_DIM_W    = 35;
+const PL_COL_EDGE_W   = 25;
+const PL_ROW_H        = 6;
+const PL_FONT_SIZE    = 3.5;
+const PL_GRID_COLOR   = '#222';
+const PL_TABLE_W = PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W + PL_COL_EDGE_W;
+
+function renderPartsListAnnotation(ann: PartsListAnnotation): string {
+  const { x: tx, y: ty } = ann.positionMm;
+  const rowCount = ann.rows.length + 1; // header + data
+  const tableH   = rowCount * PL_ROW_H;
+
+  // Column x-offsets
+  const xItem  = tx;
+  const xQty   = tx + PL_COL_ITEM_W;
+  const xName  = tx + PL_COL_ITEM_W + PL_COL_QTY_W;
+  const xMat   = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W;
+  const xDim   = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W;
+  const xEdge  = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W;
+
+  const parts: string[] = [];
+
+  // Outer border
+  parts.push(`    <rect x="${tx}" y="${ty}" width="${PL_TABLE_W}" height="${tableH}" fill="white" stroke="${PL_GRID_COLOR}" stroke-width="0.3"/>`);
+  // Header divider
+  parts.push(`    <line x1="${tx}" y1="${ty + PL_ROW_H}" x2="${tx + PL_TABLE_W}" y2="${ty + PL_ROW_H}" stroke="${PL_GRID_COLOR}" stroke-width="0.3"/>`);
+  // Row dividers
+  for (let i = 1; i < ann.rows.length; i++) {
+    parts.push(`    <line x1="${tx}" y1="${ty + PL_ROW_H * (i + 1)}" x2="${tx + PL_TABLE_W}" y2="${ty + PL_ROW_H * (i + 1)}" stroke="${PL_GRID_COLOR}" stroke-width="0.15"/>`);
+  }
+  // Column dividers
+  [xQty, xName, xMat, xDim, xEdge].forEach((colX) => {
+    parts.push(`    <line x1="${colX}" y1="${ty}" x2="${colX}" y2="${ty + tableH}" stroke="${PL_GRID_COLOR}" stroke-width="0.2"/>`);
+  });
+
+  // Header text
+  const textY0 = ty + PL_ROW_H * 0.65;
+  parts.push(`    <text x="${xItem + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">ITEM</text>`);
+  parts.push(`    <text x="${xQty  + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">QTY</text>`);
+  parts.push(`    <text x="${xName + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">PART NAME</text>`);
+  parts.push(`    <text x="${xMat  + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">MATERIAL</text>`);
+  parts.push(`    <text x="${xDim  + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">DIMENSIONS</text>`);
+  parts.push(`    <text x="${xEdge + 1}" y="${textY0}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}" font-weight="bold">EDGE BANDS</text>`);
+
+  // Data rows
+  ann.rows.forEach((row, i) => {
+    const rowY  = ty + PL_ROW_H * (i + 1);
+    const cellY = rowY + PL_ROW_H * 0.65;
+    parts.push(`    <text x="${xItem + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(String(row.item))}</text>`);
+    parts.push(`    <text x="${xQty  + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(String(row.qty))}</text>`);
+    parts.push(`    <text x="${xName + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(row.partName)}</text>`);
+    parts.push(`    <text x="${xMat  + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(row.material)}</text>`);
+    parts.push(`    <text x="${xDim  + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(row.dimensions)}</text>`);
+    parts.push(`    <text x="${xEdge + 1}" y="${cellY}" font-size="${PL_FONT_SIZE}" fill="${PL_GRID_COLOR}">${escapeText(row.edgeBands)}</text>`);
+  });
+
+  return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="partsList">\n${parts.join('\n')}\n  </g>`;
+}
+
 function renderAnnotationGroup(
   ann: DrawingAnnotation,
   sheet: DrawingSheet,
   source: PartDocument | AssemblyDocument | null,
 ): string {
+  if (ann.kind === 'partsList') {
+    return renderPartsListAnnotation(ann);
+  }
   if (ann.kind === 'holeTable') {
     return renderHoleTableAnnotation(ann, sheet, source);
   }

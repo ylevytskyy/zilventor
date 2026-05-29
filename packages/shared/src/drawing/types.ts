@@ -334,6 +334,26 @@ export type HoleTableAnnotation = {
 };
 
 // ---------------------------------------------------------------------------
+// PartsListAnnotation — BOM table (sheet-level; rows are a snapshot at command time)
+// ---------------------------------------------------------------------------
+
+export type PartsListRow = {
+  readonly item: number;
+  readonly qty: number;
+  readonly partName: string;
+  readonly material: string;    // '' for hardware
+  readonly dimensions: string;  // 'L×W×T' mm or '' for hardware
+  readonly edgeBands: string;   // '' if none
+};
+
+export type PartsListAnnotation = {
+  readonly kind: 'partsList';
+  readonly id: string;
+  readonly positionMm: { readonly x: number; readonly y: number };  // table top-left on sheet, mm
+  readonly rows: ReadonlyArray<PartsListRow>;                        // SNAPSHOT at command time
+};
+
+// ---------------------------------------------------------------------------
 // DrawingAnnotation union
 // ---------------------------------------------------------------------------
 
@@ -342,7 +362,8 @@ export type DrawingAnnotation =
   | { readonly id: string; readonly kind: 'center-mark'; readonly viewId: string; readonly edgeId: string }
   | { readonly id: string; readonly kind: 'leader';      readonly viewId: string; readonly targetMm: { readonly x: number; readonly y: number }; readonly textPosMm: { readonly x: number; readonly y: number }; readonly text: string }
   | { readonly id: string; readonly kind: 'balloon';     readonly viewId: string; readonly targetMm: { readonly x: number; readonly y: number }; readonly textPosMm: { readonly x: number; readonly y: number }; readonly itemNumber: number }
-  | HoleTableAnnotation;
+  | HoleTableAnnotation
+  | PartsListAnnotation;
 
 // ---------------------------------------------------------------------------
 // TitleBlockOverrides — all fields optional; blanks fall back to auto-derived

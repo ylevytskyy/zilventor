@@ -685,3 +685,79 @@ describe('renderDrawingDxf — null source (source-optional export)', () => {
     expect(dxf).toContain('Part: ');
   });
 });
+
+describe('renderDrawingDxf — partsList annotation', () => {
+  const plSheet: DrawingSheet = {
+    id: 'pl-sh1',
+    name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views: [],
+    dimensions: [],
+    annotations: [
+      {
+        kind: 'partsList',
+        id: 'pl-dxf-1',
+        positionMm: { x: 10, y: 20 },
+        rows: [
+          {
+            item: 1,
+            qty: 2,
+            partName: 'Top Shelf',
+            material: 'Birch',
+            dimensions: '800×300×18',
+            edgeBands: 'T',
+          },
+          {
+            item: 2,
+            qty: 8,
+            partName: 'Corner Bracket',
+            material: '',
+            dimensions: '',
+            edgeBands: '',
+          },
+        ],
+      },
+    ],
+    titleBlock: {},
+    dimensionGroups: [],
+  };
+  const plDrawing: DrawingDocument = {
+    id: 'pl-dw1',
+    name: 'Parts List Drawing',
+    units: 'mm',
+    source: { partPath: 'parts/pl.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [plSheet],
+    activeSheetId: 'pl-sh1',
+  };
+
+  it('renders without throwing', () => {
+    expect(() => renderDrawingDxf(plDrawing, plSheet, null)).not.toThrow();
+  });
+
+  it('emits TEXT entities on PARTS-LIST layer', () => {
+    const dxf = renderDrawingDxf(plDrawing, plSheet, null);
+    expect(dxf).toContain('PARTS-LIST');
+  });
+
+  it('emits ITEM header text', () => {
+    const dxf = renderDrawingDxf(plDrawing, plSheet, null);
+    expect(dxf).toContain('ITEM');
+  });
+
+  it('emits PART NAME header text', () => {
+    const dxf = renderDrawingDxf(plDrawing, plSheet, null);
+    expect(dxf).toContain('PART NAME');
+  });
+
+  it('emits part name from data row', () => {
+    const dxf = renderDrawingDxf(plDrawing, plSheet, null);
+    expect(dxf).toContain('Top Shelf');
+  });
+
+  it('emits hardware row part name', () => {
+    const dxf = renderDrawingDxf(plDrawing, plSheet, null);
+    expect(dxf).toContain('Corner Bracket');
+  });
+});

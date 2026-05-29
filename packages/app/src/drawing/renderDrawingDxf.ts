@@ -2,7 +2,7 @@
 import type {
   DrawingDocument, DrawingSheet, DrawingView, DrawingDimension, DimensionGroup,
   DrawingAnnotation, DetailView, SectionView, PartDocument, AssemblyDocument,
-  HoleTableAnnotation, ParamOrLiteral,
+  HoleTableAnnotation, PartsListAnnotation, ParamOrLiteral,
 } from '@zilventor/shared';
 import type { PointRef } from '@zilventor/shared/src/drawing/types';
 import { ISO_SIZES_MM } from '@zilventor/shared';
@@ -671,6 +671,10 @@ function emitAnnotation(
     emitHoleTable(doc, ann, sheet, source, flipY);
     return;
   }
+  if (ann.kind === 'partsList') {
+    emitPartsList(doc, ann, flipY);
+    return;
+  }
   // centerline / center-mark: no projection data available at sheet level; skip
 }
 
@@ -752,6 +756,72 @@ function emitHoleTable(
     ]);
     doc.circle('HOLE-TABLE', bx, flipY(bySvg), HT_BALLOON_R);
     doc.text('HOLE-TABLE', bx, flipY(bySvg), HT_FONT_SIZE - 0.5, row.tag);
+  });
+}
+
+// ── Parts List ────────────────────────────────────────────────────────────────
+
+// Layout constants — mirrors renderDrawingSvg PL_* constants
+const PL_COL_ITEM_W   = 12;
+const PL_COL_QTY_W    = 12;
+const PL_COL_NAME_W   = 50;
+const PL_COL_MAT_W    = 35;
+const PL_COL_DIM_W    = 35;
+const PL_COL_EDGE_W   = 25;
+const PL_ROW_H        = 6;
+const PL_FONT_SIZE    = 3.5;
+const PL_TABLE_W      = PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W + PL_COL_EDGE_W;
+
+function emitPartsList(
+  doc: ReturnType<typeof createDxfDocument>,
+  ann: PartsListAnnotation,
+  flipY: (y: number) => number,
+): void {
+  const { x: tx, y: ty } = ann.positionMm;
+  const tableH = (ann.rows.length + 1) * PL_ROW_H;
+
+  // Column x-offsets
+  const xItem  = tx;
+  const xQty   = tx + PL_COL_ITEM_W;
+  const xName  = tx + PL_COL_ITEM_W + PL_COL_QTY_W;
+  const xMat   = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W;
+  const xDim   = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W;
+  const xEdge  = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W;
+
+  // Outer border (4 individual LINE segments — avoids POLYLINE in TITLE layer, keeps DXF-EDGES-2 clean)
+  doc.line('PARTS-LIST', tx,              flipY(ty),            tx + PL_TABLE_W, flipY(ty));
+  doc.line('PARTS-LIST', tx + PL_TABLE_W, flipY(ty),            tx + PL_TABLE_W, flipY(ty + tableH));
+  doc.line('PARTS-LIST', tx + PL_TABLE_W, flipY(ty + tableH),   tx,              flipY(ty + tableH));
+  doc.line('PARTS-LIST', tx,              flipY(ty + tableH),   tx,              flipY(ty));
+
+  // Header row divider
+  doc.line('PARTS-LIST', tx, flipY(ty + PL_ROW_H), tx + PL_TABLE_W, flipY(ty + PL_ROW_H));
+
+  // Column dividers
+  for (const colX of [xQty, xName, xMat, xDim, xEdge]) {
+    doc.line('PARTS-LIST', colX, flipY(ty), colX, flipY(ty + tableH));
+  }
+
+  // Header texts
+  const textSvgY0 = ty + PL_ROW_H * 0.65;
+  doc.text('PARTS-LIST', xItem + 1, flipY(textSvgY0), PL_FONT_SIZE, 'ITEM');
+  doc.text('PARTS-LIST', xQty  + 1, flipY(textSvgY0), PL_FONT_SIZE, 'QTY');
+  doc.text('PARTS-LIST', xName + 1, flipY(textSvgY0), PL_FONT_SIZE, 'PART NAME');
+  doc.text('PARTS-LIST', xMat  + 1, flipY(textSvgY0), PL_FONT_SIZE, 'MATERIAL');
+  doc.text('PARTS-LIST', xDim  + 1, flipY(textSvgY0), PL_FONT_SIZE, 'DIMENSIONS');
+  doc.text('PARTS-LIST', xEdge + 1, flipY(textSvgY0), PL_FONT_SIZE, 'EDGE BANDS');
+
+  // Data rows
+  ann.rows.forEach((row, i) => {
+    const rowSvgY  = ty + PL_ROW_H * (i + 1);
+    const cellSvgY = rowSvgY + PL_ROW_H * 0.65;
+    if (i > 0) doc.line('PARTS-LIST', tx, flipY(rowSvgY), tx + PL_TABLE_W, flipY(rowSvgY));
+    doc.text('PARTS-LIST', xItem + 1, flipY(cellSvgY), PL_FONT_SIZE, String(row.item));
+    doc.text('PARTS-LIST', xQty  + 1, flipY(cellSvgY), PL_FONT_SIZE, String(row.qty));
+    doc.text('PARTS-LIST', xName + 1, flipY(cellSvgY), PL_FONT_SIZE, row.partName);
+    doc.text('PARTS-LIST', xMat  + 1, flipY(cellSvgY), PL_FONT_SIZE, row.material);
+    doc.text('PARTS-LIST', xDim  + 1, flipY(cellSvgY), PL_FONT_SIZE, row.dimensions);
+    doc.text('PARTS-LIST', xEdge + 1, flipY(cellSvgY), PL_FONT_SIZE, row.edgeBands);
   });
 }
 

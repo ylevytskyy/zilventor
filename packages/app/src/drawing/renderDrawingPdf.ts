@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
-import type { DrawingSheet, DrawingView, DetailView, SectionView } from '@zilventor/shared';
+import type { DrawingSheet, DrawingView, DetailView, SectionView, DrawingAnnotation } from '@zilventor/shared';
+import type { PartsListAnnotation } from '@zilventor/shared';
 import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
@@ -143,7 +144,102 @@ function drawSheetPdf(
     if (!relView) continue;
     drawDimensionPdf(pdf, dim, relView, MARGIN, MARGIN, scaleX, scaleY);
   }
+
+  // Annotations — partsList (and holeTable passthrough so it doesn't throw)
+  for (const ann of sheet.annotations) {
+    drawAnnotationPdf(pdf, ann, source, MARGIN, MARGIN, scaleX, scaleY);
+  }
 }
+
+// ── Annotation rendering ──────────────────────────────────────────────────────
+
+function drawAnnotationPdf(
+  pdf: jsPDF,
+  ann: DrawingAnnotation,
+  _source: PartDocument | AssemblyDocument | null,
+  originX: number,
+  originY: number,
+  scaleX: number,
+  scaleY: number,
+): void {
+  if (ann.kind === 'partsList') {
+    drawPartsListPdf(pdf, ann, originX, originY, scaleX, scaleY);
+    return;
+  }
+  // holeTable and other annotation kinds: no-op (no source available for row computation in PDF path)
+}
+
+// Layout constants — mirrors SVG/DXF PL_* constants
+const PDF_PL_COL_ITEM_W  = 12;
+const PDF_PL_COL_QTY_W   = 12;
+const PDF_PL_COL_NAME_W  = 50;
+const PDF_PL_COL_MAT_W   = 35;
+const PDF_PL_COL_DIM_W   = 35;
+const PDF_PL_COL_EDGE_W  = 25;
+const PDF_PL_ROW_H       = 6;
+const PDF_PL_FONT_SIZE   = 5;  // jsPDF pt
+const PDF_PL_TABLE_W     = PDF_PL_COL_ITEM_W + PDF_PL_COL_QTY_W + PDF_PL_COL_NAME_W + PDF_PL_COL_MAT_W + PDF_PL_COL_DIM_W + PDF_PL_COL_EDGE_W;
+
+function drawPartsListPdf(
+  pdf: jsPDF,
+  ann: PartsListAnnotation,
+  originX: number,
+  originY: number,
+  scaleX: number,
+  scaleY: number,
+): void {
+  const tx = originX + ann.positionMm.x * scaleX;
+  const ty = originY + ann.positionMm.y * scaleY;
+  const tableW = PDF_PL_TABLE_W * scaleX;
+  const rowH   = PDF_PL_ROW_H  * scaleY;
+  const rowCount = ann.rows.length + 1;
+  const tableH = rowCount * rowH;
+
+  // Column x positions (scaled)
+  const xItem  = tx;
+  const xQty   = tx + PDF_PL_COL_ITEM_W  * scaleX;
+  const xName  = tx + (PDF_PL_COL_ITEM_W + PDF_PL_COL_QTY_W) * scaleX;
+  const xMat   = tx + (PDF_PL_COL_ITEM_W + PDF_PL_COL_QTY_W + PDF_PL_COL_NAME_W) * scaleX;
+  const xDim   = tx + (PDF_PL_COL_ITEM_W + PDF_PL_COL_QTY_W + PDF_PL_COL_NAME_W + PDF_PL_COL_MAT_W) * scaleX;
+  const xEdge  = tx + (PDF_PL_COL_ITEM_W + PDF_PL_COL_QTY_W + PDF_PL_COL_NAME_W + PDF_PL_COL_MAT_W + PDF_PL_COL_DIM_W) * scaleX;
+
+  pdf.setDrawColor(0);
+  pdf.setLineWidth(0.3);
+  pdf.rect(tx, ty, tableW, tableH, 'S');
+
+  // Header row divider
+  pdf.line(tx, ty + rowH, tx + tableW, ty + rowH);
+
+  // Column dividers
+  for (const colX of [xQty, xName, xMat, xDim, xEdge]) {
+    pdf.line(colX, ty, colX, ty + tableH);
+  }
+
+  pdf.setFontSize(PDF_PL_FONT_SIZE);
+  pdf.setTextColor(0);
+
+  const textOffY0 = ty + rowH * 0.65;
+  pdf.text('ITEM',       xItem  + 1 * scaleX, textOffY0);
+  pdf.text('QTY',        xQty   + 1 * scaleX, textOffY0);
+  pdf.text('PART NAME',  xName  + 1 * scaleX, textOffY0);
+  pdf.text('MATERIAL',   xMat   + 1 * scaleX, textOffY0);
+  pdf.text('DIMENSIONS', xDim   + 1 * scaleX, textOffY0);
+  pdf.text('EDGE BANDS', xEdge  + 1 * scaleX, textOffY0);
+
+  ann.rows.forEach((row, i) => {
+    const rowY  = ty + rowH * (i + 1);
+    const cellY = rowY + rowH * 0.65;
+    if (i > 0) pdf.line(tx, rowY, tx + tableW, rowY);
+    pdf.text(String(row.item),    xItem  + 1 * scaleX, cellY);
+    pdf.text(String(row.qty),     xQty   + 1 * scaleX, cellY);
+    pdf.text(row.partName,        xName  + 1 * scaleX, cellY);
+    pdf.text(row.material,        xMat   + 1 * scaleX, cellY);
+    pdf.text(row.dimensions,      xDim   + 1 * scaleX, cellY);
+    pdf.text(row.edgeBands,       xEdge  + 1 * scaleX, cellY);
+  });
+}
+
+// ── Title block ───────────────────────────────────────────────────────────────
 
 function drawTitleBlockPdf(
   pdf: jsPDF,

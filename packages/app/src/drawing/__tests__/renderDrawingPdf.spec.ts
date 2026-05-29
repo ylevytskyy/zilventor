@@ -299,3 +299,61 @@ describe('renderDrawingPdf — null source (source-optional export)', () => {
     expect(bytes.length).toBeGreaterThan(0);
   });
 });
+
+describe('renderDrawingPdf — partsList annotation', () => {
+  it('does not throw and embeds "PART NAME" text in the PDF output', () => {
+    const drawing: DrawingDocument = {
+      id: 'dpl1', name: 'PL Drawing', units: 'mm',
+      source: { partPath: 'p.zipt', sourceKind: 'part' },
+      properties: {},
+      activeSheetId: 'sh-pl',
+      sheets: [{
+        id: 'sh-pl', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [], dimensions: [], dimensionGroups: [],
+        annotations: [{
+          kind: 'partsList',
+          id: 'pl-pdf-1',
+          positionMm: { x: 10, y: 20 },
+          rows: [
+            { item: 1, qty: 2, partName: 'Side Panel', material: 'Oak', dimensions: '600×400×18', edgeBands: 'T,B' },
+          ],
+        }],
+        titleBlock: {},
+      }],
+    };
+    expect(() => renderDrawingPdfBytes(drawing, null)).not.toThrow();
+    const bytes = renderDrawingPdfBytes(drawing, null);
+    // jsPDF embeds text strings verbatim (latin1) — verify annotation text was written
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain('PART NAME');
+  });
+});
+
+describe('renderDrawingPdf — holeTable annotation (PDF gap closure)', () => {
+  it('does not throw with a holeTable annotation on the sheet', () => {
+    const drawing: DrawingDocument = {
+      id: 'dht1', name: 'HT Drawing', units: 'mm',
+      source: { partPath: 'p.zipt', sourceKind: 'part' },
+      properties: {},
+      activeSheetId: 'sh-ht',
+      sheets: [{
+        id: 'sh-ht', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [], dimensions: [], dimensionGroups: [],
+        annotations: [{
+          kind: 'holeTable',
+          id: 'ht-pdf-1',
+          viewId: 'v1',
+          datum: { kind: 'edge-endpoint', edgeId: 'e1', end: 'start' } as never,
+          positionMm: { x: 10, y: 20 },
+          entries: [],
+        }],
+        titleBlock: {},
+      }],
+    };
+    expect(() => renderDrawingPdfBytes(drawing, null)).not.toThrow();
+    const bytes = renderDrawingPdfBytes(drawing, null);
+    expect(bytes.slice(0, 5)).toStrictEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D]));
+  });
+});
