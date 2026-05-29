@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { AnnotationElement } from '../AnnotationElement';
-import type { DrawingAnnotation, DrawingView, ProjectedGeometry, HoleTableAnnotation } from '@zilventor/shared';
+import type { DrawingAnnotation, DrawingView, ProjectedGeometry, HoleTableAnnotation, PartsListAnnotation } from '@zilventor/shared';
 
 // Stub HoleTableElement so Task 3.3 test can verify routing without rendering the full element
 vi.mock('../HoleTableElement', () => ({
@@ -119,5 +119,83 @@ describe('AnnotationElement — holeTable case', () => {
       </svg>,
     );
     expect(container.querySelector('[data-testid="hole-table-stub"]')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// partsList case — sheet-level annotation, no viewId
+// ---------------------------------------------------------------------------
+
+const plAnn: PartsListAnnotation = {
+  kind: 'partsList',
+  id: 'pl-ann-1',
+  positionMm: { x: 10, y: 20 },
+  rows: [
+    { item: 1, qty: 2, partName: 'Side Panel', material: 'MDF 18mm', dimensions: '700×300×18', edgeBands: 'ABS' },
+    { item: 2, qty: 1, partName: 'Shelf',      material: '',          dimensions: '',            edgeBands: '' },
+  ],
+};
+
+describe('AnnotationElement — partsList case', () => {
+  it('renders a g element with data-ann-kind="partsList"', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    expect(container.querySelector('[data-ann-kind="partsList"]')).not.toBeNull();
+  });
+
+  it('renders ITEM column header', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    const texts = Array.from(container.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'ITEM')).toBe(true);
+  });
+
+  it('renders QTY column header', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    const texts = Array.from(container.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'QTY')).toBe(true);
+  });
+
+  it('renders PART NAME column header', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    const texts = Array.from(container.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'PART NAME')).toBe(true);
+  });
+
+  it('renders a data row value for partName "Side Panel"', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    const texts = Array.from(container.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'Side Panel')).toBe(true);
+  });
+
+  it('renders empty string cells for hardware row', () => {
+    const { container } = render(
+      <svg>
+        <AnnotationElement ann={plAnn as DrawingAnnotation} view={undefined as any} />
+      </svg>,
+    );
+    // The empty-material + empty-dimensions cells render as text nodes with empty content
+    const texts = Array.from(container.querySelectorAll('text'));
+    const emptyCount = texts.filter((t) => t.textContent === '').length;
+    // row 2 has material='', dimensions='', edgeBands='' → at least 2 empty cells
+    expect(emptyCount).toBeGreaterThanOrEqual(2);
   });
 });

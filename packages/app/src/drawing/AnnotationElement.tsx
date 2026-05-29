@@ -1,6 +1,79 @@
 // packages/app/src/drawing/AnnotationElement.tsx
-import type { DrawingAnnotation, DrawingView } from '@zilventor/shared';
+import type { DrawingAnnotation, DrawingView, PartsListAnnotation } from '@zilventor/shared';
 import { HoleTableElement } from './HoleTableElement';
+
+// ---------------------------------------------------------------------------
+// Layout constants — must mirror renderPartsListAnnotation in renderDrawingSvg.ts
+// ---------------------------------------------------------------------------
+const PL_COL_ITEM_W  = 12;
+const PL_COL_QTY_W   = 12;
+const PL_COL_NAME_W  = 50;
+const PL_COL_MAT_W   = 35;
+const PL_COL_DIM_W   = 35;
+const PL_COL_EDGE_W  = 25;
+const PL_ROW_H       = 6;
+const PL_FONT_SIZE   = 3.5;
+const PL_GRID_COLOR  = '#222';
+const PL_TABLE_W = PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W + PL_COL_EDGE_W;
+
+function PartsListElement({ ann }: { ann: PartsListAnnotation }) {
+  const { x: tx, y: ty } = ann.positionMm;
+  const rowCount = ann.rows.length + 1; // header + data
+  const tableH   = rowCount * PL_ROW_H;
+
+  const xItem = tx;
+  const xQty  = tx + PL_COL_ITEM_W;
+  const xName = tx + PL_COL_ITEM_W + PL_COL_QTY_W;
+  const xMat  = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W;
+  const xDim  = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W;
+  const xEdge = tx + PL_COL_ITEM_W + PL_COL_QTY_W + PL_COL_NAME_W + PL_COL_MAT_W + PL_COL_DIM_W;
+
+  const textY0 = ty + PL_ROW_H * 0.65;
+
+  return (
+    <g data-ann-id={ann.id} data-ann-kind="partsList">
+      {/* Outer border */}
+      <rect x={tx} y={ty} width={PL_TABLE_W} height={tableH}
+        fill="white" stroke={PL_GRID_COLOR} strokeWidth="0.3" />
+      {/* Header divider */}
+      <line x1={tx} y1={ty + PL_ROW_H} x2={tx + PL_TABLE_W} y2={ty + PL_ROW_H}
+        stroke={PL_GRID_COLOR} strokeWidth="0.3" />
+      {/* Row dividers */}
+      {ann.rows.slice(1).map((_, i) => (
+        <line key={`rdiv-${i}`}
+          x1={tx} y1={ty + PL_ROW_H * (i + 2)} x2={tx + PL_TABLE_W} y2={ty + PL_ROW_H * (i + 2)}
+          stroke={PL_GRID_COLOR} strokeWidth="0.15" />
+      ))}
+      {/* Column dividers */}
+      {[xQty, xName, xMat, xDim, xEdge].map((colX, i) => (
+        <line key={`cdiv-${i}`}
+          x1={colX} y1={ty} x2={colX} y2={ty + tableH}
+          stroke={PL_GRID_COLOR} strokeWidth="0.2" />
+      ))}
+      {/* Header texts */}
+      <text x={xItem + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">ITEM</text>
+      <text x={xQty  + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">QTY</text>
+      <text x={xName + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">PART NAME</text>
+      <text x={xMat  + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">MATERIAL</text>
+      <text x={xDim  + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">DIMENSIONS</text>
+      <text x={xEdge + 1} y={textY0} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR} fontWeight="bold">EDGE BANDS</text>
+      {/* Data rows */}
+      {ann.rows.map((row, i) => {
+        const cellY = ty + PL_ROW_H * (i + 1) + PL_ROW_H * 0.65;
+        return (
+          <g key={`row-${i}`}>
+            <text x={xItem + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{String(row.item)}</text>
+            <text x={xQty  + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{String(row.qty)}</text>
+            <text x={xName + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{row.partName}</text>
+            <text x={xMat  + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{row.material}</text>
+            <text x={xDim  + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{row.dimensions}</text>
+            <text x={xEdge + 1} y={cellY} fontSize={PL_FONT_SIZE} fill={PL_GRID_COLOR}>{row.edgeBands}</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
 
 function edgeCenter(edgeId: string, view: DrawingView): { x: number; y: number } | null {
   const proj = view.projection;
@@ -21,7 +94,7 @@ const BALLOON_R = 5;    // mm — balloon circle radius
 
 export type AnnotationElementProps = {
   ann: DrawingAnnotation;
-  view: DrawingView;
+  view: DrawingView | undefined;
 };
 
 export function AnnotationElement({ ann, view }: AnnotationElementProps) {
@@ -93,7 +166,10 @@ export function AnnotationElement({ ann, view }: AnnotationElementProps) {
     }
 
     case 'holeTable':
-      return <HoleTableElement ann={ann} view={view} />;
+      return <HoleTableElement ann={ann} view={view!} />;
+
+    case 'partsList':
+      return <PartsListElement ann={ann} />;
 
     default:
       return null;

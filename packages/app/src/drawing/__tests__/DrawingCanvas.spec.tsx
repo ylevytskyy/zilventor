@@ -5,7 +5,7 @@ import { DrawingCanvas } from '../DrawingCanvas';
 import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../toolMode';
 import { AddSectionViewCommand } from '../../commands/AddSectionViewCommand';
-import type { DrawingDocument, DrawingSheet, BaseView, SectionView, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, DrawingSheet, BaseView, SectionView, DetailView, PartsListAnnotation } from '@zilventor/shared';
 
 vi.mock('../../commands/AddBreakCommand', () => ({
   AddBreakCommand: vi.fn().mockImplementation((payload) => ({
@@ -754,5 +754,69 @@ describe('DrawingCanvas — pickCutSide stage (HS-UI-3)', () => {
     render(<DrawingCanvas />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(useToolModeStore.getState().sectionState).toEqual({ stage: 'idle' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DrawingCanvas — partsList sheet-level annotation renders on the live canvas
+// ---------------------------------------------------------------------------
+
+describe('DrawingCanvas — partsList annotation', () => {
+  const plAnn: PartsListAnnotation = {
+    kind: 'partsList',
+    id: 'pl-canvas-1',
+    positionMm: { x: 10, y: 20 },
+    rows: [
+      { item: 1, qty: 2, partName: 'Side Panel', material: 'MDF 18mm', dimensions: '700×300×18', edgeBands: 'ABS' },
+    ],
+  };
+
+  const makeSheetWithPartsList = (): DrawingSheet => ({
+    id: 's1',
+    name: 'Sheet 1',
+    size: { kind: 'iso', size: 'A3' },
+    orientation: 'landscape',
+    views: [],
+    dimensions: [],
+    annotations: [plAnn],
+    titleBlock: {},
+    dimensionGroups: [],
+  });
+
+  beforeEach(() => {
+    useToolModeStore.setState({ mode: 'idle' });
+    useAppStore.setState({
+      activeDrawing: {
+        id: 'd1',
+        name: 'Test Drawing',
+        units: 'mm',
+        source: { partPath: 'parts/box.zipt', sourceKind: 'part' },
+        properties: {},
+        sheets: [makeSheetWithPartsList()],
+        activeSheetId: 's1',
+      },
+      bus: { execute: vi.fn().mockResolvedValue(undefined) },
+    } as never);
+  });
+
+  it('renders a [data-ann-kind="partsList"] element in DrawingCanvas SVG', () => {
+    const { container } = render(<DrawingCanvas />);
+    expect(container.querySelector('[data-ann-kind="partsList"]')).not.toBeNull();
+  });
+
+  it('renders ITEM header text inside the DrawingCanvas partsList table', () => {
+    const { container } = render(<DrawingCanvas />);
+    const g = container.querySelector('[data-ann-kind="partsList"]');
+    expect(g).not.toBeNull();
+    const texts = Array.from(g!.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'ITEM')).toBe(true);
+  });
+
+  it('renders the partName "Side Panel" in the DrawingCanvas partsList table', () => {
+    const { container } = render(<DrawingCanvas />);
+    const g = container.querySelector('[data-ann-kind="partsList"]');
+    expect(g).not.toBeNull();
+    const texts = Array.from(g!.querySelectorAll('text'));
+    expect(texts.some((t) => t.textContent === 'Side Panel')).toBe(true);
   });
 });

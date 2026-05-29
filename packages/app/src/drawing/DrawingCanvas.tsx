@@ -21,6 +21,9 @@ import { AddAngularDimCommand } from '../commands/AddAngularDimCommand';
 import { DeleteDimensionGroupCommand } from '../commands/DeleteDimensionGroupCommand';
 import { AddHoleTableCommand } from '../commands/AddHoleTableCommand';
 import { extractHolesInView, assignHoleTags } from '@zilventor/shared/src/drawing/holeTable';
+import { AddPartsListCommand } from '../commands/AddPartsListCommand';
+import { computePartsListRows } from './computePartsListRows';
+import { useCutListCacheContext } from '../shell/CutListCacheContext';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
 import { DetailRegionEditHandles } from './DetailRegionEditHandles';
@@ -132,6 +135,9 @@ export function DrawingCanvas() {
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
   const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
+  const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
+  const activeDrawingSourceDocument = useAppStore((s) => s.activeDrawingSourceDocument);
+  const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {
     return <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">No drawing open.</div>;
@@ -779,6 +785,41 @@ export function DrawingCanvas() {
       return;
     }
 
+    if (toolMode === 'partsList') {
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId)
+        ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) return;
+
+      // Source the assembly from activeDrawingSourceDocument if available, else fall back to activeAssembly.
+      // subAssemblyDocs and cache refs are sourced from store + CutListCacheContext.
+      const srcDoc = useAppStore.getState().activeDrawingSourceDocument;
+      const srcAsm = srcDoc && 'components' in srcDoc ? srcDoc : useAppStore.getState().activeAssembly;
+      const subAsmDocs = useAppStore.getState().subAssemblyDocs;
+      const subAsmCacheAdapter = {
+        get: (p: string) =>
+          subAsmDocs[p]
+            ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
+            : undefined,
+      };
+
+      const panelSpecs = panelSpecCacheRef.current ?? new Map();
+      const partInfo = partInfoCacheRef.current ?? new Map();
+      const rows = srcAsm
+        ? computePartsListRows(srcAsm, subAsmCacheAdapter, panelSpecs, partInfo)
+        : [];
+
+      const ann: import('@zilventor/shared').PartsListAnnotation = {
+        kind: 'partsList',
+        id: crypto.randomUUID(),
+        positionMm: { x: svgX, y: svgY },
+        rows,
+      };
+      void bus.execute(new AddPartsListCommand({ sheetId: liveSheet.id, ann }));
+      useToolModeStore.getState().setMode('idle');
+      return;
+    }
+
     if (toolMode === 'addLinearH' || toolMode === 'addLinearV' || toolMode === 'addAligned') {
       const next = [...clickAccum, clickPt];
       if (next.length >= 2) {
@@ -1186,9 +1227,15 @@ export function DrawingCanvas() {
 
       {/* Annotations */}
       {sheet.annotations.map((ann) => {
-        const v = sheet.views.find((vw) => vw.id === ann.viewId);
-        if (!v) return null;
-        return <AnnotationElement key={ann.id} ann={ann} view={v} />;
+        // Sheet-level annotations (e.g. partsList) have no viewId — pass view as undefined.
+        // View-bound annotations are dropped only if their referenced view is missing.
+        const viewId = (ann as { viewId?: string }).viewId;
+        if (viewId !== undefined) {
+          const v = sheet.views.find((vw) => vw.id === viewId);
+          if (!v) return null;
+          return <AnnotationElement key={ann.id} ann={ann} view={v} />;
+        }
+        return <AnnotationElement key={ann.id} ann={ann} view={undefined} />;
       })}
 
       {/* Title block (source may be null during loading) */}

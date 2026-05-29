@@ -26,7 +26,8 @@ export type ToolMode =
   | 'angular'   // Drawing F5 — angular dimension (two-edges or arc)
   | 'pickSteppedSection'  // Drawing F1.2 — stepped section authoring
   | 'editDetailRegion' // Drawing F2.4 — edit existing detail region
-  | 'holeTable';       // Drawing F6 — hole table placement
+  | 'holeTable'        // Drawing F6 — hole table placement
+  | 'partsList';       // Parts List annotation placement
 
 export type PendingViewParams =
   | {
@@ -253,6 +254,9 @@ interface ToolModeState {
   editDragMove(point: { x: number; y: number }): Region | null;
   editDragEnd(onDispatch: (prevRegion: Region, newRegion: Region) => void): void;
   editDetailCancel(): void;
+
+  // Parts List tool actions
+  enterPartsListMode(): void;
 }
 
 export const useToolModeStore = create<ToolModeState>((set, get) => ({
@@ -892,5 +896,10 @@ export const useToolModeStore = create<ToolModeState>((set, get) => ({
       // Second ESC (or ESC from fresh idle in holeTable mode): exit the tool.
       set({ mode: 'idle', holeTableState: { stage: 'idle' } });
     }
+  },
+
+  // Parts List tool actions
+  enterPartsListMode() {
+    set({ mode: 'partsList' });
   },
 }));

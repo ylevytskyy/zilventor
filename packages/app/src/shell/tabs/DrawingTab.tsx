@@ -254,6 +254,16 @@ export default function DrawingTab(): JSX.Element {
         >
           Hole Table
         </button>
+        {/* Parts List: BOM snapshot annotation */}
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Parts List"
+          title="Place a parts list (BOM) table on the sheet — click to position"
+          onClick={() => useToolModeStore.getState().enterPartsListMode()}
+        >
+          Parts List
+        </button>
       </RibbonPanel>
 
       {/* Export panel */}
