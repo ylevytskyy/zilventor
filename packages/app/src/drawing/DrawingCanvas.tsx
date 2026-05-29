@@ -886,7 +886,42 @@ export function DrawingCanvas() {
       return;
     }
 
-    // Other modes (addRadial, addDiametric, addLeader, addBalloon)
+    if (toolMode === 'addRadial' || toolMode === 'addDiametric') {
+      if (!edgeId) { setClickAccum([]); return; }
+      // Use live state to avoid stale-closure (mirrors angular tool pattern)
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      if (!liveDrw || !liveSheet) { setClickAccum([]); return; }
+
+      const hitViewId = getViewAtPoint(liveSheet.views, { x: svgX, y: svgY }, viewId);
+      if (!hitViewId) { setClickAccum([]); return; }
+
+      const hitView = liveSheet.views.find((v) => v.id === hitViewId);
+      const allEdges = hitView?.projection
+        ? [...hitView.projection.visibleEdges, ...hitView.projection.hiddenEdges]
+        : [];
+      const clickedEdge = allEdges.find((e) => e.id === edgeId);
+
+      // Need >= 3 points to compute a circumcircle; 2-point straight edges are not circular
+      if (!clickedEdge || clickedEdge.points.length < 3) { setClickAccum([]); return; }
+
+      const kind = toolMode === 'addRadial' ? 'radial' as const : 'diametric' as const;
+      void bus.execute(new AddDrawingDimensionCommand({
+        sheetId: liveSheet.id,
+        dim: {
+          id: `dim-${Date.now()}`,
+          kind,
+          viewId: hitViewId,
+          edgeId,
+          offsetMm: 10,
+          angleDeg: 45,
+        },
+      }));
+      setClickAccum([]);
+      return;
+    }
+
+    // Other modes (addLeader, addBalloon)
     setClickAccum([]);
   }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
