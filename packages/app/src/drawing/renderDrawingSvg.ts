@@ -54,7 +54,9 @@ export function renderDrawingSvg(
       material: titleBlock.material,
       date: titleBlock.date,
       drawnBy: titleBlock.drawnBy,
+      approvedBy: titleBlock.approvedBy,
       revision: titleBlock.revision,
+      notes: titleBlock.notes,
       sheetCurrent: titleBlock.sheetNumber.current,
       sheetTotal: titleBlock.sheetNumber.total,
     },
@@ -187,6 +189,28 @@ function renderViewGroup(view: DrawingView): string {
     }
   }
 
+  // Base/projected/iso views: scale label below the bounding box.
+  let viewLabelMarkup = '';
+  if (view.kind === 'base' || view.kind === 'projected' || view.kind === 'iso') {
+    if (projection) {
+      const labelX = (projection.bbox.minX + projection.bbox.maxX) / 2;
+      const labelY = projection.bbox.maxY + 7;
+      const scaleStr = `${view.scale.numerator}:${view.scale.denominator}`;
+      viewLabelMarkup = `\n    <text x="${labelX}" y="${labelY}" font-size="3.5" font-family="sans-serif" text-anchor="middle" data-role="view-scale-label" data-view-id="${escapeAttr(view.id)}">SCALE ${escapeText(scaleStr)}</text>`;
+    }
+  }
+
+  // Section view: "SECTION X-X" heading below the bbox.
+  let sectionHeadingMarkup = '';
+  if (view.kind === 'section') {
+    const sv = view as SectionView;
+    if (projection) {
+      const headingX = (projection.bbox.minX + projection.bbox.maxX) / 2;
+      const headingY = projection.bbox.maxY + 7;
+      sectionHeadingMarkup = `\n    <text x="${headingX}" y="${headingY}" font-size="3.5" font-family="sans-serif" text-anchor="middle" data-role="section-heading" data-view-id="${escapeAttr(view.id)}">SECTION ${escapeText(sv.label)}-${escapeText(sv.label)}</text>`;
+    }
+  }
+
   // Detail-specific: border shape + caption.
   let detailMarkup = '';
   if (view.kind === 'detail') {
@@ -212,7 +236,7 @@ function renderViewGroup(view: DrawingView): string {
      data-view-id="${escapeAttr(view.id)}" data-view-kind="${view.kind}">
     ${staleMarker}
     ${visibleLines}
-    ${hiddenLines}${hatchMarkup}${detailMarkup}
+    ${hiddenLines}${hatchMarkup}${detailMarkup}${viewLabelMarkup}${sectionHeadingMarkup}
   </g>`;
 }
 
@@ -753,9 +777,39 @@ interface TitleBlockFields {
   material: string;
   date: string;
   drawnBy: string;
+  approvedBy: string;
   revision: string;
+  notes: string;
   sheetCurrent: number;
   sheetTotal: number;
+}
+
+/**
+ * ISO first-angle projection symbol (~12×8mm).
+ * First-angle arrangement (European/ISO per ISO 128-30):
+ * - TRAPEZOID on the LEFT: narrow (short) vertical edge on the left, wide (tall) edge on the right.
+ * - CONCENTRIC CIRCLES on the RIGHT of the trapezoid.
+ * The cone's large-diameter end (wide edge of trapezoid) faces right, toward the circles.
+ * cx/cy here are the LEFT anchor of the glyph (trapezoid left edge x-center).
+ */
+function renderProjectionSymbolSvg(cx: number, cy: number): string {
+  const r = 3;
+  const trapW = 6;
+  const halfHS = 2.5; // half-height at short (narrow/left) end
+  const halfHT = 4;   // half-height at tall (wide/right) end
+  // Trapezoid: narrow on LEFT, wide on RIGHT
+  const trapX = cx;
+  const tl = { x: trapX,         y: cy - halfHS }; // top-left (narrow side)
+  const tr = { x: trapX + trapW, y: cy - halfHT }; // top-right (wide side)
+  const br = { x: trapX + trapW, y: cy + halfHT }; // bottom-right (wide side)
+  const bl = { x: trapX,         y: cy + halfHS }; // bottom-left (narrow side)
+  const trapPath = `M ${tl.x} ${tl.y} L ${tr.x} ${tr.y} L ${br.x} ${br.y} L ${bl.x} ${bl.y} Z`;
+  // Circle: to the RIGHT of the trapezoid (gap 1mm), radius 3mm
+  const circleCx = trapX + trapW + 1 + r;
+  return `\n  <g data-role="projection-symbol" data-projection="first-angle">
+    <path d="${trapPath}" fill="none" stroke="#000" stroke-width="0.3"/>
+    <circle cx="${circleCx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.3"/>
+  </g>`;
 }
 
 function renderTitleBlockSvg(
@@ -767,17 +821,25 @@ function renderTitleBlockSvg(
   const x = 10;
   const y = sheetH - 10 - titleH;
   const w = sheetW - 20;
+  // Projection symbol: bottom-right corner of title block (~12×8mm glyph)
+  // Circle center at x + w - 18, y + titleH - 8
+  const symCx = x + w - 18;
+  const symCy = y + titleH - 8;
+  const projSymbol = renderProjectionSymbolSvg(symCx, symCy);
+  // Notes row spans full width below the two-column admin section
   return `  <g data-title-block="true">
     <rect x="${x}" y="${y}" width="${w}" height="${titleH}" fill="white" stroke="#000" stroke-width="0.3"/>
-    <line x1="${x + w / 2}" y1="${y}" x2="${x + w / 2}" y2="${y + titleH}" stroke="#000" stroke-width="0.2"/>
+    <line x1="${x + w / 2}" y1="${y}" x2="${x + w / 2}" y2="${y + titleH - 4}" stroke="#000" stroke-width="0.2"/>
     <text x="${x + 2}" y="${y + 4}"  font-size="2.5" fill="#333">Drawing: ${escapeText(fields.drawingName)}</text>
     <text x="${x + 2}" y="${y + 8}"  font-size="2.5" fill="#333">Part: ${escapeText(fields.partName)}</text>
     <text x="${x + 2}" y="${y + 12}" font-size="2.5" fill="#333">Scale: ${escapeText(fields.scaleText)}</text>
     <text x="${x + 2}" y="${y + 16}" font-size="2.5" fill="#333">Material: ${escapeText(fields.material)}</text>
     <text x="${x + w / 2 + 2}" y="${y + 4}"  font-size="2.5" fill="#333">Date: ${escapeText(fields.date)}</text>
     <text x="${x + w / 2 + 2}" y="${y + 8}"  font-size="2.5" fill="#333">Drawn by: ${escapeText(fields.drawnBy)}</text>
-    <text x="${x + w / 2 + 2}" y="${y + 12}" font-size="2.5" fill="#333">Revision: ${escapeText(fields.revision)}</text>
-    <text x="${x + w / 2 + 2}" y="${y + 16}" font-size="2.5" fill="#333">Sheet: ${fields.sheetCurrent}/${fields.sheetTotal}</text>
+    <text x="${x + w / 2 + 2}" y="${y + 12}" font-size="2.5" fill="#333">Approved by: ${escapeText(fields.approvedBy)}</text>
+    <text x="${x + w / 2 + 2}" y="${y + 16}" font-size="2.5" fill="#333">Revision: ${escapeText(fields.revision)}</text>
+    <text x="${x + 2}" y="${y + titleH - 1}" font-size="2.5" fill="#333">Notes: ${escapeText(fields.notes)}</text>
+    <text x="${x + w - 30}" y="${y + 16}" font-size="2.5" fill="#333">Sheet: ${fields.sheetCurrent}/${fields.sheetTotal}</text>${projSymbol}
   </g>`;
 }
 

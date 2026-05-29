@@ -501,6 +501,151 @@ describe('renderDrawingDxf — diametric dimension (DXF-DIA)', () => {
   });
 });
 
+// ── CHUNK D: title-block approvedBy + notes ───────────────────────────────────
+
+describe('renderDrawingDxf — title-block approvedBy + notes (CHUNK-D)', () => {
+  function makeDrawingWithTitleBlockOverrides() {
+    const sheet = makeSheet({ titleBlock: { approvedBy: 'J. Smith', notes: 'Rev A initial release' } });
+    return { drawing: makeDrawing(sheet), sheet };
+  }
+
+  it('DXF-D-1: title block emits "Approved by:" label as TEXT entity on TITLE', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const dxf = renderDrawingDxf(drawing, sheet, makePart());
+    expect(dxf).toContain('Approved by:');
+  });
+
+  it('DXF-D-2: title block emits the approvedBy value "J. Smith"', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const dxf = renderDrawingDxf(drawing, sheet, makePart());
+    expect(dxf).toContain('J. Smith');
+  });
+
+  it('DXF-D-3: title block emits "Notes:" label as TEXT entity on TITLE', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const dxf = renderDrawingDxf(drawing, sheet, makePart());
+    expect(dxf).toContain('Notes:');
+  });
+
+  it('DXF-D-4: the notes value appears in a TEXT entity on TITLE layer', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const dxf = renderDrawingDxf(drawing, sheet, makePart());
+    // Verify a TEXT entity on TITLE contains the notes value
+    // The TEXT entity should appear after a TITLE layer reference
+    const lines = dxf.split('\n');
+    const textEntityBodies = lines.reduce<string[]>((acc, line, i) => {
+      if (line.trim() === 'TEXT') {
+        acc.push(lines.slice(i, i + 20).join('\n'));
+      }
+      return acc;
+    }, []);
+    const titleTextWithNotes = textEntityBodies.find(
+      (body) => body.includes('TITLE') && body.includes('Rev A initial release')
+    );
+    expect(titleTextWithNotes).toBeDefined();
+  });
+});
+
+// ── CHUNK C: view labels + scale, section headings ────────────────────────────
+
+describe('renderDrawingDxf — view labels + section headings (CHUNK-C)', () => {
+  it('DXF-C-1: base view emits a TEXT entity on VISIBLE layer containing "SCALE 1:1"', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'e1', kind: 'outline', points: [[0, 0], [10, 0]] as ReadonlyArray<readonly [number, number]> }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 10, maxY: 0 },
+        },
+      }],
+    });
+    const dxf = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(dxf).toMatch(/SCALE\s*1:1/);
+  });
+
+  it('DXF-C-2: section view emits a TEXT entity containing "SECTION A-A"', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'sv1', kind: 'section',
+        parentViewId: 'v1',
+        sectionLine: { p0: { x: 0, y: 50 }, p1: { x: 100, y: 50 } },
+        arrowDirection: 1 as -1 | 1,
+        label: 'A',
+        positionMm: { x: 50, y: 150 },
+        scale: { numerator: 1, denominator: 1 },
+        showHidden: false,
+        mode: 'full',
+        hatchSegments: [],
+        fingerprint: 'fp-c2',
+        projection: {
+          visibleEdges: [{ id: 'sv1-e1', kind: 'outline', points: [[0, 0], [100, 0]] as ReadonlyArray<readonly [number, number]> }],
+          hiddenEdges: [],
+          bbox: { minX: 0, minY: 0, maxX: 100, maxY: 0 },
+        },
+      }],
+    });
+    const dxf = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(dxf).toContain('SECTION A-A');
+  });
+});
+
+// ── CHUNK B2: first-angle ISO projection symbol ───────────────────────────────
+
+describe('renderDrawingDxf — first-angle projection symbol (CHUNK-B2)', () => {
+  it('DXF-B2-1: title block emits a CIRCLE entity on TITLE layer for the projection symbol', () => {
+    const sheet = makeSheet();
+    const dxf = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    // Should contain a CIRCLE entity in the TITLE layer area
+    const lines = dxf.split('\n');
+    const circleEntityBodies = lines.reduce<string[]>((acc, line, i) => {
+      if (line.trim() === 'CIRCLE') {
+        acc.push(lines.slice(i, i + 12).join('\n'));
+      }
+      return acc;
+    }, []);
+    const titleCircle = circleEntityBodies.find((body) => body.includes('TITLE'));
+    expect(titleCircle).toBeDefined();
+  });
+
+  it('DXF-B2-2: correct first-angle orientation — circle center X is to the right of the trapezoid', () => {
+    // ISO 128-30 first-angle: trapezoid on LEFT (narrow left, wide right), circles on RIGHT.
+    // For A4 landscape (sheetW=297): x=10, w=277, symTrapX = 10+277-18 = 269, trapW=6.
+    // Circle: symCx = 269 + 6 + 1 + 3 = 279. Trapezoid right edge: 269+6=275.
+    // Assert: circleCx (279) > trapezoid right edge (275) — i.e., circleCx > symTrapX + trapW.
+    // With old (backwards) code: circle was at symCx=269 < trap right edge 269+6+1+3-1=278 (approx).
+    const sheet = makeSheet(); // A4 landscape
+    const dxf = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    const lines = dxf.split('\n');
+
+    // Find the TITLE CIRCLE entity center X
+    let titleCircleCx: number | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.trim() === 'CIRCLE') {
+        const body = lines.slice(i, i + 12);
+        const isTitleCircle = body.some((l, j) => j > 0 && body[j - 1]?.trim() === '8' && l.trim() === 'TITLE');
+        if (!isTitleCircle) continue;
+        const g10ValIdx = body.findIndex((_l, j) => j > 0 && body[j - 1]?.trim() === '10');
+        if (g10ValIdx !== -1) { titleCircleCx = parseFloat(body[g10ValIdx]!.trim()); break; }
+      }
+    }
+    expect(titleCircleCx, 'TITLE CIRCLE center X not found').not.toBeNull();
+
+    // For A4 landscape fixture: trapezoid right edge = symTrapX + 6 = (10 + 277 - 18) + 6 = 275.
+    // Circle must be to the RIGHT: cx > 275.
+    // (Old backwards code had circle at 269, which is < 275 — test would have failed.)
+    const sheetW = 297; // A4 landscape
+    const x = 10; const w = sheetW - 20;
+    const symTrapX = x + w - 18;
+    const trapW = 6;
+    const trapRightEdge = symTrapX + trapW;
+    expect(titleCircleCx!).toBeGreaterThan(trapRightEdge);
+  });
+});
+
 describe('renderDrawingDxf — null source (source-optional export)', () => {
   const sheetWithHoleTable: DrawingSheet = {
     id: 'sh1',

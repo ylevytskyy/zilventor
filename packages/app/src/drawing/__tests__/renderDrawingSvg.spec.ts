@@ -8,7 +8,7 @@ import {
   makeFixtureDrawingWithRectDetailView,
   makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
-import type { DetailView, DrawingDocument, DrawingSheet } from '@zilventor/shared';
+import type { DetailView, DrawingDocument, DrawingSheet, SectionView } from '@zilventor/shared';
 
 describe('renderDrawingSvg', () => {
   it('returns a string starting with <svg', () => {
@@ -215,6 +215,172 @@ describe('renderDrawingSvg — detail callout overlay', () => {
     const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
     const textMatches = svg.match(/<text[^>]*data-role="detail-callout-label"[^>]*>A<\/text>/);
     expect(textMatches).not.toBeNull();
+  });
+});
+
+// ── CHUNK D: title-block approvedBy + notes ───────────────────────────────────
+
+describe('renderDrawingSvg — title-block approvedBy + notes (CHUNK-D)', () => {
+  function makeDrawingWithTitleBlockOverrides(): { drawing: DrawingDocument; sheet: DrawingSheet } {
+    const drawing = makeFixtureDrawing();
+    const sheet = {
+      ...drawing.sheets[0]!,
+      titleBlock: { approvedBy: 'J. Smith', notes: 'Rev A initial release' },
+    };
+    const updatedDrawing = { ...drawing, sheets: [sheet] };
+    return { drawing: updatedDrawing, sheet };
+  }
+
+  it('SVG-D-1: title block emits "Approved by:" label', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('Approved by:');
+  });
+
+  it('SVG-D-2: title block emits the approvedBy value "J. Smith"', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('J. Smith');
+  });
+
+  it('SVG-D-3: title block emits "Notes:" label', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('Notes:');
+  });
+
+  it('SVG-D-4: title block emits the notes value "Rev A initial release"', () => {
+    const { drawing, sheet } = makeDrawingWithTitleBlockOverrides();
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('Rev A initial release');
+  });
+});
+
+// ── CHUNK C: view labels + scale, section headings ────────────────────────────
+
+describe('renderDrawingSvg — view labels + section headings (CHUNK-C)', () => {
+  it('SVG-C-1: base view emits a scale label matching /SCALE\\s*1:1/', () => {
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toMatch(/SCALE\s*1:1/);
+  });
+
+  it('SVG-C-2: section view emits a "SECTION A-A" heading below the cut', () => {
+    const base = makeFixtureDrawing({ viewCount: 1 });
+    const baseSheet = base.sheets[0]!;
+    const sectionView: SectionView = {
+      id: 'sv-c', kind: 'section',
+      parentViewId: 'view-sheet-1-0',
+      sectionLine: { p0: { x: 0, y: 50 }, p1: { x: 100, y: 50 } },
+      arrowDirection: 1 as -1 | 1,
+      label: 'A',
+      positionMm: { x: 50, y: 150 },
+      scale: { numerator: 1, denominator: 1 },
+      showHidden: false,
+      mode: 'full',
+      hatchSegments: [],
+      fingerprint: 'fp-c',
+      projection: {
+        visibleEdges: [{ id: 'sv-c-e1', kind: 'outline' as const, points: [[0, 0], [100, 0], [100, 100], [0, 100]] as ReadonlyArray<readonly [number, number]> }],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+      },
+      inputFingerprint: 'fp-c',
+    };
+    const updatedSheet = { ...baseSheet, views: [...baseSheet.views, sectionView] };
+    const drawing = { ...base, sheets: [updatedSheet] };
+    const svg = renderDrawingSvg(drawing, updatedSheet, makeFixturePart());
+    expect(svg).toContain('SECTION A-A');
+  });
+});
+
+// ── CHUNK B2: first-angle ISO projection symbol ───────────────────────────────
+
+describe('renderDrawingSvg — first-angle projection symbol (CHUNK-B2)', () => {
+  it('SVG-B2-1: title block contains an element with data-role="projection-symbol"', () => {
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    expect(svg).toContain('data-role="projection-symbol"');
+  });
+
+  it('SVG-B2-2: projection symbol contains a circle element', () => {
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    // Expect a circle within the projection symbol group
+    const psIdx = svg.indexOf('data-role="projection-symbol"');
+    const afterPs = svg.slice(psIdx, psIdx + 400);
+    expect(afterPs).toContain('<circle');
+  });
+
+  it('SVG-B2-3: projection symbol contains a trapezoid path element', () => {
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+    const psIdx = svg.indexOf('data-role="projection-symbol"');
+    const afterPs = svg.slice(psIdx, psIdx + 600);
+    expect(afterPs).toContain('<path');
+  });
+
+  it('SVG-B2-4: correct first-angle orientation — circles to the RIGHT of the trapezoid', () => {
+    // ISO 128-30 first-angle: trapezoid on LEFT, concentric circles on RIGHT.
+    // In the SVG, circle cx must be GREATER than the trapezoid's rightmost x.
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+
+    // Extract the projection symbol group
+    const psIdx = svg.indexOf('data-role="projection-symbol"');
+    const afterPs = svg.slice(psIdx, psIdx + 800);
+
+    // Extract circle cx
+    const circleMatch = afterPs.match(/<circle[^>]*cx="([0-9.eE+\-]+)"/);
+    expect(circleMatch, 'circle element with cx attribute not found').not.toBeNull();
+    const circleCx = parseFloat(circleMatch![1]!);
+
+    // Extract trapezoid path — parse all x values from the M/L commands
+    const pathMatch = afterPs.match(/<path[^>]*d="([^"]+)"/);
+    expect(pathMatch, 'trapezoid path not found').not.toBeNull();
+    const dAttr = pathMatch![1]!;
+    // Parse all numeric tokens after M or L commands (pairs: x y)
+    const coords = [...dAttr.matchAll(/[ML]\s*([-\d.]+)\s+([-\d.]+)/g)].map(m => parseFloat(m[1]!));
+    const trapMaxX = Math.max(...coords);
+
+    // CORRECT first-angle: circle is to the RIGHT → circleCx > trapMaxX
+    expect(circleCx).toBeGreaterThan(trapMaxX);
+  });
+
+  it('SVG-B2-5: correct first-angle orientation — trapezoid wide (tall) edge on RIGHT toward circles', () => {
+    // The trapezoid right vertical edge height must be GREATER than left vertical edge height.
+    const drawing = makeFixtureDrawing();
+    const sheet = drawing.sheets[0]!;
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+
+    const psIdx = svg.indexOf('data-role="projection-symbol"');
+    const afterPs = svg.slice(psIdx, psIdx + 800);
+
+    const pathMatch = afterPs.match(/<path[^>]*d="([^"]+)"/);
+    expect(pathMatch, 'trapezoid path not found').not.toBeNull();
+    const dAttr = pathMatch![1]!;
+
+    // Parse coordinate pairs from M/L commands: [[x,y], ...]
+    const pts = [...dAttr.matchAll(/[ML]\s*([-\d.]+)\s+([-\d.]+)/g)].map(m => ({
+      x: parseFloat(m[1]!),
+      y: parseFloat(m[2]!),
+    }));
+    // 4 corners: find leftmost and rightmost x values
+    const minX = Math.min(...pts.map(p => p.x));
+    const maxX = Math.max(...pts.map(p => p.x));
+    const leftPts  = pts.filter(p => p.x === minX);
+    const rightPts = pts.filter(p => p.x === maxX);
+    expect(leftPts.length,  'expected 2 points at left edge').toBe(2);
+    expect(rightPts.length, 'expected 2 points at right edge').toBe(2);
+    const leftHeight  = Math.abs(leftPts[0]!.y  - leftPts[1]!.y);
+    const rightHeight = Math.abs(rightPts[0]!.y - rightPts[1]!.y);
+    // CORRECT first-angle: right edge (toward circles) is TALLER
+    expect(rightHeight).toBeGreaterThan(leftHeight);
   });
 });
 

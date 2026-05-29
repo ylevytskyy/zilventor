@@ -110,7 +110,9 @@ export function renderDrawingDxf(
     material: titleBlock.material,
     date: titleBlock.date,
     drawnBy: titleBlock.drawnBy,
+    approvedBy: titleBlock.approvedBy,
     revision: titleBlock.revision,
+    notes: titleBlock.notes,
     sheetCurrent: titleBlock.sheetNumber.current,
     sheetTotal: titleBlock.sheetNumber.total,
   }, sheetW, sheetH, titleH, flipY);
@@ -161,6 +163,22 @@ function emitView(
         h.color ? hexToAci(h.color) : undefined,
       );
     }
+  }
+
+  // Base/projected/iso views: scale label below the bounding box.
+  if ((view.kind === 'base' || view.kind === 'projected' || view.kind === 'iso') && projection) {
+    const labelSvgX = ox + ((projection.bbox.minX + projection.bbox.maxX) / 2) * vScale;
+    const labelSvgY = oy + (projection.bbox.maxY + 7) * vScale;
+    const scaleStr = `SCALE ${view.scale.numerator}:${view.scale.denominator}`;
+    doc.text('VISIBLE', labelSvgX, flipY(labelSvgY), 3.5, scaleStr);
+  }
+
+  // Section view: "SECTION X-X" heading below the bbox.
+  if (view.kind === 'section' && projection) {
+    const sv = view as SectionView;
+    const headingSvgX = ox + ((projection.bbox.minX + projection.bbox.maxX) / 2) * vScale;
+    const headingSvgY = oy + (projection.bbox.maxY + 7) * vScale;
+    doc.text('VISIBLE', headingSvgX, flipY(headingSvgY), 3.5, `SECTION ${sv.label}-${sv.label}`);
   }
 
   // Detail-specific: border shape on DETAIL layer (within view transform)
@@ -741,8 +759,8 @@ function emitHoleTable(
 
 interface TitleBlockFields {
   drawingName: string; partName: string; scaleText: string; material: string;
-  date: string; drawnBy: string; revision: string;
-  sheetCurrent: number; sheetTotal: number;
+  date: string; drawnBy: string; approvedBy: string; revision: string;
+  notes: string; sheetCurrent: number; sheetTotal: number;
 }
 
 function emitTitleBlock(
@@ -761,8 +779,8 @@ function emitTitleBlock(
   doc.line('TITLE', x + w, flipY(svgY),         x + w, flipY(svgY + titleH));
   doc.line('TITLE', x + w, flipY(svgY + titleH), x,    flipY(svgY + titleH));
   doc.line('TITLE', x,     flipY(svgY + titleH), x,    flipY(svgY));
-  // Mid-divider
-  doc.line('TITLE', x + w / 2, flipY(svgY), x + w / 2, flipY(svgY + titleH));
+  // Mid-divider (stops 4mm above bottom to allow full-width notes row)
+  doc.line('TITLE', x + w / 2, flipY(svgY), x + w / 2, flipY(svgY + titleH - 4));
 
   // Left column text
   doc.text('TITLE', x + 2, flipY(svgY + 4),  2.5, `Drawing: ${fields.drawingName}`);
@@ -770,9 +788,37 @@ function emitTitleBlock(
   doc.text('TITLE', x + 2, flipY(svgY + 12), 2.5, `Scale: ${fields.scaleText}`);
   doc.text('TITLE', x + 2, flipY(svgY + 16), 2.5, `Material: ${fields.material}`);
 
-  // Right column text
+  // Right column text (admin)
   doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 4),  2.5, `Date: ${fields.date}`);
   doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 8),  2.5, `Drawn by: ${fields.drawnBy}`);
-  doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 12), 2.5, `Revision: ${fields.revision}`);
-  doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 16), 2.5, `Sheet: ${fields.sheetCurrent}/${fields.sheetTotal}`);
+  doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 12), 2.5, `Approved by: ${fields.approvedBy}`);
+  doc.text('TITLE', x + w / 2 + 2, flipY(svgY + 16), 2.5, `Revision: ${fields.revision}`);
+
+  // Full-width notes row at bottom
+  doc.text('TITLE', x + 2, flipY(svgY + titleH - 1), 2.5, `Notes: ${fields.notes}`);
+
+  // Sheet number (right side)
+  doc.text('TITLE', x + w - 30, flipY(svgY + 16), 2.5, `Sheet: ${fields.sheetCurrent}/${fields.sheetTotal}`);
+
+  // ISO first-angle projection symbol (bottom-right corner, ~12×8mm)
+  // First-angle (ISO 128-30): trapezoid on LEFT (narrow edge left, wide edge right),
+  // concentric circles on RIGHT.
+  const symTrapX = x + w - 18; // left anchor = trapezoid narrow-edge x
+  const symCy = svgY + titleH - 8; // SVG Y-space (will be flipped)
+  // Trapezoid: narrow (short) on LEFT, wide (tall) on RIGHT
+  // Emit as 4 individual LINE segments to avoid POLYLINE in TITLE layer (keeps DXF-EDGES-2 clean)
+  const trapW = 6;
+  const halfHS = 2.5; const halfHT = 4;
+  const tlx = symTrapX;           const tlSvgY = symCy - halfHS; // top-left (narrow)
+  const trx = symTrapX + trapW;   const trSvgY = symCy - halfHT; // top-right (wide)
+  const brx = symTrapX + trapW;   const brSvgY = symCy + halfHT; // bottom-right (wide)
+  const blx = symTrapX;           const blSvgY = symCy + halfHS; // bottom-left (narrow)
+  doc.line('TITLE', tlx, flipY(tlSvgY), trx, flipY(trSvgY)); // top
+  doc.line('TITLE', trx, flipY(trSvgY), brx, flipY(brSvgY)); // right
+  doc.line('TITLE', brx, flipY(brSvgY), blx, flipY(blSvgY)); // bottom
+  doc.line('TITLE', blx, flipY(blSvgY), tlx, flipY(tlSvgY)); // left (close)
+  // Circle: to the RIGHT of the trapezoid (gap 1mm), radius 3mm
+  const symR = 3;
+  const symCx = symTrapX + trapW + 1 + symR;
+  doc.circle('TITLE', symCx, flipY(symCy), symR);
 }

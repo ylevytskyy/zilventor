@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { DrawingSheet, DrawingView, DetailView } from '@zilventor/shared';
+import type { DrawingSheet, DrawingView, DetailView, SectionView } from '@zilventor/shared';
 import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
@@ -160,25 +160,57 @@ function drawTitleBlockPdf(
   pdf.setDrawColor(0);
   pdf.setLineWidth(0.3);
   pdf.rect(x, y, w, titleH);
-  pdf.line(x + w / 2, y, x + w / 2, y + titleH);
+  // Mid-divider stops 4mm above bottom to allow full-width notes row
+  pdf.line(x + w / 2, y, x + w / 2, y + titleH - 4);
 
   pdf.setFontSize(7);
   pdf.setTextColor(80);
 
+  // Left column
   pdf.text(`Drawing: ${fields.drawingName ?? ''}`, x + 2, y + 4);
   pdf.text(`Part: ${fields.partName ?? ''}`, x + 2, y + 8);
   pdf.text(`Scale: ${fields.scaleText ?? '1:1'}`, x + 2, y + 12);
   pdf.text(`Material: ${fields.material ?? ''}`, x + 2, y + 16);
 
+  // Right column (admin)
   pdf.text(`Date: ${fields.date ?? ''}`, x + w / 2 + 2, y + 4);
   pdf.text(`Drawn by: ${fields.drawnBy ?? ''}`, x + w / 2 + 2, y + 8);
-  pdf.text(`Revision: ${fields.revision ?? ''}`, x + w / 2 + 2, y + 12);
+  pdf.text(`Approved by: ${fields.approvedBy ?? ''}`, x + w / 2 + 2, y + 12);
+  pdf.text(`Revision: ${fields.revision ?? ''}`, x + w / 2 + 2, y + 16);
+
+  // Full-width notes row at bottom
+  pdf.text(`Notes: ${fields.notes ?? ''}`, x + 2, y + titleH - 1);
+
+  // Sheet number (right)
   pdf.text(
     `Sheet: ${fields.sheetNumber.current}/${fields.sheetNumber.total}`,
-    x + w / 2 + 2, y + 16,
+    x + w - 30, y + 16,
   );
 
   pdf.setTextColor(0);
+
+  // ISO first-angle projection symbol (bottom-right corner, ~12×8mm)
+  // First-angle (ISO 128-30): trapezoid on LEFT (narrow edge left, wide edge right),
+  // concentric circles on RIGHT.
+  const symTrapX = x + w - 18; // left anchor = trapezoid narrow-edge x
+  const symCy = y + titleH - 8;
+  pdf.setDrawColor(0);
+  pdf.setLineWidth(0.3);
+  // Trapezoid: narrow (short) on LEFT, wide (tall) on RIGHT
+  const trapW = 6;
+  const halfHS = 2.5; const halfHT = 4;
+  const tlx = symTrapX;           const tly = symCy - halfHS; // top-left (narrow)
+  const trx = symTrapX + trapW;   const try_ = symCy - halfHT; // top-right (wide)
+  const brx = symTrapX + trapW;   const bry = symCy + halfHT;  // bottom-right (wide)
+  const blx = symTrapX;           const bly = symCy + halfHS;  // bottom-left (narrow)
+  pdf.line(tlx, tly, trx, try_); // top edge
+  pdf.line(trx, try_, brx, bry); // right edge
+  pdf.line(brx, bry, blx, bly);  // bottom edge
+  pdf.line(blx, bly, tlx, tly);  // left edge (closes trapezoid)
+  // Circle: to the RIGHT of the trapezoid (gap 1mm), radius 3mm
+  const symR = 3;
+  const symCx = symTrapX + trapW + 1 + symR;
+  pdf.circle(symCx, symCy, symR, 'S');
 }
 
 function getSheetWidthMm(sheet: DrawingSheet): number {
@@ -230,6 +262,26 @@ function drawViewPdf(
     drawPolylinePdf(pdf, edge.points, vx, vy, vScale * scaleX, vScale * scaleY);
   }
   pdf.setDrawColor(0);
+
+  // Base/projected/iso views: scale label below the bounding box.
+  if ((view.kind === 'base' || view.kind === 'projected' || view.kind === 'iso') && projection) {
+    const labelX = vx + ((projection.bbox.minX + projection.bbox.maxX) / 2) * vScale * scaleX;
+    const labelY = vy + (projection.bbox.maxY + 7) * vScale * scaleY;
+    const scaleStr = `SCALE ${view.scale.numerator}:${view.scale.denominator}`;
+    pdf.setFontSize(7);
+    pdf.setTextColor(0);
+    pdf.text(scaleStr, labelX, labelY, { align: 'center' });
+  }
+
+  // Section view: "SECTION X-X" heading below the bbox.
+  if (view.kind === 'section' && projection) {
+    const sv = view as SectionView;
+    const headingX = vx + ((projection.bbox.minX + projection.bbox.maxX) / 2) * vScale * scaleX;
+    const headingY = vy + (projection.bbox.maxY + 7) * vScale * scaleY;
+    pdf.setFontSize(7);
+    pdf.setTextColor(0);
+    pdf.text(`SECTION ${sv.label}-${sv.label}`, headingX, headingY, { align: 'center' });
+  }
 
   // Detail-specific: border shape + caption.
   if (view.kind === 'detail') {
