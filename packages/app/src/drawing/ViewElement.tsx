@@ -76,6 +76,21 @@ export function ViewElement({ view, isStale, onRegenerate, sheetZoom = 1 }: View
         </g>
       )}
 
+      {/* Base/projected/iso views: scale label below bbox (mirrors export renderViewGroup) */}
+      {(view.kind === 'base' || view.kind === 'projected' || view.kind === 'iso') && proj && (
+        <text
+          x={(proj.bbox.minX + proj.bbox.maxX) / 2}
+          y={proj.bbox.maxY + 7 / scaleFactor}
+          textAnchor="middle"
+          fontSize={3.5 / scaleFactor}
+          fontFamily="sans-serif"
+          data-role="view-scale-label"
+          data-view-id={view.id}
+        >
+          {`SCALE ${scale.numerator}:${scale.denominator}`}
+        </text>
+      )}
+
       {/* Section view hatch + caption */}
       {view.kind === 'section' && (
         <>

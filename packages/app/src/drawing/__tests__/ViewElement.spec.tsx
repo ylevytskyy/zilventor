@@ -354,6 +354,53 @@ const RECT_DETAIL_VIEW_FIXTURE: DetailView = {
   inputFingerprint: 'fp-rect-detail',
 };
 
+// --- SLICE 1: Scale label ---
+describe('ViewElement — scale label (live-vs-export parity)', () => {
+  it('base view renders <text data-role="view-scale-label"> with "SCALE 1:1"', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={view()} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const label = container.querySelector('text[data-role="view-scale-label"]');
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toBe('SCALE 1:1');
+  });
+
+  it('base view scale label uses "SCALE n:m" format matching export (2:1)', () => {
+    const v: DrawingView = {
+      ...view(),
+      scale: { numerator: 2, denominator: 1 },
+    };
+    const { container } = render(
+      <svg>
+        <ViewElement view={v} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    const label = container.querySelector('text[data-role="view-scale-label"]');
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toBe('SCALE 2:1');
+  });
+
+  it('scale label is NOT rendered for section view', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={SECTION_VIEW_WITH_HATCH} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelector('text[data-role="view-scale-label"]')).toBeNull();
+  });
+
+  it('scale label is NOT rendered for detail view', () => {
+    const { container } = render(
+      <svg>
+        <ViewElement view={DETAIL_VIEW_FIXTURE} isStale={false} onRegenerate={vi.fn()} />
+      </svg>,
+    );
+    expect(container.querySelector('text[data-role="view-scale-label"]')).toBeNull();
+  });
+});
+
 describe('ViewElement — detail view rect branch', () => {
   it('renders <rect data-role="detail-border"> for rect regionParent', () => {
     const { container } = render(

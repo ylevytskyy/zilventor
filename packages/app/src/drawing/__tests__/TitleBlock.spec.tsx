@@ -83,3 +83,53 @@ describe('TitleBlock', () => {
     expect(screen.getByText('1:1')).toBeInTheDocument();
   });
 });
+
+// --- SLICE 2: Projection symbol (live-vs-export parity) ---
+describe('TitleBlock — projection symbol', () => {
+  it('renders a <g data-role="projection-symbol"> element', () => {
+    const { container } = render(
+      <svg>
+        <TitleBlock drawing={drawing()} sheet={sheet()} source={source()} sheetIndex={0} sheetCount={1} createdAt="2026-01-01" />
+      </svg>
+    );
+    const sym = container.querySelector('[data-role="projection-symbol"]');
+    expect(sym).not.toBeNull();
+  });
+
+  it('projection symbol contains a <circle> element', () => {
+    const { container } = render(
+      <svg>
+        <TitleBlock drawing={drawing()} sheet={sheet()} source={source()} sheetIndex={0} sheetCount={1} createdAt="2026-01-01" />
+      </svg>
+    );
+    const sym = container.querySelector('[data-role="projection-symbol"]')!;
+    expect(sym.querySelector('circle')).not.toBeNull();
+  });
+
+  it('projection symbol contains a <path> (trapezoid)', () => {
+    const { container } = render(
+      <svg>
+        <TitleBlock drawing={drawing()} sheet={sheet()} source={source()} sheetIndex={0} sheetCount={1} createdAt="2026-01-01" />
+      </svg>
+    );
+    const sym = container.querySelector('[data-role="projection-symbol"]')!;
+    expect(sym.querySelector('path')).not.toBeNull();
+  });
+
+  it('first-angle: circle cx is to the RIGHT of trapezoid (circle cx > trapezoid right edge x)', () => {
+    const { container } = render(
+      <svg>
+        <TitleBlock drawing={drawing()} sheet={sheet()} source={source()} sheetIndex={0} sheetCount={1} createdAt="2026-01-01" />
+      </svg>
+    );
+    const sym = container.querySelector('[data-role="projection-symbol"]')!;
+    const circle = sym.querySelector('circle')!;
+    const path = sym.querySelector('path')!;
+    const circleCx = parseFloat(circle.getAttribute('cx')!);
+    // Extract the maximum x from the path d attribute (trapezoid right edge)
+    const d = path.getAttribute('d')!;
+    const xValues = [...d.matchAll(/(?:M|L)\s*([\d.]+)\s/g)].map((m) => parseFloat(m[1]));
+    const maxTrapX = Math.max(...xValues);
+    expect(circleCx).toBeGreaterThan(maxTrapX);
+  });
+});

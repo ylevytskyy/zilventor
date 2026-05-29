@@ -41,6 +41,31 @@ function getSheetDimsMm(sheet: DrawingSheet): { w: number; h: number } {
   return sheet.orientation === 'landscape' ? base : { w: base.h, h: base.w };
 }
 
+/**
+ * ISO first-angle projection symbol glyph (React/SVG).
+ * Geometry mirrors renderProjectionSymbolSvg() in renderDrawingSvg.ts — keep in sync.
+ * First-angle: trapezoid narrow on LEFT, wide on RIGHT; circle to the RIGHT of trapezoid.
+ * cx/cy = left anchor of the glyph (trapezoid left edge x-center).
+ */
+function ProjectionSymbol({ cx, cy }: { cx: number; cy: number }) {
+  const r = 3;
+  const trapW = 6;
+  const halfHS = 2.5; // half-height at narrow (left) end
+  const halfHT = 4;   // half-height at wide (right) end
+  const tl = { x: cx,         y: cy - halfHS };
+  const tr = { x: cx + trapW, y: cy - halfHT };
+  const br = { x: cx + trapW, y: cy + halfHT };
+  const bl = { x: cx,         y: cy + halfHS };
+  const d = `M ${tl.x} ${tl.y} L ${tr.x} ${tr.y} L ${br.x} ${br.y} L ${bl.x} ${bl.y} Z`;
+  const circleCx = cx + trapW + 1 + r;
+  return (
+    <g data-role="projection-symbol" data-projection="first-angle">
+      <path d={d} fill="none" stroke="#000" strokeWidth={0.3} />
+      <circle cx={circleCx} cy={cy} r={r} fill="none" stroke="#000" strokeWidth={0.3} />
+    </g>
+  );
+}
+
 export function TitleBlock({ drawing, sheet, source, sheetIndex, sheetCount, createdAt = '' }: TitleBlockProps) {
   const { w: sheetW, h: sheetH } = getSheetDimsMm(sheet);
   const ox = sheetW - TB_W - 5;
@@ -62,6 +87,12 @@ export function TitleBlock({ drawing, sheet, source, sheetIndex, sheetCount, cre
     { label: 'Sheet',     value: sheetNofN,           bx: COL1,      by: ROW_H*3,  bw: TB_W - COL1 },
     { label: 'Notes',     value: fields.notes,        bx: 0,         by: ROW_H*4,  bw: TB_W },
   ];
+
+  // Projection symbol: bottom-right corner of title block (~12×8mm glyph).
+  // Mirrors renderTitleBlockSvg() placement in renderDrawingSvg.ts — keep in sync.
+  // Place glyph left anchor ~18mm from block right edge, centered 8mm from bottom.
+  const symCx = ox + TB_W - 18;
+  const symCy = oy + TB_H - 8;
 
   return (
     <g data-title-block>
@@ -90,6 +121,9 @@ export function TitleBlock({ drawing, sheet, source, sheetIndex, sheetCount, cre
           </g>
         );
       })}
+
+      {/* First-angle projection symbol in bottom-right corner */}
+      <ProjectionSymbol cx={symCx} cy={symCy} />
     </g>
   );
 }
