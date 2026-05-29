@@ -2,6 +2,7 @@ import React from 'react';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../../drawing/toolMode';
+import { pickFile } from '../fsaFallback';
 import { AddSheetCommand } from '../../commands/AddSheetCommand';
 import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand';
 import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
@@ -263,6 +264,29 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => useToolModeStore.getState().enterPartsListMode()}
         >
           Parts List
+        </button>
+      </RibbonPanel>
+
+      {/* Reference panel */}
+      <RibbonPanel title="Reference">
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label="Import DXF Underlay…"
+          onClick={() => {
+            const { bus } = useAppStore.getState();
+            void (async () => {
+              const file = await pickFile([
+                { description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } },
+              ]);
+              if (!file) return;
+              const dxfText = await file.text();
+              const { ImportDxfUnderlayCommand } = await import('../../commands/ImportDxfUnderlayCommand');
+              await bus.execute(new ImportDxfUnderlayCommand({ dxfText, fileName: file.name }));
+            })();
+          }}
+        >
+          Import DXF Underlay…
         </button>
       </RibbonPanel>
 

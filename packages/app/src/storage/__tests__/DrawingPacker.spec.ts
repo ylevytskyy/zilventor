@@ -70,4 +70,35 @@ describe('packDrawing / unpackDrawing', () => {
     ]);
     await expect(unpackDrawing(bytes)).rejects.toThrow(/manifest/i);
   });
+
+  it('round-trips a DrawingDocument whose sheet has a DXF underlay (F6a persistence)', async () => {
+    const docWithUnderlay: DrawingDocument = {
+      ...baseDoc,
+      sheets: [
+        {
+          ...baseDoc.sheets[0]!,
+          underlay: {
+            name: 'floor-plan',
+            entities: [
+              { kind: 'line', x1: 0, y1: 0, x2: 100, y2: 50 },
+              { kind: 'circle', cx: 50, cy: 25, r: 10 },
+              { kind: 'arc', cx: 0, cy: 0, r: 20, startAngle: 0, endAngle: 90 },
+            ],
+            sourceBBoxMm: { minX: -20, minY: -20, maxX: 110, maxY: 60 },
+          },
+        },
+      ],
+    };
+    const bytes = await packDrawing(docWithUnderlay);
+    const recovered = await unpackDrawing(bytes);
+    // Underlay must survive pack → unpack intact
+    const recoveredUnderlay = recovered.sheets[0]!.underlay;
+    expect(recoveredUnderlay).toBeDefined();
+    expect(recoveredUnderlay!.name).toBe('floor-plan');
+    expect(recoveredUnderlay!.entities).toHaveLength(3);
+    expect(recoveredUnderlay!.entities[0]!.kind).toBe('line');
+    expect(recoveredUnderlay!.entities[1]!.kind).toBe('circle');
+    expect(recoveredUnderlay!.entities[2]!.kind).toBe('arc');
+    expect(recoveredUnderlay!.sourceBBoxMm).toEqual({ minX: -20, minY: -20, maxX: 110, maxY: 60 });
+  });
 });
