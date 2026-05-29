@@ -58,6 +58,7 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
 import { cutBySectionPlane, cutByStepSegments, cutAssemblyComponentsBySectionPlane, cutAssemblyComponentsByStepSegments } from '../../kernel/cutBySectionPlane';
 import { sectionCache } from '../../drawing/sectionCache';
 import { validateSteppedInvariant } from '@zilventor/shared/src/drawing/sectionPlane';
+import { resolveSectionSource } from '@zilventor/shared';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 const makeSheet = (): DrawingSheet => ({
@@ -106,9 +107,19 @@ beforeEach(() => {
   vi.clearAllMocks();
   useAppStore.setState({
     activeDocument: { kind: 'drawing', document: makeDrawing() },
+    activeDrawing: makeDrawing(),
     activePart: null,
     activeAssembly: null,
+    activeDrawingSourcePartId: null,
+    activeDrawingSourceFingerprint: null,
+    activeDrawingSourceComponents: null,
+    activeDrawingSourceDocument: null,
+    activeDrawingSourceComponentColors: null,
   } as never);
+  // Re-establish the default part-source mock so tests from the assembly-source
+  // describe block (Task 5, which overrides to kind:'assembly') cannot bleed in
+  // when the test sequence is shuffled.
+  (resolveSectionSource as ReturnType<typeof vi.fn>).mockReturnValue({ kind: 'part', id: 'src-fp' });
   (cutBySectionPlane as ReturnType<typeof vi.fn>).mockResolvedValue({
     ok: true,
     compound: {},

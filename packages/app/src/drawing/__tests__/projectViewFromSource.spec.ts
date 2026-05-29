@@ -28,8 +28,11 @@ describe('projectViewFromSource', () => {
     useAppStore.setState({
       kernel: null,
       activePart: null,
+      activeDocument: null,
+      activeDrawing: null,
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,
+      activeDrawingSourceComponents: null,
     } as never);
   });
 

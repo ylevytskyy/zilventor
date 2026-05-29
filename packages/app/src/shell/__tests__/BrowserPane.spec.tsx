@@ -13,6 +13,16 @@ describe('BrowserPane', () => {
     s.resetWorkAxisDialog();
     s.resetWorkPlaneDialog();
     s.resetWorkPointDialog();
+    useAppStore.setState({
+      editComponentDialogOpen: false,
+      editingComponentId: null,
+      selectedComponentPaths: [],
+      bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+    } as never);
   });
 
   it('shows the empty state when no part is loaded', () => {
@@ -468,7 +478,15 @@ describe('BrowserPane assembly + constraints', () => {
         }],
         groundedComponentPaths: [['C1']],
       } as any },
-    });
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+      selectedComponentPaths: [],
+      editComponentDialogOpen: false,
+      editingComponentId: null,
+      bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
+    } as any);
   });
 
   it('renders constraint leaves under both endpoints', () => {
@@ -489,6 +507,13 @@ describe('BrowserPane BOM tab strip', () => {
       activeDocument: null,
       activeAssembly: null,
       bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+      selectedComponentPaths: [],
+      editComponentDialogOpen: false,
+      editingComponentId: null,
     } as any);
   });
 
@@ -556,7 +581,11 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
       subAssemblyDocs: {},
       expandedSubAsmPaths: new Set<string>(),
       bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
       selectedComponentPaths: [],
+      editComponentDialogOpen: false,
+      editingComponentId: null,
     } as any);
   });
 
@@ -716,7 +745,12 @@ function seedAssemblyMode() {
     activeAssembly: cutListAsm,
     bomTabActive: false,
     cutListTabActive: false,
+    nestingTabActive: false,
     subAssemblyDocs: {},
+    editComponentDialogOpen: false,
+    editingComponentId: null,
+    selectedComponentPaths: [],
+    expandedSubAsmPaths: new Set<string>(),
   } as any);
 }
 

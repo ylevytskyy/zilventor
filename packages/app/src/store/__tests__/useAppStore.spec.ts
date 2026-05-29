@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useAppStore } from '../useAppStore';
 import type { AssemblyDocument, ComponentColor, ComponentInstance, PartDocument, SketchConstraint, SketchPrimitive } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
@@ -29,6 +29,11 @@ describe('useAppStore constraint extensions', () => {
     const s = useAppStore.getState();
     s.setActivePart(mkPart());
     s.setSketchDof(null);
+  });
+
+  afterEach(() => {
+    // Reset sketchDof so tests in other files sharing this worker don't see stale values.
+    useAppStore.getState().setSketchDof(null);
   });
 
   it('setSketchDof stores a DofStatus', () => {

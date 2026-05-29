@@ -106,6 +106,8 @@ describe('activateDrawingDocument', () => {
       activeDrawingSourcePartId: null,
       activeDrawingSourceFingerprint: null,
       activeDrawingSourceComponents: null,
+      activeDrawingSourceDocument: null,
+      activeDrawingSourceComponentColors: null,
     } as never);
     vi.clearAllMocks();
   });

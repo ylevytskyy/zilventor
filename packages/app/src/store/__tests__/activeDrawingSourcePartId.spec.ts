@@ -1,8 +1,26 @@
 // packages/app/src/store/__tests__/activeDrawingSourcePartId.spec.ts
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { AssemblyComponentInput } from '@zilventor/kernel/src/adapter/drawing/getProjectorInput';
 import { useAppStore } from '../useAppStore';
 import { drawingDocState } from '../drawingDocState';
+
+// Reset the store before and after each test so mutations in one test never
+// pollute other tests in this file (or other files sharing the same worker).
+beforeEach(() => {
+  useAppStore.setState({
+    activeDrawingSourcePartId: null,
+    activeDrawingSourceFingerprint: null,
+    activeDrawingSourceComponents: null,
+  } as never);
+});
+
+afterEach(() => {
+  useAppStore.setState({
+    activeDrawingSourcePartId: null,
+    activeDrawingSourceFingerprint: null,
+    activeDrawingSourceComponents: null,
+  } as never);
+});
 
 describe('activeDrawingSourcePartId + activeDrawingSourceFingerprint store slots', () => {
   it('activeDrawingSourcePartId defaults to null', () => {

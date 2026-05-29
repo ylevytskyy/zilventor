@@ -5,6 +5,10 @@ import { useAppStore } from '../../store/useAppStore';
 
 beforeEach(() => {
   useAppStore.getState().setSketchDof(null);
+  useAppStore.getState().setActiveDocument(null);
+  useAppStore.setState({
+    solverDiagnostics: { dofCount: 0, status: 'fully-constrained', perConstraint: new Map() },
+  } as never);
 });
 
 describe('StatusBar', () => {
