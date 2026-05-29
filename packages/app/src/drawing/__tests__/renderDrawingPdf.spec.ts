@@ -92,6 +92,81 @@ describe('renderDrawingPdf — rect detail view (F2.1)', () => {
   });
 });
 
+// ── Radial + diametric PDF rendering ─────────────────────────────────────────
+
+/** 8 equally-spaced points on circle r=10 centered (50,50) in part-mm. */
+function makeCircleEdge8Pdf(): ReadonlyArray<readonly [number, number]> {
+  const n = 8;
+  return Array.from({ length: n }, (_, i) => {
+    const θ = (2 * Math.PI * i) / n;
+    return [50 + 10 * Math.cos(θ), 50 + 10 * Math.sin(θ)] as readonly [number, number];
+  });
+}
+
+import type { DrawingDimension } from '@zilventor/shared';
+
+function makeDrawingWithDim(dim: DrawingDimension): DrawingDocument {
+  const sheetId = 'sh-rad';
+  return {
+    id: 'drw-rad', name: 'Rad Drawing', units: 'mm',
+    source: { partPath: 'p.zipt', sourceKind: 'part' },
+    properties: {},
+    activeSheetId: sheetId,
+    sheets: [{
+      id: sheetId, name: 'Sheet 1',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'circ1', kind: 'outline', points: makeCircleEdge8Pdf() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      dimensions: [dim],
+      annotations: [], titleBlock: {}, dimensionGroups: [],
+    }],
+  };
+}
+
+describe('renderDrawingPdf — radial + diametric dimensions (PDF-RAD)', () => {
+  it('PDF-RAD-1: radial dim does not throw and produces valid PDF bytes', () => {
+    const dim: DrawingDimension = {
+      kind: 'radial', id: 'r-pdf-1', viewId: 'v1', edgeId: 'circ1',
+      offsetMm: 5, angleDeg: 0,
+    };
+    const drawing = makeDrawingWithDim(dim);
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.length).toBeGreaterThan(0);
+    // Magic bytes %PDF-
+    expect(Array.from(bytes.slice(0, 5))).toEqual([37, 80, 68, 70, 45]);
+    // Label R10 appears literally in the PDF byte stream
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toMatch(/R10/);
+  });
+
+  it('PDF-RAD-2: diametric dim does not throw and produces valid PDF bytes', () => {
+    const dim: DrawingDimension = {
+      kind: 'diametric', id: 'd-pdf-1', viewId: 'v1', edgeId: 'circ1',
+      offsetMm: 5, angleDeg: 0,
+    };
+    const drawing = makeDrawingWithDim(dim);
+    // Must not throw
+    expect(() => renderDrawingPdfBytes(drawing, makeFixturePart())).not.toThrow();
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    // Valid PDF magic bytes
+    expect(Array.from(bytes.slice(0, 5))).toEqual([37, 80, 68, 70, 45]);
+    // The PDF byte stream should contain text content (jsPDF encodes Unicode as UTF-16 inside streams).
+    // We verify the stream is non-trivially larger than a blank page (leader lines emitted).
+    expect(bytes.length).toBeGreaterThan(1000);
+  });
+});
+
 describe('renderDrawingPdf — null source (source-optional export)', () => {
   const drawingNoSource: DrawingDocument = {
     id: 'dw1',

@@ -446,6 +446,78 @@ function emitDimension(
     return;
   }
 
+  if (dim.kind === 'radial') {
+    if (!view?.projection) return;
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return;
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    const rimX = cx + r * Math.cos(angleRad);
+    const rimY = cy + r * Math.sin(angleRad);
+    const tipX = cx + (r + dim.offsetMm) * Math.cos(angleRad);
+    const tipY = cy + (r + dim.offsetMm) * Math.sin(angleRad);
+
+    // Sheet-space (SVG Y-down)
+    const sx1 = vx + cx   * vScale;  const sy1 = vy + cy   * vScale;
+    const sx2 = vx + rimX * vScale;  const sy2 = vy + rimY * vScale;
+    const stx = vx + (tipX + 1) * vScale; const sty = vy + tipY * vScale;
+
+    const label = `R${Math.round(r)}`;
+    const blockName = doc.block(() => {
+      doc.polyline('DIMENSIONS', [[sx1, flipY(sy1)], [sx2, flipY(sy2)]]);
+      doc.text('DIMENSIONS', stx, flipY(sty), 3.5, label);
+    });
+    doc.dimension({
+      layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 4,
+      defPoint: [sx2, flipY(sy2)],
+      textMid: [stx, flipY(sty)],
+      text: label,
+    });
+    return;
+  }
+
+  if (dim.kind === 'diametric') {
+    if (!view?.projection) return;
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return;
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    const rimAx = cx + r * Math.cos(angleRad);
+    const rimAy = cy + r * Math.sin(angleRad);
+    const rimBx = cx - r * Math.cos(angleRad);
+    const rimBy = cy - r * Math.sin(angleRad);
+
+    const sx1 = vx + rimAx * vScale; const sy1 = vy + rimAy * vScale;
+    const sx2 = vx + rimBx * vScale; const sy2 = vy + rimBy * vScale;
+    const stx = vx + (rimAx + 1) * vScale; const sty = vy + (rimAy - 1) * vScale;
+
+    // DXF R12 diameter symbol = %%c
+    const label = `%%c${Math.round(2 * r)}`;
+    const blockName = doc.block(() => {
+      doc.polyline('DIMENSIONS', [[sx1, flipY(sy1)], [sx2, flipY(sy2)]]);
+      doc.text('DIMENSIONS', stx, flipY(sty), 3.5, label);
+    });
+    doc.dimension({
+      layer: 'DIMENSIONS', blockName, dimStyle: 'STANDARD', dimType: 3,
+      defPoint: [sx1, flipY(sy1)],
+      textMid: [stx, flipY(sty)],
+      text: label,
+    });
+    return;
+  }
+
   if (dim.kind === 'angular') {
     if (!view?.projection) return;
     const vScale = view.scale.numerator / view.scale.denominator;

@@ -392,6 +392,115 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
   });
 });
 
+// ── Radial + diametric dimensions ─────────────────────────────────────────────
+
+/** 8 equally-spaced points on circle r=10 centered (50,50) in part-mm. */
+function makeCircleEdge8(): ReadonlyArray<readonly [number, number]> {
+  const n = 8;
+  return Array.from({ length: n }, (_, i) => {
+    const θ = (2 * Math.PI * i) / n;
+    return [50 + 10 * Math.cos(θ), 50 + 10 * Math.sin(θ)] as readonly [number, number];
+  });
+}
+
+describe('renderDrawingDxf — radial dimension (DXF-RAD)', () => {
+  it('DXF-RAD-1: radial dim → DIMENSIONS layer + TEXT containing R10', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'circ1', kind: 'outline', points: makeCircleEdge8() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      dimensions: [{
+        kind: 'radial', id: 'r1', viewId: 'v1', edgeId: 'circ1',
+        offsetMm: 5, angleDeg: 0,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSIONS');
+    // TEXT entity must contain the label R10
+    expect(out).toMatch(/R10/);
+  });
+
+  it('DXF-RAD-2: radial dim → native DIMENSION entity emitted', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'circ1', kind: 'outline', points: makeCircleEdge8() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      dimensions: [{
+        kind: 'radial', id: 'r2', viewId: 'v1', edgeId: 'circ1',
+        offsetMm: 5, angleDeg: 0,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
+    expect(out).toMatch(/\*D\d+/);
+  });
+});
+
+describe('renderDrawingDxf — diametric dimension (DXF-DIA)', () => {
+  it('DXF-DIA-1: diametric dim → DIMENSIONS layer + TEXT containing %%c20', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'circ1', kind: 'outline', points: makeCircleEdge8() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      dimensions: [{
+        kind: 'diametric', id: 'd1', viewId: 'v1', edgeId: 'circ1',
+        offsetMm: 5, angleDeg: 0,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toContain('DIMENSIONS');
+    // DXF R12 diameter symbol = %%c, value = 2*r = 20
+    expect(out).toMatch(/%%c20/);
+  });
+
+  it('DXF-DIA-2: diametric dim → native DIMENSION entity emitted', () => {
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'circ1', kind: 'outline', points: makeCircleEdge8() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      dimensions: [{
+        kind: 'diametric', id: 'd2', viewId: 'v1', edgeId: 'circ1',
+        offsetMm: 5, angleDeg: 0,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
+    expect(out).toMatch(/\*D\d+/);
+  });
+});
+
 describe('renderDrawingDxf — null source (source-optional export)', () => {
   const sheetWithHoleTable: DrawingSheet = {
     id: 'sh1',

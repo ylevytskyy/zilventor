@@ -315,6 +315,60 @@ function drawDimensionPdf(
     pdf.setFontSize(6);
     pdf.text(String(distMm), (x1 + x2) / 2, y1 - offset - 1, { align: 'center' });
     pdf.setDrawColor(0);
+    return;
+  }
+
+  if (dim.kind === 'radial') {
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return;
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    const rimX = cx + r * Math.cos(angleRad);
+    const rimY = cy + r * Math.sin(angleRad);
+    const tipX = cx + (r + dim.offsetMm) * Math.cos(angleRad);
+    const tipY = cy + (r + dim.offsetMm) * Math.sin(angleRad);
+
+    // Sheet-space PDF coords
+    const px1 = vx + cx   * vScale * scaleX;  const py1 = vy + cy   * vScale * scaleY;
+    const px2 = vx + rimX * vScale * scaleX;  const py2 = vy + rimY * vScale * scaleY;
+    const ptx = vx + (tipX + 1) * vScale * scaleX;
+    const pty = vy + tipY * vScale * scaleY;
+
+    pdf.setDrawColor(0, 0, 180);
+    pdf.setLineWidth(0.2);
+    pdf.line(px1, py1, px2, py2);
+    pdf.setFontSize(6);
+    pdf.text(`R${Math.round(r)}`, ptx, pty);
+    pdf.setDrawColor(0);
+    return;
+  }
+
+  if (dim.kind === 'diametric') {
+    const edge = view.projection.visibleEdges.find((e) => e.id === dim.edgeId)
+      ?? view.projection.hiddenEdges.find((e) => e.id === dim.edgeId);
+    if (!edge || edge.points.length < 3) return;
+
+    const { cx, cy, r } = circumcenterFromPolyline(edge.points);
+    const angleRad = (dim.angleDeg * Math.PI) / 180;
+    const rimAx = cx + r * Math.cos(angleRad);
+    const rimAy = cy + r * Math.sin(angleRad);
+    const rimBx = cx - r * Math.cos(angleRad);
+    const rimBy = cy - r * Math.sin(angleRad);
+
+    const px1 = vx + rimAx * vScale * scaleX; const py1 = vy + rimAy * vScale * scaleY;
+    const px2 = vx + rimBx * vScale * scaleX; const py2 = vy + rimBy * vScale * scaleY;
+    const ptx = vx + (rimAx + 1) * vScale * scaleX;
+    const pty = vy + (rimAy - 1) * vScale * scaleY;
+
+    pdf.setDrawColor(0, 0, 180);
+    pdf.setLineWidth(0.2);
+    pdf.line(px1, py1, px2, py2);
+    pdf.setFontSize(6);
+    pdf.text(`⌀${Math.round(2 * r)}`, ptx, pty);
+    pdf.setDrawColor(0);
+    return;
   }
 }
 
