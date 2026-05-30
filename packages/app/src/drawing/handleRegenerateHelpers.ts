@@ -17,6 +17,7 @@ import type {
   ProjectedView,
   IsoView,
 } from '@zilventor/shared';
+import { autoPlaceCenterMarks } from '@zilventor/shared';
 import type { CommandBus } from '../commands/CommandBus';
 import { regenerateSectionView } from './regenerateSectionView';
 import { regenerateDetailView } from './regenerateDetailView';
@@ -72,8 +73,9 @@ export function buildHandleRegenerate(
       orientation = deriveProjectedOrientation(baseView.orientation, (view as ProjectedView).direction);
     }
     const { projection, inputFingerprint } = await projectViewFromSourceFn(orientation);
+    const centerMarkAnnotations = autoPlaceCenterMarks(projection, view.id);
     await bus.execute(
-      new RegenerateViewCommand({ sheetId, viewId: view.id, projection, inputFingerprint }),
+      new RegenerateViewCommand({ sheetId, viewId: view.id, projection, inputFingerprint, centerMarkAnnotations }),
     );
   }
 

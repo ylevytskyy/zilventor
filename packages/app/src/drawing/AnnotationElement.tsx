@@ -1,5 +1,6 @@
 // packages/app/src/drawing/AnnotationElement.tsx
 import type { DrawingAnnotation, DrawingView, PartsListAnnotation } from '@zilventor/shared';
+import { resolveCenterMarkGeometry } from '@zilventor/shared/src/drawing/resolveCenterMarkGeometry';
 import { HoleTableElement } from './HoleTableElement';
 
 // ---------------------------------------------------------------------------
@@ -120,17 +121,21 @@ export function AnnotationElement({ ann, view }: AnnotationElementProps) {
     }
 
     case 'center-mark': {
-      const c = edgeCenter(ann.edgeId, view);
-      if (!c) return null;
+      if (!view?.projection) return null;
+      const geom = resolveCenterMarkGeometry(view.projection.visibleEdges, ann.edgeId);
+      if (!geom) return null;
+      const s = view.scale.numerator / view.scale.denominator;
+      const cx = view.positionMm.x + geom.cx * s;
+      const cy = view.positionMm.y + geom.cy * s;
       return (
         <g data-ann-id={ann.id} data-ann-kind="center-mark">
-          <line x1={c.x - CROSS_SIZE} y1={c.y} x2={c.x + CROSS_SIZE} y2={c.y}
+          <line x1={cx - CROSS_SIZE} y1={cy} x2={cx + CROSS_SIZE} y2={cy}
             stroke="#555" strokeWidth="0.18" strokeDasharray="4 1" />
-          <line x1={c.x} y1={c.y - CROSS_SIZE} x2={c.x} y2={c.y + CROSS_SIZE}
+          <line x1={cx} y1={cy - CROSS_SIZE} x2={cx} y2={cy + CROSS_SIZE}
             stroke="#555" strokeWidth="0.18" strokeDasharray="4 1" />
           {/* Small solid cross at exact center */}
-          <line x1={c.x - 1} y1={c.y} x2={c.x + 1} y2={c.y} stroke="#555" strokeWidth="0.35" />
-          <line x1={c.x} y1={c.y - 1} x2={c.x} y2={c.y + 1} stroke="#555" strokeWidth="0.35" />
+          <line x1={cx - 1} y1={cy} x2={cx + 1} y2={cy} stroke="#555" strokeWidth="0.35" />
+          <line x1={cx} y1={cy - 1} x2={cx} y2={cy + 1} stroke="#555" strokeWidth="0.35" />
         </g>
       );
     }

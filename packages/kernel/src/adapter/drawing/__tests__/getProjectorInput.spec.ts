@@ -66,6 +66,111 @@ describe('getProjectorInput — part source', () => {
   });
 });
 
+// LOCKING TEST — guards the fix for the hole-rim-edge kernel bug (2026-05-30).
+//
+// Root cause (now fixed):
+//   HoleFeature.ts:executeHoleFeature() used to spread the OLD
+//   `runningBody.faceNames` (pre-cut face handles) directly into the new
+//   NamedShape without refreshing OCCT face handles after BRepAlgoAPI_Cut.
+//   After BRepAlgoAPI_Cut_3 executes inside makeHole(), the top and bottom
+//   planar faces of the original box get FRESH OCCT topology handles.  The
+//   stale handles in faceNames no longer IsSame-match the new faces, so
+//   tessellateEdges() skipped both circular rim edges (findFaceName returned
+//   null for the cut faces) and they never reached ProjectorInput.edges.
+//
+//   Fix: executeHoleFeature now calls mergeFaceNames (exported from
+//   occt/FaceNaming.ts) after the hole loop to walk the result shape, re-match
+//   surviving faces via IsSame, and assign fresh handles.
+//
+// See: packages/kernel/src/adapter/features/HoleFeature.ts
+//      packages/kernel/src/occt/FaceNaming.ts (mergeFaceNames export)
+//      packages/kernel/src/occt/Tessellator.ts tessellateEdges()
+
+describe('getProjectorInput — LOCKING: hole rim edges', () => {
+  it('box-with-through-hole projection contains ≥1 arc (circular rim) edge', async () => {
+    // Build a 40×40×20 box with a Ø10 through-hole via the production FeatureTree path.
+    const part = {
+      id: 'holed-box-fixture',
+      name: 'HoledBox',
+      units: 'mm' as const,
+      parameters: {
+        boxW: { name: 'boxW', expression: '40', value: 40, unit: 'mm' as const },
+        boxH: { name: 'boxH', expression: '40', value: 40, unit: 'mm' as const },
+        boxD: { name: 'boxD', expression: '20', value: 20, unit: 'mm' as const },
+      },
+      properties: {},
+      materials: [],
+      hardware: [],
+      featureTree: [
+        {
+          kind: 'sketch' as const,
+          id: 'sk-box',
+          plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
+          primitives: [{ id: 'r1', kind: 'rectangle' as const, x: 0, y: 0, w: 40, h: 40 }],
+          constraints: [],
+        },
+        {
+          kind: 'extrude' as const,
+          id: 'ex-box',
+          sketchRef: 'sk-box',
+          distanceParam: 'boxD',
+          direction: 'forward' as const,
+          operation: 'new' as const,
+        },
+        // Hole via fromSketch: one circle at (20, 20), Ø10, throughAll
+        {
+          kind: 'sketch' as const,
+          id: 'sk-hole',
+          plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
+          primitives: [{ id: 'c1', kind: 'circle' as const, cx: 20, cy: 20, r: 5 }],
+          constraints: [],
+        },
+        {
+          kind: 'hole' as const,
+          id: 'hole-1',
+          placement: { kind: 'fromSketch' as const, sketchId: 'sk-hole' },
+          profile: { kind: 'simple' as const, diameter: { kind: 'literal' as const, value: 10 } },
+          termination: { kind: 'throughAll' as const },
+          flipAxis: false,
+        },
+      ],
+    };
+
+    const execResult = await executeTree(oc, part);
+    expect(execResult.ok, 'part with hole must execute without error').toBe(true);
+    if (!execResult.ok) return;
+
+    const ns = execResult.value.namedShape;
+    const input = await getProjectorInput(
+      oc,
+      { kind: 'part', partId: 'holed-box-fixture' },
+      () => ns,
+    );
+
+    // A 40×40×20 box with 1 through-hole has:
+    //   - 4 vertical side edges (box) = 4
+    //   - 4 horizontal box edges top + 4 bottom = 8
+    //   - 2 circular rim edges (hole top + hole bottom) = 2
+    // Total expected ≥ 14 raw edges.  Before the fix, only ~5 are produced
+    // (the 4 box verticals + 1 cylinder seam) — no rim circles.
+    expect(input.edges.length, 'holed part must produce raw edges').toBeGreaterThan(0);
+
+    // The key assertion: at least 2 edges must have ≥5 points (arc polylines).
+    // Straight box edges have exactly 2 points; rim circles from tessellation
+    // have many (typically 16–32 depending on angularDeflection=0.3).
+    const multiPointEdges = input.edges.filter((e) => e.points.length >= 5);
+    expect(
+      multiPointEdges.length,
+      `Expected ≥2 arc/circular rim edges (≥5 points each) in holed-box projection, ` +
+      `but got ${multiPointEdges.length}. ` +
+      `Total edges: ${input.edges.length}. ` +
+      `This is the locking test for the kernel face-handle staleness bug in ` +
+      `HoleFeature.ts:executeHoleFeature() — stale pre-cut faceNames cause ` +
+      `tessellateEdges() to skip circular rim edges.`
+    ).toBeGreaterThanOrEqual(2);
+  }, 120_000);
+});
+
 // --- Assembly source tests ---
 
 describe('getProjectorInput — assembly source', () => {

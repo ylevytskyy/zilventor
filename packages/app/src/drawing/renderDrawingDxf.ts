@@ -10,6 +10,7 @@ import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
 import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
+import { resolveCenterMarkGeometry } from '@zilventor/shared/src/drawing/resolveCenterMarkGeometry';
 import { createDxfDocument, hexToAci } from './dxfWriter';
 
 // ── Sheet dimension helpers (mirrors renderDrawingSvg — not exported there) ──
@@ -675,7 +676,26 @@ function emitAnnotation(
     emitPartsList(doc, ann, flipY);
     return;
   }
-  // centerline / center-mark: no projection data available at sheet level; skip
+  if (ann.kind === 'center-mark') {
+    const view = sheet.views.find((v) => v.id === ann.viewId);
+    if (!view || !view.projection) return;
+    const geom = resolveCenterMarkGeometry(view.projection.visibleEdges, ann.edgeId);
+    if (!geom) return;
+    const { cx, cy, r } = geom;
+    const half = Math.min(r * 0.8, 5);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const ox = view.positionMm.x;
+    const oy = view.positionMm.y;
+    // Transform view-local → sheet-space → DXF-space (mirrors emitView tx/ty)
+    const sheetX = (lx: number) => ox + lx * vScale;
+    const sheetY = (ly: number) => flipY(oy + ly * vScale);
+    // Horizontal arm
+    doc.line('ANNOTATIONS', sheetX(cx - half), sheetY(cy), sheetX(cx + half), sheetY(cy));
+    // Vertical arm
+    doc.line('ANNOTATIONS', sheetX(cx), sheetY(cy - half), sheetX(cx), sheetY(cy + half));
+    return;
+  }
+  // centerline: no projection data available at sheet level; skip
 }
 
 // ── Hole Table ────────────────────────────────────────────────────────────────

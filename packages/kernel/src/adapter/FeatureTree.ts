@@ -27,7 +27,7 @@ import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
 import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
-import { type NamedShape, namedFace, attachName } from '../occt/FaceNaming';
+import { type NamedShape, namedFace, attachName, mergeFaceNames } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
 
 /**
@@ -991,55 +991,3 @@ function applyBooleanOp(
   });
 }
 
-/**
- * Build a NamedShape around a boolean-op result by reusing face names from
- * the two operand NamedShapes. A face in the result keeps the name of
- * whichever operand face it IsSame-matches; faces that don't match any
- * operand (i.e. new topology produced by the boolean) receive a synthetic
- * `{featureId}/opResult/{n}` name so downstream features can still address
- * them deterministically.
- *
- * This is the T13 minimum: IsSame comparison across both operands, no
- * topology inference beyond that. T15+ may refine with Modified/Generated/
- * IsDeleted tracking from BRepAlgoAPI_BooleanOperation.
- */
-function mergeFaceNames(
-  oc: OcctInstance,
-  resultShape: OcctShape,
-  a: NamedShape,
-  b: NamedShape,
-  featureId: string
-): NamedShape {
-  const named: NamedShape = { shape: resultShape, faceNames: [] };
-  const map = new oc.TopTools_IndexedMapOfShape_1();
-  oc.TopExp.MapShapes_1(
-    resultShape.handle as never,
-    oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
-    map as never
-  );
-  const extent = (map as { Extent: () => number }).Extent();
-  let unnamedIdx = 0;
-  for (let i = 1; i <= extent; i++) {
-    const faceShape = (map as { FindKey: (i: number) => unknown }).FindKey(i);
-    const face = (oc.TopoDS as { Face_1: (s: unknown) => unknown }).Face_1(
-      faceShape as never
-    );
-    // Prefer A (the running body) over B (the incoming feature) for ambiguous
-    // matches — running-body names are older and more likely to be bound by
-    // downstream features.
-    const surviving =
-      a.faceNames.find((f) =>
-        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
-      ) ??
-      b.faceNames.find((f) =>
-        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
-      );
-    if (surviving) {
-      attachName(named, face, surviving.name);
-    } else {
-      attachName(named, face, namedFace(featureId, 'opResult', unnamedIdx++));
-    }
-  }
-  map.delete();
-  return named;
-}

@@ -8,7 +8,7 @@ import {
   makeFixtureDrawingWithRectDetailView,
   makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
-import type { DetailView, DrawingDocument, DrawingSheet, SectionView } from '@zilventor/shared';
+import type { DetailView, DrawingDocument, DrawingSheet, DrawingView, SectionView } from '@zilventor/shared';
 
 describe('renderDrawingSvg', () => {
   it('returns a string starting with <svg', () => {
@@ -636,5 +636,79 @@ describe('renderDrawingSvg — DXF underlay (F3)', () => {
     // A3 landscape sheetH = 297 → translate(0, 297) scale(1,-1)
     expect(svg).toContain('translate(0,297)');
     expect(svg).toContain('scale(1,-1)');
+  });
+});
+
+// ── Slice 6: center-mark annotation renders a cross ──────────────────────────
+describe('renderDrawingSvg — center-mark annotation (Slice 6)', () => {
+  /** Build an 8-point arc approximating a circle of radius 5 centered at (10, 15). */
+  function arcPoints(): ReadonlyArray<readonly [number, number]> {
+    const cx = 10; const cy = 15; const r = 5;
+    return Array.from({ length: 8 }, (_, i) => {
+      const angle = (i / 8) * 2 * Math.PI;
+      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)] as readonly [number, number];
+    });
+  }
+
+  function makeDrawingWithCenterMark(): { drawing: DrawingDocument; sheet: DrawingSheet } {
+    const arcView: DrawingView = {
+      id: 'view-arc',
+      kind: 'base' as const,
+      positionMm: { x: 50, y: 60 },
+      scale: { numerator: 1, denominator: 1 },
+      orientation: 'front' as const,
+      showHidden: false,
+      projection: {
+        visibleEdges: [
+          { id: 'arc-edge-1', kind: 'outline' as const, points: arcPoints() },
+        ],
+        hiddenEdges: [],
+        bbox: { minX: 5, minY: 10, maxX: 15, maxY: 20 },
+      },
+    };
+    const sheet: DrawingSheet = {
+      id: 'sheet-cm',
+      name: 'Sheet CM',
+      size: { kind: 'iso', size: 'A3' },
+      orientation: 'landscape',
+      views: [arcView],
+      dimensions: [],
+      annotations: [
+        { id: 'cm-1', kind: 'center-mark', viewId: 'view-arc', edgeId: 'arc-edge-1' },
+      ],
+      titleBlock: {},
+      dimensionGroups: [],
+    };
+    const drawing: DrawingDocument = {
+      id: 'drawing-cm',
+      name: 'Center Mark Drawing',
+      units: 'mm',
+      source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+      properties: {},
+      sheets: [sheet],
+      activeSheetId: 'sheet-cm',
+    };
+    return { drawing, sheet };
+  }
+
+  it('SVG-CM-1: center-mark annotation emits data-ann-kind="center-mark" with two <line> cross arms (not empty comment stub)', () => {
+    const { drawing, sheet } = makeDrawingWithCenterMark();
+    const svg = renderDrawingSvg(drawing, sheet, makeFixturePart());
+
+    // Must have the center-mark group
+    expect(svg).toContain('data-ann-kind="center-mark"');
+
+    // Extract the center-mark group content
+    const groupStart = svg.indexOf('data-ann-kind="center-mark"');
+    const groupOpenTag = svg.lastIndexOf('<g', groupStart);
+    const groupEnd = svg.indexOf('</g>', groupStart);
+    const groupContent = svg.slice(groupOpenTag, groupEnd + 4);
+
+    // Must have at least two <line elements (horizontal + vertical arms of the cross)
+    const lineMatches = groupContent.match(/<line/g) ?? [];
+    expect(lineMatches.length).toBeGreaterThanOrEqual(2);
+
+    // Must NOT be the empty comment stub
+    expect(groupContent).not.toContain('<!-- centerline / center-mark geometry rendered by DrawingCanvas');
   });
 });

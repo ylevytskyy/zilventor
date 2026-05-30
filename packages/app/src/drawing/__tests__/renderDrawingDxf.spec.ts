@@ -763,6 +763,62 @@ describe('renderDrawingDxf — partsList annotation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Slice 7b: center-mark annotation → two LINE entities on ANNOTATIONS layer
+// ---------------------------------------------------------------------------
+
+describe('renderDrawingDxf — center-mark annotation draws a cross (Slice-7b)', () => {
+  /** 8 equally-spaced points on circle r=10 centered (50,50). */
+  function makeArcEdge8Cm(): ReadonlyArray<readonly [number, number]> {
+    const n = 8;
+    return Array.from({ length: n }, (_, i) => {
+      const θ = (2 * Math.PI * i) / n;
+      return [50 + 10 * Math.cos(θ), 50 + 10 * Math.sin(θ)] as readonly [number, number];
+    });
+  }
+
+  function makeSheetWithCenterMark(): DrawingSheet {
+    return makeSheet({
+      views: [{
+        id: 'v-cm', kind: 'base',
+        positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 },
+        orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [{ id: 'arc-cm', kind: 'outline', points: makeArcEdge8Cm() }],
+          hiddenEdges: [],
+          bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+        },
+      }],
+      annotations: [{ id: 'cm-dxf-1', kind: 'center-mark', viewId: 'v-cm', edgeId: 'arc-cm' }],
+    });
+  }
+
+  it('DXF-7b-1: does not throw when a center-mark annotation is present', () => {
+    const sheet = makeSheetWithCenterMark();
+    expect(() => renderDrawingDxf(makeDrawing(sheet), sheet, makePart())).not.toThrow();
+  });
+
+  it('DXF-7b-2: center-mark produces at least 2 LINE entities on the ANNOTATIONS layer', () => {
+    const sheet = makeSheetWithCenterMark();
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+
+    // Count LINE entities whose body contains "ANNOTATIONS" as the layer
+    const lines = out.split('\n');
+    let annotationsLineCount = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.trim() === 'LINE') {
+        // Look ahead up to 6 lines for layer group-8 = ANNOTATIONS
+        const body = lines.slice(i, i + 8).join('\n');
+        if (body.includes('ANNOTATIONS')) {
+          annotationsLineCount++;
+        }
+      }
+    }
+    expect(annotationsLineCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DXF underlay exclusion: underlay entities must NOT be re-exported to DXF
 // ---------------------------------------------------------------------------
 import type { DxfUnderlay } from '@zilventor/shared';

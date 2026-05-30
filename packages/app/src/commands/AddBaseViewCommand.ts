@@ -1,5 +1,6 @@
 import type { Command } from './Command';
 import type { DrawingDocument, ViewScale, BaseView } from '@zilventor/shared';
+import { autoPlaceCenterMarks } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
 import { projectViewFromSource } from '../drawing/projectViewFromSource';
@@ -9,6 +10,7 @@ type BaseOrient = 'front' | 'top' | 'right' | 'back' | 'bottom' | 'left';
 export class AddBaseViewCommand implements Command {
   readonly name = 'AddBaseView';
   private newViewId: string | null = null;
+  private newAnnotationIds: string[] = [];
 
   constructor(
     private readonly opts: {
@@ -43,11 +45,14 @@ export class AddBaseViewCommand implements Command {
       inputFingerprint,
     };
 
+    const centerMarks = autoPlaceCenterMarks(projection, newId);
+    this.newAnnotationIds = centerMarks.map(a => a.id);
+
     const next: DrawingDocument = {
       ...doc.document,
       sheets: doc.document.sheets.map(s =>
         s.id === this.opts.sheetId
-          ? { ...s, views: [...s.views, view] }
+          ? { ...s, views: [...s.views, view], annotations: [...s.annotations, ...centerMarks] }
           : s
       ),
     };
@@ -60,15 +65,21 @@ export class AddBaseViewCommand implements Command {
     const doc = state.activeDocument;
     if (!doc || doc.kind !== 'drawing') return;
 
+    const removedAnnotationIds = new Set(this.newAnnotationIds);
     const next: DrawingDocument = {
       ...doc.document,
       sheets: doc.document.sheets.map(s =>
         s.id === this.opts.sheetId
-          ? { ...s, views: s.views.filter(v => v.id !== this.newViewId) }
+          ? {
+              ...s,
+              views: s.views.filter(v => v.id !== this.newViewId),
+              annotations: s.annotations.filter(a => !removedAnnotationIds.has(a.id)),
+            }
           : s
       ),
     };
     useAppStore.setState(drawingDocState(next));
     this.newViewId = null;
+    this.newAnnotationIds = [];
   }
 }

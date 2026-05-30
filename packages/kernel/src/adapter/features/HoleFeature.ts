@@ -1,10 +1,12 @@
 import type { OcctInstance } from '../../occt/occtLoader';
+import type { OcctShape } from '../../occt/SolidOps';
 import {
   type NamedShape,
   attachName,
   tagHoleFaces,
   faceNamesEqual,
   resolveEdge,
+  mergeFaceNames,
 } from '../../occt/FaceNaming';
 import {
   makeHole,
@@ -321,9 +323,34 @@ export function executeHoleFeature(
     for (const [face, name] of tagged) newNamesAccum.set(face, name);
   }
 
-  const named: NamedShape = { shape: runningShape as any, faceNames: [...runningBody.faceNames] };
+  // Refresh face handles: BRepAlgoAPI_Cut inside makeHole() produces a new
+  // shape whose surviving planar faces (e.g. box top/bottom) get fresh OCCT
+  // topology handles that no longer IsSame-match the pre-cut handles stored in
+  // runningBody.faceNames.  mergeFaceNames walks the result shape, re-matches
+  // each face against the pre-hole body via IsSame, and assigns a fallback
+  // name to unmatched (new-hole) faces.  We then override those fallback
+  // entries with the more-specific names assigned by tagHoleFaces.
+  //
+  // Note: runningShape is a raw OCCT handle — FeatureTree.ts unwraps the
+  // OcctShape wrapper before calling executeHoleFeature (lines ~657-661) and
+  // rewraps the returned .shape afterwards (line ~677-679).  We must wrap the
+  // raw handle temporarily so mergeFaceNames can call TopExp.MapShapes_1, then
+  // restore the raw handle in the returned NamedShape so FeatureTree's rewrap
+  // step remains correct.
+  const tempOcctShape: OcctShape = { __brand: 'OcctShape', handle: runningShape };
+  const named = mergeFaceNames(oc, tempOcctShape, runningBody, null, feature.id);
+  // Restore the raw handle (FeatureTree.ts rewraps it into OcctShape).
+  named.shape = runningShape as any;
+  // tagHoleFaces entries take priority over any opResult/N fallback names.
   for (const [face, name] of newNamesAccum) {
-    attachName(named, face, name);
+    const existingIdx = named.faceNames.findIndex((e) =>
+      (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(e.face as never)
+    );
+    if (existingIdx >= 0) {
+      named.faceNames[existingIdx] = { face, name };
+    } else {
+      attachName(named, face, name);
+    }
   }
   return named;
 }

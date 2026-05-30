@@ -5,6 +5,7 @@ import type { DrawingDocument } from '@zilventor/shared';
 import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import type { ResolvedTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
+import { resolveCenterMarkGeometry } from '@zilventor/shared/src/drawing/resolveCenterMarkGeometry';
 
 // ISO sheet dimensions (mm, landscape).
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
@@ -152,7 +153,7 @@ function drawSheetPdf(
 
   // Annotations — partsList (and holeTable passthrough so it doesn't throw)
   for (const ann of sheet.annotations) {
-    drawAnnotationPdf(pdf, ann, source, MARGIN, MARGIN, scaleX, scaleY);
+    drawAnnotationPdf(pdf, ann, sheet, source, MARGIN, MARGIN, scaleX, scaleY);
   }
 }
 
@@ -161,6 +162,7 @@ function drawSheetPdf(
 function drawAnnotationPdf(
   pdf: jsPDF,
   ann: DrawingAnnotation,
+  sheet: DrawingSheet,
   _source: PartDocument | AssemblyDocument | null,
   originX: number,
   originY: number,
@@ -169,6 +171,27 @@ function drawAnnotationPdf(
 ): void {
   if (ann.kind === 'partsList') {
     drawPartsListPdf(pdf, ann, originX, originY, scaleX, scaleY);
+    return;
+  }
+  if (ann.kind === 'center-mark') {
+    const view = sheet.views.find((v) => v.id === ann.viewId);
+    if (!view || !view.projection) return;
+    const geom = resolveCenterMarkGeometry(view.projection.visibleEdges, ann.edgeId);
+    if (!geom) return;
+    const { cx, cy, r } = geom;
+    const half = Math.min(r * 0.8, 5);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = originX + view.positionMm.x * scaleX;
+    const vy = originY + view.positionMm.y * scaleY;
+    // Transform view-local → PDF sheet space
+    const px = (lx: number) => vx + lx * vScale * scaleX;
+    const py = (ly: number) => vy + ly * vScale * scaleY;
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.2);
+    // Horizontal arm
+    pdf.line(px(cx - half), py(cy), px(cx + half), py(cy));
+    // Vertical arm
+    pdf.line(px(cx), py(cy - half), px(cx), py(cy + half));
     return;
   }
   // holeTable and other annotation kinds: no-op (no source available for row computation in PDF path)

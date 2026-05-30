@@ -1,5 +1,5 @@
 import type { Command } from './Command';
-import type { DrawingDocument, ProjectedGeometry, BreakRegion } from '@zilventor/shared';
+import type { DrawingDocument, ProjectedGeometry, BreakRegion, DrawingAnnotation } from '@zilventor/shared';
 import { applyBreaks, fingerprintBreaksArray } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { drawingDocState } from '../store/drawingDocState';
@@ -11,6 +11,8 @@ export class RegenerateViewCommand implements Command {
   private prevFingerprint: string | undefined = undefined;
   private prevHadRawProjection = false;
   private applied = false;
+  /** Center-mark annotations that existed on the sheet BEFORE apply (for revert). */
+  private prevCenterMarks: readonly DrawingAnnotation[] = [];
 
   constructor(
     private readonly opts: {
@@ -18,6 +20,8 @@ export class RegenerateViewCommand implements Command {
       viewId: string;
       projection: ProjectedGeometry;
       inputFingerprint: string;
+      /** Fresh center-mark annotations to replace the old ones for this viewId. Default: []. */
+      centerMarkAnnotations?: readonly DrawingAnnotation[];
     }
   ) {}
 
@@ -37,6 +41,9 @@ export class RegenerateViewCommand implements Command {
     this.prevRawProjection = (view as { rawProjection?: ProjectedGeometry }).rawProjection;
     this.prevHadRawProjection = 'rawProjection' in view;
     this.prevFingerprint = view.inputFingerprint;
+    this.prevCenterMarks = sheet.annotations.filter(
+      a => a.kind === 'center-mark' && a.viewId === this.opts.viewId,
+    );
     this.applied = true;
 
     const currentBreaks: readonly BreakRegion[] =
@@ -71,11 +78,22 @@ export class RegenerateViewCommand implements Command {
       updatedView = base as typeof view;
     }
 
+    const freshCenterMarks = this.opts.centerMarkAnnotations ?? [];
     const next: DrawingDocument = {
       ...doc.document,
       sheets: doc.document.sheets.map(s =>
         s.id === this.opts.sheetId
-          ? { ...s, views: s.views.map(v => v.id === this.opts.viewId ? updatedView : v) }
+          ? {
+              ...s,
+              views: s.views.map(v => v.id === this.opts.viewId ? updatedView : v),
+              // Atomically replace center-marks for this viewId: remove old, add fresh.
+              annotations: [
+                ...s.annotations.filter(
+                  a => !(a.kind === 'center-mark' && a.viewId === this.opts.viewId),
+                ),
+                ...freshCenterMarks,
+              ],
+            }
           : s
       ),
     };
@@ -114,6 +132,13 @@ export class RegenerateViewCommand implements Command {
                 }
                 return base as typeof v;
               }),
+              // Restore center-marks: remove fresh ones, re-add the pre-apply set.
+              annotations: [
+                ...s.annotations.filter(
+                  a => !(a.kind === 'center-mark' && a.viewId === this.opts.viewId),
+                ),
+                ...this.prevCenterMarks,
+              ],
             }
           : s
       ),

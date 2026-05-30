@@ -401,3 +401,163 @@ describe('RegenerateViewCommand — breaks-aware extension', () => {
     expect(v.projection).toEqual(BROKEN_PROJ_APPLIED);
   });
 });
+
+// ─── Slice 5: RegenerateViewCommand atomically replaces center-mark annotations ──
+
+/** 8 points on a circle of radius r centred at (cx,cy). isArcEdge requires ≥5pts, r≥0.5mm. */
+function circlePoints(cx: number, cy: number, r: number, n = 8): [number, number][] {
+  return Array.from({ length: n }, (_, i) => {
+    const theta = (2 * Math.PI * i) / n;
+    return [cx + r * Math.cos(theta), cy + r * Math.sin(theta)] as [number, number];
+  });
+}
+
+import type { DrawingAnnotation } from '@zilventor/shared';
+
+const STALE_CM_ANNOTATION: DrawingAnnotation = {
+  id: 'cm-view-regen-old-edge',
+  kind: 'center-mark',
+  viewId: 'view-regen',
+  edgeId: 'old-edge',
+};
+
+const FRESH_ARC_PROJECTION: ProjectedGeometry = {
+  visibleEdges: [
+    { id: 'new-arc-edge', kind: 'outline', points: circlePoints(10, 10, 5, 8), sourceFaceIds: [] },
+  ],
+  hiddenEdges: [],
+  bbox: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
+};
+
+const VIEW_FOR_REGEN: BaseView = {
+  id: 'view-regen', kind: 'base',
+  positionMm: { x: 50, y: 50 },
+  orientation: 'front',
+  scale: { numerator: 1, denominator: 1 },
+  showHidden: true,
+  projection: OLD_PROJECTION,
+  inputFingerprint: 'stale-fp',
+};
+
+function makeDrawingWithStaleCenterMark(): DrawingDocument {
+  return {
+    id: 'd-cm', name: 'D-CM', units: 'mm',
+    source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [{
+      id: 'sheet-cm', name: 'Sheet CM',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [VIEW_FOR_REGEN],
+      dimensions: [],
+      dimensionGroups: [],
+      annotations: [STALE_CM_ANNOTATION],  // stale center-mark from previous projection
+      titleBlock: {},
+    }],
+    activeSheetId: 'sheet-cm',
+  };
+}
+
+describe('RegenerateViewCommand — atomic center-mark replacement (Slice 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({
+      activeDocument: { kind: 'drawing', document: makeDrawingWithStaleCenterMark() },
+    });
+  });
+
+  it('apply removes old center-marks for the view and adds fresh ones from the new projection', async () => {
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-cm',
+      viewId: 'view-regen',
+      projection: FRESH_ARC_PROJECTION,
+      inputFingerprint: 'fresh-fp',
+      centerMarkAnnotations: [
+        { id: 'cm-view-regen-new-arc-edge', kind: 'center-mark', viewId: 'view-regen', edgeId: 'new-arc-edge' },
+      ],
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const sheet = doc.document.sheets[0]!;
+    const cms = sheet.annotations.filter(a => a.kind === 'center-mark');
+    // Stale center-mark must be gone
+    expect(cms.find(a => a.id === 'cm-view-regen-old-edge')).toBeUndefined();
+    // Fresh center-mark must be present
+    expect(cms.find(a => a.id === 'cm-view-regen-new-arc-edge')).toBeDefined();
+    expect(cms).toHaveLength(1);
+  });
+
+  it('no center-mark accumulation on repeated applies', async () => {
+    const cm1: DrawingAnnotation = { id: 'cm-view-regen-new-arc-edge', kind: 'center-mark', viewId: 'view-regen', edgeId: 'new-arc-edge' };
+    const cmd1 = new RegenerateViewCommand({
+      sheetId: 'sheet-cm', viewId: 'view-regen',
+      projection: FRESH_ARC_PROJECTION, inputFingerprint: 'fp-1',
+      centerMarkAnnotations: [cm1],
+    });
+    await cmd1.apply();
+
+    // Second regen: same viewId but different edgeId (simulates geometry change)
+    const freshProj2: ProjectedGeometry = {
+      visibleEdges: [{ id: 'new-arc-edge-2', kind: 'outline', points: circlePoints(20, 20, 5, 8), sourceFaceIds: [] }],
+      hiddenEdges: [],
+      bbox: { minX: 10, minY: 10, maxX: 30, maxY: 30 },
+    };
+    const cm2: DrawingAnnotation = { id: 'cm-view-regen-new-arc-edge-2', kind: 'center-mark', viewId: 'view-regen', edgeId: 'new-arc-edge-2' };
+    const cmd2 = new RegenerateViewCommand({
+      sheetId: 'sheet-cm', viewId: 'view-regen',
+      projection: freshProj2, inputFingerprint: 'fp-2',
+      centerMarkAnnotations: [cm2],
+    });
+    await cmd2.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const sheet = doc.document.sheets[0]!;
+    const cms = sheet.annotations.filter(a => a.kind === 'center-mark');
+    expect(cms).toHaveLength(1);
+    expect(cms[0]!.id).toBe('cm-view-regen-new-arc-edge-2');
+  });
+
+  it('revert restores the stale center-mark and removes the fresh one', async () => {
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-cm',
+      viewId: 'view-regen',
+      projection: FRESH_ARC_PROJECTION,
+      inputFingerprint: 'fresh-fp',
+      centerMarkAnnotations: [
+        { id: 'cm-view-regen-new-arc-edge', kind: 'center-mark', viewId: 'view-regen', edgeId: 'new-arc-edge' },
+      ],
+    });
+    await cmd.apply();
+    await cmd.revert();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const sheet = doc.document.sheets[0]!;
+    const cms = sheet.annotations.filter(a => a.kind === 'center-mark');
+    expect(cms).toHaveLength(1);
+    expect(cms[0]!.id).toBe('cm-view-regen-old-edge');
+  });
+
+  it('no centerMarkAnnotations passed → center-marks for this viewId are cleared (projection had no arcs)', async () => {
+    const projNoArcs: ProjectedGeometry = {
+      visibleEdges: [{ id: 'straight-only', kind: 'outline', points: [[0,0],[100,0]], sourceFaceIds: [] }],
+      hiddenEdges: [],
+      bbox: { minX: 0, minY: 0, maxX: 100, maxY: 0 },
+    };
+    const cmd = new RegenerateViewCommand({
+      sheetId: 'sheet-cm',
+      viewId: 'view-regen',
+      projection: projNoArcs,
+      inputFingerprint: 'fresh-no-arcs',
+      // no centerMarkAnnotations → default [] clears old marks
+    });
+    await cmd.apply();
+
+    const doc = useAppStore.getState().activeDocument;
+    if (!doc || doc.kind !== 'drawing') throw new Error();
+    const sheet = doc.document.sheets[0]!;
+    expect(sheet.annotations.filter(a => a.kind === 'center-mark' && a.viewId === 'view-regen')).toHaveLength(0);
+  });
+});

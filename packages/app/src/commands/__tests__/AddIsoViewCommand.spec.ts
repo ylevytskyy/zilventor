@@ -17,6 +17,14 @@ vi.mock('../../drawing/projectViewFromSource', () => ({
 
 import { projectViewFromSource } from '../../drawing/projectViewFromSource';
 
+/** 8 points on a circle of radius 5mm centred at (cx,cy). */
+function arcPointsIso(cx = 10, cy = 10, r = 5, n = 8): [number, number][] {
+  return Array.from({ length: n }, (_, i) => {
+    const theta = (2 * Math.PI * i) / n;
+    return [cx + r * Math.cos(theta), cy + r * Math.sin(theta)] as [number, number];
+  });
+}
+
 type DrawingActive = { kind: 'drawing'; document: DrawingDocument };
 
 function makeDrawing(): DrawingDocument {
@@ -112,5 +120,77 @@ describe('AddIsoViewCommand', () => {
     });
     await cmd.apply();
     expect(projectViewFromSource).toHaveBeenCalledWith('iso-SW');
+  });
+});
+
+// ─── Slice 4: auto-place center-marks on AddIsoViewCommand ────────────────────
+
+type DrawingActiveIso = { kind: 'drawing'; document: DrawingDocument };
+
+describe('AddIsoViewCommand — center-mark auto-placement', () => {
+  beforeEach(() => {
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawing() } } as never);
+    vi.mocked(projectViewFromSource).mockResolvedValue({
+      projection: {
+        visibleEdges: [
+          { id: 'iso-arc-1', kind: 'outline', points: arcPointsIso(10, 10, 5, 8), sourceFaceIds: [] },
+          { id: 'iso-straight-1', kind: 'outline', points: [[0,0],[40,0],[20,30],[0,0]], sourceFaceIds: [] },
+        ],
+        hiddenEdges: [],
+        bbox: { minX: 0, minY: 0, maxX: 40, maxY: 30 },
+      },
+      inputFingerprint: 'mock-iso-fp-arc',
+    });
+  });
+
+  it('apply auto-adds exactly one center-mark annotation for the arc edge', async () => {
+    const cmd = new AddIsoViewCommand({
+      sheetId: 'sheet-1',
+      positionMm: { x: 200, y: 200 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+    });
+    await cmd.apply();
+
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActiveIso).document;
+    const sheet = doc.sheets[0]!;
+    const centerMarks = sheet.annotations.filter(a => a.kind === 'center-mark');
+    expect(centerMarks).toHaveLength(1);
+    expect(centerMarks[0]!.edgeId).toBe('iso-arc-1');
+    expect(sheet.views).toHaveLength(1);
+  });
+
+  it('center-mark id is deterministic: cm-<viewId>-<edgeId>', async () => {
+    const cmd = new AddIsoViewCommand({
+      sheetId: 'sheet-1',
+      positionMm: { x: 200, y: 200 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+    });
+    await cmd.apply();
+
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActiveIso).document;
+    const sheet = doc.sheets[0]!;
+    const isoView = sheet.views[0]!;
+    const cm = sheet.annotations.find(a => a.kind === 'center-mark');
+    expect(cm).toBeDefined();
+    expect(cm!.id).toBe(`cm-${isoView.id}-iso-arc-1`);
+    expect(cm!.viewId).toBe(isoView.id);
+  });
+
+  it('revert removes the center-mark annotation', async () => {
+    const cmd = new AddIsoViewCommand({
+      sheetId: 'sheet-1',
+      positionMm: { x: 200, y: 200 },
+      corner: 'NE',
+      scale: { numerator: 1, denominator: 1 },
+    });
+    await cmd.apply();
+    await cmd.revert();
+
+    const doc = (useAppStore.getState().activeDocument as unknown as DrawingActiveIso).document;
+    const sheet = doc.sheets[0]!;
+    expect(sheet.annotations.filter(a => a.kind === 'center-mark')).toHaveLength(0);
+    expect(sheet.views).toHaveLength(0);
   });
 });

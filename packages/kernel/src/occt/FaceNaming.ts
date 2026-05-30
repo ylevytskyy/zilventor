@@ -215,6 +215,60 @@ export function tagSweepFaces(
 }
 
 /**
+ * Build a NamedShape around a boolean-op result by reusing face names from
+ * one or two operand NamedShapes. A face in the result keeps the name of
+ * whichever operand face it IsSame-matches; faces that don't match any
+ * operand (i.e. new topology produced by the boolean) receive a synthetic
+ * `{featureId}/opResult/{n}` name so downstream features can still address
+ * them deterministically.
+ *
+ * When `b` is omitted (single-operand case, e.g. hole cuts), only operand
+ * `a` is consulted.
+ *
+ * This is the T13 minimum: IsSame comparison across both operands, no
+ * topology inference beyond that. T15+ may refine with Modified/Generated/
+ * IsDeleted tracking from BRepAlgoAPI_BooleanOperation.
+ */
+export function mergeFaceNames(
+  oc: OcctInstance,
+  resultShape: OcctShape,
+  a: NamedShape,
+  b: NamedShape | null,
+  featureId: string
+): NamedShape {
+  const named: NamedShape = { shape: resultShape, faceNames: [] };
+  const map = new (oc as any).TopTools_IndexedMapOfShape_1();
+  (oc as any).TopExp.MapShapes_1(
+    (resultShape as any).handle,
+    (oc as any).TopAbs_ShapeEnum.TopAbs_FACE,
+    map
+  );
+  const extent = (map as { Extent: () => number }).Extent();
+  let unnamedIdx = 0;
+  for (let i = 1; i <= extent; i++) {
+    const faceShape = (map as { FindKey: (i: number) => unknown }).FindKey(i);
+    const face = (oc as any).TopoDS.Face_1(faceShape);
+    // Prefer A (the running body) over B (the incoming feature) for ambiguous
+    // matches — running-body names are older and more likely to be bound by
+    // downstream features.
+    const surviving =
+      a.faceNames.find((f) =>
+        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
+      ) ??
+      b?.faceNames.find((f) =>
+        (face as { IsSame?: (o: unknown) => boolean }).IsSame?.(f.face as never)
+      );
+    if (surviving) {
+      attachName(named, face, surviving.name);
+    } else {
+      attachName(named, face, namedFace(featureId, 'opResult', unnamedIdx++));
+    }
+  }
+  map.delete();
+  return named;
+}
+
+/**
  * Resolve a stored vertex (identified by its >=3 converging edges) to
  * a TopoDS_Vertex in the shape. Returns null if any edge is missing or
  * the edges don't share a common vertex.

@@ -359,6 +359,101 @@ describe('renderDrawingPdf — holeTable annotation (PDF gap closure)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Slice 7a: center-mark annotation → cross (two pdf.line calls)
+// ---------------------------------------------------------------------------
+
+describe('renderDrawingPdf — center-mark annotation draws a cross (Slice-7a)', () => {
+  /** 8 equally-spaced points on circle r=10 centered (50,50). */
+  function makeArcEdge8(): ReadonlyArray<readonly [number, number]> {
+    const n = 8;
+    return Array.from({ length: n }, (_, i) => {
+      const θ = (2 * Math.PI * i) / n;
+      return [50 + 10 * Math.cos(θ), 50 + 10 * Math.sin(θ)] as readonly [number, number];
+    });
+  }
+
+  function makeDrawingWithCenterMark(): DrawingDocument {
+    const sheetId = 'sh-cm';
+    const viewId = 'v-cm';
+    const edgeId = 'arc-cm';
+    return {
+      id: 'drw-cm', name: 'CM Drawing', units: 'mm',
+      source: { partPath: 'p.zipt', sourceKind: 'part' },
+      properties: {},
+      activeSheetId: sheetId,
+      sheets: [{
+        id: sheetId, name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [{
+          id: viewId, kind: 'base',
+          positionMm: { x: 50, y: 50 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front', showHidden: false,
+          projection: {
+            visibleEdges: [{ id: edgeId, kind: 'outline', points: makeArcEdge8() }],
+            hiddenEdges: [],
+            bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+          },
+        }],
+        dimensions: [],
+        annotations: [{ id: 'cm-1', kind: 'center-mark', viewId, edgeId }],
+        titleBlock: {}, dimensionGroups: [],
+      }],
+    };
+  }
+
+  it('PDF-7a-1: does not throw when a center-mark annotation is present', () => {
+    const drawing = makeDrawingWithCenterMark();
+    expect(() => renderDrawingPdfBytes(drawing, makeFixturePart())).not.toThrow();
+  });
+
+  it('PDF-7a-2: center-mark PDF stream contains line-path operators (m/l/S) from the cross arms', () => {
+    // jsPDF emits pdf.line(x1,y1,x2,y2) as: "x1 y1 m x2 y2 l S" in the content stream.
+    // A sheet with NO annotations but the same view baseline is compared against one WITH center-mark.
+    // We count "m ... l ... S" triples in each and confirm at least 2 more in the center-mark sheet.
+    const noAnnDrawing: DrawingDocument = {
+      id: 'drw-cm-noann', name: 'CM No Ann', units: 'mm',
+      source: { partPath: 'p.zipt', sourceKind: 'part' },
+      properties: {},
+      activeSheetId: 'sh-cm-noann',
+      sheets: [{
+        id: 'sh-cm-noann', name: 'Sheet 1',
+        size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+        views: [{
+          id: 'v-cm', kind: 'base',
+          positionMm: { x: 50, y: 50 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front', showHidden: false,
+          projection: {
+            visibleEdges: [{ id: 'arc-cm', kind: 'outline', points: makeArcEdge8() }],
+            hiddenEdges: [],
+            bbox: { minX: 40, minY: 40, maxX: 60, maxY: 60 },
+          },
+        }],
+        dimensions: [], annotations: [], titleBlock: {}, dimensionGroups: [],
+      }],
+    };
+
+    const countLineOps = (bytes: Uint8Array): number => {
+      const text = new TextDecoder('latin1').decode(bytes);
+      // jsPDF path: each pdf.line call emits the pattern "x1 y1 m\nx2 y2 l\nS\n"
+      const matches = text.match(/ m\n[\d. -]+ [\d. -]+ l\n/g);
+      return matches?.length ?? 0;
+    };
+
+    const baseBytes = renderDrawingPdfBytes(noAnnDrawing, makeFixturePart());
+    const baseOps = countLineOps(baseBytes);
+
+    const drawing = makeDrawingWithCenterMark();
+    const withBytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    const withOps = countLineOps(withBytes);
+
+    // center-mark adds 2 pdf.line calls (horizontal + vertical arm)
+    expect(withOps).toBeGreaterThanOrEqual(baseOps + 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // F4 PDF underlay rendering
 // ---------------------------------------------------------------------------
 import type { DxfUnderlay, DrawingSheet as DrawingSheetU } from '@zilventor/shared';

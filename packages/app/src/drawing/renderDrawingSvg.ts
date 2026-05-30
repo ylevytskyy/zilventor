@@ -8,6 +8,7 @@ import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { intersectLines, subtendedAngle, formatAngleDeg } from '@zilventor/shared/src/drawing/dimensionMath';
 import { computeHoleTableRows } from '@zilventor/shared/src/drawing/holeTable';
 import { circumcenterFromPolyline } from '@zilventor/shared/src/drawing/circumcenter';
+import { resolveCenterMarkGeometry } from '@zilventor/shared/src/drawing/resolveCenterMarkGeometry';
 import { underlayEntityToSvg } from './renderUnderlayEntity';
 
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
@@ -864,9 +865,33 @@ function renderAnnotationGroup(
     <text x="${ann.textPosMm.x}" y="${ann.textPosMm.y}" font-size="3">${escapeText(ann.text)}</text>
   </g>`;
   }
-  if (ann.kind === 'centerline' || ann.kind === 'center-mark') {
-    return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="${ann.kind}">
-    <!-- centerline / center-mark geometry rendered by DrawingCanvas from projection data -->
+  if (ann.kind === 'centerline') {
+    return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="centerline">
+    <!-- centerline geometry rendered by DrawingCanvas from projection data -->
+  </g>`;
+  }
+  if (ann.kind === 'center-mark') {
+    const view = sheet.views.find((v) => v.id === ann.viewId);
+    if (!view || !view.projection) return '';
+    const geom = resolveCenterMarkGeometry(view.projection.visibleEdges, ann.edgeId);
+    if (!geom) return '';
+    const { cx, cy, r } = geom;
+    const half = Math.min(r * 0.8, 5);
+    const vScale = view.scale.numerator / view.scale.denominator;
+    const vx = view.positionMm.x;
+    const vy = view.positionMm.y;
+    // Transform view-local coords to sheet/SVG space: svgX = vx + localX * vScale, svgY = vy + localY * vScale
+    const sx1 = vx + (cx - half) * vScale;
+    const sy1 = vy + cy       * vScale;
+    const sx2 = vx + (cx + half) * vScale;
+    const sy2 = vy + cy       * vScale;
+    const sx3 = vx + cx       * vScale;
+    const sy3 = vy + (cy - half) * vScale;
+    const sx4 = vx + cx       * vScale;
+    const sy4 = vy + (cy + half) * vScale;
+    return `  <g data-ann-id="${escapeAttr(ann.id)}" data-ann-kind="center-mark" fill="none" stroke="#000" stroke-width="0.2">
+    <line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}"/>
+    <line x1="${sx3}" y1="${sy3}" x2="${sx4}" y2="${sy4}"/>
   </g>`;
   }
   return '';

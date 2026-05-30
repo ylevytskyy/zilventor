@@ -54,3 +54,6 @@ export type { ApplyBreaksResult } from './drawing/applyBreaks';
 export { intersectLines, subtendedAngle, formatAngleDeg, computeBaselineMemberOffset, nextBaselineSlot } from './drawing/dimensionMath';
 export type { Point2, Vec2D } from './drawing/dimensionMath';
 export { circumcenterFromPolyline } from './drawing/circumcenter';
+export { isArcEdge } from './drawing/isArcEdge';
+export type { IsArcEdgeOptions } from './drawing/isArcEdge';
+export { autoPlaceCenterMarks } from './drawing/autoPlaceCenterMarks';
