@@ -21,7 +21,7 @@ class MemOpfs {
 
 function makeKernel(overrides?: Partial<{
   importStep: typeof vi.fn;
-  extractStepSolids: typeof vi.fn;
+  splitImportedShape: typeof vi.fn;
   registerPart: typeof vi.fn;
   deletePart: typeof vi.fn;
   saveToBytes: typeof vi.fn;
@@ -33,12 +33,15 @@ function makeKernel(overrides?: Partial<{
       boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
       faceCount: 6,
     })),
-    extractStepSolids: overrides?.extractStepSolids ?? vi.fn(async () => [
-      {
-        brepBlobId: 'blob-123',
-        boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
-      },
-    ]),
+    splitImportedShape: overrides?.splitImportedShape ?? vi.fn(async () => ({
+      solids: [
+        {
+          brepBlobId: 'blob-123',
+          boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
+        },
+      ],
+      surfaces: null,
+    })),
     registerPart: overrides?.registerPart ?? vi.fn(async () => undefined),
     deletePart: overrides?.deletePart ?? vi.fn(async () => undefined),
     saveToBytes: overrides?.saveToBytes ?? vi.fn(async () => new Uint8Array([42])),
@@ -119,7 +122,7 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     expect(kernel.saveToBytes).toHaveBeenCalledOnce();
   });
 
-  it('apply() calls extractStepSolids with the correct bytes', async () => {
+  it('apply() calls importStep + splitImportedShape with the correct bytes', async () => {
     const kernel = makeKernel();
     const opfs = new MemOpfs();
     const cmd = new ImportStepAsComponentCommand({
@@ -130,11 +133,12 @@ describe('ImportStepAsComponentCommand — assembly-active path', () => {
     });
     await cmd.apply();
 
-    expect(kernel.importStep).not.toHaveBeenCalled();
-    expect(kernel.extractStepSolids).toHaveBeenCalledOnce();
-    const arg = (kernel.extractStepSolids as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-    expect(new Uint8Array(arg.stepBytes as ArrayBuffer)).toEqual(STEP_BYTES);
-    // partName flows through baseName → dedupeName → registered part (N=1 → bare name, no suffix)
+    expect(kernel.importStep).toHaveBeenCalledOnce();
+    const importArg = (kernel.importStep as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(new Uint8Array(importArg.stepBytes as ArrayBuffer)).toEqual(STEP_BYTES);
+    expect(kernel.splitImportedShape).toHaveBeenCalledOnce();
+    expect((kernel.splitImportedShape as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe('blob-123');
+    // partName flows through baseName → dedupeName → registered part (N=1, no surfaces → bare name)
     const registered = (kernel.registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(registered.name).toBe('MyHinge');
   });
@@ -335,9 +339,9 @@ describe('ImportStepAsComponentCommand — undo / redo', () => {
 
     // Regression guard: redo MUST take the redoState branch and skip the
     // expensive STEP parse + archive serialize. If redoState were removed,
-    // these would be called twice (once per apply) and the test would fail.
-    expect(kernel.importStep).not.toHaveBeenCalled();
-    expect(kernel.extractStepSolids).toHaveBeenCalledTimes(1);
+    // importStep/splitImportedShape/saveToBytes would be called twice.
+    expect(kernel.importStep).toHaveBeenCalledTimes(1);
+    expect(kernel.splitImportedShape).toHaveBeenCalledTimes(1);
     expect(kernel.saveToBytes).toHaveBeenCalledTimes(1);
   });
 });
@@ -354,12 +358,20 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
 
   it('apply: adds N components + registers N parts + writes N opfs files', async () => {
     const kernel = {
-      importStep: vi.fn(),
-      extractStepSolids: vi.fn(async () => [
-        { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-        { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
-        { brepBlobId: 'blob-3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
-      ]),
+      importStep: vi.fn(async () => ({
+        brepBlobId: 'whole-blob',
+        triangleCount: 0,
+        boundingBox: [0, 0, 0, 50, 10, 10] as [number, number, number, number, number, number],
+        faceCount: 0,
+      })),
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+          { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
+          { brepBlobId: 'blob-3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
+        ],
+        surfaces: null,
+      })),
       registerPart: vi.fn(async () => undefined),
       saveToBytes: vi.fn(async () => new Uint8Array([1])),
       deletePart: vi.fn(async () => undefined),
@@ -373,8 +385,8 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     });
     await cmd.apply();
 
-    expect(kernel.importStep).not.toHaveBeenCalled();
-    expect(kernel.extractStepSolids).toHaveBeenCalledTimes(1);
+    expect(kernel.importStep).toHaveBeenCalledTimes(1);
+    expect(kernel.splitImportedShape).toHaveBeenCalledTimes(1);
     expect(kernel.registerPart).toHaveBeenCalledTimes(3);
     expect(kernel.saveToBytes).toHaveBeenCalledTimes(3);
     const writtenPaths = [...opfs.files.keys()];
@@ -392,11 +404,19 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
 
   it('revert: removes all N components + deletePart N + opfs.delete N', async () => {
     const kernel = {
-      importStep: vi.fn(),
-      extractStepSolids: vi.fn(async () => [
-        { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-        { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
-      ]),
+      importStep: vi.fn(async () => ({
+        brepBlobId: 'whole-blob',
+        triangleCount: 0,
+        boundingBox: [0, 0, 0, 30, 10, 10] as [number, number, number, number, number, number],
+        faceCount: 0,
+      })),
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+          { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
+        ],
+        surfaces: null,
+      })),
       registerPart: vi.fn(async () => undefined),
       saveToBytes: vi.fn(async () => new Uint8Array([1])),
       deletePart: vi.fn(async () => undefined),
@@ -417,12 +437,20 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     expect(opfs.files.size).toBe(0);
   });
 
-  it('N=1 via extractStepSolids reduces cleanly to one component', async () => {
+  it('N=1 via splitImportedShape reduces cleanly to one component', async () => {
     const kernel = {
-      importStep: vi.fn(),
-      extractStepSolids: vi.fn(async () => [
-        { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-      ]),
+      importStep: vi.fn(async () => ({
+        brepBlobId: 'whole-blob',
+        triangleCount: 0,
+        boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
+        faceCount: 0,
+      })),
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-solo', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+        ],
+        surfaces: null,
+      })),
       registerPart: vi.fn(async () => undefined),
       saveToBytes: vi.fn(async () => new Uint8Array([1])),
       deletePart: vi.fn(async () => undefined),
@@ -436,19 +464,27 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     });
     await cmd.apply();
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(1);
-    expect(kernel.importStep).not.toHaveBeenCalled();
-    expect(kernel.extractStepSolids).toHaveBeenCalledTimes(1);
+    expect(kernel.importStep).toHaveBeenCalledTimes(1);
+    expect(kernel.splitImportedShape).toHaveBeenCalledTimes(1);
   });
 
   it('redo: apply → revert → apply re-registers all N + reuses cached blobs', async () => {
-    const extractMock = vi.fn(async () => [
-      { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-      { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
-      { brepBlobId: 'blob-3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
-    ]);
+    const splitMock = vi.fn(async () => ({
+      solids: [
+        { brepBlobId: 'blob-1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
+        { brepBlobId: 'blob-2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
+        { brepBlobId: 'blob-3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
+      ],
+      surfaces: null,
+    }));
     const kernel = {
-      importStep: vi.fn(),
-      extractStepSolids: extractMock,
+      importStep: vi.fn(async () => ({
+        brepBlobId: 'whole-blob',
+        triangleCount: 0,
+        boundingBox: [0, 0, 0, 50, 10, 10] as [number, number, number, number, number, number],
+        faceCount: 0,
+      })),
+      splitImportedShape: splitMock,
       registerPart: vi.fn(async () => undefined),
       saveToBytes: vi.fn(async () => new Uint8Array([1])),
       deletePart: vi.fn(async () => undefined),
@@ -466,7 +502,7 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(0);
     await cmd.apply();  // redo path
     expect(useAppStore.getState().activeAssembly?.components).toHaveLength(3);
-    // The redo path must NOT re-parse the STEP — extractStepSolids called once total.
-    expect(extractMock).toHaveBeenCalledTimes(1);
+    // The redo path must NOT re-parse the STEP — importStep/splitImportedShape called once total.
+    expect(splitMock).toHaveBeenCalledTimes(1);
   });
 });

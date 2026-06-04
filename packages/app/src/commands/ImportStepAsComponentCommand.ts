@@ -16,7 +16,7 @@ export type OpfsLike = {
 export type ImportStepAsComponentOpts = {
   stepBytes: ArrayBuffer;
   fileName: string;
-  kernel: Pick<KernelApi, 'extractStepSolids' | 'registerPart' | 'deletePart' | 'saveToBytes'>;
+  kernel: Pick<KernelApi, 'importStep' | 'splitImportedShape' | 'registerPart' | 'deletePart' | 'saveToBytes'>;
   opfs: OpfsLike;
 };
 
@@ -33,7 +33,7 @@ export type ImportStepAsComponentOpts = {
  *
  * Undo: removes all N components + evicts all N parts from OPFS + kernel cache.
  * Redo: re-registers from in-memory bytes + re-persists + re-inserts (skips
- *       extractStepSolids — relies on deletePart NOT evicting importedShapeCache).
+ *       importStep+splitImportedShape — relies on deletePart NOT evicting importedShapeCache).
  */
 export class ImportStepAsComponentCommand implements Command {
   readonly name = 'ImportStepAsComponent';
@@ -48,7 +48,7 @@ export class ImportStepAsComponentCommand implements Command {
   /** Whether apply() ran the assembly path (true) or standalone-part path (false). */
   private wasAssemblyInsert = false;
 
-  /** Saved state for redo: avoids re-calling extractStepSolids (blobs stay in cache). */
+  /** Saved state for redo: avoids re-calling importStep+splitImportedShape (blobs stay in cache). */
   private redoState: Array<{
     partName: string;
     brepBlobId: string;
