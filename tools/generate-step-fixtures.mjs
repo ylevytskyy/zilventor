@@ -84,4 +84,32 @@ writeStep(makeBox(10, 10, 10), 'cube-10mm', `${OUT_DIR}/cube-10mm.step`);
 // 3. cyrillic-name.step — cube with a Ukrainian product name (UTF-8 path test)
 writeStep(makeBox(10, 10, 10), 'Бічна_панель', `${OUT_DIR}/cyrillic-name.step`);
 
+// 4. mixed-solid-surface.step — one 10x10x10 mm box SOLID + one free planar face
+//    (20x20 mm, Z=0 plane). After STEP write + re-read, the free face comes back
+//    as a TopAbs_SHELL (STEP AP214 always wraps faces in shells), so on read-back:
+//    - splitImportedShapeHelper pass-1 → 1 solid
+//    - splitImportedShapeHelper pass-2 → 1 free shell (formerly the free face)
+//    - splitImportedShapeHelper pass-3 → 0 free faces (none remain after wrap)
+//    The in-memory compound (before round-trip) has 1 free face caught by pass-3.
+//    The committed fixture exercises pass-2 in CI; pass-3 is covered by a
+//    separate in-memory unit test in StepIO.splitImportedShape.integration.spec.ts.
+{
+  const solid = makeBox(10, 10, 10);
+  // BRepBuilderAPI_MakeFace_9(gp_Pln, umin, umax, vmin, vmax) — bounded planar face
+  // gp_Pln_4(A,B,C,D) = plane equation Ax+By+Cz+D=0 → Z=0 plane with D=0
+  const plane = new oc.gp_Pln_4(0, 0, 1, 0);
+  const faceMk = new oc.BRepBuilderAPI_MakeFace_9(plane, 0, 20, 0, 20);
+  const freeFace = faceMk.Shape();
+  faceMk.delete?.();
+
+  const builder = new oc.BRep_Builder();
+  const comp = new oc.TopoDS_Compound();
+  builder.MakeCompound(comp);
+  builder.Add(comp, solid);
+  builder.Add(comp, freeFace);
+  builder.delete();
+
+  writeStep(comp, 'mixed-solid-surface', `${OUT_DIR}/mixed-solid-surface.step`);
+}
+
 console.log('Wrote fixtures to', OUT_DIR);
