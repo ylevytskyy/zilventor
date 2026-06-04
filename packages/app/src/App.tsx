@@ -160,6 +160,14 @@ function formatExpressionError(err: EvaluationError): string {
 
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
+  // When the shown 3D document changes (open part/assembly, switch docs,
+  // session restore), arm a one-shot camera fit-to-model so the opened model is
+  // framed to view. Subsequent edits re-mesh the same document and do NOT
+  // re-frame (the flag is consumed on the first mesh after this fires).
+  const active3dDocId = useAppStore((s) => s.activePart?.id ?? s.activeAssembly?.id ?? null);
+  useEffect(() => {
+    if (active3dDocId) viewportRef.current?.requestFrameOnNextMesh();
+  }, [active3dDocId]);
   const terminateRef = useRef<(() => void) | null>(null);
   // Guards against double-click reentry into handleRestart (both calls would
   // race spawnKernel() and leak a worker by overwriting terminateRef).

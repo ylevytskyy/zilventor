@@ -38,6 +38,8 @@ export type ViewportRef = {
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
   clearPreviewMesh(): void;
   setComponentMeshes(leaves: ComponentLeaf[]): void;
+  /** Arm a one-shot camera fit-to-model on the next mesh upload. */
+  requestFrameOnNextMesh(): void;
   setPartGeometry(partPath: string, geometry: THREE.BufferGeometry): void;
   setSelectedComponentPaths(paths: ComponentPath[]): void;
   setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void;
@@ -157,6 +159,9 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setComponentMeshes(leaves);
       setGeometryHash(sceneRef.current.geometryHash());
+    },
+    requestFrameOnNextMesh: () => {
+      sceneRef.current?.requestFrameOnNextMesh();
     },
     setPartGeometry: (partPath, geometry) => {
       if (!sceneRef.current) return;

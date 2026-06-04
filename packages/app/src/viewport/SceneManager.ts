@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { computeCameraFrame } from './frameView';
 import { pathKey, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -47,6 +48,11 @@ export class SceneManager {
   readonly controls: OrbitControls;
   private current: THREE.Mesh | null = null;
   private preview: THREE.Mesh | null = null;
+  // One-shot "frame the camera to the model on the next mesh upload". Armed by
+  // the App when a new 3D document is shown so an opened model is fit to view
+  // (the camera is otherwise hardcoded for ~500mm parts and buries itself in
+  // large imports); cleared after framing so edits don't yank the camera.
+  private frameOnNextMesh = false;
   // T28: keyed by ComponentPathKey (pathKey(componentPath))
   private componentMeshes = new Map<ComponentPathKey, THREE.Mesh>();
   // T28: per-partPath geometry cache. Callers register geometry for each unique
@@ -140,6 +146,46 @@ export class SceneManager {
     this.partGeometryHash = h;
     // T29: a fresh part geometry replaces any previous panel; rebuild bands.
     this.rebuildEdgeBandOverlays();
+    this.maybeFrameToModel();
+  }
+
+  /** Arm a one-shot camera fit-to-model on the next mesh upload. */
+  requestFrameOnNextMesh(): void {
+    this.frameOnNextMesh = true;
+  }
+
+  private maybeFrameToModel(): void {
+    if (!this.frameOnNextMesh) return;
+    if (this.frameToModel()) this.frameOnNextMesh = false;
+  }
+
+  /**
+   * Frame the camera to the current renderable geometry (part mesh + visible
+   * component meshes), preserving the current view direction and deriving
+   * near/far from the model size. Returns false (leaving any pending request
+   * armed) when there is no geometry yet to measure.
+   */
+  frameToModel(): boolean {
+    this.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    let has = false;
+    if (this.current) { box.expandByObject(this.current); has = true; }
+    for (const mesh of this.componentMeshes.values()) {
+      if (!mesh.visible) continue;
+      box.expandByObject(mesh);
+      has = true;
+    }
+    if (!has || box.isEmpty()) return false;
+
+    const dir = this.camera.position.clone().sub(this.controls.target);
+    const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, dir);
+    this.camera.position.copy(frame.position);
+    this.camera.near = frame.near;
+    this.camera.far = frame.far;
+    this.camera.updateProjectionMatrix();
+    this.controls.target.copy(frame.target);
+    this.controls.update();
+    return true;
   }
 
   geometryHash(): string {
@@ -312,6 +358,7 @@ export class SceneManager {
     }
     // T29: assembly rebuilds may have replaced panel geometry; rebuild bands.
     this.rebuildEdgeBandOverlays();
+    this.maybeFrameToModel();
   }
 
   /**
