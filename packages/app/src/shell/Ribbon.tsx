@@ -11,7 +11,7 @@ import { AssemblyTab } from './tabs/AssemblyTab';
 import { useAppStore } from '../store/useAppStore';
 import type { PartInfo } from '@zilventor/shared';
 
-const PART_TABS     = ['File', 'Model', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
+const PART_TABS     = ['File', 'Model',    'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 const ASSEMBLY_TABS = ['File', 'Assembly', 'Sketch', 'Furniture', 'Inspect', 'Drawing', 'View'] as const;
 const DRAWING_TABS  = ['File', 'Drawing',  'View'] as const;
 
