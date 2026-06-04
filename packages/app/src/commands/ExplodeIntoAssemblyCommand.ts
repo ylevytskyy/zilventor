@@ -1,0 +1,161 @@
+import type { Command } from './Command';
+import type { KernelApi } from '@zilventor/kernel/src/api';
+import type { AssemblyDocument, ComponentInstance, ImportedFeature } from '@zilventor/shared';
+import { useAppStore, type ActiveDocument } from '../store/useAppStore';
+import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
+import type { OpfsLike } from './ImportStepAsComponentCommand';
+
+export type ExplodeIntoAssemblyOpts = {
+  kernel: Pick<KernelApi, 'splitImportedShape' | 'registerPart' | 'saveToBytes' | 'deletePart'>;
+  opfs: OpfsLike;
+};
+
+/**
+ * Atomic command: convert the active imported PART into an ASSEMBLY.
+ * Calls kernel.splitImportedShape on the part's bodyRef → gets N solids + optional surfaces blob.
+ * Creates one PartDocument + OPFS archive per solid, plus one for surfaces if non-null.
+ * Builds an AssemblyDocument with all components at identity pose (native STEP coords).
+ *
+ * Undo: restores the prior active document; deletes all created parts from kernel + OPFS.
+ *
+ * Redo: re-runs splitImportedShape (no redoState optimisation like ImportStepAsComponentCommand);
+ * relies on the original imported blob surviving in importedShapeCache (deletePart does NOT evict
+ * it), so redo works correctly but does re-run OCCT split.
+ */
+export class ExplodeIntoAssemblyCommand implements Command {
+  readonly name = 'ExplodeIntoAssembly';
+
+  private priorActiveDocument: ActiveDocument | null = null;
+  private createdPartIds: string[] = [];
+  private createdPartPaths: string[] = [];
+
+  constructor(private readonly opts: ExplodeIntoAssemblyOpts) {}
+
+  async apply(): Promise<void> {
+    const { kernel, opfs } = this.opts;
+    const state = useAppStore.getState();
+
+    // Guard: must have an active part
+    if (!state.activePart || state.activeDocument?.kind !== 'part') {
+      throw new Error('ExplodeIntoAssembly: no active imported part');
+    }
+
+    const part = state.activePart;
+
+    // Guard: active part must have an imported feature
+    const importedFeature = part.featureTree.find(
+      (f): f is ImportedFeature => f.kind === 'imported',
+    );
+    if (!importedFeature) {
+      throw new Error('ExplodeIntoAssembly: no imported feature on active part');
+    }
+
+    // Save prior state for revert
+    this.priorActiveDocument = state.activeDocument;
+    this.createdPartIds = [];
+    this.createdPartPaths = [];
+
+    const base = part.name;
+    const sourceStep = importedFeature.sourceStep;
+
+    // Split the imported shape into solids + optional surfaces blob
+    const { solids, surfaces } = await kernel.splitImportedShape(importedFeature.bodyRef);
+
+    // Build parts for each solid
+    const components: ComponentInstance[] = [];
+
+    try {
+      for (let i = 0; i < solids.length; i++) {
+        const solid = solids[i]!;
+        const name = `${base}_${i + 1}`;
+        const partPath = `${name}.zipt`;
+        const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep);
+        await kernel.registerPart(partDoc);
+        const bytes = await kernel.saveToBytes(partDoc.id);
+        await opfs.write(partPath, bytes);
+        this.createdPartIds.push(partDoc.id);
+        this.createdPartPaths.push(partPath);
+        components.push(makeOriginInstance(partPath));
+      }
+
+      // Surfaces component (if present)
+      if (surfaces !== null) {
+        const name = `${base}_surfaces`;
+        const partPath = `${name}.zipt`;
+        const partDoc = buildImportedPartDocument(name, surfaces.brepBlobId, sourceStep);
+        await kernel.registerPart(partDoc);
+        const bytes = await kernel.saveToBytes(partDoc.id);
+        await opfs.write(partPath, bytes);
+        this.createdPartIds.push(partDoc.id);
+        this.createdPartPaths.push(partPath);
+        components.push(makeOriginInstance(partPath));
+      }
+    } catch (err) {
+      // Atomic abort: clean up everything created so far
+      for (const partId of this.createdPartIds) {
+        try { await kernel.deletePart(partId); } catch { /* best-effort */ }
+      }
+      for (const partPath of this.createdPartPaths) {
+        try { await opfs.delete(partPath); } catch { /* best-effort */ }
+      }
+      this.createdPartIds = [];
+      this.createdPartPaths = [];
+      this.priorActiveDocument = null;
+      throw err;
+    }
+
+    // Build the assembly document
+    const assembly: AssemblyDocument = {
+      id: crypto.randomUUID(),
+      name: base,
+      units: 'mm',
+      parameters: {},
+      components,
+      constraints: [],
+      groundedComponentPaths: [],
+      colors: {},
+      bomItemNumbers: {},
+      cutListItemNumbers: {},
+      colorOverrides: {},
+      properties: {},
+      materials: [],
+      hardware: [],
+    };
+
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: assembly });
+    useAppStore.getState().setStatus(
+      `Exploded "${base}" into ${components.length} component${components.length !== 1 ? 's' : ''}`,
+    );
+  }
+
+  async revert(): Promise<void> {
+    const { kernel, opfs } = this.opts;
+
+    // Restore prior active document
+    useAppStore.getState().setActiveDocument(this.priorActiveDocument);
+
+    // Delete all created parts from kernel + OPFS (best-effort)
+    for (const partId of this.createdPartIds) {
+      try { await kernel.deletePart(partId); } catch { /* best-effort */ }
+    }
+    for (const partPath of this.createdPartPaths) {
+      try { await opfs.delete(partPath); } catch { /* best-effort */ }
+    }
+
+    this.createdPartIds = [];
+    this.createdPartPaths = [];
+    this.priorActiveDocument = null;
+  }
+}
+
+// ---------- helpers ----------------------------------------------------------
+
+function makeOriginInstance(partPath: string): ComponentInstance {
+  return {
+    id: `comp-${crypto.randomUUID()}`,
+    partPath,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { rx: 0, ry: 0, rz: 0 },
+    visible: true,
+  };
+}
