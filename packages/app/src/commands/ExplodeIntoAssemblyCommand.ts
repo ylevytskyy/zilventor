@@ -3,6 +3,7 @@ import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { AssemblyDocument, ComponentInstance, ImportedFeature } from '@zilventor/shared';
 import { useAppStore, type ActiveDocument } from '../store/useAppStore';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
+import { dedupeName } from '../import/dedupeName';
 import type { OpfsLike } from './ImportStepAsComponentCommand';
 
 export type ExplodeIntoAssemblyOpts = {
@@ -61,13 +62,28 @@ export class ExplodeIntoAssemblyCommand implements Command {
     // Split the imported shape into solids + optional surfaces blob
     const { solids, surfaces } = await kernel.splitImportedShape(importedFeature.bodyRef);
 
+    // Collect existing OPFS names (without .zipt) to avoid collisions
+    const existing = (await opfs.listAll())
+      .filter((p) => p.endsWith('.zipt'))
+      .map((p) => p.replace(/\.zipt$/, ''));
+    // Track names allocated in this run to avoid intra-batch collisions
+    const allocatedNames: string[] = [];
+
+    /** Deduped helper: resolve a candidate name against OPFS + already-allocated names */
+    function resolveName(candidate: string): string {
+      return dedupeName(candidate, [...existing, ...allocatedNames]);
+    }
+
     // Build parts for each solid
     const components: ComponentInstance[] = [];
 
     try {
       for (let i = 0; i < solids.length; i++) {
         const solid = solids[i]!;
-        const name = `${base}_${i + 1}`;
+        // N===1: bare base name; N>1: base_1..N (aligned with importStepIntoNewParts)
+        const candidate = solids.length === 1 ? base : `${base}_${i + 1}`;
+        const name = resolveName(candidate);
+        allocatedNames.push(name);
         const partPath = `${name}.zipt`;
         const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep);
         await kernel.registerPart(partDoc);
@@ -78,9 +94,11 @@ export class ExplodeIntoAssemblyCommand implements Command {
         components.push(makeOriginInstance(partPath));
       }
 
-      // Surfaces component (if present)
+      // Surfaces component (if present) — always <base>_surfaces, deduped
       if (surfaces !== null) {
-        const name = `${base}_surfaces`;
+        const candidate = `${base}_surfaces`;
+        const name = resolveName(candidate);
+        allocatedNames.push(name);
         const partPath = `${name}.zipt`;
         const partDoc = buildImportedPartDocument(name, surfaces.brepBlobId, sourceStep);
         await kernel.registerPart(partDoc);

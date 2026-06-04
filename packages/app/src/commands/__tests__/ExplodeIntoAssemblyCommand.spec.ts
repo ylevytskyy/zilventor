@@ -298,6 +298,85 @@ describe('ExplodeIntoAssemblyCommand — atomic abort', () => {
   });
 });
 
+// ---------- tests: single-solid naming (Issue 2) -----------------------------
+
+describe('ExplodeIntoAssemblyCommand — single solid, no surfaces (bare name)', () => {
+  it('apply: single solid uses bare base name (no _1 suffix)', async () => {
+    const kernel = makeKernel({
+      solids: [{ brepBlobId: 'solid-blob-only', boundingBox: [0, 0, 0, 10, 10, 10] }],
+      surfaces: null,
+    });
+    const opfs = new MemOpfs();
+    const part = makeImportedPart('Widget', 'body-ref-widget', 'Widget.step');
+    useAppStore.getState().setActivePart(part);
+
+    const cmd = new ExplodeIntoAssemblyCommand({ kernel: kernel as any, opfs: opfs as any });
+    await cmd.apply();
+
+    const { activeDocument } = useAppStore.getState();
+    if (activeDocument?.kind !== 'assembly') throw new Error('guard');
+    expect(activeDocument.document.components).toHaveLength(1);
+    expect(activeDocument.document.components[0]!.partPath).toBe('Widget.zipt');
+  });
+});
+
+describe('ExplodeIntoAssemblyCommand — single solid + surfaces', () => {
+  it('apply: single solid uses bare base name; surfaces uses <base>_surfaces', async () => {
+    const kernel = makeKernel({
+      solids: [{ brepBlobId: 'solid-blob-only', boundingBox: [0, 0, 0, 10, 10, 10] }],
+      surfaces: { brepBlobId: 'surf-blob', boundingBox: [0, 0, 0, 100, 100, 5] },
+    });
+    const opfs = new MemOpfs();
+    const part = makeImportedPart('Bracket', 'body-ref-bracket', 'Bracket.step');
+    useAppStore.getState().setActivePart(part);
+
+    const cmd = new ExplodeIntoAssemblyCommand({ kernel: kernel as any, opfs: opfs as any });
+    await cmd.apply();
+
+    const { activeDocument } = useAppStore.getState();
+    if (activeDocument?.kind !== 'assembly') throw new Error('guard');
+    const paths = activeDocument.document.components.map(c => c.partPath).sort();
+    expect(paths).toEqual(['Bracket.zipt', 'Bracket_surfaces.zipt']);
+  });
+});
+
+describe('ExplodeIntoAssemblyCommand — OPFS dedupe collision (Issue 1)', () => {
+  it('apply: dedupes when OPFS already has a file with the same name', async () => {
+    const kernel = makeKernel({
+      solids: [
+        { brepBlobId: 'solid-blob-1', boundingBox: [0, 0, 0, 10, 10, 10] },
+        { brepBlobId: 'solid-blob-2', boundingBox: [20, 0, 0, 30, 10, 10] },
+      ],
+      surfaces: null,
+    });
+    // Pre-populate OPFS: Predator_1.zipt already exists
+    const opfs = new MemOpfs();
+    await opfs.write('Predator_1.zipt', new Uint8Array([9, 9, 9]));
+
+    const part = makeImportedPart('Predator', 'body-ref-abc', 'Predator.step');
+    useAppStore.getState().setActivePart(part);
+
+    const cmd = new ExplodeIntoAssemblyCommand({ kernel: kernel as any, opfs: opfs as any });
+    await cmd.apply();
+
+    const { activeDocument } = useAppStore.getState();
+    if (activeDocument?.kind !== 'assembly') throw new Error('guard');
+    const paths = activeDocument.document.components.map(c => c.partPath);
+
+    // The pre-existing file must not be overwritten
+    const preExistingBytes = await opfs.read('Predator_1.zipt');
+    expect(preExistingBytes).toEqual(new Uint8Array([9, 9, 9]));
+
+    // The new solid's path must differ from 'Predator_1.zipt'
+    // dedupeName produces 'Predator_1 (2)' for the collision
+    expect(paths).not.toContain('Predator_1.zipt');
+    expect(paths.some(p => p !== 'Predator_1.zipt' && p !== 'Predator_2.zipt')).toBe(true);
+    // Specifically: first solid collides → 'Predator_1 (2)', second solid → 'Predator_2'
+    expect(paths).toContain('Predator_1 (2).zipt');
+    expect(paths).toContain('Predator_2.zipt');
+  });
+});
+
 // ---------- tests: guard throws ----------------------------------------------
 
 describe('ExplodeIntoAssemblyCommand — guard throws', () => {
