@@ -15,12 +15,11 @@ const makeDrawing = (): DrawingDocument =>
 beforeEach(() => useAppStore.getState().setActiveDocument(null));
 
 describe('Ribbon tab sets by document kind', () => {
-  it('part mode shows Model tab and Assembly tab (Explode button lives there)', () => {
+  it('part mode shows Model tab, not Assembly or Drawing-only set', () => {
     useAppStore.getState().setActiveDocument({ kind: 'part', document: makePart() });
     render(<Ribbon />);
     expect(screen.getByRole('tab', { name: 'Model' })).toBeTruthy();
-    // Assembly tab must be visible in part mode so "Explode into Assembly" is reachable.
-    expect(screen.getByRole('tab', { name: 'Assembly' })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Assembly' })).toBeNull();
   });
 
   it('assembly mode shows Assembly tab, not Model', () => {

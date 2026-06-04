@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AssemblyTab } from '../AssemblyTab';
 import { useAppStore } from '../../../store/useAppStore';
-import type { AssemblyDocument, PartDocument } from '@zilventor/shared';
+import type { AssemblyDocument } from '@zilventor/shared';
 
 vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
   ImportStepAsComponentCommand: vi.fn().mockImplementation(() => ({
@@ -12,15 +12,6 @@ vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
   })),
 }));
 import { ImportStepAsComponentCommand } from '../../../commands/ImportStepAsComponentCommand';
-
-vi.mock('../../../commands/ExplodeIntoAssemblyCommand', () => ({
-  ExplodeIntoAssemblyCommand: vi.fn().mockImplementation(() => ({
-    name: 'ExplodeIntoAssembly',
-    apply: vi.fn().mockResolvedValue(undefined),
-    revert: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-import { ExplodeIntoAssemblyCommand } from '../../../commands/ExplodeIntoAssemblyCommand';
 
 vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   Opfs: { forNavigator: vi.fn().mockResolvedValue({}) },
@@ -255,66 +246,3 @@ describe('AssemblyTab — Insert From STEP… ZIP branch', () => {
   });
 });
 
-function makeImportedPartDoc(id: string): PartDocument {
-  return {
-    id,
-    name: id,
-    units: 'mm',
-    parameters: {},
-    properties: {},
-    materials: [],
-    featureTree: [
-      { kind: 'imported', id: 'imp1', sourceStep: 'model.step', bodyRef: 'ref-abc' },
-    ],
-  };
-}
-
-function makeParametricPartDoc(id: string): PartDocument {
-  return {
-    id,
-    name: id,
-    units: 'mm',
-    parameters: {},
-    properties: {},
-    materials: [],
-    featureTree: [],
-  };
-}
-
-describe('Explode into Assembly button', () => {
-  beforeEach(() => {
-    vi.mocked(ExplodeIntoAssemblyCommand).mockClear();
-    useAppStore.getState().setActiveDocument(null);
-  });
-
-  it('is disabled when no active document', () => {
-    render(<AssemblyTab />);
-    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
-  });
-
-  it('is disabled when active document is an assembly', () => {
-    const asm: AssemblyDocument = {
-      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
-      components: [], constraints: [], groundedComponentPaths: [],
-      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
-      materials: [], hardware: [],
-    };
-    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
-    render(<AssemblyTab />);
-    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
-  });
-
-  it('is enabled when active document is an imported part', () => {
-    const part = makeImportedPartDoc('P1');
-    useAppStore.getState().setActivePart(part);
-    render(<AssemblyTab />);
-    expect(screen.getByRole('button', { name: /explode into assembly/i })).not.toBeDisabled();
-  });
-
-  it('is disabled when active part has no imported feature (parametric/sketch part)', () => {
-    const part = makeParametricPartDoc('P2');
-    useAppStore.getState().setActivePart(part);
-    render(<AssemblyTab />);
-    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
-  });
-});

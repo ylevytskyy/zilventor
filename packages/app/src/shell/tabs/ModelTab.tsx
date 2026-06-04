@@ -30,6 +30,25 @@ export default function ModelTab() {
     ? 'This part was imported from Inventor and is read-only. Re-author parametrically by creating a new part.'
     : undefined;
 
+  const isExplodable = useAppStore((s) =>
+    s.activeDocument?.kind === 'part' &&
+    (s.activePart?.featureTree.some((f) => f.kind === 'imported') ?? false)
+  );
+
+  const handleExplode = async () => {
+    const { kernel, bus } = useAppStore.getState();
+    if (!kernel) return;
+    try {
+      const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+      const opfs = await Opfs.forNavigator();
+      const { ExplodeIntoAssemblyCommand } = await import('../../commands/ExplodeIntoAssemblyCommand');
+      await bus.execute(new ExplodeIntoAssemblyCommand({ kernel, opfs }));
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      useAppStore.getState().setStatus(`Explode failed: ${(e as Error).message}`);
+    }
+  };
+
   const handleExtrudeCommit = async (v: ExtrudeDialogValue) => {
     const { kernel, bus, activePart: part, setActivePart } = useAppStore.getState();
     if (!kernel || !part) return;
@@ -67,6 +86,14 @@ export default function ModelTab() {
           title={readOnly ? readOnlyTip : 'Sweep (W)'}
         >
           Sweep
+        </button>
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label="Explode into Assembly"
+          disabled={!isExplodable}
+          onClick={() => { void handleExplode(); }}
+        >
+          Explode into Assembly
         </button>
       </RibbonPanel>
       <RibbonPanel title="Work Features">

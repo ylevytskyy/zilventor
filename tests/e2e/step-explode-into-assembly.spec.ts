@@ -1,6 +1,6 @@
 /**
  * E2E (Task 8 capstone): Open a multi-body STEP in part-mode → drive the real
- * "Explode into Assembly" button on the Assembly tab → assert 2 components at
+ * "Explode into Assembly" button on the Model tab → assert 2 components at
  * identity pose → undo → assert part restored.
  *
  * This test drives the REAL UI (showOpenFilePicker override + button click)
@@ -75,8 +75,8 @@ test(
     expect(partState.partName).toBe('two-bodies');
     expect(partState.hasImported).toBe(true);
 
-    // ── 4. Switch to Assembly tab ────────────────────────────────────────────
-    await page.getByRole('tab', { name: /assembly/i }).click();
+    // ── 4. Switch to Model tab (Explode button lives here, not Assembly tab) ─
+    await page.getByRole('tab', { name: /^model$/i }).click();
 
     // ── 5. Assert "Explode into Assembly" button is enabled ──────────────────
     const explodeBtn = page.getByRole('button', { name: /explode into assembly/i });

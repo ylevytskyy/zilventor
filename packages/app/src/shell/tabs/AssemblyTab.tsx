@@ -29,25 +29,6 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   const selectedConstraint = activeAssembly?.constraints.find((c) => c.id === selectedConstraintId) ?? null;
   const isSuppressed = selectedConstraint?.suppressed ?? false;
 
-  const isImportedPart = useAppStore((s) =>
-    s.activeDocument?.kind === 'part' &&
-    (s.activePart?.featureTree.some((f) => f.kind === 'imported') ?? false)
-  );
-
-  const handleExplode = async () => {
-    const { kernel, bus } = useAppStore.getState();
-    if (!kernel) return;
-    try {
-      const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
-      const opfs = await Opfs.forNavigator();
-      const { ExplodeIntoAssemblyCommand } = await import('../../commands/ExplodeIntoAssemblyCommand');
-      await bus.execute(new ExplodeIntoAssemblyCommand({ kernel, opfs }));
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return;
-      useAppStore.getState().setStatus(`Explode failed: ${(e as Error).message}`);
-    }
-  };
-
   const handleInsertFromStep = async () => {
     const { kernel, bus } = useAppStore.getState();
     if (!kernel) return;
@@ -108,14 +89,6 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           style={btn}
         >
           Insert From STEP…
-        </button>
-        <button
-          aria-label="Explode into Assembly"
-          disabled={!isImportedPart}
-          onClick={handleExplode}
-          style={btn}
-        >
-          Explode into Assembly
         </button>
         <button
           aria-label="Edit"

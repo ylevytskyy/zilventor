@@ -1,8 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import ModelTab from '../ModelTab';
 import { useAppStore } from '../../../store/useAppStore';
-import type { PartDocument, Feature } from '@zilventor/shared';
+import type { PartDocument, AssemblyDocument, Feature } from '@zilventor/shared';
+
+vi.mock('../../../commands/ExplodeIntoAssemblyCommand', () => ({
+  ExplodeIntoAssemblyCommand: vi.fn().mockImplementation(() => ({
+    name: 'ExplodeIntoAssembly',
+    apply: vi.fn().mockResolvedValue(undefined),
+    revert: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+import { ExplodeIntoAssemblyCommand } from '../../../commands/ExplodeIntoAssemblyCommand';
+
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
+  Opfs: { forNavigator: vi.fn().mockResolvedValue({}) },
+}));
 
 const ORIGIN_FEATURES: Feature[] = [
   { kind: 'workAxis', id: 'origin.X', visible: false, source: { mode: 'origin', axis: 'X' } },
@@ -103,5 +116,42 @@ describe('ModelTab read-only enforcement', () => {
     useAppStore.setState({ activePart: parametricPart });
     render(<ModelTab />);
     expect(screen.getByRole('button', { name: 'Extrude' })).not.toBeDisabled();
+  });
+});
+
+describe('ModelTab — Explode into Assembly button', () => {
+  beforeEach(() => {
+    vi.mocked(ExplodeIntoAssemblyCommand).mockClear();
+    cleanup();
+    useAppStore.setState({ activePart: null, activeDocument: null });
+  });
+
+  it('is disabled when no active document', () => {
+    render(<ModelTab />);
+    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
+  });
+
+  it('is disabled when active document is an assembly', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
+      components: [], constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<ModelTab />);
+    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
+  });
+
+  it('is enabled when active document is an imported part', () => {
+    useAppStore.getState().setActivePart(importedPart);
+    render(<ModelTab />);
+    expect(screen.getByRole('button', { name: /explode into assembly/i })).not.toBeDisabled();
+  });
+
+  it('is disabled when active part has no imported feature (parametric/sketch part)', () => {
+    useAppStore.getState().setActivePart(parametricPart);
+    render(<ModelTab />);
+    expect(screen.getByRole('button', { name: /explode into assembly/i })).toBeDisabled();
   });
 });
