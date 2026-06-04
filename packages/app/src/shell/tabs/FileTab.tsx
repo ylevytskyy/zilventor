@@ -139,45 +139,18 @@ export default function FileTab() {
             const cmd = new ImportStepAsComponentCommand({ stepBytes, fileName: file.name, kernel, opfs });
             await bus.execute(cmd);
           } else {
-            // Part-mode: no active assembly.
-            // Peek solidCount via importStep (one parse). Single-body reuses that
-            // result directly — no second parse, no orphaned shape in importedShapeCache.
-            // Multi-body falls through to extractStepSolids (second parse accepted;
-            // multi-body part-mode is rare and user is told "first body of N").
+            // Part-mode: import the whole compound shape (all solids + non-solid geometry).
+            // Use the Explode-into-Assembly command if individual bodies are needed.
             const stepBytes = await file.arrayBuffer();
             const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
             const { stepFilenameBasename } = await import('../../import/originFeatures');
             const baseName = stepFilenameBasename(file.name);
             const importResult = await kernel.importStep({ stepBytes, partName: baseName });
-            if (importResult.solidCount <= 1) {
-              // Single-body: build PartDocument from the importStep result directly.
-              const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
-              await kernel.registerPart(part);
-              stopTicker();
-              setActivePart(part);
-              setStatus('Imported');
-              return;
-            }
-            // Multi-body in part-mode: extractStepSolids for proper per-solid blobs.
-            // (The importStep result above is now orphaned — the accepted trade-off
-            // for this rare path.)
-            const solids = await kernel.extractStepSolids({ stepBytes });
-            if (solids.length === 0) {
-              stopTicker();
-              setStatus(`No solids in ${file.name}`);
-              return;
-            }
-            const firstSolid = solids[0];
-            if (!firstSolid) {
-              stopTicker();
-              setStatus(`No solids in ${file.name}`);
-              return;
-            }
-            const part = buildImportedPartDocument(`${baseName}_1`, firstSolid.brepBlobId, file.name);
+            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
             await kernel.registerPart(part);
             stopTicker();
             setActivePart(part);
-            setStatus(`Imported first body of ${solids.length} from ${file.name}`);
+            setStatus('Imported');
           }
         } finally {
           stopTicker();

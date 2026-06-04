@@ -333,7 +333,7 @@ describe('handleOpen — ZIP branch', () => {
   });
 });
 
-describe('handleOpen — STEP part-mode multi-body branch', () => {
+describe('handleOpen — STEP part-mode always imports the whole compound', () => {
   function makeFakeStepHandle(name: string) {
     const fakeFile = { name, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
     return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
@@ -345,21 +345,16 @@ describe('handleOpen — STEP part-mode multi-body branch', () => {
     vi.mocked(ImportStepAsComponentCommand).mockClear();
   });
 
-  it('multi-body STEP in part-mode registers only the first sub-solid and emits setStatus', async () => {
+  it('multi-body STEP in part-mode imports the whole compound (no extractStepSolids, no _1 suffix)', async () => {
     const registerPart = vi.fn(async () => {});
-    // importStep returns solidCount=3 → triggers extractStepSolids path
     const importStep = vi.fn(async () => ({
-      brepBlobId: 'blob-peek',
+      brepBlobId: 'blob-compound',
       triangleCount: 36,
       boundingBox: [0, 0, 0, 50, 10, 10] as [number, number, number, number, number, number],
       faceCount: 18,
       solidCount: 3,
     }));
-    const extractStepSolids = vi.fn(async () => [
-      { brepBlobId: 'b1', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number] },
-      { brepBlobId: 'b2', boundingBox: [20, 0, 0, 30, 10, 10] as [number, number, number, number, number, number] },
-      { brepBlobId: 'b3', boundingBox: [40, 0, 0, 50, 10, 10] as [number, number, number, number, number, number] },
-    ]);
+    const extractStepSolids = vi.fn();
 
     useAppStore.setState((s) => ({
       ...s,
@@ -375,13 +370,43 @@ describe('handleOpen — STEP part-mode multi-body branch', () => {
       expect(registerPart).toHaveBeenCalledTimes(1);
     });
 
-    // importStep called once (peek), extractStepSolids called once (multi-body fallback)
+    // Whole-compound path: importStep called once, extractStepSolids NEVER called.
     expect(importStep).toHaveBeenCalledTimes(1);
-    expect(extractStepSolids).toHaveBeenCalledTimes(1);
+    expect(extractStepSolids).not.toHaveBeenCalled();
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
-    const statusMsg = useAppStore.getState().statusMessage;
-    expect(statusMsg).toContain('first body of 3');
-    expect(statusMsg).toContain('gizmo.step');
+    // Name has no _1 suffix; status is plain 'Imported'.
+    expect(useAppStore.getState().activePart?.name).toBe('gizmo');
+    expect(useAppStore.getState().statusMessage).toBe('Imported');
+  });
+
+  it('single-body STEP in part-mode imports the whole compound', async () => {
+    const registerPart = vi.fn(async () => {});
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'blob-single',
+      triangleCount: 12,
+      boundingBox: [-50, -10, -10, 50, 10, 10] as [number, number, number, number, number, number],
+      faceCount: 6,
+      solidCount: 1,
+    }));
+    const extractStepSolids = vi.fn();
+
+    useAppStore.setState((s) => ({
+      ...s,
+      kernel: { importStep, extractStepSolids, registerPart } as any,
+    }));
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('Predator.step')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+    await waitFor(() => { expect(registerPart).toHaveBeenCalledOnce(); });
+
+    expect(importStep).toHaveBeenCalledOnce();
+    expect(extractStepSolids).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+    // Bare basename, no _1 suffix; status is plain 'Imported'.
+    expect(useAppStore.getState().activePart?.name).toBe('Predator');
+    expect(useAppStore.getState().statusMessage).toBe('Imported');
   });
 });
 
