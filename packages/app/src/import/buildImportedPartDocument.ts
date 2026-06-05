@@ -10,12 +10,14 @@ import { ORIGIN_FEATURES } from './originFeatures';
  * @param brepBlobId The blob ref returned by kernel.importStep.
  * @param fileName   Original STEP filename (stored in ImportedFeature.sourceStep).
  * @param partId     Optional explicit UUID; one is generated if omitted.
+ * @param color      Optional per-body color (#rrggbb) from STEP XCAF data.
  */
 export function buildImportedPartDocument(
   partName: string,
   brepBlobId: string,
   fileName: string,
   partId?: string,
+  color?: string,
 ): PartDocument {
   const id = partId ?? crypto.randomUUID();
   const importedFeature: ImportedFeature = {
@@ -23,6 +25,7 @@ export function buildImportedPartDocument(
     id: crypto.randomUUID(),
     sourceStep: fileName,
     bodyRef: brepBlobId,
+    ...(color ? { color } : {}),
   };
   return {
     id,
@@ -33,5 +36,6 @@ export function buildImportedPartDocument(
     properties: {},
     materials: [],
     hardware: [],
+    ...(color ? { color: { kind: 'hex', hex: color } as const } : {}),
   };
 }
