@@ -38,6 +38,8 @@ export type ImportedFeature = {
   /** Blob id of the cached B-rep body. The kernel keeps a runtime
    *  cache keyed by this id; ProjectPacker (un)packs it on save/load. */
   bodyRef: string;
+  /** Per-body color (#rrggbb) read from the STEP XCAF data, if any. */
+  color?: string;
 };
 
 export type Feature =
@@ -74,6 +76,10 @@ export type PartDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  /** Intrinsic part color (e.g. from STEP import). Default render color in
+   *  part view; seeds ComponentInstance.color on explode/insert. User
+   *  colorOverrides still win. */
+  color?: ComponentColor;
 };
 
 export type ComponentColor =
