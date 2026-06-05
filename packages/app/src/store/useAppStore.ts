@@ -130,6 +130,10 @@ type AppState = {
   activeDrawingSourceDocument: PartDocument | AssemblyDocument | null;
   kernelReady: boolean;
   statusMessage: string;
+  /** Non-null while a File→Open is in progress; drives the blocking FileOpenOverlay. */
+  fileOpen: { fileName: string; startedAtMs: number } | null;
+  /** Monotonic token; bumped on each open start and on cancel to invalidate stale opens. */
+  fileOpenSeq: number;
   selectedFeatureId: string | null;
   viewport: ViewportRef | null;
   sketchMode: boolean;
@@ -206,6 +210,9 @@ type AppState = {
     detailViewId: string,
     region: import('@zilventor/shared').RegionParent,
   ): void;
+  beginFileOpen(fileName: string): number;
+  endFileOpen(token: number): void;
+  cancelFileOpen(): void;
   setStatus(msg: string): void;
   setSelectedFeature(id: string | null): void;
   setViewport(v: ViewportRef | null): void;
@@ -370,6 +377,8 @@ export const useAppStore = create<AppState>((set) => ({
   activeDrawingSourceDocument: null,
   kernelReady: false,
   statusMessage: 'Loading…',
+  fileOpen: null,
+  fileOpenSeq: 0,
   selectedFeatureId: null,
   viewport: null,
   sketchMode: false,
@@ -424,6 +433,16 @@ export const useAppStore = create<AppState>((set) => ({
     activePart: p,
     activeAssembly: null,
   }),
+  beginFileOpen: (fileName) => {
+    let token = 0;
+    set((s) => {
+      token = s.fileOpenSeq + 1;
+      return { fileOpenSeq: token, fileOpen: { fileName, startedAtMs: Date.now() } };
+    });
+    return token;
+  },
+  endFileOpen: (token) => set((s) => (s.fileOpenSeq === token ? { fileOpen: null } : {})),
+  cancelFileOpen: () => set((s) => ({ fileOpenSeq: s.fileOpenSeq + 1, fileOpen: null })),
   setStatus: (msg) => set({ statusMessage: msg }),
   setSelectedFeature: (id) => set({ selectedFeatureId: id }),
   setViewport: (v) => set({ viewport: v }),
