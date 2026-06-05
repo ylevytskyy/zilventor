@@ -1,8 +1,11 @@
 name: ci
 
 on:
-  push:
-  pull_request:
+  # CI auto-triggers temporarily disabled on request (2026-06-05).
+  # Re-enable by uncommenting the push/pull_request triggers below.
+  workflow_dispatch:
+  # push:
+  # pull_request:
 
 jobs:
   build:
