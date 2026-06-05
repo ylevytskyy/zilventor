@@ -1013,6 +1013,12 @@ export default function App() {
 
   // Bootstrap the kernel once.
   useEffect(() => {
+    // Mark this mount as live. The cleanup below flips unmountedRef to true;
+    // under React StrictMode's dev double-mount that cleanup runs before the
+    // second mount, so without this reset the ref would stay permanently true
+    // and handleRestart / handleCancelOpen would abort. Resetting here keeps
+    // the ref accurate per mount.
+    unmountedRef.current = false;
     let disposed = false;
     void (async () => {
       try {
