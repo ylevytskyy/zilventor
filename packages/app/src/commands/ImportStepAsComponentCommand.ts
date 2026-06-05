@@ -1,6 +1,6 @@
 import type { Command } from './Command';
 import type { KernelApi } from '@zilventor/kernel/src/api';
-import type { ComponentInstance, PartDocument } from '@zilventor/shared';
+import type { ComponentColor, ComponentInstance, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
 import { stepFilenameBasename } from '../import/originFeatures';
@@ -85,8 +85,10 @@ export class ImportStepAsComponentCommand implements Command {
       }
 
       if (this.wasAssemblyInsert) {
-        for (const partPath of this.placedPartPaths) {
-          const instance = makeOriginInstance(partPath);
+        for (let i = 0; i < this.placedPartPaths.length; i++) {
+          const partPath = this.placedPartPaths[i]!;
+          const part = this.placedParts[i];
+          const instance = makeOriginInstance(partPath, part?.color);
           useAppStore.getState().addComponent(instance);
           this.placedIds.push(instance.id);
         }
@@ -113,8 +115,10 @@ export class ImportStepAsComponentCommand implements Command {
     }
 
     if (this.wasAssemblyInsert) {
-      for (const partPath of this.placedPartPaths) {
-        const instance = makeOriginInstance(partPath);
+      for (let i = 0; i < this.placedPartPaths.length; i++) {
+        const partPath = this.placedPartPaths[i]!;
+        const part = this.placedParts[i];
+        const instance = makeOriginInstance(partPath, part?.color);
         useAppStore.getState().addComponent(instance);
         this.placedIds.push(instance.id);
       }
@@ -184,13 +188,14 @@ export class ImportStepAsComponentCommand implements Command {
 
 // ---------- helpers ----------------------------------------------------------
 
-function makeOriginInstance(partPath: string): ComponentInstance {
+function makeOriginInstance(partPath: string, color?: ComponentColor): ComponentInstance {
   return {
     id: `comp-${crypto.randomUUID()}`,
     partPath,
     position: { x: 0, y: 0, z: 0 },
     rotation: { rx: 0, ry: 0, rz: 0 },
     visible: true,
+    ...(color ? { color } : {}),
   };
 }
 

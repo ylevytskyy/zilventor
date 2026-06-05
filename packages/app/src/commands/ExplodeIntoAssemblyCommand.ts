@@ -1,6 +1,6 @@
 import type { Command } from './Command';
 import type { KernelApi } from '@zilventor/kernel/src/api';
-import type { AssemblyDocument, ComponentInstance, ImportedFeature } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentColor, ComponentInstance, ImportedFeature } from '@zilventor/shared';
 import { useAppStore, type ActiveDocument } from '../store/useAppStore';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
 import { dedupeName } from '../import/dedupeName';
@@ -85,13 +85,13 @@ export class ExplodeIntoAssemblyCommand implements Command {
         const name = resolveName(candidate);
         allocatedNames.push(name);
         const partPath = `${name}.zipt`;
-        const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep);
+        const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep, undefined, solid.color);
         await kernel.registerPart(partDoc);
         const bytes = await kernel.saveToBytes(partDoc.id);
         await opfs.write(partPath, bytes);
         this.createdPartIds.push(partDoc.id);
         this.createdPartPaths.push(partPath);
-        components.push(makeOriginInstance(partPath));
+        components.push(makeOriginInstance(partPath, partDoc.color));
       }
 
       // Surfaces component (if present) — always <base>_surfaces, deduped
@@ -168,12 +168,13 @@ export class ExplodeIntoAssemblyCommand implements Command {
 
 // ---------- helpers ----------------------------------------------------------
 
-function makeOriginInstance(partPath: string): ComponentInstance {
+function makeOriginInstance(partPath: string, color?: ComponentColor): ComponentInstance {
   return {
     id: `comp-${crypto.randomUUID()}`,
     partPath,
     position: { x: 0, y: 0, z: 0 },
     rotation: { rx: 0, ry: 0, rz: 0 },
     visible: true,
+    ...(color ? { color } : {}),
   };
 }
