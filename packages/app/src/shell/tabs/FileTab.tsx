@@ -9,6 +9,7 @@ import { saveBlob, pickFile, hasDirectoryPicker } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { startImportTicker } from '../../import/importTicker';
+import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidworksGuidance';
 
 export default function FileTab() {
   const activePart = useAppStore((s) => s.activePart);
@@ -88,9 +89,16 @@ export default function FileTab() {
         { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
         { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
         { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
+        { description: 'SolidWorks file', accept: { 'application/sldworks': ['.sldprt', '.sldasm'] } },
         { description: 'ZIP archive (with STEP inside)', accept: { 'application/zip': ['.zip'] } },
       ]);
       if (!file) return;
+
+      // SolidWorks native files can't be read directly — guide the user to STEP.
+      if (isSolidWorksNativeFile(file.name)) {
+        setErrorDialog(SOLIDWORKS_GUIDANCE);
+        return;
+      }
 
       token = beginFileOpen(file.name);
 

@@ -402,6 +402,50 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
   });
 });
 
+describe('handleOpen — SolidWorks native branch', () => {
+  function makeFakeHandle(name: string) {
+    const fakeFile = { name, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    vi.mocked(importStepIntoNewPart).mockClear();
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+  });
+
+  it('.sldprt → shows guidance dialog, dispatches nothing', async () => {
+    const importStep = vi.fn();
+    useAppStore.setState((s) => ({ ...s, kernel: { importStep } as any }));
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeHandle('bracket.SLDPRT')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/STEP/);
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/can't be opened directly/i);
+    expect(importStep).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+  });
+
+  it('.sldasm → shows guidance dialog', async () => {
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeHandle('chassis.sldasm')]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/Save As/i);
+  });
+});
+
 describe('Import from Inventor button — directory picker gating', () => {
   afterEach(() => {
     delete (window as any).showDirectoryPicker;
