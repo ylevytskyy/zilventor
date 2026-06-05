@@ -100,7 +100,7 @@ export type KernelApi = {
    * is not cached, or if the compound has zero geometry.
    */
   splitImportedShape(brepBlobId: string): Promise<{
-    solids: Array<{ brepBlobId: string; boundingBox: BoundingBox }>;
+    solids: Array<{ brepBlobId: string; boundingBox: BoundingBox; color?: string }>;
     surfaces: { brepBlobId: string; boundingBox: BoundingBox } | null;
   }>;
   /** Returns projection-ready triangles+edges+bbox for a part or assembly.
@@ -186,6 +186,9 @@ export function createKernelApi(): KernelApi {
    *  imported part). Read by the ImportedFeature evaluator (Task 8) and
    *  walked by `saveToBytes` to write blobs back into the .zipt. */
   const importedShapeCache = new Map<string, OcctShape>();
+  /** Per-import solid colors, keyed by the whole-compound brepBlobId returned
+   *  by importStep. Consumed by splitImportedShape (separate round-trip). */
+  const importedColorCache = new Map<string, (string | null)[]>();
 
   function updateNamedShapeCache(partId: string, ns: import('./occt/FaceNaming').NamedShape, wfs: import('@zilventor/shared').WorkFeatureValue[]): void {
     const prev = namedShapeCache.get(partId);
@@ -431,6 +434,7 @@ export function createKernelApi(): KernelApi {
       // caller reads it and the render mesh is recomputed by executeTree.
       const brepBlobId = `imp-${crypto.randomUUID()}`;
       registerImportedShape(brepBlobId, result.shape);
+      importedColorCache.set(brepBlobId, result.solidColors);
       return {
         brepBlobId,
         triangleCount: 0,
@@ -444,10 +448,11 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       const cached = importedShapeCache.get(brepBlobId);
       if (!cached) throw new Error(`splitImportedShape: brepBlobId '${brepBlobId}' not in importedShapeCache`);
-      const result = splitImportedShapeHelper(occt, cached);
+      const solidColors = importedColorCache.get(brepBlobId);
+      const result = splitImportedShapeHelper(occt, cached, solidColors);
       const solids = result.solids.map((s) => {
         registerImportedShape(s.brepBlobId, s.shape);
-        return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox };
+        return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox, ...(s.color ? { color: s.color } : {}) };
       });
       let surfaces: { brepBlobId: string; boundingBox: BoundingBox } | null = null;
       if (result.surfaces) {
