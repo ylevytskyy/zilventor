@@ -66,4 +66,25 @@ describe('startImportTicker', () => {
     vi.advanceTimersByTime(3000);
     expect(setStatus).toHaveBeenCalledTimes(callCount); // no extra calls
   });
+
+  it('keeps updating status while isCurrent stays true', () => {
+    const msgs: string[] = [];
+    const stop = startImportTicker((m) => msgs.push(m), () => true);
+    vi.advanceTimersByTime(2000);
+    stop();
+    // initial message + 2 ticks
+    expect(msgs.length).toBe(3);
+    expect(msgs[0]).toMatch(/Importing STEP/);
+  });
+
+  it('stops writing once isCurrent returns false', () => {
+    let current = true;
+    const msgs: string[] = [];
+    const stop = startImportTicker((m) => msgs.push(m), () => current);
+    vi.advanceTimersByTime(1000); // one tick written (length 2)
+    current = false;
+    vi.advanceTimersByTime(5000); // no further writes
+    stop();
+    expect(msgs.length).toBe(2);
+  });
 });
