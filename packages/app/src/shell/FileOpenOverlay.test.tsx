@@ -26,7 +26,7 @@ describe('FileOpenOverlay', () => {
     useAppStore.setState({ fileOpen: { fileName: 'a.step', startedAtMs: Date.now() } });
     render(<FileOpenOverlay onCancel={() => {}} />);
     expect(screen.getByTestId('file-open-elapsed').textContent).toContain('0s');
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => { vi.advanceTimersByTime(2000); });
     expect(screen.getByTestId('file-open-elapsed').textContent).toContain('2s');
   });
 
@@ -34,7 +34,7 @@ describe('FileOpenOverlay', () => {
     useAppStore.setState({ fileOpen: { fileName: 'a.step', startedAtMs: Date.now() } });
     render(<FileOpenOverlay onCancel={() => {}} />);
     expect(screen.queryByText(/take several minutes/i)).toBeNull();
-    act(() => vi.advanceTimersByTime(3000));
+    act(() => { vi.advanceTimersByTime(3000); });
     expect(screen.getByText(/take several minutes/i)).toBeTruthy();
   });
 
