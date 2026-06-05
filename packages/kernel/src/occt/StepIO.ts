@@ -7,6 +7,10 @@ export type StepReadResult = {
   faceCount: number;
   solidCount: number;
   boundingBox: BoundingBox;
+  /** Per-solid surface color as #rrggbb, index-aligned with the canonical
+   *  TopExp_Explorer_2(shape, SOLID, SHAPE) enumeration. null when the solid
+   *  carries no XCAF color. */
+  solidColors: (string | null)[];
 };
 
 /**
@@ -15,46 +19,172 @@ export type StepReadResult = {
  * caller decides how to surface them (1.5 wraps them as an ImportedFeature
  * with a single brep blob).
  *
+ * Uses STEPCAFControl_Reader with a TDocStd_Document (color mode on) so that
+ * per-solid XCAF colors are extracted in the same parse. solidColors is
+ * index-aligned with the canonical TopExp_Explorer_2(shape, SOLID, SHAPE)
+ * enumeration used by splitImportedShapeHelper.
+ *
  * Caller owns the returned `shape`; dispose via SolidOps.disposeShape.
  */
 export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResult {
-  // Write to OCCT's in-memory FS so the reader can consume it
   const tmpPath = `/_step_in_${Math.random().toString(36).slice(2, 10)}.step`;
   oc.FS.writeFile(tmpPath, new Uint8Array(stepBytes));
 
   let rawShape: unknown;
+  let solidColors: (string | null)[] = [];
+
   try {
-    const ReaderCtor = (oc as { STEPControl_Reader_1?: new () => unknown }).STEPControl_Reader_1
-      ?? (oc as { STEPControl_Reader?: new () => unknown }).STEPControl_Reader;
+    // --- XCAF document + CAF reader (color mode on) ---
+    const appHandle = (oc as {
+      XCAFApp_Application: { GetApplication(): { get(): { NewDocument_2(f: unknown, d: unknown): void } } }
+    }).XCAFApp_Application.GetApplication();
+
+    const TExtStr = (oc as { TCollection_ExtendedString_1: new () => unknown }).TCollection_ExtendedString_1;
+    const docHandle = new (oc as { Handle_TDocStd_Document_1: new () => unknown }).Handle_TDocStd_Document_1();
+    const tExtStr = new TExtStr();
+    appHandle.get().NewDocument_2(tExtStr, docHandle as unknown as { get(): { Main(): unknown } });
+    (tExtStr as { delete?(): void }).delete?.();
+
+    const ProgressRange = (oc as { Message_ProgressRange_1?: new () => unknown }).Message_ProgressRange_1
+      ?? (oc as { Message_ProgressRange?: new () => unknown }).Message_ProgressRange;
+    if (!ProgressRange) throw new Error('readStep: Message_ProgressRange binding not found');
+
+    const ReaderCtor = (oc as { STEPCAFControl_Reader_1?: new () => unknown }).STEPCAFControl_Reader_1
+      ?? (oc as { STEPCAFControl_Reader?: new () => unknown }).STEPCAFControl_Reader;
     if (!ReaderCtor) {
-      throw new Error('readStep: STEPControl_Reader binding not found in opencascade.js');
+      throw new Error('readStep: STEPCAFControl_Reader binding not found in opencascade.js');
     }
     const reader = new (ReaderCtor as new () => {
       ReadFile(p: string): unknown;
-      TransferRoots(progress: unknown): unknown;
-      OneShape(): { IsNull(): boolean };
-      delete?(): void;
+      SetColorMode(v: boolean): void;
+      Transfer_1(doc: unknown, progress: unknown): boolean;
+      delete(): void;
     })();
+    reader.SetColorMode(true);
+
     const status = reader.ReadFile(tmpPath);
-    // IFSelect_RetDone is the success status — its numeric value is implementation-defined
-    // across opencascade.js versions, so compare via the enum.
     const RetDone = (oc as { IFSelect_ReturnStatus?: { IFSelect_RetDone?: unknown } })
       .IFSelect_ReturnStatus?.IFSelect_RetDone;
     if (RetDone !== undefined && status !== RetDone) {
       throw new Error(`readStep: failed to parse STEP (IFSelect status=${String(status)})`);
     }
-    const ProgressRange = (oc as { Message_ProgressRange_1?: new () => unknown }).Message_ProgressRange_1
-      ?? (oc as { Message_ProgressRange?: new () => unknown }).Message_ProgressRange;
-    if (!ProgressRange) throw new Error('readStep: Message_ProgressRange binding not found');
-    reader.TransferRoots(new ProgressRange());
-    const shape = reader.OneShape();
-    if (shape.IsNull()) throw new Error('readStep: STEP produced an empty shape');
-    rawShape = shape;
-    if (typeof reader.delete === 'function') reader.delete();
+
+    const progressRange = new ProgressRange();
+    const ok = reader.Transfer_1(docHandle, progressRange);
+    (progressRange as { delete?(): void }).delete?.();
+    if (!ok) {
+      reader.delete();
+      throw new Error('readStep: STEPCAFControl_Reader.Transfer failed');
+    }
+    reader.delete();
+
+    const docObj = (docHandle as unknown as { get(): { Main(): unknown } }).get();
+    const mainLabel = docObj.Main();
+
+    const shapeTool = (oc as {
+      XCAFDoc_DocumentTool: {
+        ShapeTool(l: unknown): { get(): {
+          GetFreeShapes(roots: unknown): void;
+        } }
+      }
+    }).XCAFDoc_DocumentTool.ShapeTool(mainLabel).get();
+
+    const colorTool = (oc as {
+      XCAFDoc_DocumentTool: {
+        ColorTool(l: unknown): { get(): {
+          GetColor_4(label: unknown, type: unknown, color: unknown): boolean;
+        } }
+      }
+    }).XCAFDoc_DocumentTool.ColorTool(mainLabel).get();
+
+    const ColorType = (oc as { XCAFDoc_ColorType: { XCAFDoc_ColorSurf: unknown; XCAFDoc_ColorGen: unknown } }).XCAFDoc_ColorType;
+    const QColorCtor = (oc as { Quantity_Color_1: new () => { Red(): number; Green(): number; Blue(): number; delete?(): void } }).Quantity_Color_1;
+
+    // XCAFDoc_ShapeTool.GetShape_2 is a static method — access via oc class, not instance
+    const GetShapeStatic = (oc as {
+      XCAFDoc_ShapeTool: { GetShape_2(label: unknown): unknown }
+    }).XCAFDoc_ShapeTool.GetShape_2.bind((oc as { XCAFDoc_ShapeTool: unknown }).XCAFDoc_ShapeTool);
+
+    // OneShape equivalent: assemble all free shapes into one compound so the
+    // downstream geometry path is unchanged vs STEPControl_Reader.OneShape().
+    // At the same time, extract per-free-shape color from labels and map it to
+    // the solid sub-shapes via TopExp enumeration order.
+    //
+    // Strategy: for each free label (N roots), call GetColor_4 at label level
+    // (more reliable than shape-based lookup after compound assembly), then
+    // enumerate solids inside that label's shape to build the per-solid map.
+    const builder = new (oc as { BRep_Builder: new () => { MakeCompound(c: unknown): void; Add(c: unknown, s: unknown): void; delete(): void } }).BRep_Builder();
+    const comp = new (oc as { TopoDS_Compound: new () => unknown }).TopoDS_Compound();
+    builder.MakeCompound(comp);
+
+    const ExplorerCtor2 = (oc as { TopExp_Explorer_2: new (s: unknown, t: unknown, a: unknown) => { More(): boolean; Next(): void; Current(): unknown; delete?(): void } }).TopExp_Explorer_2;
+    const TAS2 = (oc as { TopAbs_ShapeEnum: { TopAbs_SOLID: unknown; TopAbs_SHAPE: unknown } }).TopAbs_ShapeEnum;
+
+    // labelSolidColors: accumulated per-solid colors from label traversal,
+    // in the order that TopExp_Explorer_2 visits them on each free shape.
+    const labelSolidColors: (string | null)[] = [];
+
+    const roots = new (oc as { TDF_LabelSequence_1: new () => { Length(): number; Value(i: number): unknown } }).TDF_LabelSequence_1();
+    shapeTool.GetFreeShapes(roots);
+
+    if (roots.Length() === 0) {
+      (roots as { delete?(): void }).delete?.();
+      throw new Error('readStep: STEP produced no free shapes');
+    }
+
+    try {
+      for (let i = 1; i <= roots.Length(); i++) {
+        const label = roots.Value(i);
+        const freeShape = GetShapeStatic(label);
+        builder.Add(comp, freeShape);
+
+        // Extract color for this label (surface or gen)
+        const colSurf = new QColorCtor();
+        let labelColor: string | null = null;
+        try {
+          const gotSurf = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorSurf, colSurf);
+          if (gotSurf) {
+            labelColor = quantityColorToHex(colSurf);
+          } else {
+            const colGen = new QColorCtor();
+            try {
+              const gotGen = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorGen, colGen);
+              if (gotGen) labelColor = quantityColorToHex(colGen);
+            } finally {
+              colGen.delete?.();
+            }
+          }
+        } finally {
+          colSurf.delete?.();
+        }
+
+        // Count solids inside this free shape and assign the label color to each
+        const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
+        try {
+          while (solidExpL.More()) {
+            labelSolidColors.push(labelColor);
+            solidExpL.Next();
+          }
+        } finally {
+          solidExpL.delete?.();
+        }
+      }
+    } finally {
+      (roots as { delete?(): void }).delete?.();
+    }
+
+    builder.delete();
+    rawShape = comp;
+
+    solidColors = labelSolidColors;
+
+    // Clean up the XCAF doc — colors are now extracted
+    (docHandle as unknown as { delete?(): void }).delete?.();
   } finally {
     try { oc.FS.unlink(tmpPath); } catch { /* ignore */ }
   }
 
+  if (rawShape == null) throw new Error('readStep: STEP produced an empty shape');
   const wrapped: OcctShape = { __brand: 'OcctShape', handle: rawShape };
 
   // Topology counts via TopExp_Explorer_2
@@ -73,13 +203,28 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
 
   const boundingBox = computeBoundingBox(oc, wrapped);
 
-  return { shape: wrapped, faceCount, solidCount, boundingBox };
+  return { shape: wrapped, faceCount, solidCount, boundingBox, solidColors };
+}
+
+/** Quantity_Color → #rrggbb.
+ *  OCCT stores Quantity_Color values in linear RGB when constructed with
+ *  Quantity_TOC_RGB, or in sRGB when constructed with Quantity_TOC_sRGB.
+ *  The STEP importer reads colors as-is from the file (sRGB by design for AP214),
+ *  and Red()/Green()/Blue() return the values in whatever space the color was
+ *  constructed with. We use raw component values → hex since our fixture uses
+ *  Quantity_TOC_sRGB and STEP files carry sRGB values. */
+function quantityColorToHex(col: { Red(): number; Green(): number; Blue(): number }): string {
+  const to255 = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  const h = (v: number) => to255(v).toString(16).padStart(2, '0');
+  return `#${h(col.Red())}${h(col.Green())}${h(col.Blue())}`;
 }
 
 export type ExtractedSolid = {
   brepBlobId: string;
   boundingBox: BoundingBox;
   shape: OcctShape;
+  /** Per-body color as #rrggbb from the STEP XCAF data; undefined when none. */
+  color?: string;
 };
 
 export type SplitImportedShapeResult = {
@@ -117,6 +262,7 @@ export type SplitImportedShapeResult = {
 export function splitImportedShapeHelper(
   oc: OcctInstance,
   compound: OcctShape,
+  solidColors?: (string | null)[],
 ): SplitImportedShapeResult {
   const TAS = (oc as {
     TopAbs_ShapeEnum: {
@@ -150,6 +296,7 @@ export function splitImportedShapeHelper(
 
   // --- Pass 1: collect all solids (wrap each in a fresh compound for serialization) ---
   const solids: ExtractedSolid[] = [];
+  let solidIndex = 0;
   const solidExp = new ExplorerCtor(compound.handle, TAS.TopAbs_SOLID, TAS.TopAbs_SHAPE);
   try {
     while (solidExp.More()) {
@@ -162,7 +309,9 @@ export function splitImportedShapeHelper(
       const subShape: OcctShape = { __brand: 'OcctShape' as const, handle: comp };
       const boundingBox = computeBoundingBox(oc, subShape);
       const brepBlobId = `imp-${crypto.randomUUID()}`;
-      solids.push({ brepBlobId, boundingBox, shape: subShape });
+      const color = solidColors?.[solidIndex] ?? undefined;
+      solids.push({ brepBlobId, boundingBox, shape: subShape, ...(color ? { color } : {}) });
+      solidIndex++;
       solidExp.Next();
     }
   } finally {

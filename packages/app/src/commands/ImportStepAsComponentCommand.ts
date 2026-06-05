@@ -1,6 +1,6 @@
 import type { Command } from './Command';
 import type { KernelApi } from '@zilventor/kernel/src/api';
-import type { ComponentInstance, PartDocument } from '@zilventor/shared';
+import type { ComponentColor, ComponentInstance, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
 import { stepFilenameBasename } from '../import/originFeatures';
@@ -55,6 +55,8 @@ export class ImportStepAsComponentCommand implements Command {
     fileName: string;
     partPath: string;
     archiveBytes: Uint8Array;
+    /** Per-body STEP color (#rrggbb), preserved so redo re-stamps it. */
+    color?: string;
   }> | null = null;
 
   constructor(private readonly input: ImportStepAsComponentOpts) {}
@@ -75,7 +77,7 @@ export class ImportStepAsComponentCommand implements Command {
 
       for (const r of this.redoState) {
         // Rebuild with stable partId if we had one before
-        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName);
+        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName, undefined, r.color);
         await kernel.registerPart(part);
         await opfs.write(r.partPath, r.archiveBytes);
         this.placedPartIds.push(part.id);
@@ -85,8 +87,10 @@ export class ImportStepAsComponentCommand implements Command {
       }
 
       if (this.wasAssemblyInsert) {
-        for (const partPath of this.placedPartPaths) {
-          const instance = makeOriginInstance(partPath);
+        for (let i = 0; i < this.placedPartPaths.length; i++) {
+          const partPath = this.placedPartPaths[i]!;
+          const part = this.placedParts[i];
+          const instance = makeOriginInstance(partPath, part?.color);
           useAppStore.getState().addComponent(instance);
           this.placedIds.push(instance.id);
         }
@@ -113,8 +117,10 @@ export class ImportStepAsComponentCommand implements Command {
     }
 
     if (this.wasAssemblyInsert) {
-      for (const partPath of this.placedPartPaths) {
-        const instance = makeOriginInstance(partPath);
+      for (let i = 0; i < this.placedPartPaths.length; i++) {
+        const partPath = this.placedPartPaths[i]!;
+        const part = this.placedParts[i];
+        const instance = makeOriginInstance(partPath, part?.color);
         useAppStore.getState().addComponent(instance);
         this.placedIds.push(instance.id);
       }
@@ -153,6 +159,7 @@ export class ImportStepAsComponentCommand implements Command {
       fileName: this.input.fileName,
       partPath: this.placedPartPaths[i] ?? '',
       archiveBytes: this.placedArchiveBytes[i] ?? new Uint8Array(0),
+      ...(part.color?.kind === 'hex' ? { color: part.color.hex } : {}),
     }));
 
     // Delete all registered parts from kernel (does NOT evict importedShapeCache)
@@ -184,13 +191,14 @@ export class ImportStepAsComponentCommand implements Command {
 
 // ---------- helpers ----------------------------------------------------------
 
-function makeOriginInstance(partPath: string): ComponentInstance {
+function makeOriginInstance(partPath: string, color?: ComponentColor): ComponentInstance {
   return {
     id: `comp-${crypto.randomUUID()}`,
     partPath,
     position: { x: 0, y: 0, z: 0 },
     rotation: { rx: 0, ry: 0, rz: 0 },
     visible: true,
+    ...(color ? { color } : {}),
   };
 }
 

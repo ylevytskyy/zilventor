@@ -126,7 +126,7 @@ export class SceneManager {
   getCurrentMesh(): THREE.Mesh | null { return this.current; }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
-  setMesh(positions: Float32Array, indices: Uint32Array): void {
+  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string): void {
     if (this.current) {
       this.scene.remove(this.current);
       this.current.geometry.dispose();
@@ -136,7 +136,7 @@ export class SceneManager {
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     g.setIndex(new THREE.BufferAttribute(indices, 1));
     g.computeVertexNormals();
-    const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
+    const m = new THREE.MeshStandardMaterial({ color: colorHex ?? 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);
     let h = 2166136261;

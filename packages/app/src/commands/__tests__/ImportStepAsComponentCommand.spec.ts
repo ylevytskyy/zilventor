@@ -505,4 +505,27 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     // The redo path must NOT re-parse the STEP — importStep/splitImportedShape called once total.
     expect(splitMock).toHaveBeenCalledTimes(1);
   });
+
+  it('redo preserves per-body STEP color (redoState carries it)', async () => {
+    const kernel = makeKernel({
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-c', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number], color: '#ff0000' },
+        ],
+        surfaces: null,
+      })) as never,
+    });
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'red.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+    expect(useAppStore.getState().activeAssembly!.components[0]!.color).toEqual({ kind: 'hex', hex: '#ff0000' });
+    await cmd.revert();
+    await cmd.apply();  // redo via redoState — color must survive
+    expect(useAppStore.getState().activeAssembly!.components[0]!.color).toEqual({ kind: 'hex', hex: '#ff0000' });
+  });
 });

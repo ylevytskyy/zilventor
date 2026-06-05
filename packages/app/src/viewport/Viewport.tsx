@@ -34,7 +34,7 @@ export type AssemblyRefHit =
   | { kind: 'edge'; componentPath: ComponentPath; origin: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number } };
 
 export type ViewportRef = {
-  setMesh(positions: Float32Array, indices: Uint32Array): void;
+  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string): void;
   setPreviewMesh(positions: Float32Array, indices: Uint32Array): void;
   clearPreviewMesh(): void;
   setComponentMeshes(leaves: ComponentLeaf[]): void;
@@ -141,9 +141,9 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
   }, []);
 
   useImperativeHandle(ref, () => ({
-    setMesh: (p, i) => {
+    setMesh: (p, i, colorHex) => {
       if (!sceneRef.current) return;
-      sceneRef.current.setMesh(p, i);
+      sceneRef.current.setMesh(p, i, colorHex);
       setTriangles(i.length / 3);
       setGeometryHash(sceneRef.current.geometryHash());
     },
