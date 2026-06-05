@@ -4,6 +4,7 @@ import { DrawingTreePane } from './drawing/DrawingTreePane';
 import Ribbon from './shell/Ribbon';
 import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
+import FileOpenOverlay from './shell/FileOpenOverlay';
 import PropertiesPanel from './shell/PropertiesPanel';
 import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
@@ -1769,6 +1770,15 @@ export default function App() {
       restartingRef.current = false;
     }
   }, []);
+
+  // Cancel an in-progress File→Open. OCCT parses are one blocking synchronous
+  // call, so the only way to actually stop the CPU work is to tear down and
+  // respawn the worker — reuse handleRestart, which re-loads the active doc.
+  const handleCancelOpen = useCallback(async () => {
+    useAppStore.getState().cancelFileOpen();
+    await handleRestart();
+    if (!unmountedRef.current) useAppStore.getState().setStatus('Open cancelled');
+  }, [handleRestart]);
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
     if (!viewportRef.current) return;
@@ -4275,6 +4285,7 @@ export default function App() {
           </button>
         </div>
       )}
+      <FileOpenOverlay onCancel={handleCancelOpen} />
       <div className="grid flex-1 min-h-0" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
         <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-appbar">
           <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
