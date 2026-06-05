@@ -61,7 +61,7 @@ export class SceneManager {
   // share geometry across instances.
   private partGeometries = new Map<string, THREE.BufferGeometry>();
   private placeholderGeometry: THREE.BufferGeometry | null = null;
-  private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
+  private componentMaterial = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
   private colorMaterials: Map<string, THREE.MeshStandardMaterial> = new Map();
   private selectionOverlayMaterial: THREE.LineBasicMaterial | null = null;
   // T29: selection overlays keyed by ComponentPathKey
@@ -136,7 +136,7 @@ export class SceneManager {
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     g.setIndex(new THREE.BufferAttribute(indices, 1));
     g.computeVertexNormals();
-    const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true });
+    const m = new THREE.MeshStandardMaterial({ color: 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);
     let h = 2166136261;
@@ -347,7 +347,7 @@ export class SceneManager {
       if (leaf.materialColor) {
         let mat = this.colorMaterials.get(leaf.materialColor);
         if (!mat) {
-          mat = new THREE.MeshStandardMaterial({ color: leaf.materialColor });
+          mat = new THREE.MeshStandardMaterial({ color: leaf.materialColor, side: THREE.DoubleSide });
           this.colorMaterials.set(leaf.materialColor, mat);
         }
         mesh.material = mat;
