@@ -223,6 +223,8 @@ export type ExtractedSolid = {
   brepBlobId: string;
   boundingBox: BoundingBox;
   shape: OcctShape;
+  /** Per-body color as #rrggbb from the STEP XCAF data; undefined when none. */
+  color?: string;
 };
 
 export type SplitImportedShapeResult = {
@@ -260,6 +262,7 @@ export type SplitImportedShapeResult = {
 export function splitImportedShapeHelper(
   oc: OcctInstance,
   compound: OcctShape,
+  solidColors?: (string | null)[],
 ): SplitImportedShapeResult {
   const TAS = (oc as {
     TopAbs_ShapeEnum: {
@@ -293,6 +296,7 @@ export function splitImportedShapeHelper(
 
   // --- Pass 1: collect all solids (wrap each in a fresh compound for serialization) ---
   const solids: ExtractedSolid[] = [];
+  let solidIndex = 0;
   const solidExp = new ExplorerCtor(compound.handle, TAS.TopAbs_SOLID, TAS.TopAbs_SHAPE);
   try {
     while (solidExp.More()) {
@@ -305,7 +309,9 @@ export function splitImportedShapeHelper(
       const subShape: OcctShape = { __brand: 'OcctShape' as const, handle: comp };
       const boundingBox = computeBoundingBox(oc, subShape);
       const brepBlobId = `imp-${crypto.randomUUID()}`;
-      solids.push({ brepBlobId, boundingBox, shape: subShape });
+      const color = solidColors?.[solidIndex] ?? undefined;
+      solids.push({ brepBlobId, boundingBox, shape: subShape, ...(color ? { color } : {}) });
+      solidIndex++;
       solidExp.Next();
     }
   } finally {
