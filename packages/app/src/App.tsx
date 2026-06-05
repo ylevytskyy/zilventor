@@ -1069,7 +1069,8 @@ export default function App() {
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+        const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1279,7 +1280,8 @@ export default function App() {
           if (!hasExecutableFeature) return;
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            const partHex = freshPart?.color?.kind === 'hex' ? freshPart.color.hex : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1747,7 +1749,8 @@ export default function App() {
         if (hasSolidFeature) {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices);
+            const partHex = ap?.color?.kind === 'hex' ? ap.color.hex : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
