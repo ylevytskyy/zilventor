@@ -78,9 +78,10 @@ export default function FileTab() {
   };
 
   const handleOpen = async () => {
-    const { kernel, setActivePart, setActiveDocument, setStatus, bus } = useAppStore.getState();
+    const { kernel, setActivePart, setActiveDocument, setStatus, bus, beginFileOpen, endFileOpen } = useAppStore.getState();
     if (!kernel) return;
 
+    let token = -1;
     try {
       const file = await pickFile([
         { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
@@ -90,6 +91,8 @@ export default function FileTab() {
         { description: 'ZIP archive (with STEP inside)', accept: { 'application/zip': ['.zip'] } },
       ]);
       if (!file) return;
+
+      token = beginFileOpen(file.name);
 
       // ZIP branch: extract first STEP entry and re-dispatch through the same pipeline
       if (/\.zip$/i.test(file.name)) {
@@ -102,7 +105,7 @@ export default function FileTab() {
           );
           return;
         }
-        const stopTicker = startImportTicker(setStatus);
+        const stopTicker = startImportTicker(setStatus, () => useAppStore.getState().fileOpenSeq === token);
         try {
           const { activeDocument } = useAppStore.getState();
           if (activeDocument?.kind === 'assembly') {
@@ -128,7 +131,7 @@ export default function FileTab() {
 
       // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
-        const stopTicker = startImportTicker(setStatus);
+        const stopTicker = startImportTicker(setStatus, () => useAppStore.getState().fileOpenSeq === token);
         try {
           const { activeDocument } = useAppStore.getState();
           if (activeDocument?.kind === 'assembly') {
@@ -186,6 +189,9 @@ export default function FileTab() {
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
+      // If this open was cancelled or superseded, the worker was torn down on
+      // purpose — swallow the resulting rejection instead of flashing an error.
+      if (token !== -1 && useAppStore.getState().fileOpenSeq !== token) return;
       const msg = (e as Error).message;
       if (/newer/i.test(msg)) {
         setErrorDialog('This file was saved by a newer ZilInventor. Update to open.');
@@ -194,6 +200,8 @@ export default function FileTab() {
       } else {
         setErrorDialog(`Open failed: ${msg}`);
       }
+    } finally {
+      if (token !== -1) endFileOpen(token);
     }
   };
 
