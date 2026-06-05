@@ -25,7 +25,7 @@ describe('readStep XCAF color extraction', () => {
     expect(res.boundingBox[3]! - res.boundingBox[0]!).toBeGreaterThan(25);
   });
 
-  it('returns null for uncolored solids', () => {
+  it('all fixture solids are colored', () => {
     const bytes = makeColoredBoxStepBytes(oc, ['#ff0000', '#00ff00']);
     const res = readStep(oc, bytes);
     // All solids in our fixture are colored, so none should be null

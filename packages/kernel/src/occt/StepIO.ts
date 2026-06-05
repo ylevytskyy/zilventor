@@ -41,7 +41,9 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
 
     const TExtStr = (oc as { TCollection_ExtendedString_1: new () => unknown }).TCollection_ExtendedString_1;
     const docHandle = new (oc as { Handle_TDocStd_Document_1: new () => unknown }).Handle_TDocStd_Document_1();
-    appHandle.get().NewDocument_2(new TExtStr(), docHandle as unknown as { get(): { Main(): unknown } });
+    const tExtStr = new TExtStr();
+    appHandle.get().NewDocument_2(tExtStr, docHandle as unknown as { get(): { Main(): unknown } });
+    (tExtStr as { delete?(): void }).delete?.();
 
     const ProgressRange = (oc as { Message_ProgressRange_1?: new () => unknown }).Message_ProgressRange_1
       ?? (oc as { Message_ProgressRange?: new () => unknown }).Message_ProgressRange;
@@ -67,8 +69,13 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
       throw new Error(`readStep: failed to parse STEP (IFSelect status=${String(status)})`);
     }
 
-    const ok = reader.Transfer_1(docHandle, new ProgressRange());
-    if (!ok) throw new Error('readStep: STEPCAFControl_Reader.Transfer failed');
+    const progressRange = new ProgressRange();
+    const ok = reader.Transfer_1(docHandle, progressRange);
+    (progressRange as { delete?(): void }).delete?.();
+    if (!ok) {
+      reader.delete();
+      throw new Error('readStep: STEPCAFControl_Reader.Transfer failed');
+    }
     reader.delete();
 
     const docObj = (docHandle as unknown as { get(): { Main(): unknown } }).get();
@@ -120,35 +127,50 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
     const roots = new (oc as { TDF_LabelSequence_1: new () => { Length(): number; Value(i: number): unknown } }).TDF_LabelSequence_1();
     shapeTool.GetFreeShapes(roots);
 
-    for (let i = 1; i <= roots.Length(); i++) {
-      const label = roots.Value(i);
-      const freeShape = GetShapeStatic(label);
-      builder.Add(comp, freeShape);
+    if (roots.Length() === 0) {
+      (roots as { delete?(): void }).delete?.();
+      throw new Error('readStep: STEP produced no free shapes');
+    }
 
-      // Extract color for this label (surface or gen)
-      const colSurf = new QColorCtor();
-      const gotSurf = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorSurf, colSurf);
-      let labelColor: string | null = null;
-      if (gotSurf) {
-        labelColor = quantityColorToHex(colSurf);
-      } else {
-        const colGen = new QColorCtor();
-        const gotGen = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorGen, colGen);
-        if (gotGen) labelColor = quantityColorToHex(colGen);
-        colGen.delete?.();
-      }
-      colSurf.delete?.();
+    try {
+      for (let i = 1; i <= roots.Length(); i++) {
+        const label = roots.Value(i);
+        const freeShape = GetShapeStatic(label);
+        builder.Add(comp, freeShape);
 
-      // Count solids inside this free shape and assign the label color to each
-      const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
-      try {
-        while (solidExpL.More()) {
-          labelSolidColors.push(labelColor);
-          solidExpL.Next();
+        // Extract color for this label (surface or gen)
+        const colSurf = new QColorCtor();
+        let labelColor: string | null = null;
+        try {
+          const gotSurf = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorSurf, colSurf);
+          if (gotSurf) {
+            labelColor = quantityColorToHex(colSurf);
+          } else {
+            const colGen = new QColorCtor();
+            try {
+              const gotGen = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorGen, colGen);
+              if (gotGen) labelColor = quantityColorToHex(colGen);
+            } finally {
+              colGen.delete?.();
+            }
+          }
+        } finally {
+          colSurf.delete?.();
         }
-      } finally {
-        solidExpL.delete?.();
+
+        // Count solids inside this free shape and assign the label color to each
+        const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
+        try {
+          while (solidExpL.More()) {
+            labelSolidColors.push(labelColor);
+            solidExpL.Next();
+          }
+        } finally {
+          solidExpL.delete?.();
+        }
       }
+    } finally {
+      (roots as { delete?(): void }).delete?.();
     }
 
     builder.delete();
