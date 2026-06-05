@@ -55,6 +55,8 @@ export class ImportStepAsComponentCommand implements Command {
     fileName: string;
     partPath: string;
     archiveBytes: Uint8Array;
+    /** Per-body STEP color (#rrggbb), preserved so redo re-stamps it. */
+    color?: string;
   }> | null = null;
 
   constructor(private readonly input: ImportStepAsComponentOpts) {}
@@ -75,7 +77,7 @@ export class ImportStepAsComponentCommand implements Command {
 
       for (const r of this.redoState) {
         // Rebuild with stable partId if we had one before
-        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName);
+        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName, undefined, r.color);
         await kernel.registerPart(part);
         await opfs.write(r.partPath, r.archiveBytes);
         this.placedPartIds.push(part.id);
@@ -157,6 +159,7 @@ export class ImportStepAsComponentCommand implements Command {
       fileName: this.input.fileName,
       partPath: this.placedPartPaths[i] ?? '',
       archiveBytes: this.placedArchiveBytes[i] ?? new Uint8Array(0),
+      ...(part.color?.kind === 'hex' ? { color: part.color.hex } : {}),
     }));
 
     // Delete all registered parts from kernel (does NOT evict importedShapeCache)
