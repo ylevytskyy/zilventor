@@ -55,9 +55,9 @@ export async function importStepIntoNewParts(
   const registered: ImportStepIntoNewPartsResult[] = [];
 
   // Helper: register one part entry (mutates `registered`)
-  async function registerOne(brepBlobId: string, candidateName: string): Promise<void> {
+  async function registerOne(brepBlobId: string, candidateName: string, color?: string): Promise<void> {
     const name = dedupeName(candidateName, [...existing, ...registered.map((r) => r.part.name)]);
-    const part = buildImportedPartDocument(name, brepBlobId, sourceFileName);
+    const part = buildImportedPartDocument(name, brepBlobId, sourceFileName, undefined, color);
     await kernel.registerPart(part);
     const archiveBytes = await kernel.saveToBytes(part.id);
     const opfsPath = `${name}.zipt`;
@@ -74,7 +74,7 @@ export async function importStepIntoNewParts(
       // N===1 and surfaces → still use bare baseName for the solid (surfaces adds _surfaces)
       // N>1 → suffix _1.._N
       const candidateName = solids.length === 1 ? baseName : `${baseName}_${i + 1}`;
-      await registerOne(solid.brepBlobId, candidateName);
+      await registerOne(solid.brepBlobId, candidateName, solid.color);
     }
 
     // Register surfaces bucket if present
