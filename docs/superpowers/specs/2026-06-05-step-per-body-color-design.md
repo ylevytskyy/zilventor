@@ -71,40 +71,61 @@ spike de-risks this before any downstream work.
 STEP file
   │  STEPCAFControl_Reader + TDocStd_Document (SetColorMode true)
   ▼
-importStep ──► { shape, colorTool }                       [kernel/occt/StepIO.ts]
-  │
+readStep ──► { shape, …, solidColors: (string|null)[] }    [kernel/occt/StepIO.ts]
+  │   per solid (canonical TopExp order): GetColor(solid, ColorSurf|ColorGen) → hex
   ▼
-splitImportedShapeHelper(oc, compound, colorTool)          [kernel/occt/StepIO.ts]
-  │   per solid: colorTool.GetColor(solid, ColorSurf|ColorGen) → hex
+importStep caches solidColors by brepBlobId                [kernel/api.ts]
+  │   (importStep + splitImportedShape are SEPARATE round-trips; the XCAF doc
+  │    is gone by split time, so colors are extracted at import and cached)
   ▼
-ExtractedSolid { brepBlobId, boundingBox, shape, color? }
-  │
+splitImportedShape ──► looks up cached solidColors, passes to helper
+  │   splitImportedShapeHelper(oc, compound, solidColors?) assigns color[i]
   ▼
-importStepIntoNewParts ──► per-solid color                 [app/import/...]
-  │
+ExtractedSolid { brepBlobId, boundingBox, shape, color? }  (hex string)
+  │   API returns solids: [{ brepBlobId, boundingBox, color? }]
+  ▼
+importStepIntoNewParts ──► registerOne(blobId, name, color?) [app/import/...]
   ▼
 buildImportedPartDocument(name, blobId, file, partId?, color?)
-  │   sets PartDocument.color + ImportedFeature.color
+  │   sets ImportedFeature.color (hex) + PartDocument.color ({kind:'hex'})
   ▼
 PartDocument { …, color?: ComponentColor }                 [shared/types.ts]
-  ├──────────────► single-part view: SceneManager.setMesh(pos, idx, color?)
-  │                                  (App.tsx call sites 1072/1282/1750)
-  └──────────────► assembly view: resolveColor() fallback tier
-                                   (visibleLeaves.ts)
+  ├──────────────► single-part view: SceneManager.setMesh(pos, idx, colorHex?)
+  │                                  (App.tsx setMesh call sites)
+  └──────────────► explode/insert: stamp ComponentInstance.color from part color
+                                   → resolveColor reads c.color (override wins)
 ```
+
+**Color extraction timing (the two-round-trip wrinkle):** `importStep` and
+`splitImportedShape` are separate kernel calls. The `XCAFDoc_ColorTool` only
+lives during the import parse, so per-solid colors are extracted inside
+`readStep` (enumerating solids in canonical `TopExp_Explorer` order, identical
+to the order `splitImportedShapeHelper` uses), returned as a `(string|null)[]`,
+cached by `importStep` keyed on `brepBlobId` in a new `importedColorCache`, and
+consumed by `splitImportedShape`. `splitImportedShapeHelper` itself stays free
+of any XCAF dependency — it takes an optional `solidColors` array — so it is
+unit-testable with a synthetic compound + colors.
 
 ### Units / responsibilities
 
-1. **`StepIO.ts` — color-aware reader + split.**
-   - `importStep`: switch to `STEPCAFControl_Reader` + `TDocStd_Document` +
-     `SetColorMode(true)`; expose `colorTool` (and shape) to the splitter.
-   - `splitImportedShapeHelper`: new `colorTool` param. In the pass-1 solid
-     loop, look up each solid's color via
-     `GetColor(solidShape, XCAFDoc_ColorSurf, …)`, falling back to
-     `XCAFDoc_ColorGen`; OCCT resolves up the label hierarchy (inherited
+1. **`StepIO.ts` + `api.ts` — color-aware reader + split.**
+   - `readStep`: switch to `STEPCAFControl_Reader` + `TDocStd_Document` +
+     `SetColorMode(true)`. After obtaining the compound, enumerate solids in
+     canonical `TopExp_Explorer_2(shape, SOLID, SHAPE)` order and, for each, look
+     up its color via `GetColor(solidShape, XCAFDoc_ColorSurf, …)`, falling back
+     to `XCAFDoc_ColorGen`; OCCT resolves up the label hierarchy (inherited
      assembly-node color). Convert `Quantity_Color`/`Quantity_ColorRGBA` → hex
-     string. Attach as `ExtractedSolid.color?`.
-   - `undefined` when the solid carries no color.
+     string. Return `solidColors: (string | null)[]` (index-aligned with the
+     solid enumeration; `null` when uncolored). Then dispose the XCAF doc.
+   - `importStep` (`api.ts`): cache `result.solidColors` keyed by `brepBlobId`
+     in a new `importedColorCache: Map<string, (string|null)[]>`.
+   - `splitImportedShape` (`api.ts`): look up `importedColorCache.get(brepBlobId)`
+     and pass it to `splitImportedShapeHelper(occt, cached, solidColors)`; return
+     each solid's `color?` in the API result.
+   - `splitImportedShapeHelper`: new optional `solidColors?: (string|null)[]`
+     param. In the pass-1 loop, set `color: solidColors?.[i] ?? undefined` on each
+     `ExtractedSolid`. No XCAF dependency in the helper → unit-testable with a
+     synthetic compound + colors array.
 
 2. **`shared/src/types.ts` — data model.**
    - `ImportedFeature.color?: string` (hex).
@@ -126,18 +147,26 @@ PartDocument { …, color?: ComponentColor }                 [shared/types.ts]
      pass `activePart.color`.
 
 5. **Rendering — assembly view.**
-   - `resolveColor` in `visibleLeaves.ts` gains a new **lowest-priority** tier:
-     below user `colorOverrides` and explicit `ComponentInstance.color`, fall
-     back to the leaf part's intrinsic `PartDocument.color` (looked up via the
-     `SubAssemblyCache` part entry). STEP color shows by default; any user
-     override always wins.
+   - **No change to `resolveColor`.** The assembly view picks up STEP color
+     because the explode/insert commands stamp it onto the `ComponentInstance`
+     (see #6). `resolveColor` already reads `c.color` (line 18) below the user
+     `colorOverrides` check (line 10), so a user override always wins.
+   - *Rationale for revising original spec decision #5:* `resolveColor`'s cache
+     (`SubAssemblyCache`) only holds `.ziasm` assembly docs, not `.zipt` part
+     docs, so a part-intrinsic fallback tier cannot reach the leaf part's color
+     without new render-path plumbing (per-leaf `.zipt` load + `partPath→color`
+     map). Stamping `instance.color` achieves the identical user-visible
+     behavior (STEP color by default, override wins) in ~3 lines, persists
+     naturally in the `.ziasm`, and needs no new cache. The earlier claim that
+     stamping "blocks re-coloring" was wrong — overrides are checked first.
+     Cosmetic trade-offs: each instance carries its own color copy, and the BOM
+     color column shows the STEP color as if user-set. Accepted.
 
 6. **Explode / insert commands.**
-   - `ExplodeIntoAssemblyCommand` and `ImportStepAsComponentCommand` do **not**
-     stamp color onto the created `ComponentInstance` (that would read as a user
-     override and block re-coloring). They leave instance color empty and rely
-     on the `resolveColor` part-color fallback. (Simpler than seeding
-     `instance.color`; keeps the override channel clean.)
+   - `ExplodeIntoAssemblyCommand` and `ImportStepAsComponentCommand` read each
+     imported part's `PartDocument.color` and set it on the created
+     `ComponentInstance.color`. A user `colorOverride` still wins (checked first
+     in `resolveColor`).
 
 ## Error handling / fallback
 
@@ -157,9 +186,11 @@ PartDocument { …, color?: ComponentColor }                 [shared/types.ts]
 - **Kernel unit:** synthetic colored multi-body STEP fixture →
   `splitImportedShapeHelper` returns the expected per-solid hex; uncolored
   fixture → `undefined`.
-- **App unit:** `resolveColor` precedence
-  (override > instance > part-intrinsic > gray); `buildImportedPartDocument`
-  sets `PartDocument.color` + `ImportedFeature.color`.
+- **App unit:** `buildImportedPartDocument` sets `PartDocument.color`
+  (`{kind:'hex'}`) + `ImportedFeature.color`; `importStepIntoNewParts` threads
+  per-solid color; explode/insert stamp `ComponentInstance.color` from the part
+  color; `resolveColor` precedence unchanged (override still beats instance
+  color).
 - **E2E:** import the synthetic colored STEP, assert the rendered mesh material
   color; reload and assert persistence (real bus).
 - **Manual:** load the chair, confirm per-body colors render together with the
@@ -173,11 +204,11 @@ PartDocument { …, color?: ComponentColor }                 [shared/types.ts]
 3. **Data model** — optional `color` fields on `ImportedFeature` / `PartDocument`.
 4. **Import plumbing** — `buildImportedPartDocument` + `importStepIntoNewParts`
    thread color.
-5. **Single-part render** — `setMesh(color?)` + call sites.
-6. **Assembly render** — `resolveColor` part-intrinsic fallback tier.
-7. **Explode/insert** — verify fallback path colors components (no instance
-   stamping).
-8. **E2E + manual** — colored STEP round-trip + chair.
+5. **Single-part render** — `setMesh(colorHex?)` + call sites.
+6. **Explode/insert** — stamp `ComponentInstance.color` from `PartDocument.color`
+   (assembly view colors via the existing `resolveColor` `c.color` path).
+7. **E2E + manual** — colored STEP round-trip (single-part + exploded assembly)
+   + chair.
 
 Each slice: failing test first → minimum code → green → suite green.
 
