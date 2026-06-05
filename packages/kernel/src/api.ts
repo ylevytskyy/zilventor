@@ -5,7 +5,7 @@ import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
 import { disposeShape, computeBoundingBox, type OcctShape } from './occt/SolidOps';
 import { writeBRep, readBRep } from './occt/BRepIO';
-import { readStep, extractStepSolids as extractStepSolidsHelper, splitImportedShapeHelper } from './occt/StepIO';
+import { readStep, splitImportedShapeHelper } from './occt/StepIO';
 import { tessellate } from './occt/Tessellator';
 import { getProjectorInput as getProjectorInputFn, type GetProjectorInputArgs } from './adapter/drawing/getProjectorInput';
 import { packProject, unpackProject } from './storage/ProjectPacker';
@@ -93,10 +93,6 @@ export type KernelApi = {
     faceCount: number;
     solidCount: number;
   }>;
-  extractStepSolids(params: { stepBytes: ArrayBuffer }): Promise<Array<{
-    brepBlobId: string;
-    boundingBox: BoundingBox;
-  }>>;
   /**
    * Splits a previously-imported compound (looked up by brepBlobId in
    * importedShapeCache) into individual solid blobs + one merged surfaces blob.
@@ -442,15 +438,6 @@ export function createKernelApi(): KernelApi {
         faceCount: result.faceCount,
         solidCount: result.solidCount,
       };
-    },
-
-    async extractStepSolids({ stepBytes }) {
-      if (!occt) throw new Error('kernel not initialized');
-      const solids = extractStepSolidsHelper(occt, stepBytes);
-      return solids.map((s) => {
-        registerImportedShape(s.brepBlobId, s.shape);
-        return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox };
-      });
     },
 
     async splitImportedShape(brepBlobId) {

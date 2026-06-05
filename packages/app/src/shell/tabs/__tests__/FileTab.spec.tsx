@@ -138,7 +138,7 @@ describe('handleOpen — STEP branch', () => {
     vi.mocked(importStepIntoNewPart).mockClear();
   });
 
-  it('single-body .step in part-mode: importStep called once, extractStepSolids NOT called, part activated', async () => {
+  it('single-body .step in part-mode: importStep called once, part activated', async () => {
     const stepBytes = new Uint8Array([1, 2, 3]);
     const fakeFile = new File([stepBytes], 'Knob.step', { type: 'application/step' });
     Object.defineProperty(fakeFile, 'arrayBuffer', { value: async () => stepBytes.buffer });
@@ -153,12 +153,11 @@ describe('handleOpen — STEP branch', () => {
       faceCount: 6,
       solidCount: 1,
     }));
-    const extractStepSolids = vi.fn();
     const registerPart = vi.fn(async () => {});
 
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { importStep, extractStepSolids, registerPart } as any,
+      kernel: { importStep, registerPart } as any,
     }));
 
     render(<FileTab />);
@@ -167,9 +166,8 @@ describe('handleOpen — STEP branch', () => {
       expect(registerPart).toHaveBeenCalledOnce();
     });
 
-    // Single parse: importStep called once, extractStepSolids NOT called.
+    // Single parse: importStep called once via importStep+splitImportedShape pipeline.
     expect(importStep).toHaveBeenCalledOnce();
-    expect(extractStepSolids).not.toHaveBeenCalled();
     // Part is activated with the correct name.
     expect(useAppStore.getState().activePart?.name).toBe('Knob');
     expect(useAppStore.getState().statusMessage).toBe('Imported');
@@ -209,7 +207,7 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
   });
 
-  it('STEP + part active → uses importStep (single parse, no extractStepSolids, regression guard)', async () => {
+  it('STEP + part active → uses importStep (single parse, regression guard)', async () => {
     const fakePart = {
       id: 'p1', name: 'MyPart', units: 'mm' as const,
       parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [],
@@ -223,11 +221,10 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
       faceCount: 6,
       solidCount: 1,
     }));
-    const extractStepSolids = vi.fn();
     const registerPart = vi.fn(async () => {});
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { importStep, extractStepSolids, registerPart } as any,
+      kernel: { importStep, registerPart } as any,
     }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('hinge.step')]);
@@ -239,7 +236,6 @@ describe('handleOpen — STEP branch dispatches by active-document kind', () => 
     });
     // Single parse via importStep; importStepIntoNewPart no longer used.
     expect(importStep).toHaveBeenCalledOnce();
-    expect(extractStepSolids).not.toHaveBeenCalled();
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
     expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
   });
@@ -345,7 +341,7 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
     vi.mocked(ImportStepAsComponentCommand).mockClear();
   });
 
-  it('multi-body STEP in part-mode imports the whole compound (no extractStepSolids, no _1 suffix)', async () => {
+  it('multi-body STEP in part-mode imports the whole compound (importStep called once, no _1 suffix)', async () => {
     const registerPart = vi.fn(async () => {});
     const importStep = vi.fn(async () => ({
       brepBlobId: 'blob-compound',
@@ -354,11 +350,10 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
       faceCount: 18,
       solidCount: 3,
     }));
-    const extractStepSolids = vi.fn();
 
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { importStep, extractStepSolids, registerPart } as any,
+      kernel: { importStep, registerPart } as any,
     }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('gizmo.step')]);
@@ -370,9 +365,8 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
       expect(registerPart).toHaveBeenCalledTimes(1);
     });
 
-    // Whole-compound path: importStep called once, extractStepSolids NEVER called.
+    // Whole-compound path: importStep called once via importStep+splitImportedShape pipeline.
     expect(importStep).toHaveBeenCalledTimes(1);
-    expect(extractStepSolids).not.toHaveBeenCalled();
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
     // Name has no _1 suffix; status is plain 'Imported'.
     expect(useAppStore.getState().activePart?.name).toBe('gizmo');
@@ -388,11 +382,10 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
       faceCount: 6,
       solidCount: 1,
     }));
-    const extractStepSolids = vi.fn();
 
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { importStep, extractStepSolids, registerPart } as any,
+      kernel: { importStep, registerPart } as any,
     }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('Predator.step')]);
@@ -402,7 +395,6 @@ describe('handleOpen — STEP part-mode always imports the whole compound', () =
     await waitFor(() => { expect(registerPart).toHaveBeenCalledOnce(); });
 
     expect(importStep).toHaveBeenCalledOnce();
-    expect(extractStepSolids).not.toHaveBeenCalled();
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
     // Bare basename, no _1 suffix; status is plain 'Imported'.
     expect(useAppStore.getState().activePart?.name).toBe('Predator');
@@ -476,7 +468,7 @@ describe('handleOpen — STEP import progress ticker (integration)', () => {
 
     useAppStore.setState((s) => ({
       ...s,
-      kernel: { importStep: slowImportStep, extractStepSolids: vi.fn(), registerPart } as any,
+      kernel: { importStep: slowImportStep, registerPart } as any,
     }));
 
     (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([makeFakeStepHandle('BigAssembly.step')]);

@@ -106,7 +106,7 @@ export type SplitImportedShapeResult = {
  *     avoid=TopAbs_SHELL already prevents these from being solid-internal faces
  *     (shells can't appear inside faces), so there is no double-add risk.
  *
- * This explorer-based approach is identical to `extractStepSolids` and handles
+ * This explorer-based approach wraps each solid in a fresh compound and handles
  * single-solid STEP files (where OneShape() returns a TopoDS_Solid, not a
  * compound) as well as multi-product assembly compounds (any nesting depth).
  *
@@ -148,7 +148,7 @@ export function splitImportedShapeHelper(
     TopoDS_Compound: new () => unknown;
   }).TopoDS_Compound;
 
-  // --- Pass 1: collect all solids (same pattern as extractStepSolids) ---
+  // --- Pass 1: collect all solids (wrap each in a fresh compound for serialization) ---
   const solids: ExtractedSolid[] = [];
   const solidExp = new ExplorerCtor(compound.handle, TAS.TopAbs_SOLID, TAS.TopAbs_SHAPE);
   try {
@@ -225,65 +225,3 @@ export function splitImportedShapeHelper(
   return { solids, surfaces };
 }
 
-/**
- * Walks the sub-solids of a STEP file and returns one entry per
- * TopAbs_SOLID. Each entry holds a fresh brepBlobId and the bounding box of
- * that sub-solid. Throws if the STEP contains zero solids.
- *
- * Lifetime: each returned `shape.handle` is a fresh TopoDS_Compound that must
- * be owned by the caller (typically via importedShapeCache.set in api.ts). On
- * partial failure mid-iteration, already-allocated compounds are NOT disposed —
- * caller should treat the whole import as atomic.
- */
-export function extractStepSolids(
-  oc: OcctInstance,
-  stepBytes: ArrayBuffer,
-): ExtractedSolid[] {
-  const parent = readStep(oc, stepBytes);
-  if (parent.solidCount === 0) {
-    throw new Error('STEP file contains no solids');
-  }
-
-  const TAS = (oc as { TopAbs_ShapeEnum: { TopAbs_SOLID: unknown; TopAbs_SHAPE: unknown } }).TopAbs_ShapeEnum;
-  const ExplorerCtor = (oc as {
-    TopExp_Explorer_2: new (s: unknown, t: unknown, a: unknown) => {
-      More(): boolean;
-      Next(): void;
-      Current(): unknown;
-      delete?(): void;
-    };
-  }).TopExp_Explorer_2;
-
-  const solids: ExtractedSolid[] = [];
-  const exp = new ExplorerCtor(parent.shape.handle as unknown, TAS.TopAbs_SOLID, TAS.TopAbs_SHAPE);
-  try {
-    while (exp.More()) {
-      const handle = exp.Current();
-      // Wrap in a fresh TopoDS_Compound so writeBRep gets a rooted shape
-      // (sub-shapes from the explorer may not serialize cleanly on their own).
-      const builder = new (oc as {
-        BRep_Builder: new () => {
-          MakeCompound(c: unknown): void;
-          Add(c: unknown, s: unknown): void;
-          delete(): void;
-        };
-      }).BRep_Builder();
-      const comp = new (oc as { TopoDS_Compound: new () => unknown }).TopoDS_Compound();
-      builder.MakeCompound(comp);
-      builder.Add(comp, handle);
-      builder.delete();
-
-      const subShape: OcctShape = { __brand: 'OcctShape' as const, handle: comp };
-      const boundingBox = computeBoundingBox(oc, subShape);
-      // Shape lifetime: handed off to importedShapeCache via registerImportedShape
-      // (in api.ts); saveToBytes(partId) lazily re-serializes from the cache on demand.
-      const brepBlobId = `imp-${crypto.randomUUID()}`;
-      solids.push({ brepBlobId, boundingBox, shape: subShape });
-      exp.Next();
-    }
-  } finally {
-    exp.delete?.();
-  }
-
-  return solids;
-}
