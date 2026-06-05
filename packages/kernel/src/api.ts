@@ -92,6 +92,11 @@ export type KernelApi = {
     boundingBox: BoundingBox;
     faceCount: number;
     solidCount: number;
+    /** Per-solid surface colors (#rrggbb or null), index-aligned with the
+     *  TopExp_Explorer enumeration. Exposed so single-part callers can read
+     *  the first solid color without a separate splitImportedShape round-trip.
+     *  The full array is also cached internally for splitImportedShape. */
+    solidColors: (string | null)[];
   }>;
   /**
    * Splits a previously-imported compound (looked up by brepBlobId in
@@ -441,6 +446,7 @@ export function createKernelApi(): KernelApi {
         boundingBox: result.boundingBox,
         faceCount: result.faceCount,
         solidCount: result.solidCount,
+        solidColors: result.solidColors,
       };
     },
 

@@ -146,7 +146,8 @@ export default function FileTab() {
             const { stepFilenameBasename } = await import('../../import/originFeatures');
             const baseName = stepFilenameBasename(file.name);
             const importResult = await kernel.importStep({ stepBytes, partName: baseName });
-            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name);
+            const firstSolidColor = importResult.solidColors?.find((c) => c !== null) ?? undefined;
+            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name, undefined, firstSolidColor);
             await kernel.registerPart(part);
             stopTicker();
             setActivePart(part);

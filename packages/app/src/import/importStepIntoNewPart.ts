@@ -21,7 +21,13 @@ export async function importStepIntoNewPart(
 
   const importResult = await kernel.importStep({ stepBytes, partName });
 
-  const part = buildImportedPartDocument(partName, importResult.brepBlobId, file.name);
+  // Use the first solid's XCAF color as the part's default render color.
+  // For single-body files this is the only color; for multi-body whole-compound
+  // opens the first enumerated solid wins (consistent with the viewer bias
+  // toward showing "something" rather than no color at all). undefined → gray.
+  const firstSolidColor = importResult.solidColors?.find((c) => c !== null) ?? undefined;
+
+  const part = buildImportedPartDocument(partName, importResult.brepBlobId, file.name, undefined, firstSolidColor);
 
   await kernel.registerPart(part);
   return { partId: part.id, part };

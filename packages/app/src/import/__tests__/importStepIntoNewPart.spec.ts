@@ -20,6 +20,7 @@ function makeKernelMock(): {
     boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
     faceCount: 6,
     solidCount: 1,
+    solidColors: [] as (string | null)[],
   }));
   const registerPart = vi.fn(async () => undefined);
   return { kernel: { importStep, registerPart } as Pick<KernelApi, 'importStep' | 'registerPart'>, importStep, registerPart };
