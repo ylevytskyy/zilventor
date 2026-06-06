@@ -127,8 +127,15 @@ export function tessellate(
         );
       }
       uv = new Float32Array(uvArr);
+    } else if (projection.mode === 'box') {
+      const boxResult = applyBoxProjection(positions, indices);
+      return {
+        positions: boxResult.positions,
+        indices: boxResult.indices,
+        boundingBox: computeBoundingBox(oc, shape),
+        uv: boxResult.uv,
+      };
     }
-    // 'box' mode handled in Task 4
   }
 
   return {
@@ -287,6 +294,55 @@ function findFaceName(
     }
   }
   return null;
+}
+
+/**
+ * De-index a mesh and assign UVs by projecting each triangle onto the plane of its
+ * dominant face normal (box mapping). Each triangle gets its own 3 vertices so
+ * per-triangle UV is unambiguous for vertices shared across differently-oriented faces.
+ */
+function applyBoxProjection(
+  positions: number[],
+  indices: number[],
+): { positions: Float32Array; indices: Uint32Array; uv: Float32Array } {
+  const newPos: number[] = [];
+  const newUv: number[] = [];
+  let vertexCount = 0;
+
+  for (let t = 0; t < indices.length; t += 3) {
+    const i0 = indices[t]! * 3;
+    const i1 = indices[t + 1]! * 3;
+    const i2 = indices[t + 2]! * 3;
+
+    const ax = positions[i0]!, ay = positions[i0 + 1]!, az = positions[i0 + 2]!;
+    const bx = positions[i1]!, by = positions[i1 + 1]!, bz = positions[i1 + 2]!;
+    const cx = positions[i2]!, cy = positions[i2 + 1]!, cz = positions[i2 + 2]!;
+
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    const nx = e1y * e2z - e1z * e2y;
+    const ny = e1z * e2x - e1x * e2z;
+    const nz = e1x * e2y - e1y * e2x;
+    const anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
+
+    const verts: Array<[number, number, number]> = [[ax, ay, az], [bx, by, bz], [cx, cy, cz]];
+    for (const [px, py, pz] of verts) {
+      newPos.push(px, py, pz);
+      vertexCount++;
+      if (anz >= anx && anz >= any) {
+        newUv.push(px, py);        // Z-dominant → XY plane
+      } else if (any >= anx) {
+        newUv.push(px, pz);        // Y-dominant → XZ plane
+      } else {
+        newUv.push(py, pz);        // X-dominant → YZ plane
+      }
+    }
+  }
+
+  const seqIdx = new Uint32Array(vertexCount);
+  for (let i = 0; i < vertexCount; i++) seqIdx[i] = i;
+
+  return { positions: new Float32Array(newPos), indices: seqIdx, uv: new Float32Array(newUv) };
 }
 
 /**

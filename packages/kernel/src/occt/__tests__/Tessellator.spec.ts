@@ -127,4 +127,23 @@ describe('Tessellator — UV projection', () => {
     expect(maxU - minU).toBeGreaterThan(550);
     disposeShape(box);
   });
+
+  it('box projection → every vertex has a uv pair (length equals positions / 3 * 2)', () => {
+    const box = makeBox(occt, 100, 200, 300);
+    const proj: UvProjection = { mode: 'box' };
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 }, proj);
+    expect(mesh.uv).toBeDefined();
+    expect(mesh.uv!.length).toBe((mesh.positions.length / 3) * 2);
+    disposeShape(box);
+  });
+
+  it('box projection → mesh is de-indexed (vertex count = triangle count × 3)', () => {
+    const box = makeBox(occt, 100, 200, 300);
+    const proj: UvProjection = { mode: 'box' };
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 }, proj);
+    const nVerts = mesh.positions.length / 3;
+    const nTris = mesh.indices.length / 3;
+    expect(nVerts).toBe(nTris * 3);
+    disposeShape(box);
+  });
 });
