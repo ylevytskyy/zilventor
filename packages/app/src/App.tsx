@@ -1071,11 +1071,19 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasExecutableFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint');
-      if (!hasExecutableFeature) return;
+      // Only execute when there is a solid-producing feature. Work features alone
+      // (workAxis/workPlane/workPoint) cannot produce a solid and would always
+      // return "Feature tree produced no solid", polluting the status bar.
+      // The seeded origin.* features are all work features, so a fresh empty part
+      // must NOT trigger execute(). Work feature values are computed as a side-effect
+      // of the solid execution (when a solid-producing feature is also present).
+      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'imported');
+      if (!hasSolidFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
+        // Clear any prior error status — a successful execute means the tree is healthy.
+        useAppStore.getState().setStatus('');
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
         const panelFeat = activePart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
         const panelMat = panelFeat ? activePart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;

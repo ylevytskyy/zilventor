@@ -107,6 +107,16 @@ test.describe('PBR Textures — Phase 1', () => {
     // 4. Wait for the mesh to appear in the viewport.
     await expect(page.locator('[data-triangle-count]')).toHaveAttribute('data-triangle-count', /[1-9]\d*/, { timeout: 60_000 });
 
+    // 4b. Assert the status bar does NOT contain a phantom no-solid error.
+    //     Regression gate for the AddPanelFeatureCommand kernel-sync race fix:
+    //     setActivePart used to fire BEFORE kernel.addFeature, triggering
+    //     kernel.execute on an empty feature tree → "Feature tree produced no solid".
+    const statusAfterPanel = await page.evaluate(() => {
+      const w = window as unknown as { __zilventorStore: ZilventorStore };
+      return (w.__zilventorStore.getState() as Record<string, unknown>).statusMessage as string ?? '';
+    });
+    expect(statusAfterPanel, 'status bar must not contain phantom no-solid error after panel render').not.toContain('produced no solid');
+
     // 5. Screenshot the viewport (grain=length).
     await page.screenshot({ path: '/tmp/pbr-textures-panel-length.png' });
 
@@ -208,6 +218,14 @@ test.describe('PBR Textures — Phase 1', () => {
     }, matId);
 
     await expect(page.locator('[data-triangle-count]')).toHaveAttribute('data-triangle-count', /[1-9]\d*/, { timeout: 60_000 });
+
+    // Same no-solid race gate as first test.
+    const statusAfterPanelWidth = await page.evaluate(() => {
+      const w = window as unknown as { __zilventorStore: ZilventorStore };
+      return (w.__zilventorStore.getState() as Record<string, unknown>).statusMessage as string ?? '';
+    });
+    expect(statusAfterPanelWidth, 'status bar must not contain phantom no-solid error after panel render').not.toContain('produced no solid');
+
     await page.screenshot({ path: '/tmp/pbr-textures-panel-width.png' });
 
     // The grain=width screenshot is the read-back gate. Visual confirmation:
