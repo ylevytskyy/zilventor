@@ -10,6 +10,8 @@ export * from './partInfo';
 export * from './material';
 export * from './cutListRow';
 export * from './panel-feature';
+export type { UvProjection } from './uv-projection';
+export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
 export type {
   HardwareCategory,
