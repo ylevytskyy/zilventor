@@ -398,6 +398,34 @@ describe('SceneManager — work features', () => {
   });
 });
 
+describe('SceneManager — setMesh UV', () => {
+  let canvas: HTMLCanvasElement;
+  let mgr: SceneManager;
+  beforeEach(() => {
+    canvas = document.createElement('canvas');
+    mgr = new SceneManager(canvas);
+  });
+  it('setMesh with uv sets the uv BufferAttribute on the geometry', () => {
+    const positions = new Float32Array([0, 0, 0,  1, 0, 0,  0, 1, 0]);
+    const indices = new Uint32Array([0, 1, 2]);
+    const uv = new Float32Array([0, 0,  1, 0,  0, 1]);
+    mgr.setMesh(positions, indices, '#ffffff', uv);
+    const geom = mgr.currentGeometry();
+    expect(geom).not.toBeNull();
+    const uvAttr = geom!.getAttribute('uv') as THREE.BufferAttribute;
+    expect(uvAttr).toBeDefined();
+    expect(uvAttr.itemSize).toBe(2);
+    expect(uvAttr.count).toBe(3);
+  });
+  it('setMesh without uv leaves the uv attribute absent', () => {
+    const positions = new Float32Array([0, 0, 0,  1, 0, 0,  0, 1, 0]);
+    const indices = new Uint32Array([0, 1, 2]);
+    mgr.setMesh(positions, indices, '#ffffff');
+    const geom = mgr.currentGeometry();
+    expect(geom!.getAttribute('uv')).toBeUndefined();
+  });
+});
+
 describe('SceneManager — edge-band overlay (T29)', () => {
   let mgr: SceneManager;
   beforeEach(() => {

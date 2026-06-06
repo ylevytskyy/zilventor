@@ -124,9 +124,13 @@ export class SceneManager {
   getScene(): THREE.Scene { return this.scene; }
   addObject(obj: THREE.Object3D): void { this.scene.add(obj); }
   getCurrentMesh(): THREE.Mesh | null { return this.current; }
+  /** @internal For tests only. Returns the current part geometry or null. */
+  currentGeometry(): THREE.BufferGeometry | null {
+    return this.current?.geometry ?? null;
+  }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
-  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string): void {
+  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string, uv?: Float32Array): void {
     if (this.current) {
       this.scene.remove(this.current);
       this.current.geometry.dispose();
@@ -135,6 +139,9 @@ export class SceneManager {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     g.setIndex(new THREE.BufferAttribute(indices, 1));
+    if (uv) {
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    }
     g.computeVertexNormals();
     const m = new THREE.MeshStandardMaterial({ color: colorHex ?? 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
     this.current = new THREE.Mesh(g, m);

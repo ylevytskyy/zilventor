@@ -1077,7 +1077,7 @@ export default function App() {
       if (cancelled) return;
       if (res.ok) {
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1288,7 +1288,7 @@ export default function App() {
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
             const partHex = freshPart?.color?.kind === 'hex' ? freshPart.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1757,7 +1757,7 @@ export default function App() {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             const partHex = ap?.color?.kind === 'hex' ? ap.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -3584,6 +3584,9 @@ export default function App() {
             geom = new THREE.BufferGeometry();
             geom.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
             geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+            if (m.uv) {
+              geom.setAttribute('uv', new THREE.BufferAttribute(m.uv, 2));
+            }
             geom.computeVertexNormals();
             cache.set(partPath, geom);
           } catch (e) {
