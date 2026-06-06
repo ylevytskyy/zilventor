@@ -2525,6 +2525,10 @@ export default function App() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  // Persists the resolved textureId per partPath across renders, parallel to
+  // geometryCacheRef. Must be invalidated at the same sites as geometryCacheRef
+  // so a material edit that changes textureId is not served stale.
+  const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -2584,6 +2588,7 @@ export default function App() {
         assemblyRefCacheRef.current.invalidate(partPath);
         assemblyPartIdCacheRef.current.delete(partPath);
         geometryCacheRef.current.delete(partPath);
+        partTextureIdCacheRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3584,7 +3589,6 @@ export default function App() {
       }
 
       // Ensure kernel has loaded each unique leaf partPath, register geometry.
-      const partTextureIds = new Map<string, string | undefined>();
       const uniquePartPaths = [...new Set(leaves.filter((l) => l.kind === 'leaf').map((l) => l.partPath))];
       for (const partPath of uniquePartPaths) {
         let geom = cache.get(partPath);
@@ -3599,7 +3603,8 @@ export default function App() {
             if (partDoc) {
               const panelFeat = partDoc.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
               const partMat = panelFeat ? partDoc.materials.find((m) => m.id === panelFeat.materialId) : undefined;
-              partTextureIds.set(partPath, partMat?.textureId);
+              // Persist textureId so subsequent cache-hit renders still see it.
+              partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
             }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
@@ -3630,13 +3635,16 @@ export default function App() {
           translation: { x: 0, y: 0, z: 0 },
           quaternion: [0, 0, 0, 1] as [number, number, number, number],
         };
+        // Read textureId from the persistent cache so cache-hit renders
+        // (where geom is already present) still forward the correct textureId.
+        const cachedTextureId = partTextureIdCacheRef.current.get(l.partPath);
         return {
           kind: l.kind,
           componentPath: l.componentPath,
           partPath: l.partPath,
           worldPose,
           ...(materialColor !== undefined ? { materialColor } : {}),
-          ...(partTextureIds.get(l.partPath) !== undefined ? { textureId: partTextureIds.get(l.partPath)! } : {}),
+          ...(cachedTextureId !== undefined ? { textureId: cachedTextureId } : {}),
           visible: true,
         };
       });

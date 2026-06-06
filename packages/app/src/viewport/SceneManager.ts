@@ -706,6 +706,7 @@ export class SceneManager {
     this.renderer.dispose();
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
+    globalTextureCache.disposeTextures();
     if (this.selectionOverlayMaterial) {
       this.selectionOverlayMaterial.dispose();
       this.selectionOverlayMaterial = null;

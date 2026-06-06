@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { pathKey } from '@zilventor/shared';
 import type { ComponentLeaf } from '../SceneManager';
 import { SceneManager } from '../SceneManager';
+import * as textureCache from '../textureCache';
 
 vi.mock('three', async (orig) => {
   const actual = (await orig()) as typeof import('three');
@@ -62,6 +63,16 @@ function leaf(opts: Partial<ComponentLeaf> & { componentPath: ReadonlyArray<stri
     ...(opts.textureId !== undefined ? { textureId: opts.textureId } : {}),
   } as ComponentLeaf;
 }
+
+describe('SceneManager.dispose — texture cache teardown', () => {
+  it('calls globalTextureCache.disposeTextures() when disposed', () => {
+    const canvas = document.createElement('canvas');
+    const mgr = new SceneManager(canvas);
+    const spy = vi.spyOn(textureCache.globalTextureCache, 'disposeTextures');
+    mgr.dispose();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+});
 
 describe('SceneManager — textured component materials', () => {
   let canvas: HTMLCanvasElement;
