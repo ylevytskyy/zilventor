@@ -1077,7 +1077,9 @@ export default function App() {
       if (cancelled) return;
       if (res.ok) {
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
+        const panelFeat = activePart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+        const panelMat = panelFeat ? activePart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1288,7 +1290,9 @@ export default function App() {
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
             const partHex = freshPart?.color?.kind === 'hex' ? freshPart.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
+            const panelFeat = freshPart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+            const panelMat = panelFeat ? freshPart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1757,7 +1761,9 @@ export default function App() {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             const partHex = ap?.color?.kind === 'hex' ? ap.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv);
+            const panelFeat = ap?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+            const panelMat = panelFeat ? ap?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -3570,6 +3576,7 @@ export default function App() {
       }
 
       // Ensure kernel has loaded each unique leaf partPath, register geometry.
+      const partTextureIds = new Map<string, string | undefined>();
       const uniquePartPaths = [...new Set(leaves.filter((l) => l.kind === 'leaf').map((l) => l.partPath))];
       for (const partPath of uniquePartPaths) {
         let geom = cache.get(partPath);
@@ -3580,6 +3587,12 @@ export default function App() {
             const partId = await kernel.loadFromBytes(bytes);
             const res = await kernel.execute(partId);
             if (!res.ok) throw new Error(res.error.message);
+            const partDoc = await kernel.getPart(partId);
+            if (partDoc) {
+              const panelFeat = partDoc.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+              const partMat = panelFeat ? partDoc.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+              partTextureIds.set(partPath, partMat?.textureId);
+            }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
             geom.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
@@ -3615,6 +3628,7 @@ export default function App() {
           partPath: l.partPath,
           worldPose,
           ...(materialColor !== undefined ? { materialColor } : {}),
+          ...(partTextureIds.get(l.partPath) !== undefined ? { textureId: partTextureIds.get(l.partPath)! } : {}),
           visible: true,
         };
       });
