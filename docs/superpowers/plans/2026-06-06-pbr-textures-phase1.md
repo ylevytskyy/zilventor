@@ -31,6 +31,8 @@
 | Create | `packages/app/src/viewport/textureCache.ts` | `createTextureCache()` factory: lazy load + RepeatWrapping + repeat math + dispose |
 | Create | `packages/app/src/viewport/__tests__/textureCache.spec.ts` | Unit tests: caching, repeat math, dispose |
 | Modify | `packages/app/src/App.tsx` | Pipe `mesh.uv` into geometry (assembly + part paths); look up `textureId` from material registry |
+| Modify | `packages/app/src/shell/MaterialRegistryEditor.tsx` | Add texture `<select>` column to inline edit row; wire to `EditMaterialCommand` |
+| Create | `packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx` | Component tests for texture picker |
 | Create | `packages/app/public/textures/{oak,walnut,beech,white-melamine,black-melamine,laminate-light}/` | CC0 PBR asset files (Task 11) |
 | Create | `tests/e2e/pbr-textures-panel.spec.ts` | E2E: textured panel renders; grain rotates 90°; tint visible |
 
@@ -1537,6 +1539,292 @@ git commit -m "feat(app): wire textureId from material registry to setMesh and C
 
 ---
 
+## Task 10b — Texture picker in material editor
+
+**Adds a minimal `<select>` dropdown to the inline edit row of `MaterialRegistryEditor` so users can assign a built-in texture to a material without touching the bus directly. Depends on Task 1 (textureId on MaterialEntry) and Task 6 (BUILTIN_TEXTURE_DEFS).**
+
+**Files:**
+- Modify: `packages/app/src/shell/MaterialRegistryEditor.tsx`
+- Create: `packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx`
+
+- [ ] **Step 1: Write the failing component tests**
+
+Create `packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx`:
+
+```tsx
+// packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import React from 'react';
+import { MaterialRegistryEditor } from '../MaterialRegistryEditor';
+import { useAppStore } from '../../store/useAppStore';
+import { BUILTIN_TEXTURE_DEFS } from '@zilventor/shared';
+
+function seedPartWithMaterial(textureId?: string): void {
+  const mat: Record<string, unknown> = {
+    id: 'm1', name: 'Oak Sheet', defaultThickness: 18, color: '#8b6914',
+  };
+  if (textureId !== undefined) mat.textureId = textureId;
+
+  const part = {
+    id: 'p', name: 'P', units: 'mm' as const, parameters: {}, properties: {},
+    featureTree: [], materials: [mat], hardware: [],
+  };
+  useAppStore.setState({
+    activePart: part,
+    activeAssembly: null,
+    activeDocument: { kind: 'part', document: part },
+  } as never);
+}
+
+describe('MaterialRegistryEditor — texture picker', () => {
+  let executeSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    executeSpy = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({ bus: { execute: executeSpy } } as never);
+  });
+
+  it('renders "Texture" column header', () => {
+    seedPartWithMaterial();
+    render(<MaterialRegistryEditor />);
+    expect(screen.getByRole('columnheader', { name: /Texture/i })).toBeInTheDocument();
+  });
+
+  it('the texture select shows "— None —" plus all BUILTIN_TEXTURE_DEFS names', () => {
+    seedPartWithMaterial();
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m1'));
+    fireEvent.click(screen.getByRole('button', { name: /Edit Oak Sheet/i }));
+
+    const select = screen.getByLabelText(/Edit texture/i) as HTMLSelectElement;
+    const optionTexts = Array.from(select.options).map((o) => o.text);
+    expect(optionTexts).toContain('— None —');
+    for (const def of BUILTIN_TEXTURE_DEFS) {
+      expect(optionTexts).toContain(def.name);
+    }
+  });
+
+  it('entering edit mode prefills select with the material current textureId', () => {
+    seedPartWithMaterial('oak');
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m1'));
+    fireEvent.click(screen.getByRole('button', { name: /Edit Oak Sheet/i }));
+    const select = screen.getByLabelText(/Edit texture/i) as HTMLSelectElement;
+    expect(select.value).toBe('oak');
+  });
+
+  it('entering edit mode prefills empty string (None) when textureId absent', () => {
+    seedPartWithMaterial();
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m1'));
+    fireEvent.click(screen.getByRole('button', { name: /Edit Oak Sheet/i }));
+    const select = screen.getByLabelText(/Edit texture/i) as HTMLSelectElement;
+    expect(select.value).toBe('');
+  });
+
+  it('selecting a texture and clicking Save dispatches EditMaterialCommand with textureId', async () => {
+    seedPartWithMaterial();
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m1'));
+    fireEvent.click(screen.getByRole('button', { name: /Edit Oak Sheet/i }));
+    fireEvent.change(screen.getByLabelText(/Edit texture/i), { target: { value: 'oak' } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(executeSpy).toHaveBeenCalledTimes(1));
+    const cmd = executeSpy.mock.calls[0]![0] as { patch: Record<string, unknown> };
+    expect(cmd.patch.textureId).toBe('oak');
+  });
+
+  it('selecting "— None —" and clicking Save dispatches EditMaterialCommand with textureId: undefined', async () => {
+    seedPartWithMaterial('walnut');
+    render(<MaterialRegistryEditor />);
+    fireEvent.mouseEnter(screen.getByTestId('material-row-m1'));
+    fireEvent.click(screen.getByRole('button', { name: /Edit Oak Sheet/i }));
+    fireEvent.change(screen.getByLabelText(/Edit texture/i), { target: { value: '' } });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(executeSpy).toHaveBeenCalledTimes(1));
+    const cmd = executeSpy.mock.calls[0]![0] as { patch: Record<string, unknown> };
+    expect(cmd.patch.textureId).toBeUndefined();
+  });
+
+  it('read-only row shows the textureId when set', () => {
+    seedPartWithMaterial('walnut');
+    render(<MaterialRegistryEditor />);
+    const row = screen.getByTestId('material-row-m1');
+    expect(within(row).getByText('walnut')).toBeInTheDocument();
+  });
+
+  it('read-only row shows empty cell when textureId absent', () => {
+    seedPartWithMaterial();
+    render(<MaterialRegistryEditor />);
+    const tds = within(screen.getByTestId('material-row-m1')).getAllByRole('cell');
+    // Columns: Name, Thickness, Color, Sheet L, Sheet W, Hatch angle, Hatch spacing, Texture, Actions
+    expect(tds[7]?.textContent ?? '').toBe('');
+  });
+});
+```
+
+- [ ] **Step 2: Run — expect failures (no `BUILTIN_TEXTURE_DEFS` import in editor, no Texture column, no select)**
+
+```bash
+npx vitest run --config packages/app/vitest.config.ts packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx
+```
+
+Expected: multiple failures — `getByRole('columnheader', { name: /Texture/i })` fails (column not rendered); `getByLabelText(/Edit texture/i)` fails (no select element); dispatch assertions fail.
+
+- [ ] **Step 3: Add the texture picker to `MaterialRegistryEditor`**
+
+In `packages/app/src/shell/MaterialRegistryEditor.tsx`:
+
+**3a. Extend the existing `@zilventor/shared` import to include `BUILTIN_TEXTURE_DEFS`** (line 2). Change:
+```ts
+import type { MaterialEntry } from '@zilventor/shared';
+```
+to:
+```ts
+import { BUILTIN_TEXTURE_DEFS, type MaterialEntry } from '@zilventor/shared';
+```
+
+**3b. Add `textureId: string` to the `RowEditState` edit branch** (line 100). Change:
+```ts
+  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; hatchAngleDeg: string; hatchSpacingMm: string; error: string | null }
+```
+to:
+```ts
+  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; hatchAngleDeg: string; hatchSpacingMm: string; textureId: string; error: string | null }
+```
+
+**3c. Add `textureId: rowState.textureId || undefined` to the patch in `onEditSubmit`** (line 193–198). Change:
+```ts
+    const patch: EditMaterialPatch = {
+      name,
+      defaultThickness: thicknessNum,
+      color: rowState.color,
+      ...sheetPart,
+      ...hatchPart,
+    };
+```
+to:
+```ts
+    const patch: EditMaterialPatch = {
+      name,
+      defaultThickness: thicknessNum,
+      color: rowState.color,
+      ...sheetPart,
+      ...hatchPart,
+      textureId: rowState.textureId || undefined,
+    };
+```
+
+**3d. Add "Texture" column header** in the `<thead>` (after the "Hatch spacing (mm)" `<th>` and before the empty `<th>`). Change:
+```tsx
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch spacing (mm)</th>
+            <th style={{ ...cellStyle, width: 120 }}></th>
+```
+to:
+```tsx
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch spacing (mm)</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Texture</th>
+            <th style={{ ...cellStyle, width: 120 }}></th>
+```
+
+**3e. Add the texture `<select>` cell in the edit row** (after the hatch spacing `<td>`, before the actions `<td>`). Find the end of the hatch spacing input cell in the edit row (line ~328) and add after it:
+```tsx
+                  <td style={cellStyle}>
+                    <select
+                      aria-label="Edit texture"
+                      value={rowState.textureId}
+                      onChange={(e) => setRowState({ ...rowState, textureId: e.target.value })}
+                      style={inputStyle}
+                    >
+                      <option value="">— None —</option>
+                      {BUILTIN_TEXTURE_DEFS.map((def) => (
+                        <option key={def.id} value={def.id}>{def.name}</option>
+                      ))}
+                    </select>
+                  </td>
+```
+
+**3f. Add the texture value cell in the read-only row** (after the `{m.hatchSpacingMm ?? ''}` cell and before the actions `<td>`). Change:
+```tsx
+                <td style={cellStyle}>{m.hatchSpacingMm ?? ''}</td>
+                <td style={cellStyle}>
+```
+to:
+```tsx
+                <td style={cellStyle}>{m.hatchSpacingMm ?? ''}</td>
+                <td style={cellStyle}>{m.textureId ?? ''}</td>
+                <td style={cellStyle}>
+```
+
+**3g. Initialize `textureId` when entering edit mode** in the `onClick` of the Edit button (line ~395–405). Change the `setRowState` call to include `textureId: m.textureId ?? ''`:
+```ts
+                          onClick={() => setRowState({
+                            mode: 'edit',
+                            id: m.id,
+                            name: m.name,
+                            defaultThickness: String(m.defaultThickness),
+                            color: m.color,
+                            sheetLengthMm: m.sheetLengthMm !== undefined ? String(m.sheetLengthMm) : '',
+                            sheetWidthMm: m.sheetWidthMm !== undefined ? String(m.sheetWidthMm) : '',
+                            hatchAngleDeg: m.hatchAngleDeg !== undefined ? String(m.hatchAngleDeg) : '',
+                            hatchSpacingMm: m.hatchSpacingMm !== undefined ? String(m.hatchSpacingMm) : '',
+                            textureId: m.textureId ?? '',
+                            error: null,
+                          })}
+```
+
+**3h. Fix `colSpan` on delete-confirm and empty-row cells** — both currently use `colSpan={8}`, which must become `colSpan={9}` after adding the Texture column.
+
+Change the delete-confirm row (line ~344):
+```tsx
+                  <td colSpan={8} style={cellStyle}>
+```
+to:
+```tsx
+                  <td colSpan={9} style={cellStyle}>
+```
+
+Change the "No materials defined" row (line ~424):
+```tsx
+              <td colSpan={8} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
+```
+to:
+```tsx
+              <td colSpan={9} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
+```
+
+- [ ] **Step 4: Run — all texture tests pass**
+
+```bash
+npx vitest run --config packages/app/vitest.config.ts packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx
+```
+
+Expected: all 7 tests PASS.
+
+- [ ] **Step 5: Run the full MaterialRegistryEditor test suite to confirm no regression**
+
+```bash
+npx vitest run --config packages/app/vitest.config.ts packages/app/src/shell/__tests__/MaterialRegistryEditor.spec.tsx packages/app/src/shell/__tests__/MaterialRegistryEditor.hatch.spec.tsx packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx
+```
+
+Expected: all existing tests (from `.spec.tsx` and `.hatch.spec.tsx`) + 7 new texture tests PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/app/src/shell/MaterialRegistryEditor.tsx packages/app/src/shell/__tests__/MaterialRegistryEditor.texture.spec.tsx
+git commit -m "feat(app): texture picker <select> in material editor — None + BUILTIN_TEXTURE_DEFS, wired to EditMaterialCommand"
+```
+
+---
+
 ## Task 11 — Asset sourcing (CC0 PBR sets)
 
 **Non-TDD — no code logic to test in isolation. This task places binary image assets. The E2E (Task 12) is the verification gate.**
@@ -1640,25 +1928,63 @@ test.describe('PBR Textures — Phase 1', () => {
     await page.getByRole('button', { name: 'New Part' }).click();
     await expect(page.getByText('Part1')).toBeVisible();
 
-    // 2. Add an oak material (textureId='oak') and a 600×400×18 panel via the bus.
-    //    AddMaterialCommand does not accept textureId directly (its opts type is a
-    //    subset of MaterialEntry), so: (a) add the material, then (b) set textureId
-    //    via EditMaterialCommand which accepts Partial<Omit<MaterialEntry,'id'>>.
+    // 2. Add an oak material via the bus, then assign textureId='oak' through
+    //    the material editor UI (texture picker dropdown) — NOT via a programmatic
+    //    EditMaterialCommand call. This validates that Task 10b's UI is wired end-to-end.
+    //    The material editor lives inside the Panel dialog (Manage... button).
+
+    // 2a. Add the material via the bus (AddMaterialCommand has no UI shortcut).
     const matId = await page.evaluate(async () => {
       const { AddMaterialCommand } = await import('/src/commands/AddMaterialCommand.ts');
-      const { EditMaterialCommand } = await import('/src/commands/EditMaterialCommand.ts');
-
       const store = (window as unknown as { __zilventorStore: ZilventorStore }).__zilventorStore;
       const bus = store.getState().bus;
-
       await bus.execute(new AddMaterialCommand({ name: 'Oak Wood', defaultThickness: 18, color: '#8b6914' }));
       const mat = store.getState().activePart!.materials.find((m) => m.name === 'Oak Wood');
       if (!mat) throw new Error('material not found after AddMaterialCommand');
-
-      await bus.execute(new EditMaterialCommand(mat.id, { textureId: 'oak' }));
       return mat.id;
     });
     expect(matId).toBeTruthy();
+
+    // 2b. Open the Panel dialog via store injection (bypasses PART_NOT_EMPTY — no
+    //     panel in the tree yet, but we inject via store directly as in T33).
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { setPanelDialog(s: unknown): void } };
+      };
+      w.__zilventorStore.getState().setPanelDialog({
+        mode: 'part',
+        onSubmit: () => {},
+        onCancel: () => w.__zilventorStore.getState().setPanelDialog(null),
+      });
+    });
+    const dialog = page.getByRole('dialog', { name: 'Panel' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /Manage/i }).click();
+    const editor = dialog.locator('[data-testid="material-registry-editor"]');
+    await expect(editor).toBeVisible();
+
+    // 2c. Hover the "Oak Wood" row, click Edit, select "Oak" from the texture dropdown, Save.
+    const oakRow = editor.locator('tbody tr').filter({ hasText: 'Oak Wood' });
+    await oakRow.hover();
+    await oakRow.getByRole('button', { name: /Edit Oak Wood/i }).click();
+    await editor.getByLabel('Edit texture').selectOption('oak');
+    await editor.getByRole('button', { name: 'Save' }).click();
+    // Confirm the store now reflects textureId='oak' on this material.
+    const assignedTextureId = await page.evaluate((id: string) => {
+      const w = window as unknown as { __zilventorStore: ZilventorStore };
+      const mat = w.__zilventorStore.getState().activePart!.materials.find((m) => m.id === id);
+      return (mat as Record<string, unknown>).textureId ?? null;
+    }, matId);
+    expect(assignedTextureId).toBe('oak');
+
+    // 2d. Close the dialog.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { setPanelDialog(s: unknown): void } };
+      };
+      w.__zilventorStore.getState().setPanelDialog(null);
+    });
+    await expect(dialog).not.toBeVisible();
 
     // 3. Add a panel feature using that material with grain=length.
     await page.evaluate(async (materialId: string) => {
@@ -1726,17 +2052,43 @@ test.describe('PBR Textures — Phase 1', () => {
     await page.getByRole('button', { name: 'New Part' }).click();
     await expect(page.getByText('Part1')).toBeVisible();
 
+    // Add material via bus, assign textureId via the picker UI (same pattern as first test).
     const matId = await page.evaluate(async () => {
       const { AddMaterialCommand } = await import('/src/commands/AddMaterialCommand.ts');
-      const { EditMaterialCommand } = await import('/src/commands/EditMaterialCommand.ts');
       const store = (window as unknown as { __zilventorStore: ZilventorStore }).__zilventorStore;
       const bus = store.getState().bus;
       await bus.execute(new AddMaterialCommand({ name: 'Oak Wood', defaultThickness: 18, color: '#8b6914' }));
       const mat = store.getState().activePart!.materials.find((m) => m.name === 'Oak Wood');
       if (!mat) throw new Error('material not found');
-      await bus.execute(new EditMaterialCommand(mat.id, { textureId: 'oak' }));
       return mat.id;
     });
+
+    // Assign texture via the material editor UI (texture picker dropdown).
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { setPanelDialog(s: unknown): void } };
+      };
+      w.__zilventorStore.getState().setPanelDialog({
+        mode: 'part', onSubmit: () => {},
+        onCancel: () => w.__zilventorStore.getState().setPanelDialog(null),
+      });
+    });
+    const dialog2 = page.getByRole('dialog', { name: 'Panel' });
+    await expect(dialog2).toBeVisible();
+    await dialog2.getByRole('button', { name: /Manage/i }).click();
+    const editor2 = dialog2.locator('[data-testid="material-registry-editor"]');
+    const oakRow2 = editor2.locator('tbody tr').filter({ hasText: 'Oak Wood' });
+    await oakRow2.hover();
+    await oakRow2.getByRole('button', { name: /Edit Oak Wood/i }).click();
+    await editor2.getByLabel('Edit texture').selectOption('oak');
+    await editor2.getByRole('button', { name: 'Save' }).click();
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { setPanelDialog(s: unknown): void } };
+      };
+      w.__zilventorStore.getState().setPanelDialog(null);
+    });
+    await expect(dialog2).not.toBeVisible();
 
     await page.evaluate(async (materialId: string) => {
       const { AddPanelFeatureCommand } = await import('/src/commands/AddPanelFeatureCommand.ts');
