@@ -19,19 +19,24 @@ export class AddPanelFeatureCommand implements Command {
   constructor(private readonly panel: PanelFeature) {}
 
   async apply(): Promise<void> {
-    const part = useAppStore.getState().activePart;
+    const { activePart: part, kernel } = useAppStore.getState();
     if (!part) throw new Error('NO_ACTIVE_PART');
     const userFeatures = part.featureTree.filter((f) => !isOriginFeatureId(f.id));
     if (userFeatures.length > 0) throw new Error('PART_NOT_EMPTY');
     const next: PartDocument = addFeature(part, this.panel);
     useAppStore.getState().setActivePart(next);
+    // Sync panel feature into the kernel's internal parts map so that the
+    // App.tsx reactive kernel.execute() call sees the updated feature tree.
+    // Without this the kernel worker has the pre-panel part and produces no solid.
+    if (kernel) await kernel.addFeature(part.id, this.panel);
   }
 
   async revert(): Promise<void> {
-    const part = useAppStore.getState().activePart;
+    const { activePart: part, kernel } = useAppStore.getState();
     if (!part) return;
     const next: PartDocument = removeFeature(part, this.panel.id);
     useAppStore.getState().setActivePart(next);
+    if (kernel) await kernel.removeFeature(part.id, this.panel.id);
   }
 }
 

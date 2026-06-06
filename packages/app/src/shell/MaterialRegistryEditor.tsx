@@ -197,7 +197,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       color: rowState.color,
       ...sheetPart,
       ...hatchPart,
-      textureId: rowState.textureId || undefined,
+      ...(rowState.textureId ? { textureId: rowState.textureId } : {}),
     };
     try {
       await bus.execute(new EditMaterialCommand(rowState.id, patch));
