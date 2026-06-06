@@ -6,9 +6,9 @@ All textures sourced from [ambientCG](https://ambientcg.com/) under the CC0 1.0 
 |---|---|---|---|
 | oak | Wood063 | https://ambientcg.com/view?id=Wood063 | CC0 1.0 |
 | walnut | Wood038 | https://ambientcg.com/view?id=Wood038 | CC0 1.0 |
-| beech | Wood049 | https://ambientcg.com/view?id=Wood049 | CC0 1.0 |
-| white-melamine | Concrete014 | https://ambientcg.com/view?id=Concrete014 | CC0 1.0 |
-| black-melamine | Concrete015 | https://ambientcg.com/view?id=Concrete015 | CC0 1.0 |
+| beech | Wood050 | https://ambientcg.com/view?id=Wood050 | CC0 1.0 |
+| white-melamine | Plaster001 | https://ambientcg.com/view?id=Plaster001 | CC0 1.0 |
+| black-melamine | Leather008 | https://ambientcg.com/view?id=Leather008 | CC0 1.0 |
 | laminate-light | Wood048 | https://ambientcg.com/view?id=Wood048 | CC0 1.0 |
 
 Maps used per slot:
