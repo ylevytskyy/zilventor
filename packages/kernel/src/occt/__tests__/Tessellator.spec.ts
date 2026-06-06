@@ -3,6 +3,7 @@ import { loadOcct, type OcctInstance } from '../occtLoader';
 import { makeBox, disposeShape } from '../SolidOps';
 import { tessellate, tessellateEdges, adaptiveLinearDeflection } from '../Tessellator';
 import { namedFace, attachName, type NamedShape } from '../FaceNaming';
+import type { UvProjection } from '@zilventor/shared';
 
 let occt: OcctInstance;
 beforeAll(async () => {
@@ -92,6 +93,38 @@ describe('Tessellator', () => {
         expect(d).toBeGreaterThan(0);
       }
     }
+    disposeShape(box);
+  });
+});
+
+describe('Tessellator — UV projection', () => {
+  it('no projection → mesh.uv is undefined (back-compat)', () => {
+    const box = makeBox(occt, 100, 100, 100);
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 });
+    expect(mesh.uv).toBeUndefined();
+    disposeShape(box);
+  });
+
+  it('planar projection → uv.length equals (positions.length / 3) * 2', () => {
+    const box = makeBox(occt, 600, 400, 18);
+    const proj: UvProjection = { mode: 'planar', origin: { x: 0, y: 0, z: 0 }, uAxis: { x: 1, y: 0, z: 0 }, vAxis: { x: 0, y: 1, z: 0 } };
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 }, proj);
+    expect(mesh.uv).toBeDefined();
+    expect(mesh.uv!.length).toBe((mesh.positions.length / 3) * 2);
+    disposeShape(box);
+  });
+
+  it('planar projection with uAxis=X: U range spans the box X extent (~600mm)', () => {
+    const box = makeBox(occt, 600, 400, 18);
+    const proj: UvProjection = { mode: 'planar', origin: { x: 0, y: 0, z: 0 }, uAxis: { x: 1, y: 0, z: 0 }, vAxis: { x: 0, y: 1, z: 0 } };
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 }, proj);
+    let maxU = -Infinity, minU = Infinity;
+    for (let i = 0; i < mesh.uv!.length; i += 2) {
+      const u = mesh.uv![i]!;
+      if (u > maxU) maxU = u;
+      if (u < minU) minU = u;
+    }
+    expect(maxU - minU).toBeGreaterThan(550);
     disposeShape(box);
   });
 });

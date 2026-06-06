@@ -1,4 +1,4 @@
-import type { BoundingBox, Mesh, TessellatedEdge, TessellatedFace, Vec3, FaceName } from '@zilventor/shared';
+import type { BoundingBox, Mesh, TessellatedEdge, TessellatedFace, Vec3, FaceName, UvProjection } from '@zilventor/shared';
 import { canonicalEdgeName } from '@zilventor/shared';
 import type { OcctInstance } from './occtLoader';
 import { computeBoundingBox, type OcctShape } from './SolidOps';
@@ -47,7 +47,8 @@ const POLY_MESH_PURPOSE_NONE = 0;
 export function tessellate(
   oc: OcctInstance,
   shape: OcctShape,
-  opts: TessellateOptions
+  opts: TessellateOptions,
+  projection?: UvProjection
 ): Mesh {
   const angular = opts.angularDeflection ?? 0.5;
   const meshTool = new oc.BRepMesh_IncrementalMesh_2(
@@ -111,10 +112,30 @@ export function tessellate(
   explorer.delete();
   meshTool.delete();
 
+  let uv: Float32Array | undefined;
+  if (projection) {
+    if (projection.mode === 'planar') {
+      const { origin, uAxis, vAxis } = projection;
+      const uvArr: number[] = [];
+      for (let i = 0; i < positions.length; i += 3) {
+        const px = positions[i]! - origin.x;
+        const py = positions[i + 1]! - origin.y;
+        const pz = positions[i + 2]! - origin.z;
+        uvArr.push(
+          px * uAxis.x + py * uAxis.y + pz * uAxis.z,
+          px * vAxis.x + py * vAxis.y + pz * vAxis.z,
+        );
+      }
+      uv = new Float32Array(uvArr);
+    }
+    // 'box' mode handled in Task 4
+  }
+
   return {
     positions: new Float32Array(positions),
     indices: new Uint32Array(indices),
-    boundingBox: computeBoundingBox(oc, shape)
+    boundingBox: computeBoundingBox(oc, shape),
+    ...(uv !== undefined ? { uv } : {}),
   };
 }
 
