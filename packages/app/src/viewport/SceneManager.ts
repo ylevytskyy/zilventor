@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeCameraFrame } from './frameView';
-import { pathKey, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { pathKey, findTextureDef, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
 
 export type Vec3 = { x: number; y: number; z: number };
@@ -16,6 +17,7 @@ export type ComponentLeaf = {
   partPath: string;
   worldPose: { translation: Vec3; quaternion: [number, number, number, number] };
   materialColor?: string;
+  textureId?: string;
   visible: boolean;
 };
 
@@ -93,7 +95,7 @@ export class SceneManager {
 
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.scene.background = new THREE.Color(0x1a2028);
 
@@ -130,7 +132,7 @@ export class SceneManager {
   }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
-  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string, uv?: Float32Array): void {
+  setMesh(positions: Float32Array, indices: Uint32Array, colorHex?: string, uv?: Float32Array, textureId?: string): void {
     if (this.current) {
       this.scene.remove(this.current);
       this.current.geometry.dispose();
@@ -143,7 +145,9 @@ export class SceneManager {
       g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     }
     g.computeVertexNormals();
-    const m = new THREE.MeshStandardMaterial({ color: colorHex ?? 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
+    const m = textureId
+      ? this.buildMaterial(textureId, colorHex ?? '#ffffff')
+      : new THREE.MeshStandardMaterial({ color: colorHex ?? 0xc8c8c8, flatShading: true, side: THREE.DoubleSide });
     this.current = new THREE.Mesh(g, m);
     this.scene.add(this.current);
     let h = 2166136261;
@@ -313,6 +317,23 @@ export class SceneManager {
     return this.placeholderGeometry;
   }
 
+  private buildMaterial(textureId: string | undefined, tintHex: string): THREE.MeshStandardMaterial {
+    if (textureId) {
+      const def = findTextureDef(textureId);
+      if (def) {
+        const texSet = globalTextureCache.loadTextureSet(def);
+        return new THREE.MeshStandardMaterial({
+          map: texSet.albedo,
+          normalMap: texSet.normal,
+          roughnessMap: texSet.roughness,
+          color: tintHex,
+          side: THREE.DoubleSide,
+        });
+      }
+    }
+    return new THREE.MeshStandardMaterial({ color: tintHex, side: THREE.DoubleSide });
+  }
+
   setComponentMeshes(leaves: ComponentLeaf[]): void {
     const incomingKeys = new Set(leaves.map((l) => pathKey(l.componentPath)));
 
@@ -351,11 +372,13 @@ export class SceneManager {
       m.makeRotationFromQuaternion(q);
       m.setPosition(leaf.worldPose.translation.x, leaf.worldPose.translation.y, leaf.worldPose.translation.z);
       mesh.matrix.copy(m);
-      if (leaf.materialColor) {
-        let mat = this.colorMaterials.get(leaf.materialColor);
+      if (leaf.materialColor || leaf.textureId) {
+        const tintHex = leaf.materialColor ?? '#ffffff';
+        const cacheKey = `${leaf.textureId ?? 'none'}|${tintHex}`;
+        let mat = this.colorMaterials.get(cacheKey);
         if (!mat) {
-          mat = new THREE.MeshStandardMaterial({ color: leaf.materialColor, side: THREE.DoubleSide });
-          this.colorMaterials.set(leaf.materialColor, mat);
+          mat = this.buildMaterial(leaf.textureId, tintHex);
+          this.colorMaterials.set(cacheKey, mat);
         }
         mesh.material = mat;
       } else {
