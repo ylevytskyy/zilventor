@@ -27,7 +27,7 @@ export interface TextureDef {
  *   walnut         → ambientCG Wood038  (dark rough wood)
  *   beech          → ambientCG Wood050  (pale light plain smooth wood)
  *   white-melamine → ambientCG Plaster001 (clean white matte plaster/wall surface)
- *   black-melamine → ambientCG Leather008 (near-black dark leather surface)
+ *   black-melamine → ambientCG Plastic006 (near-black smooth matte plastic surface)
  *   laminate-light → ambientCG Wood048  (light plain smooth wood)
  */
 export const BUILTIN_TEXTURE_DEFS: readonly TextureDef[] = [

@@ -8,7 +8,7 @@ All textures sourced from [ambientCG](https://ambientcg.com/) under the CC0 1.0 
 | walnut | Wood038 | https://ambientcg.com/view?id=Wood038 | CC0 1.0 |
 | beech | Wood050 | https://ambientcg.com/view?id=Wood050 | CC0 1.0 |
 | white-melamine | Plaster001 | https://ambientcg.com/view?id=Plaster001 | CC0 1.0 |
-| black-melamine | Leather008 | https://ambientcg.com/view?id=Leather008 | CC0 1.0 |
+| black-melamine | Plastic006 | https://ambientcg.com/view?id=Plastic006 | CC0 1.0 |
 | laminate-light | Wood048 | https://ambientcg.com/view?id=Wood048 | CC0 1.0 |
 
 Maps used per slot:
