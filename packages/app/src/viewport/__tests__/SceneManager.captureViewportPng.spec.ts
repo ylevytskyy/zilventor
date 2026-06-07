@@ -32,8 +32,10 @@ function makeSceneManager(): SceneManager {
 
 describe('SceneManager.captureViewportPng — opaque', () => {
   let mgr: SceneManager;
-  let renderSpy: ReturnType<typeof vi.fn>;
-  let setSizeSpy: ReturnType<typeof vi.fn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let renderSpy: ReturnType<typeof vi.spyOn<any, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let setSizeSpy: ReturnType<typeof vi.spyOn<any, any>>;
 
   beforeEach(() => {
     mgr = makeSceneManager();
@@ -75,8 +77,10 @@ describe('SceneManager.captureViewportPng — opaque', () => {
 
 describe('SceneManager.captureViewportPng — transparent', () => {
   let mgr: SceneManager;
-  let setClearAlphaSpy: ReturnType<typeof vi.fn>;
-  let renderSpy: ReturnType<typeof vi.fn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let setClearAlphaSpy: ReturnType<typeof vi.spyOn<any, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let renderSpy: ReturnType<typeof vi.spyOn<any, any>>;
 
   beforeEach(() => {
     mgr = makeSceneManager();
