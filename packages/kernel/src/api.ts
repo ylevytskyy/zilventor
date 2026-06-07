@@ -1,4 +1,4 @@
-import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput, MaterialEntry } from '@zilventor/shared';
+import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput, MaterialEntry, CustomTextureDef } from '@zilventor/shared';
 import { migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
@@ -67,6 +67,13 @@ export type KernelApi = {
   setParameter(partId: string, param: Parameter): Promise<void>;
   deleteParameter(partId: string, name: string): Promise<void>;
   setMaterials(partId: string, materials: MaterialEntry[]): Promise<void>;
+  /** Register raw JPEG bytes for a custom texture blob. Must be called before
+   *  `saveToBytes` for any part that references this blobId in its
+   *  `customTextures` array. Stores a defensive copy. */
+  registerCustomTexture(blobId: string, bytes: Uint8Array): Promise<void>;
+  /** Update the `customTextures` list stored on the part.  Throws if the
+   *  partId is unknown. */
+  setCustomTextures(partId: string, defs: CustomTextureDef[]): Promise<void>;
   deletePart(partId: string): Promise<void>;
   execute(partId: string): Promise<Result<ExecuteResult, KernelError>>;
   previewFeature(partId: string, feature: Feature): Promise<Result<ExecuteResult, KernelError>>;
@@ -194,6 +201,10 @@ export function createKernelApi(): KernelApi {
   /** Per-import solid colors, keyed by the whole-compound brepBlobId returned
    *  by importStep. Consumed by splitImportedShape (separate round-trip). */
   const importedColorCache = new Map<string, (string | null)[]>();
+  /** Kernel-global registry of custom texture JPEG bytes, keyed by blobId.
+   *  Populated by `registerCustomTexture`; walked by `saveToBytes` to embed
+   *  `textures/<id>.jpg` entries; populated by `loadFromBytes` on restore. */
+  const customTextureBlobs = new Map<string, Uint8Array>();
 
   function updateNamedShapeCache(partId: string, ns: import('./occt/FaceNaming').NamedShape, wfs: import('@zilventor/shared').WorkFeatureValue[]): void {
     const prev = namedShapeCache.get(partId);
@@ -266,6 +277,16 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`setMaterials: unknown partId ${partId}`);
       parts.set(partId, { ...p, materials: [...materials] });
+    },
+
+    async registerCustomTexture(blobId, bytes) {
+      customTextureBlobs.set(blobId, bytes.slice());
+    },
+
+    async setCustomTextures(partId, defs) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`setCustomTextures: unknown partId ${partId}`);
+      parts.set(partId, { ...p, customTextures: [...defs] });
     },
 
     async deletePart(partId) {
@@ -366,10 +387,22 @@ export function createKernelApi(): KernelApi {
           }
         }
       };
+      // Collect custom-texture JPEG bytes referenced by this part.
+      const textures: Record<string, Uint8Array> = {};
+      for (const ct of (part.customTextures ?? [])) {
+        for (const ref of [ct.albedoBlobId, ct.normalBlobId, ct.roughnessBlobId]) {
+          if (!ref) continue;
+          const b = customTextureBlobs.get(ref);
+          if (!b) throw new Error(`saveToBytes: custom texture blob ${ref} not in registry`);
+          textures[ref] = b;
+        }
+      }
+
       return await packProject({
         manifest,
         blobs,
-        ...(thumbnail ? { thumbnail } : {})
+        ...(Object.keys(textures).length ? { textures } : {}),
+        ...(thumbnail ? { thumbnail } : {}),
       });
     },
 
@@ -385,7 +418,7 @@ export function createKernelApi(): KernelApi {
 
     async loadFromBytes(bytes) {
       if (!occt) throw new Error('kernel not initialized');
-      const { manifest, blobs } = await unpackProject(bytes);
+      const { manifest, blobs, textures } = await unpackProject(bytes);
       const migrated = migrateManifest(manifest as AnyManifest);
       const part = (migrated as unknown as { document: PartDocument }).document;
 
@@ -399,6 +432,11 @@ export function createKernelApi(): KernelApi {
           const shape = readBRep(occt, blob);
           registerImportedShape(f.bodyRef, shape);
         }
+      }
+
+      // Restore custom-texture JPEG bytes into the kernel registry.
+      if (textures) {
+        for (const [id, b] of Object.entries(textures)) customTextureBlobs.set(id, b);
       }
 
       parts.set(part.id, part);
