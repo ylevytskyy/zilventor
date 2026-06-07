@@ -27,7 +27,7 @@ export default function FileTab() {
       const bytes = await viewport.captureViewportPng({ transparent });
       const name = activeDocument.document.name;
       await triggerDownload(
-        new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' }),
+        new Blob([bytes as BlobPart], { type: 'image/png' }),
         { suggestedName: `${name}.png`, mimeType: 'image/png', extension: 'png', description: 'Image PNG' },
       );
     } catch (e) {
