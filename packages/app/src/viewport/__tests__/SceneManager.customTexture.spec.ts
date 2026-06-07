@@ -31,7 +31,7 @@ vi.mock('../textureCache', () => {
     normal: { wrapS: 0, wrapT: 0, repeat: { set: () => {} }, dispose: () => {} },
     roughness: { wrapS: 0, wrapT: 0, repeat: { set: () => {} }, dispose: () => {} },
   };
-  return { globalTextureCache: { loadTextureSet: () => fakeSet, disposeTextures: () => {} } };
+  return { globalTextureCache: { loadTextureSet: () => fakeSet, disposeTextures: vi.fn() } };
 });
 
 vi.mock('@zilventor/shared', async (orig) => {
@@ -81,7 +81,9 @@ describe('SceneManager — custom texture resolution', () => {
     expect((mat as THREE.MeshStandardMaterial).map).toBeFalsy();
   });
 
-  it('dispose calls revokeAll on the injected registry', () => {
+  it('setCustomTextureRegistry clears texture-id-keyed caches so a rebuilt registry does not serve stale URLs', async () => {
+    const { globalTextureCache } = await import('../textureCache');
+    (globalTextureCache.disposeTextures as ReturnType<typeof vi.fn>).mockClear();
     const reg = createCustomTextureRegistry();
     reg.register(
       [{ id: 'custom-1', name: 'M', physicalWidthMm: 1000, physicalHeightMm: 1000, albedoBlobId: 'a' }],
@@ -89,8 +91,6 @@ describe('SceneManager — custom texture resolution', () => {
     );
     const sm = makeSceneManager();
     sm.setCustomTextureRegistry(reg);
-    const revokeAll = vi.spyOn(reg, 'revokeAll');
-    sm.dispose();
-    expect(revokeAll).toHaveBeenCalledOnce();
+    expect(globalTextureCache.disposeTextures).toHaveBeenCalled();
   });
 });
