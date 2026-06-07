@@ -352,6 +352,37 @@ export class SceneManager {
   }
 
   /**
+   * Draw the live WebGL canvas into a `size × size` 2D canvas (center-cropped
+   * to avoid aspect distortion) and return the PNG bytes. Does NOT call setSize
+   * on the WebGL renderer → no on-screen flash. Calls render() first for a
+   * fresh frame.
+   */
+  async captureThumbnailScaled(size: number): Promise<Uint8Array> {
+    this.render();
+    const src = this.renderer.domElement;
+    const srcW = src.width;
+    const srcH = src.height;
+
+    // Largest centered square crop
+    const cropSize = Math.min(srcW, srcH);
+    const sx = Math.floor((srcW - cropSize) / 2);
+    const sy = Math.floor((srcH - cropSize) / 2);
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = size;
+    offscreen.height = size;
+    const ctx = offscreen.getContext('2d')!;
+    // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+    ctx.drawImage(src, sx, sy, cropSize, cropSize, 0, 0, size, size);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      offscreen.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) throw new Error('thumbnail scaled capture failed');
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  /**
    * T28: Register a tessellated geometry for a partPath. setComponentMeshes()
    * looks up geometry per leaf via this cache, so multiple instances of the
    * same .zipt share one BufferGeometry.
