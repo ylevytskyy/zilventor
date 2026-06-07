@@ -3,7 +3,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
-import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackAssembly, packAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { globalCustomTextureRegistry } from '../../textures/customTextureRegistry';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
 import { saveBlob, pickFile, hasDirectoryPicker } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
@@ -185,12 +187,27 @@ export default function FileTab() {
         return;
       }
       if (kind === 'assembly') {
-        const doc = await unpackAssembly(bytes);
+        const { doc, textures } = await unpackAssemblyWithTextures(bytes);
+        globalCustomTextureRegistry.revokeAll();
+        const asmDefs = doc.customTextures ?? [];
+        if (asmDefs.length && Object.keys(textures).length) {
+          globalCustomTextureRegistry.register(asmDefs, textures);
+        }
         setActiveDocument({ kind: 'assembly', document: doc });
         setStatus('Opened');
       } else {
         // part path
         const partId = await kernel.loadFromBytes(bytes);
+        try {
+          const { manifest, textures } = await unpackProject(bytes);
+          globalCustomTextureRegistry.revokeAll();
+          const partDefs = (manifest as { document?: { customTextures?: unknown[] } }).document?.customTextures ?? [];
+          if (partDefs.length && textures && Object.keys(textures).length) {
+            globalCustomTextureRegistry.register(partDefs as Parameters<typeof globalCustomTextureRegistry.register>[0], textures);
+          }
+        } catch {
+          // Non-fatal — textures just won't render.
+        }
         const part = await kernel.getPart(partId);
         setActivePart(part);
         setStatus('Opened');

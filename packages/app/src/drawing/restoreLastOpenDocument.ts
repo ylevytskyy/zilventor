@@ -10,10 +10,12 @@
 import type { PartDocument } from '@zilventor/shared';
 import { getLastOpenDocument, clearLastOpen } from '../storage/lastOpenDocument';
 import { unpackDrawing } from '../storage/DrawingPacker';
-import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { activateDrawingDocument } from './activateDrawingDocument';
 import { useAppStore } from '../store/useAppStore';
 import type { OpfsForLoad } from './loadDrawingSource';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { globalCustomTextureRegistry } from '../textures/customTextureRegistry';
 
 export type KernelForRestore = {
   loadFromBytes(bytes: Uint8Array): Promise<string>;
@@ -47,13 +49,30 @@ export async function restoreLastOpenDocument({
     }
 
     if (pointer.kind === 'assembly') {
-      const doc = await unpackAssembly(bytes);
+      const { doc, textures } = await unpackAssemblyWithTextures(bytes);
+      // Rebuild the custom-texture runtime registry from the packed bytes.
+      globalCustomTextureRegistry.revokeAll();
+      const asmDefs = doc.customTextures ?? [];
+      if (asmDefs.length && Object.keys(textures).length) {
+        globalCustomTextureRegistry.register(asmDefs, textures);
+      }
       useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
       return true;
     }
 
     // part
     const partId = await kernel.loadFromBytes(bytes);
+    // Rebuild the custom-texture runtime registry from the packed bytes.
+    try {
+      const { manifest, textures } = await unpackProject(bytes);
+      globalCustomTextureRegistry.revokeAll();
+      const partDefs = (manifest as { document?: { customTextures?: unknown[] } }).document?.customTextures ?? [];
+      if (partDefs.length && textures && Object.keys(textures).length) {
+        globalCustomTextureRegistry.register(partDefs as Parameters<typeof globalCustomTextureRegistry.register>[0], textures);
+      }
+    } catch {
+      // Non-fatal — custom textures just won't render until re-uploaded.
+    }
     const res = await kernel.execute(partId);
     if (!res.ok) {
       clearLastOpen();

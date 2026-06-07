@@ -87,7 +87,8 @@ import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraint
 import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { globalCustomTextureRegistry, collectCustomTextureBytes } from './textures/customTextureRegistry';
 import { packDrawing } from './storage/DrawingPacker';
 import { autosaveDrawing } from './storage/autosaveDrawing';
 import { setLastOpenDocument } from './storage/lastOpenDocument';
@@ -1132,6 +1133,7 @@ export default function App() {
         return;
       }
       attachedSm = sm;
+      sm.setCustomTextureRegistry(globalCustomTextureRegistry);
 
       sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi());
 
@@ -3800,7 +3802,8 @@ export default function App() {
             );
             const withCutList = mergeAndPruneCutList(withBom, cutListResult, { cacheComplete });
             const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
-            const archive = await packAssembly(merged, new Uint8Array());
+            const texBytes = collectCustomTextureBytes(merged.customTextures, globalCustomTextureRegistry);
+            const archive = await packAssembly(merged, new Uint8Array(), Object.keys(texBytes).length ? texBytes : undefined);
             await opfs.write(`${doc.document.name}.ziasm`, archive);
             setLastOpenDocument({ kind: 'assembly', opfsPath: `${doc.document.name}.ziasm` });
           } else {
