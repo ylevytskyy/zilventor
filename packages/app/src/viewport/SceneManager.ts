@@ -4,6 +4,7 @@ import { computeCameraFrame } from './frameView';
 import { pathKey, findTextureDef, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
+import type { CustomTextureRegistry } from '../textures/customTextureRegistry';
 
 export type Vec3 = { x: number; y: number; z: number };
 export type WorkFeatureSpec =
@@ -91,6 +92,7 @@ export class SceneManager {
   private materialColorMap: Map<string, string> = new Map();
   private showEdgeBands = true;
   private storeUnsubscribers: Array<() => void> = [];
+  private customTextureRegistry: CustomTextureRegistry | null = null;
   private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
 
 
@@ -129,6 +131,13 @@ export class SceneManager {
   /** @internal For tests only. Returns the current part geometry or null. */
   currentGeometry(): THREE.BufferGeometry | null {
     return this.current?.geometry ?? null;
+  }
+  /** @internal For tests only. Returns the current part mesh material or null. */
+  getCurrentMaterial(): THREE.Material | null {
+    return (this.current?.material as THREE.Material) ?? null;
+  }
+  setCustomTextureRegistry(r: CustomTextureRegistry | null): void {
+    this.customTextureRegistry = r;
   }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
@@ -319,7 +328,7 @@ export class SceneManager {
 
   private buildMaterial(textureId: string | undefined, tintHex: string): THREE.MeshStandardMaterial {
     if (textureId) {
-      const def = findTextureDef(textureId);
+      const def = findTextureDef(textureId) ?? this.customTextureRegistry?.get(textureId);
       if (def) {
         const texSet = globalTextureCache.loadTextureSet(def);
         return new THREE.MeshStandardMaterial({
@@ -707,6 +716,7 @@ export class SceneManager {
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
     globalTextureCache.disposeTextures();
+    this.customTextureRegistry?.revokeAll();
     if (this.selectionOverlayMaterial) {
       this.selectionOverlayMaterial.dispose();
       this.selectionOverlayMaterial = null;
