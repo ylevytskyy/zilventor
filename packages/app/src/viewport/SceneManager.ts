@@ -312,6 +312,27 @@ export class SceneManager {
   }
 
   /**
+   * Render the current 3D viewport at its current on-screen canvas size and
+   * return the PNG bytes. No resize → no on-screen flicker (WYSIWYG).
+   *
+   * Task 1 implements the opaque path only. The transparent path (stash
+   * scene.background + setClearAlpha(0)) is added in Task 2.
+   *
+   * Requires preserveDrawingBuffer: true (already set in constructor).
+   */
+  async captureViewportPng({ transparent: _transparent }: { transparent: boolean }): Promise<Uint8Array> {
+    // Opaque path — render at current canvas size, no setSize.
+    // NOTE: transparent flag is ignored here; Task 2 adds the full transparent path.
+    this.render();
+    const canvas = this.renderer.domElement;
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) throw new Error('viewport PNG capture failed');
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  /**
    * T28: Register a tessellated geometry for a partPath. setComponentMeshes()
    * looks up geometry per leaf via this cache, so multiple instances of the
    * same .zipt share one BufferGeometry.
