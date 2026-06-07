@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 19 as const;
+export const CURRENT_FORMAT_VERSION = 20 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -14,6 +14,12 @@ function deepClone<T>(v: T): T {
 function addHardwareField(doc: Record<string, unknown>): void {
   if (doc.hardware == null) {
     doc.hardware = [];
+  }
+}
+
+function addCustomTexturesField(doc: Record<string, unknown>): void {
+  if (doc.customTextures == null) {
+    doc.customTextures = [];
   }
 }
 
@@ -293,6 +299,18 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 19 };
   },
+
+  // v19 → v20: additive — add `customTextures: []` to part- and assembly-kind
+  // documents (PBR Textures Phase 2). Empty default; populated by
+  // AddCustomTextureCommand. Drawing documents are untouched.
+  19: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: Record<string, unknown> };
+    if ((anyM.kind === 'part' || anyM.kind === 'assembly') && anyM.document) {
+      addCustomTexturesField(anyM.document);
+    }
+    return { ...m, formatVersion: 20 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -300,7 +318,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
     (m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 ||
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
      m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18 ||
-     m.formatVersion === 19) &&
+     m.formatVersion === 19 || m.formatVersion === 20) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
