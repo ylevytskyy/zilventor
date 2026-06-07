@@ -97,7 +97,7 @@ export class SceneManager {
 
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true, alpha: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.scene.background = new THREE.Color(0x1a2028);
 
@@ -315,14 +315,33 @@ export class SceneManager {
    * Render the current 3D viewport at its current on-screen canvas size and
    * return the PNG bytes. No resize → no on-screen flicker (WYSIWYG).
    *
-   * Task 1 implements the opaque path only. The transparent path (stash
-   * scene.background + setClearAlpha(0)) is added in Task 2.
+   * Opaque (transparent: false): uses the live scene background as-is.
+   * Transparent (transparent: true): stashes/restores scene.background and
+   * sets clear alpha to 0 around the capture; requires alpha: true on the
+   * renderer constructor (added in Task 2).
    *
    * Requires preserveDrawingBuffer: true (already set in constructor).
    */
-  async captureViewportPng({ transparent: _transparent }: { transparent: boolean }): Promise<Uint8Array> {
+  async captureViewportPng({ transparent }: { transparent: boolean }): Promise<Uint8Array> {
+    if (transparent) {
+      const savedBackground = this.scene.background;
+      try {
+        this.scene.background = null;
+        this.renderer.setClearAlpha(0);
+        this.render();
+        const canvas = this.renderer.domElement;
+        const blob: Blob | null = await new Promise((resolve) =>
+          canvas.toBlob((b) => resolve(b), 'image/png')
+        );
+        if (!blob) throw new Error('viewport PNG capture failed');
+        return new Uint8Array(await blob.arrayBuffer());
+      } finally {
+        this.scene.background = savedBackground;
+        this.renderer.setClearAlpha(1);
+        this.render();
+      }
+    }
     // Opaque path — render at current canvas size, no setSize.
-    // NOTE: transparent flag is ignored here; Task 2 adds the full transparent path.
     this.render();
     const canvas = this.renderer.domElement;
     const blob: Blob | null = await new Promise((resolve) =>
