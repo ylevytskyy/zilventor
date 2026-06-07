@@ -45,6 +45,8 @@ export type ViewportRef = {
   setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void;
   clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
+  captureViewportPng(opts: { transparent: boolean }): Promise<Uint8Array>;
+  captureThumbnailScaled(size: number): Promise<Uint8Array>;
   getSceneManager(): SceneManager | null;
   screenToWorld(clientX: number, clientY: number): { x: number; y: number };
   screenToRay(
@@ -184,6 +186,14 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     captureThumbnail: async (w, h) => {
       if (!sceneRef.current) throw new Error('viewport not ready');
       return sceneRef.current.captureThumbnail(w, h);
+    },
+    captureViewportPng: async (opts) => {
+      if (!sceneRef.current) throw new Error('viewport not ready');
+      return sceneRef.current.captureViewportPng(opts);
+    },
+    captureThumbnailScaled: async (size) => {
+      if (!sceneRef.current) throw new Error('viewport not ready');
+      return sceneRef.current.captureThumbnailScaled(size);
     },
     getSceneManager: () => sceneRef.current,
     screenToWorld: (clientX, clientY) => {
