@@ -6,6 +6,7 @@ import type { MaterialEntry } from './material';
 import type { HardwareEntry, HardwareFeature } from './hardware-feature';
 import type { NestState } from './nesting/nestState';
 import type { DrawingDocument } from './drawing/types';
+import type { CustomTextureDef } from './custom-texture-def';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -77,6 +78,7 @@ export type PartDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  customTextures?: CustomTextureDef[];
   /** Intrinsic part color (e.g. from STEP import). Default render color in
    *  part view; seeds ComponentInstance.color on explode/insert. User
    *  colorOverrides still win. */
@@ -113,6 +115,7 @@ export type AssemblyDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  customTextures?: CustomTextureDef[];
   nest?: NestState;
 };
 
@@ -138,9 +141,9 @@ export type AssemblyConstraint =
 // Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
 // bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
-  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
+  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
 
 export type FaceName = {
   featureId: string;

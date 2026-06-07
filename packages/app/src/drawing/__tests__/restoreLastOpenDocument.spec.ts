@@ -11,6 +11,7 @@ vi.mock('../../storage/DrawingPacker', () => ({
 
 vi.mock('@zilventor/kernel/src/storage/AssemblyPacker', () => ({
   unpackAssembly: vi.fn(),
+  unpackAssemblyWithTextures: vi.fn().mockResolvedValue({ doc: undefined, textures: {} }),
 }));
 
 vi.mock('../activateDrawingDocument', () => ({
@@ -19,7 +20,7 @@ vi.mock('../activateDrawingDocument', () => ({
 
 import { getLastOpenDocument, clearLastOpen } from '../../storage/lastOpenDocument';
 import { unpackDrawing } from '../../storage/DrawingPacker';
-import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { activateDrawingDocument } from '../activateDrawingDocument';
 import { restoreLastOpenDocument } from '../restoreLastOpenDocument';
 import { useAppStore } from '../../store/useAppStore';
@@ -187,7 +188,9 @@ describe('restoreLastOpenDocument', () => {
       kind: 'assembly',
       opfsPath: 'Kitchen.ziasm',
     });
+    // Production code calls unpackAssemblyWithTextures (not unpackAssembly) for assembly docs.
     (unpackAssembly as ReturnType<typeof vi.fn>).mockResolvedValue(asmDoc);
+    vi.mocked(unpackAssemblyWithTextures).mockResolvedValue({ doc: asmDoc, textures: {} });
     const kernel = makeKernel();
     const ok = await restoreLastOpenDocument({ kernel: kernel as never, opfs: makeOpfs(true) });
 

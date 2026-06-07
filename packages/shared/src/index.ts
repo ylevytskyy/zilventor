@@ -61,3 +61,5 @@ export type { IsArcEdgeOptions } from './drawing/isArcEdge';
 export { autoPlaceCenterMarks } from './drawing/autoPlaceCenterMarks';
 export type { TextureDef } from './texture-def';
 export { BUILTIN_TEXTURE_DEFS, findTextureDef } from './texture-def';
+export type { CustomTextureDef } from './custom-texture-def';
+export { isCustomTextureDef } from './custom-texture-def';

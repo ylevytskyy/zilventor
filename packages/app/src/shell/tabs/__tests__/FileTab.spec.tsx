@@ -42,6 +42,7 @@ vi.mock('@zilventor/kernel/src/storage/tarGzipUtil', () => ({
 }));
 vi.mock('@zilventor/kernel/src/storage/AssemblyPacker', () => ({
   unpackAssembly: vi.fn(),
+  unpackAssemblyWithTextures: vi.fn().mockResolvedValue({ doc: undefined, textures: {} }),
   packAssembly: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
 }));
 vi.mock('@zilventor/kernel/src/storage/FileSystemAccess', () => ({
@@ -50,7 +51,7 @@ vi.mock('@zilventor/kernel/src/storage/FileSystemAccess', () => ({
 }));
 
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
-import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { unpackAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
 
 describe('FileTab', () => {
   beforeEach(() => {
@@ -77,8 +78,9 @@ describe('FileTab', () => {
     vi.mocked(readTarGz).mockResolvedValue([
       { name: 'manifest.json', data: manifestBytes },
     ]);
-    // Stub unpackAssembly to return the doc directly
+    // Stub both unpack variants: production code calls unpackAssemblyWithTextures.
     vi.mocked(unpackAssembly).mockResolvedValue(asm);
+    vi.mocked(unpackAssemblyWithTextures).mockResolvedValue({ doc: asm, textures: {} });
 
     const fakeHandle = {
       getFile: async () => ({

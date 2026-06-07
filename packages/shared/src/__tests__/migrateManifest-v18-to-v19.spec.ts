@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-fill)', () => {
-  it('CURRENT_FORMAT_VERSION is 19', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(19);
+  it('CURRENT_FORMAT_VERSION is 20', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(20);
   });
 
   // ── Main structural cases ──────────────────────────────────────────────────
@@ -52,7 +52,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     const det = out.document.sheets[0]!.views.find(v => v.kind === 'detail')!;
     expect(det.regionParent!.kind).toBe('circle');
     expect(det.regionParent!.center.x).toBe(20);
@@ -102,7 +102,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     const details = out.document.sheets[0]!.views.filter(v => v.kind === 'detail');
     expect(details).toHaveLength(2);
     expect(details.every(d => d.regionParent?.kind === 'circle')).toBe(true);
@@ -154,7 +154,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     const base = out.document.sheets[0]!.views.find(v => v.kind === 'base')!;
     expect((base as Record<string, unknown>)['regionParent']).toBeUndefined();
     const proj = out.document.sheets[0]!.views.find(v => v.kind === 'projected')!;
@@ -206,13 +206,13 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     const det = out.document.sheets[0]!.views.find(v => v.kind === 'detail')!;
     expect(det.regionParent?.kind).toBe('circle');
     expect(det.regionParent?.radiusMm).toBe(8);
   });
 
-  it('v19 manifest passes through without re-migration', () => {
+  it('v19 manifest migrates to v20', () => {
     const v19 = {
       formatVersion: 19, kind: 'part',
       document: {
@@ -221,13 +221,14 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         materials: [], hardware: [],
       },
     };
-    const out = migrateManifest(v19) as { formatVersion: number };
-    expect(out.formatVersion).toBe(19);
+    const out = migrateManifest(v19) as { formatVersion: number; document: { customTextures: unknown[] } };
+    expect(out.formatVersion).toBe(20);
+    expect(out.document.customTextures).toEqual([]);
   });
 
   // ── Non-drawing passthrough ─────────────────────────────────────────────────
 
-  it('v18 part passes through to v19 unchanged', () => {
+  it('v18 part migrates through v19 → v20 with customTextures: []', () => {
     const v18 = {
       formatVersion: 18, kind: 'part',
       document: {
@@ -237,11 +238,11 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
       },
     };
     const out = migrateManifest(v18) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     expect(out.kind).toBe('part');
   });
 
-  it('v18 assembly passes through to v19 unchanged', () => {
+  it('v18 assembly migrates through v19 → v20 with customTextures: []', () => {
     const v18 = {
       formatVersion: 18, kind: 'assembly',
       document: {
@@ -254,7 +255,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
       },
     };
     const out = migrateManifest(v18) as { formatVersion: number };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
   });
 
   // ── Immutability ─────────────────────────────────────────────────────────────
@@ -326,7 +327,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(19);
+    expect(out.formatVersion).toBe(20);
     for (const sheet of out.document.sheets) {
       const det = sheet.views.find(v => v.kind === 'detail')!;
       expect(det.regionParent?.kind).toBe('circle');

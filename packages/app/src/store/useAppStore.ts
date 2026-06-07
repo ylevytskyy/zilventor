@@ -289,6 +289,8 @@ type AppState = {
   addMaterial(entry: MaterialEntry): void;
   updateMaterial(id: string, patch: Partial<Omit<MaterialEntry, 'id'>> & { clearSheetStock?: true; clearHatch?: true }): void;
   removeMaterial(id: string): void;
+  addCustomTexture(def: import('@zilventor/shared').CustomTextureDef): void;
+  removeCustomTexture(id: string): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
   cabinetDialog: CabinetDialogState | null;
@@ -752,6 +754,42 @@ export const useAppStore = create<AppState>((set) => ({
       const next: PartDocument = {
         ...s.activePart,
         materials: s.activePart.materials.filter((m) => m.id !== id),
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  addCustomTexture: (def) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        customTextures: [...(s.activeAssembly.customTextures ?? []), def],
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        customTextures: [...(s.activePart.customTextures ?? []), def],
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  removeCustomTexture: (id) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        customTextures: (s.activeAssembly.customTextures ?? []).filter((d) => d.id !== id),
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        customTextures: (s.activePart.customTextures ?? []).filter((d) => d.id !== id),
       };
       return { activeDocument: { kind: 'part', document: next }, activePart: next };
     }
