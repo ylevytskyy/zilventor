@@ -1071,13 +1071,23 @@ export default function App() {
     void (async () => {
       if (useAppStore.getState().sketchMode) return;
       if (!kernel || !activePart || !viewportRef.current) return;
-      const hasExecutableFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'workAxis' || f.kind === 'workPlane' || f.kind === 'workPoint');
-      if (!hasExecutableFeature) return;
+      // Only execute when there is a solid-producing feature. Work features alone
+      // (workAxis/workPlane/workPoint) cannot produce a solid and would always
+      // return "Feature tree produced no solid", polluting the status bar.
+      // The seeded origin.* features are all work features, so a fresh empty part
+      // must NOT trigger execute(). Work feature values are computed as a side-effect
+      // of the solid execution (when a solid-producing feature is also present).
+      const hasSolidFeature = activePart.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'imported');
+      if (!hasSolidFeature) return;
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
+        // Clear any prior error status — a successful execute means the tree is healthy.
+        useAppStore.getState().setStatus('');
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+        const panelFeat = activePart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+        const panelMat = panelFeat ? activePart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1288,7 +1298,9 @@ export default function App() {
           const res = await kernelClient.execute(freshPart.id);
           if (res.ok && viewportRef.current) {
             const partHex = freshPart?.color?.kind === 'hex' ? freshPart.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+            const panelFeat = freshPart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+            const panelMat = panelFeat ? freshPart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1757,7 +1769,9 @@ export default function App() {
           const res = await client.execute(ap.id);
           if (!unmountedRef.current && res.ok && viewportRef.current) {
             const partHex = ap?.color?.kind === 'hex' ? ap.color.hex : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex);
+            const panelFeat = ap?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+            const panelMat = panelFeat ? ap?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -2511,6 +2525,10 @@ export default function App() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  // Persists the resolved textureId per partPath across renders, parallel to
+  // geometryCacheRef. Must be invalidated at the same sites as geometryCacheRef
+  // so a material edit that changes textureId is not served stale.
+  const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -2570,6 +2588,7 @@ export default function App() {
         assemblyRefCacheRef.current.invalidate(partPath);
         assemblyPartIdCacheRef.current.delete(partPath);
         geometryCacheRef.current.delete(partPath);
+        partTextureIdCacheRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3580,10 +3599,20 @@ export default function App() {
             const partId = await kernel.loadFromBytes(bytes);
             const res = await kernel.execute(partId);
             if (!res.ok) throw new Error(res.error.message);
+            const partDoc = await kernel.getPart(partId);
+            if (partDoc) {
+              const panelFeat = partDoc.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+              const partMat = panelFeat ? partDoc.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+              // Persist textureId so subsequent cache-hit renders still see it.
+              partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
+            }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
             geom.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
             geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+            if (m.uv) {
+              geom.setAttribute('uv', new THREE.BufferAttribute(m.uv, 2));
+            }
             geom.computeVertexNormals();
             cache.set(partPath, geom);
           } catch (e) {
@@ -3606,12 +3635,16 @@ export default function App() {
           translation: { x: 0, y: 0, z: 0 },
           quaternion: [0, 0, 0, 1] as [number, number, number, number],
         };
+        // Read textureId from the persistent cache so cache-hit renders
+        // (where geom is already present) still forward the correct textureId.
+        const cachedTextureId = partTextureIdCacheRef.current.get(l.partPath);
         return {
           kind: l.kind,
           componentPath: l.componentPath,
           partPath: l.partPath,
           worldPose,
           ...(materialColor !== undefined ? { materialColor } : {}),
+          ...(cachedTextureId !== undefined ? { textureId: cachedTextureId } : {}),
           visible: true,
         };
       });

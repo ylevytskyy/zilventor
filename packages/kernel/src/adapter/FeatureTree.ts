@@ -25,6 +25,7 @@ import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
+import { panelUvProjection, type UvProjection } from '@zilventor/shared';
 import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, namedFace, attachName, mergeFaceNames } from '../occt/FaceNaming';
@@ -889,9 +890,18 @@ export async function executeTree(
     });
   }
 
+  // Choose UV projection: panel → grain-aligned planar; everything else → box.
+  // Origin features (workAxis, workPlane, workPoint) are skipped.
+  const firstUserFeature = part.featureTree.find(
+    (f) => f.kind !== 'workAxis' && f.kind !== 'workPlane' && f.kind !== 'workPoint',
+  );
+  const uvProjection: UvProjection = firstUserFeature?.kind === 'panel'
+    ? panelUvProjection(firstUserFeature)
+    : { mode: 'box' };
+
   const mesh = tessellate(oc, finalSolid.shape, {
     linearDeflection: adaptiveLinearDeflection(computeBoundingBox(oc, finalSolid.shape)),
-  });
+  }, uvProjection);
   const tessellatedEdges = tessellateEdges(oc, finalSolid);
   const tessellatedFaces = tessellateFaces(oc, finalSolid);
   // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw

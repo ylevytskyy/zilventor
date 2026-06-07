@@ -19,6 +19,7 @@ export type Mesh = {
   positions: Float32Array;
   indices: Uint32Array;
   boundingBox: BoundingBox;
+  uv?: Float32Array;
 };
 
 export type SketchPrimitive =

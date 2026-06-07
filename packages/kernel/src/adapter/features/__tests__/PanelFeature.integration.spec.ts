@@ -70,6 +70,30 @@ describe('PanelFeature integration', () => {
     disposeShape(r.value.finalSolid);
   });
 
+  it('executeTree for panel grain=length produces mesh.uv with length = (positions.length/3)*2', async () => {
+    let doc = newPart('Part1');
+    doc = addFeature(doc, mkPanel({ grain: 'length' }));
+    const r = await executeTree(occt, doc);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.mesh.uv).toBeDefined();
+    expect(r.value.mesh.uv!.length).toBe((r.value.mesh.positions.length / 3) * 2);
+    disposeShape(r.value.finalSolid);
+  }, 60_000);
+
+  it('executeTree for panel grain=width: U spans ~400mm (width axis)', async () => {
+    let doc = newPart('Part1');
+    doc = addFeature(doc, mkPanel({ grain: 'width' }));
+    const r = await executeTree(occt, doc);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const uv = r.value.mesh.uv!;
+    let maxU = -Infinity, minU = Infinity;
+    for (let i = 0; i < uv.length; i += 2) { const u = uv[i]!; if (u > maxU) maxU = u; if (u < minU) minU = u; }
+    expect(maxU - minU).toBeGreaterThan(350);
+    disposeShape(r.value.finalSolid);
+  }, 60_000);
+
   it('save → reload preserves the panel and re-executes to identical geometry', async () => {
     const api = createKernelApi();
     await api.init();

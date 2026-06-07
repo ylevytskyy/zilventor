@@ -62,3 +62,23 @@ describe('isMaterialEntry — sheet-stock fields', () => {
     expect(isMaterialEntry({ ...base, sheetLengthMm: Infinity, sheetWidthMm: 1220 })).toBe(false);
   });
 });
+
+describe('isMaterialEntry — textureId field', () => {
+  const base = { id: 'm1', name: 'Oak', defaultThickness: 18, color: '#8b6914' };
+
+  it('accepts entry without textureId (field absent)', () => {
+    expect(isMaterialEntry(base)).toBe(true);
+  });
+
+  it('accepts entry with a non-empty string textureId', () => {
+    expect(isMaterialEntry({ ...base, textureId: 'oak' })).toBe(true);
+  });
+
+  it('rejects entry with empty string textureId', () => {
+    expect(isMaterialEntry({ ...base, textureId: '' })).toBe(false);
+  });
+
+  it('rejects entry with non-string textureId', () => {
+    expect(isMaterialEntry({ ...base, textureId: 42 })).toBe(false);
+  });
+});

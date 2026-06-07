@@ -10,6 +10,8 @@ export * from './partInfo';
 export * from './material';
 export * from './cutListRow';
 export * from './panel-feature';
+export type { UvProjection } from './uv-projection';
+export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
 export type {
   HardwareCategory,
@@ -57,3 +59,5 @@ export { circumcenterFromPolyline } from './drawing/circumcenter';
 export { isArcEdge } from './drawing/isArcEdge';
 export type { IsArcEdgeOptions } from './drawing/isArcEdge';
 export { autoPlaceCenterMarks } from './drawing/autoPlaceCenterMarks';
+export type { TextureDef } from './texture-def';
+export { BUILTIN_TEXTURE_DEFS, findTextureDef } from './texture-def';

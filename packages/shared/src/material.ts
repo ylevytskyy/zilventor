@@ -9,6 +9,7 @@ export interface MaterialEntry {
   readonly sheetWidthMm?: number;
   readonly hatchAngleDeg?: number;   // default 45 — degrees from horizontal
   readonly hatchSpacingMm?: number;  // default 3 — spacing between hatch lines
+  readonly textureId?: string;
 }
 
 export type MaterialRegistry = readonly MaterialEntry[];
@@ -45,5 +46,8 @@ export function isMaterialEntry(v: unknown): v is MaterialEntry {
   if (hasL !== hasW) return false;
   if (hasL && !isPositiveFiniteNumber(m.sheetLengthMm)) return false;
   if (hasW && !isPositiveFiniteNumber(m.sheetWidthMm)) return false;
+  if (m.textureId !== undefined) {
+    if (typeof m.textureId !== 'string' || m.textureId.length === 0) return false;
+  }
   return true;
 }

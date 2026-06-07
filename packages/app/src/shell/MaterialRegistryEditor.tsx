@@ -1,5 +1,6 @@
 import React from 'react';
 import type { MaterialEntry } from '@zilventor/shared';
+import { BUILTIN_TEXTURE_DEFS } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { AddMaterialCommand } from '../commands/AddMaterialCommand';
 import { EditMaterialCommand, type EditMaterialPatch } from '../commands/EditMaterialCommand';
@@ -97,7 +98,7 @@ function validateHatchPattern(angleStr: string, spacingStr: string): string | nu
 
 type RowEditState =
   | { mode: 'idle' }
-  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; hatchAngleDeg: string; hatchSpacingMm: string; error: string | null }
+  | { mode: 'edit'; id: string; name: string; defaultThickness: string; color: string; sheetLengthMm: string; sheetWidthMm: string; hatchAngleDeg: string; hatchSpacingMm: string; textureId: string; error: string | null }
   | { mode: 'confirmDelete'; id: string; error: string | null };
 
 export type MaterialRegistryEditorProps = {
@@ -196,6 +197,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       color: rowState.color,
       ...sheetPart,
       ...hatchPart,
+      ...(rowState.textureId ? { textureId: rowState.textureId } : {}),
     };
     try {
       await bus.execute(new EditMaterialCommand(rowState.id, patch));
@@ -233,6 +235,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet W (mm)</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch angle (°)</th>
             <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch spacing (mm)</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>Texture</th>
             <th style={{ ...cellStyle, width: 120 }}></th>
           </tr>
         </thead>
@@ -328,6 +331,19 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                     />
                   </td>
                   <td style={cellStyle}>
+                    <select
+                      aria-label="Edit texture"
+                      value={rowState.textureId}
+                      onChange={(e) => setRowState({ ...rowState, textureId: e.target.value })}
+                      style={inputStyle}
+                    >
+                      <option value="">— None —</option>
+                      {BUILTIN_TEXTURE_DEFS.map((def) => (
+                        <option key={def.id} value={def.id}>{def.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={cellStyle}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button type="button" style={okBtnStyle} onClick={onEditSubmit} disabled={rowState.error !== null}>Save</button>
                       <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>Cancel</button>
@@ -341,7 +357,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             if (isConfirmingDelete && rowState.mode === 'confirmDelete') {
               return (
                 <tr key={m.id} data-testid={`material-row-${m.id}`}>
-                  <td colSpan={8} style={cellStyle}>
+                  <td colSpan={9} style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span>Delete "{m.name}"?</span>
                       <button type="button" style={dangerBtnStyle} onClick={onDeleteConfirm}>Confirm delete</button>
@@ -384,6 +400,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                 <td style={cellStyle}>{m.sheetWidthMm ?? ''}</td>
                 <td style={cellStyle}>{m.hatchAngleDeg ?? ''}</td>
                 <td style={cellStyle}>{m.hatchSpacingMm ?? ''}</td>
+                <td style={cellStyle}>{m.textureId ?? ''}</td>
                 <td style={cellStyle}>
                   {(showActions || hoveredId === m.id) && (
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -401,6 +418,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                           sheetWidthMm: m.sheetWidthMm !== undefined ? String(m.sheetWidthMm) : '',
                           hatchAngleDeg: m.hatchAngleDeg !== undefined ? String(m.hatchAngleDeg) : '',
                           hatchSpacingMm: m.hatchSpacingMm !== undefined ? String(m.hatchSpacingMm) : '',
+                          textureId: m.textureId ?? '',
                           error: null,
                         })}
                       >
@@ -422,7 +440,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
           })}
           {materials.length === 0 && (
             <tr>
-              <td colSpan={8} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
+              <td colSpan={9} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
                 No materials defined.
               </td>
             </tr>
