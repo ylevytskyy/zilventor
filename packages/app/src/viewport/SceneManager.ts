@@ -97,7 +97,7 @@ export class SceneManager {
 
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true, alpha: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.scene.background = new THREE.Color(0x1a2028);
 
@@ -308,6 +308,77 @@ export class SceneManager {
     // Always restore prior framebuffer size, even if toBlob failed.
     this.setSize(prev.w || 1, prev.h || 1);
     if (!blob) throw new Error('thumbnail capture failed');
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  /**
+   * Render the current 3D viewport at its current on-screen canvas size and
+   * return the PNG bytes. No resize → no on-screen flicker (WYSIWYG).
+   *
+   * Opaque (transparent: false): uses the live scene background as-is.
+   * Transparent (transparent: true): stashes/restores scene.background and
+   * sets clear alpha to 0 around the capture; requires alpha: true on the
+   * renderer constructor (added in Task 2).
+   *
+   * Requires preserveDrawingBuffer: true (already set in constructor).
+   */
+  async captureViewportPng({ transparent }: { transparent: boolean }): Promise<Uint8Array> {
+    if (transparent) {
+      const savedBackground = this.scene.background;
+      try {
+        this.scene.background = null;
+        this.renderer.setClearAlpha(0);
+        this.render();
+        const canvas = this.renderer.domElement;
+        const blob: Blob | null = await new Promise((resolve) =>
+          canvas.toBlob((b) => resolve(b), 'image/png')
+        );
+        if (!blob) throw new Error('viewport PNG capture failed');
+        return new Uint8Array(await blob.arrayBuffer());
+      } finally {
+        this.scene.background = savedBackground;
+        this.renderer.setClearAlpha(1);
+        this.render();
+      }
+    }
+    // Opaque path — render at current canvas size, no setSize.
+    this.render();
+    const canvas = this.renderer.domElement;
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) throw new Error('viewport PNG capture failed');
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  /**
+   * Draw the live WebGL canvas into a `size × size` 2D canvas (center-cropped
+   * to avoid aspect distortion) and return the PNG bytes. Does NOT call setSize
+   * on the WebGL renderer → no on-screen flash. Calls render() first for a
+   * fresh frame.
+   */
+  async captureThumbnailScaled(size: number): Promise<Uint8Array> {
+    this.render();
+    const src = this.renderer.domElement;
+    const srcW = src.width;
+    const srcH = src.height;
+
+    // Largest centered square crop
+    const cropSize = Math.min(srcW, srcH);
+    const sx = Math.floor((srcW - cropSize) / 2);
+    const sy = Math.floor((srcH - cropSize) / 2);
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = size;
+    offscreen.height = size;
+    const ctx = offscreen.getContext('2d')!;
+    // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+    ctx.drawImage(src, sx, sy, cropSize, cropSize, 0, 0, size, size);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      offscreen.toBlob((b) => resolve(b), 'image/png')
+    );
+    if (!blob) throw new Error('thumbnail scaled capture failed');
     return new Uint8Array(await blob.arrayBuffer());
   }
 

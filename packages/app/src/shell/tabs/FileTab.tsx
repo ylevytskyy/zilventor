@@ -12,11 +12,29 @@ import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { startImportTicker } from '../../import/importTicker';
 import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidworksGuidance';
+import { triggerDownload } from '../../nesting/triggerDownload';
 
 export default function FileTab() {
   const activePart = useAppStore((s) => s.activePart);
   const activeDoc = useAppStore((s) => s.activeDocument);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
+  const [transparentBg, setTransparentBg] = useState(false);
+
+  const handleExportImage = async (transparent: boolean) => {
+    const { viewport, activeDocument } = useAppStore.getState();
+    if (!viewport || !activeDocument) return;
+    try {
+      const bytes = await viewport.captureViewportPng({ transparent });
+      const name = activeDocument.document.name;
+      await triggerDownload(
+        new Blob([bytes as BlobPart], { type: 'image/png' }),
+        { suggestedName: `${name}.png`, mimeType: 'image/png', extension: 'png', description: 'Image PNG' },
+      );
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      setErrorDialog(`Export failed: ${(e as Error).message}`);
+    }
+  };
 
   const handleNewPart = async () => {
     const { kernel, bus, setActivePart } = useAppStore.getState();
@@ -241,6 +259,21 @@ export default function FileTab() {
       <button className="hover:text-white" onClick={handleOpen}>Open…</button>
       <button className="hover:text-white" disabled>Save</button>
       <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
+      <label className="flex items-center gap-1 select-none">
+        <input
+          type="checkbox"
+          checked={transparentBg}
+          onChange={(e) => setTransparentBg(e.target.checked)}
+        />
+        Transparent
+      </label>
+      <button
+        className="hover:text-white disabled:text-neutral-500"
+        disabled={!activeDoc || activeDoc.kind === 'drawing'}
+        onClick={() => handleExportImage(transparentBg)}
+      >
+        Export Image
+      </button>
       <button
         className="hover:text-white disabled:text-neutral-500"
         disabled={!hasDirectoryPicker()}

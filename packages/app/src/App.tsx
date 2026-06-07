@@ -159,6 +159,7 @@ function formatExpressionError(err: EvaluationError): string {
   }
 }
 
+const THUMB_THROTTLE_MS = 5000;
 
 export default function App() {
   const viewportRef = useRef<ViewportRef>(null);
@@ -3738,6 +3739,8 @@ export default function App() {
   const activeDoc = useAppStore((s) => s.activeDocument);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveStatsRef = useRef({ writeCount: 0 });
+  const lastThumbBytesRef = useRef<Uint8Array | null>(null);
+  const lastThumbTimeRef = useRef<number>(0);
   useEffect(() => {
     if (!import.meta.env.DEV) {
       const w = window as unknown as Record<string, unknown>;
@@ -3758,6 +3761,18 @@ export default function App() {
       autosaveTimerRef.current = null;
       void (async () => {
         try {
+          // Throttled thumbnail capture — max once per THUMB_THROTTLE_MS
+          const vp = useAppStore.getState().viewport;
+          if (vp && (lastThumbBytesRef.current === null || Date.now() - lastThumbTimeRef.current > THUMB_THROTTLE_MS)) {
+            try {
+              lastThumbBytesRef.current = await vp.captureThumbnailScaled(256);
+              lastThumbTimeRef.current = Date.now();
+            } catch {
+              // Non-fatal: keep previous cached bytes (or null → empty fallback below).
+            }
+          }
+          const thumb = lastThumbBytesRef.current ?? new Uint8Array();
+
           if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
           const opfs = opfsRef.current;
           const doc = useAppStore.getState().activeDocument;
@@ -3803,12 +3818,12 @@ export default function App() {
             const withCutList = mergeAndPruneCutList(withBom, cutListResult, { cacheComplete });
             const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
             const texBytes = collectCustomTextureBytes(merged.customTextures, globalCustomTextureRegistry);
-            const archive = await packAssembly(merged, new Uint8Array(), Object.keys(texBytes).length ? texBytes : undefined);
+            const archive = await packAssembly(merged, thumb, Object.keys(texBytes).length ? texBytes : undefined);
             await opfs.write(`${doc.document.name}.ziasm`, archive);
             setLastOpenDocument({ kind: 'assembly', opfsPath: `${doc.document.name}.ziasm` });
           } else {
             if (!kernel) return;
-            const bytes = await kernel.saveToBytes(doc.document.id);
+            const bytes = await kernel.saveToBytes(doc.document.id, thumb);
             await opfs.write(`${doc.document.name}.zipt`, bytes);
             setLastOpenDocument({ kind: 'part', opfsPath: `${doc.document.name}.zipt` });
           }
