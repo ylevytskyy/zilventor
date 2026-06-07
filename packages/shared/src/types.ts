@@ -6,6 +6,7 @@ import type { MaterialEntry } from './material';
 import type { HardwareEntry, HardwareFeature } from './hardware-feature';
 import type { NestState } from './nesting/nestState';
 import type { DrawingDocument } from './drawing/types';
+import type { CustomTextureDef } from './custom-texture-def';
 
 /** @deprecated Use ParameterUnit from './parameters' */
 export type UnitKind = ParameterUnit;
@@ -77,6 +78,7 @@ export type PartDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  customTextures?: CustomTextureDef[];
   /** Intrinsic part color (e.g. from STEP import). Default render color in
    *  part view; seeds ComponentInstance.color on explode/insert. User
    *  colorOverrides still win. */
@@ -113,6 +115,7 @@ export type AssemblyDocument = {
   properties: Record<string, string | number | boolean>;
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
+  customTextures?: CustomTextureDef[];
   nest?: NestState;
 };
 
