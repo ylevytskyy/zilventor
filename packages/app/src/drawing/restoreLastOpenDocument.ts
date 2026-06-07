@@ -56,6 +56,8 @@ export async function restoreLastOpenDocument({
       if (asmDefs.length && Object.keys(textures).length) {
         globalCustomTextureRegistry.register(asmDefs, textures);
       }
+      // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
+      useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
       useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
       return true;
     }
@@ -70,6 +72,8 @@ export async function restoreLastOpenDocument({
       if (partDefs.length && textures && Object.keys(textures).length) {
         globalCustomTextureRegistry.register(partDefs as Parameters<typeof globalCustomTextureRegistry.register>[0], textures);
       }
+      // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
+      useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
     } catch {
       // Non-fatal — custom textures just won't render until re-uploaded.
     }

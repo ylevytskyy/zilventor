@@ -87,7 +87,7 @@ import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraint
 import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { packAssembly, unpackAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { globalCustomTextureRegistry, collectCustomTextureBytes } from './textures/customTextureRegistry';
 import { packDrawing } from './storage/DrawingPacker';
 import { autosaveDrawing } from './storage/autosaveDrawing';

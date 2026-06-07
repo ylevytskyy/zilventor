@@ -193,6 +193,8 @@ export default function FileTab() {
         if (asmDefs.length && Object.keys(textures).length) {
           globalCustomTextureRegistry.register(asmDefs, textures);
         }
+        // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
+        useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
         setActiveDocument({ kind: 'assembly', document: doc });
         setStatus('Opened');
       } else {
@@ -205,6 +207,8 @@ export default function FileTab() {
           if (partDefs.length && textures && Object.keys(textures).length) {
             globalCustomTextureRegistry.register(partDefs as Parameters<typeof globalCustomTextureRegistry.register>[0], textures);
           }
+          // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
+          useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
         } catch {
           // Non-fatal — textures just won't render.
         }

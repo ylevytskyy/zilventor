@@ -138,6 +138,11 @@ export class SceneManager {
   }
   setCustomTextureRegistry(r: CustomTextureRegistry | null): void {
     this.customTextureRegistry = r;
+    // Clear texture-id-keyed caches so rebuilt registries (new blob URLs for
+    // the same textureId ulids) don't serve stale revoked-URL materials.
+    for (const mat of this.colorMaterials.values()) mat.dispose();
+    this.colorMaterials.clear();
+    globalTextureCache.disposeTextures();
   }
   removeObject(obj: THREE.Object3D): void { this.scene.remove(obj); }
 
@@ -716,7 +721,6 @@ export class SceneManager {
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
     globalTextureCache.disposeTextures();
-    this.customTextureRegistry?.revokeAll();
     if (this.selectionOverlayMaterial) {
       this.selectionOverlayMaterial.dispose();
       this.selectionOverlayMaterial = null;
