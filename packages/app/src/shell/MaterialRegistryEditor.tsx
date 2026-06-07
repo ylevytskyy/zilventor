@@ -1,10 +1,13 @@
 import React from 'react';
-import type { MaterialEntry } from '@zilventor/shared';
+import type { CustomTextureDef, MaterialEntry } from '@zilventor/shared';
 import { BUILTIN_TEXTURE_DEFS } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { AddMaterialCommand } from '../commands/AddMaterialCommand';
 import { EditMaterialCommand, type EditMaterialPatch } from '../commands/EditMaterialCommand';
 import { DeleteMaterialCommand } from '../commands/DeleteMaterialCommand';
+import { UploadCustomTextureDialog } from './UploadCustomTextureDialog';
+import { AddCustomTextureCommand } from '../commands/AddCustomTextureCommand';
+import { globalCustomTextureRegistry } from '../textures/customTextureRegistry';
 
 /**
  * MaterialRegistryEditor (T23) — small flat editor over the active document's
@@ -114,8 +117,13 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     ? activeAssembly.materials
     : (activePart?.materials ?? []);
 
+  // Custom textures available for the texture picker (appended after built-ins).
+  const customTextures: readonly CustomTextureDef[] =
+    activeAssembly?.customTextures ?? activePart?.customTextures ?? [];
+
   const [rowState, setRowState] = React.useState<RowEditState>({ mode: 'idle' });
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = React.useState(false);
 
   // Add form
   const [addOpen, setAddOpen] = React.useState(false);
@@ -341,6 +349,9 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                       {BUILTIN_TEXTURE_DEFS.map((def) => (
                         <option key={def.id} value={def.id}>{def.name}</option>
                       ))}
+                      {customTextures.map((def) => (
+                        <option key={def.id} value={def.id}>{def.name}</option>
+                      ))}
                     </select>
                   </td>
                   <td style={cellStyle}>
@@ -448,12 +459,29 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
         </tbody>
       </table>
 
-      <div style={{ marginTop: 8 }}>
-        {!addOpen ? (
+      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {!addOpen && (
           <button type="button" style={btnStyle} onClick={() => setAddOpen(true)}>
             + Add
           </button>
-        ) : (
+        )}
+        <button type="button" style={btnStyle} onClick={() => setUploadOpen(true)}>
+          Upload custom texture…
+        </button>
+      </div>
+
+      {uploadOpen && (
+        <UploadCustomTextureDialog
+          onSubmit={async ({ def, bytes }) => {
+            await bus.execute(new AddCustomTextureCommand({ def, bytes, registry: globalCustomTextureRegistry }));
+            setUploadOpen(false);
+          }}
+          onCancel={() => setUploadOpen(false)}
+        />
+      )}
+
+      <div style={{ marginTop: 8 }}>
+        {!addOpen ? null : (
           <div style={{ display: 'grid', gap: 4, padding: 6, border: '1px solid #333', borderRadius: 4 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={{ width: 80, fontSize: 11 }}>Name</span>

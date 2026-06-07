@@ -47,6 +47,11 @@ export function createCustomTextureRegistry(): CustomTextureRegistry {
   };
 }
 
+/** Module-level singleton — matches Phase 1's globalTextureCache pattern.
+ *  App.tsx populates this with register() on document activate;
+ *  SceneManager receives it via setCustomTextureRegistry(). */
+export const globalCustomTextureRegistry = createCustomTextureRegistry();
+
 export function collectCustomTextureBytes(
   defs: CustomTextureDef[] | undefined,
   reg: CustomTextureRegistry,
