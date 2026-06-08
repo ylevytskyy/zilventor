@@ -50,7 +50,7 @@ export class CreateComponentPatternCommand implements Command {
 
     this.createdIds = [];
     poses.forEach((pose, idx) => {
-      const id = `Cp${Date.now()}_${idx}`;
+      const id = `Cp${crypto.randomUUID()}`;
       const instance: ComponentInstance = {
         id,
         partPath: src.partPath,
