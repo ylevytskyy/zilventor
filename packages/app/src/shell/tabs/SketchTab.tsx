@@ -119,6 +119,16 @@ export default function SketchTab() {
           ))}
         </div>
       </RibbonPanel>
+      <RibbonPanel title="Modify">
+        <button
+          aria-pressed={activeToolKind === 'offset'}
+          className={`text-xs ${activeToolKind === 'offset' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('offset')}
+        >
+          Offset
+        </button>
+      </RibbonPanel>
       <RibbonPanel title="Dimension">
         <button
           aria-pressed={activeToolKind === 'dimension'}

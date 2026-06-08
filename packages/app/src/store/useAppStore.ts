@@ -19,7 +19,8 @@ export type ToolKind =
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
-  | 'dimension';
+  | 'dimension'
+  | 'offset';
 
 export type ActiveDocument =
   | { kind: 'part';     document: PartDocument }

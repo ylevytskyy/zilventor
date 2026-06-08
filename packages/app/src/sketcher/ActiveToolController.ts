@@ -11,6 +11,7 @@ import { SplineTool } from './tools/SplineTool';
 import { SelectTool } from './tools/SelectTool';
 import { ConstraintTool } from './tools/ConstraintTool';
 import { GeneralDimensionTool } from './tools/GeneralDimensionTool';
+import { OffsetTool } from './tools/OffsetTool';
 import type { SketcherClient } from './SketcherClient';
 
 export type ToolKind =
@@ -19,7 +20,8 @@ export type ToolKind =
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
-  | 'dimension';
+  | 'dimension'
+  | 'offset';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
@@ -40,7 +42,7 @@ export type ControllerDeps = {
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 
-type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool;
+type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool;
 
 export class ActiveToolController {
   private tool: ActiveTool | null = null;
@@ -53,6 +55,8 @@ export class ActiveToolController {
     } else if (this.tool instanceof ConstraintTool) {
       this.tool.onEscapePressed();
     } else if (this.tool instanceof GeneralDimensionTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof OffsetTool) {
       this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
@@ -88,6 +92,12 @@ export class ActiveToolController {
       case 'dimension':
         return new GeneralDimensionTool({
           onDimensionReady: (d) => { this.deps.onDimensionReady?.(d); },
+        });
+
+      case 'offset':
+        return new OffsetTool({
+          onCommit: (p) => this.deps.emitPrimitive(p),
+          onPreview: (poly) => this.deps.onPreview(poly, NEUTRAL_SNAP),
         });
 
       case 'constrain-coincident':
@@ -139,6 +149,14 @@ export class ActiveToolController {
       return;
     }
 
+    if (this.tool instanceof OffsetTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      else if (event.type === 'move') this.tool.onPointerMove(event.point);
+      // OffsetTool uses callbacks (onCommit/onPreview) — do NOT call applyOutput
+      return;
+    }
+
     // SketchTool path
     const sketchTool = this.tool;
     const anchor = sketchTool.getAnchor();
@@ -172,24 +190,37 @@ export class ActiveToolController {
 
     if (this.tool instanceof SelectTool) return;
 
+    if (this.tool instanceof OffsetTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
     const output = this.tool.handle({ type: key === 'Enter' ? 'enterPressed' : 'escapePressed' });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   handleNumericCommit(values: number[]): void {
     if (!this.tool) return;
+    if (this.tool instanceof OffsetTool) {
+      this.tool.onNumericCommit(values);
+      return;
+    }
     if (!(this.tool instanceof SketchTool)) return;
     const output = this.tool.handle({ type: 'numericCommit', values });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   numericFieldCount(): number {
-    if (!this.tool || !(this.tool instanceof SketchTool)) return 0;
+    if (!this.tool) return 0;
+    if (this.tool instanceof OffsetTool) return this.tool.numericFieldCount();
+    if (!(this.tool instanceof SketchTool)) return 0;
     return this.tool.numericFieldCount();
   }
 
   getAnchor(): Point2 | null {
-    if (!this.tool || !(this.tool instanceof SketchTool)) return null;
+    if (!this.tool) return null;
+    if (this.tool instanceof OffsetTool) return this.tool.getAnchor();
+    if (!(this.tool instanceof SketchTool)) return null;
     return this.tool.getAnchor();
   }
 
