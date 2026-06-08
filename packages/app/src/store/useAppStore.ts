@@ -246,6 +246,10 @@ type AppState = {
   setLinearPatternDialogOpen(v: boolean): void;
   setMirrorDialogOpen(v: boolean): void;
   setImportFromInventorDialogOpen(v: boolean): void;
+  componentPatternDialogOpen: boolean;
+  mirrorComponentDialogOpen: boolean;
+  setComponentPatternDialogOpen(v: boolean): void;
+  setMirrorComponentDialogOpen(v: boolean): void;
 
   placeComponentDialogOpen: boolean;
   editComponentDialogOpen: boolean;
@@ -582,6 +586,10 @@ export const useAppStore = create<AppState>((set) => ({
   setMirrorDialogOpen: (v) => set({ mirrorDialogOpen: v }),
   importFromInventorDialogOpen: false,
   setImportFromInventorDialogOpen: (v) => set({ importFromInventorDialogOpen: v }),
+  componentPatternDialogOpen: false,
+  mirrorComponentDialogOpen: false,
+  setComponentPatternDialogOpen: (v) => set({ componentPatternDialogOpen: v }),
+  setMirrorComponentDialogOpen: (v) => set({ mirrorComponentDialogOpen: v }),
 
   placeComponentDialogOpen: false,
   editComponentDialogOpen: false,

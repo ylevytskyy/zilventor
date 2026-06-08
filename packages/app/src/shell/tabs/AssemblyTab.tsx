@@ -10,6 +10,10 @@ import { OpenBomTabCommand } from '../../commands/OpenBomTabCommand';
 import { RenumberBomCommand } from '../../commands/RenumberBomCommand';
 import type { PartInfo } from '@zilventor/shared';
 import { pickFile } from '../fsaFallback';
+import { ComponentPatternDialog } from '../ComponentPatternDialog';
+import { MirrorComponentDialog } from '../MirrorComponentDialog';
+import { CreateComponentPatternCommand } from '../../commands/CreateComponentPatternCommand';
+import { MirrorComponentCommand } from '../../commands/MirrorComponentCommand';
 
 const btn: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
@@ -28,6 +32,8 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const selectedConstraint = activeAssembly?.constraints.find((c) => c.id === selectedConstraintId) ?? null;
   const isSuppressed = selectedConstraint?.suppressed ?? false;
+  const componentPatternDialogOpen = useAppStore((s) => s.componentPatternDialogOpen);
+  const mirrorComponentDialogOpen = useAppStore((s) => s.mirrorComponentDialogOpen);
 
   const handleInsertFromStep = async () => {
     const { kernel, bus } = useAppStore.getState();
@@ -109,6 +115,25 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           style={btn}
         >
           Delete
+        </button>
+      </div>
+      <div style={{ marginRight: 12 }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Pattern</div>
+        <button
+          aria-label="Rectangular Pattern"
+          disabled={!hasAssembly}
+          onClick={() => useAppStore.getState().setComponentPatternDialogOpen(true)}
+          style={btn}
+        >
+          Rectangular Pattern
+        </button>
+        <button
+          aria-label="Mirror"
+          disabled={!hasAssembly}
+          onClick={() => useAppStore.getState().setMirrorComponentDialogOpen(true)}
+          style={btn}
+        >
+          Mirror
         </button>
       </div>
       <div style={{ marginRight: 12 }}>
@@ -203,6 +228,56 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           Renumber
         </button>
       </div>
+      {componentPatternDialogOpen && activeAssembly && (
+        <ComponentPatternDialog
+          components={activeAssembly.components.map((c) => ({
+            id: c.id,
+            label: c.partPath.replace(/\.zipt$|\.ziasm$/, ''),
+          }))}
+          onCancel={() => useAppStore.getState().setComponentPatternDialogOpen(false)}
+          onCommit={async (v) => {
+            useAppStore.getState().setComponentPatternDialogOpen(false);
+            const { bus } = useAppStore.getState();
+            const cmd = new CreateComponentPatternCommand({
+              sourceInstanceId: v.sourceComponentId,
+              dir1: v.dir1, count1: v.count1, spacing1: v.spacing1,
+              dir2: v.dir2, count2: v.count2, spacing2: v.spacing2,
+            });
+            await bus.execute(cmd);
+          }}
+        />
+      )}
+      {mirrorComponentDialogOpen && activeAssembly && (
+        <MirrorComponentDialog
+          components={activeAssembly.components.map((c) => ({
+            id: c.id,
+            label: c.partPath.replace(/\.zipt$|\.ziasm$/, ''),
+          }))}
+          onCancel={() => useAppStore.getState().setMirrorComponentDialogOpen(false)}
+          onCommit={async (v) => {
+            useAppStore.getState().setMirrorComponentDialogOpen(false);
+            const { kernel, bus } = useAppStore.getState();
+            if (!kernel) return;
+            const { Opfs } = await import('@zilventor/kernel/src/storage/Opfs');
+            const opfs = await Opfs.forNavigator();
+            // Snapshot activeAssembly at commit time (not stale closure)
+            const asm = useAppStore.getState().activeAssembly;
+            const srcComp = asm?.components.find((c) => c.id === v.sourceComponentId);
+            if (!srcComp) return;
+            // Load source part bytes to get its kernel-registered part UUID
+            const srcBytes = await opfs.read(srcComp.partPath);
+            const sourcePartKernelId = await kernel.loadFromBytes(srcBytes);
+            const cmd = new MirrorComponentCommand({
+              sourceInstanceId: v.sourceComponentId,
+              sourcePartKernelId,
+              plane: v.plane,
+              kernel,
+              opfs,
+            });
+            await bus.execute(cmd);
+          }}
+        />
+      )}
     </div>
   );
 }
