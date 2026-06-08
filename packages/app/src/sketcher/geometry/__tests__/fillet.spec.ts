@@ -14,6 +14,13 @@ describe('computeFillet', () => {
     near(f.radius, 2);
     near(f.t1.x, 2); near(f.t1.y, 0);
     near(f.t2.x, 0); near(f.t2.y, 2);
+    // Arc angles must be ordered (startAngle < endAngle) so OCCT builds the
+    // minor arc rather than the 270° reflex arc.
+    // For this corner: t1=(2,0) → angle=-π/2, t2=(0,2) → angle=−π (normalized).
+    // After ordering: startAngle=−π (point (0,2)), endAngle=−π/2 (point (2,0)).
+    expect(f.arc.startAngle).toBeLessThan(f.arc.endAngle);
+    near(f.arc.startAngle, -Math.PI);
+    near(f.arc.endAngle, -Math.PI / 2);
   });
 
   it('trims each source line to its tangent point (corner endpoint moved)', () => {

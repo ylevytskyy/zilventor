@@ -156,4 +156,73 @@ describe('ExtrudeFeature', () => {
 
     disposeShape(ex.value.solid);
   });
+
+  // ── Regression guard: fillet arc startAngle < endAngle invariant ─────────────
+  //
+  // Root cause (fixed in fillet.ts): computeFillet() produced startAngle=-π/2,
+  // endAngle=-π (inverted order) for the standard right-angle corner. OCCT's
+  // BRepBuilderAPI_MakeEdge_9 adds 2π to endAngle when endAngle < startAngle,
+  // sweeping 270° CCW (reflex arc) instead of the correct 90° fillet arc.
+  // The empirical proof: the inverted angles produced volume ≈24865.75 mm³
+  // (removed ~134 mm³ instead of ~8.6 mm³ for the correct quarter-disc fillet).
+  //
+  // After the fix (if a1 > a2 swap in fillet.ts), computeFillet() outputs:
+  //   startAngle = −π  → point (0,2)  [angle of t2 from center (2,2)]
+  //   endAngle   = −π/2 → point (2,0) [angle of t1 from center (2,2)]
+  // CCW sweep −π → −π/2 = +π/2 rad = correct quarter-arc fillet.
+  //
+  // These angles match what computeFillet() produces AFTER the startAngle<endAngle
+  // ordering fix (see fillet.ts). They are identical to the slice-1 fillet test
+  // above, confirming both tests agree on the correct geometry.
+  it('regression: fillet arc with computeFillet canonical angles (-π,-π/2) extrudes to correct volume', () => {
+    const sketch = executeSketchFeature(occt, {
+      kind: 'sketch',
+      id: 's-fillet-regression',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [
+        { id: 'l1', kind: 'line', x1: 2,  y1: 0,  x2: 50, y2: 0  },
+        { id: 'l2', kind: 'line', x1: 50, y1: 0,  x2: 50, y2: 50 },
+        { id: 'l3', kind: 'line', x1: 50, y1: 50, x2: 0,  y2: 50 },
+        { id: 'l4', kind: 'line', x1: 0,  y1: 50, x2: 0,  y2: 2  },
+        // These match computeFillet's output AFTER the startAngle<endAngle ordering fix (see fillet.ts).
+        // startAngle=−π → point (0,2) [angle of t2=(0,2) from center (2,2): atan2(0,−2)=−π]
+        // endAngle=−π/2 → point (2,0) [angle of t1=(2,0) from center (2,2): atan2(−2,0)=−π/2]
+        // CCW sweep −π → −π/2 = +π/2 rad = correct quarter-arc fillet.
+        {
+          id: 'a1',
+          kind: 'arc',
+          cx: 2,
+          cy: 2,
+          r: 2,
+          startAngle: -Math.PI,      // −π: point (0,2)
+          endAngle:   -Math.PI / 2,  // −π/2: point (2,0)
+        },
+      ],
+      constraints: [],
+    });
+
+    expect(sketch.ok, sketch.ok ? 'ok' : sketch.error.message).toBe(true);
+    if (!sketch.ok) return;
+    expect(sketch.value.closed).toBe(true);
+
+    const ex = executeExtrudeFeature(occt, sketch.value, {
+      kind: 'extrude', id: 'e-fillet-regression', sketchRef: 's-fillet-regression', distanceParam: 'h1',
+      direction: 'forward', operation: 'new',
+    }, 10);
+
+    expect(ex.ok, ex.ok ? 'ok' : ex.error.message).toBe(true);
+    if (!ex.ok) return;
+
+    const vol = solidVolume(occt, ex.value.solid.handle);
+    expect(vol).toBeGreaterThan(0);
+
+    // Must be in the correct range: slightly less than 50×50×10=25000 mm³.
+    // Buggy (270° reflex) arc produced ~24865.75 mm³ (removed ~134 mm³ instead of ~8.6 mm³).
+    // Correct (90°) arc removes only the quarter-disc: area = r²−π·r²/4 ≈ 0.858 mm²,
+    // giving volume ≈ 25000 − 0.858×10 = 24991.4 mm³.
+    expect(vol).toBeGreaterThan(24950);
+    expect(vol).toBeLessThan(25000);
+
+    disposeShape(ex.value.solid);
+  });
 });

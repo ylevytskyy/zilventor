@@ -92,6 +92,11 @@ export function computeFillet(a: Line, b: Line, radius: number): FilletResult | 
   if (a2 - a1 > Math.PI) a2 -= 2 * Math.PI;
   if (a1 - a2 > Math.PI) a1 -= 2 * Math.PI;
 
+  // makeArcEdge (BRepBuilderAPI_MakeEdge_9) sweeps CCW in increasing-parameter
+  // direction; it needs startAngle < endAngle to build the minor (corner-side)
+  // arc rather than the 270° reflex arc. Match the ArcTool invariant.
+  if (a1 > a2) { const tmp = a1; a1 = a2; a2 = tmp; }
+
   const arc: Extract<SketchPrimitive, { kind: 'arc' }> = {
     id: `p-fil-${Math.random().toString(36).slice(2, 8)}`,
     kind: 'arc',
