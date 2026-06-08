@@ -17,6 +17,7 @@ const BUTTONS: PrimitiveBtn[] = [
 export default function SketchTab() {
   const activePart = useAppStore((s) => s.activePart);
   const sketchMode = useAppStore((s) => s.sketchMode);
+  const constructionMode = useAppStore((s) => s.constructionMode);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const canSketch = !!activePart;
   const [numericFallbackOpen, setNumericFallbackOpen] = useState(false);
@@ -82,6 +83,16 @@ export default function SketchTab() {
             {b.label} <span className="text-neutral-500">({b.shortcut})</span>
           </button>
         ))}
+      </RibbonPanel>
+      <RibbonPanel title="Construction">
+        <button
+          aria-pressed={constructionMode}
+          className={`text-xs ${constructionMode ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setConstructionMode(!constructionMode)}
+        >
+          Construction <span className="text-neutral-500">(X)</span>
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Constrain">
         <div className="flex flex-col gap-1">

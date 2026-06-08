@@ -86,6 +86,49 @@ describe('ActiveToolController', () => {
   });
 });
 
+describe('ActiveToolController construction mode stamping', () => {
+  it('with isConstructionMode returning true, emitted primitive has construction === true', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const onPreview = vi.fn();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview,
+      isConstructionMode: () => true,
+    });
+    c.setToolKind('line');
+    c.handlePointer({ type: 'click', point: { x: 0, y: 0 } }, []);
+    c.handlePointer({ type: 'click', point: { x: 100, y: 0 } }, []);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].construction).toBe(true);
+  });
+
+  it('with isConstructionMode returning false, emitted primitive has no construction flag', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const onPreview = vi.fn();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview,
+      isConstructionMode: () => false,
+    });
+    c.setToolKind('line');
+    c.handlePointer({ type: 'click', point: { x: 0, y: 0 } }, []);
+    c.handlePointer({ type: 'click', point: { x: 100, y: 0 } }, []);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].construction).toBeFalsy();
+  });
+
+  it('without isConstructionMode dep, emitted primitive has no construction flag', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const onPreview = vi.fn();
+    const c = new ActiveToolController({ emitPrimitive: emit, onPreview });
+    c.setToolKind('line');
+    c.handlePointer({ type: 'click', point: { x: 0, y: 0 } }, []);
+    c.handlePointer({ type: 'click', point: { x: 100, y: 0 } }, []);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].construction).toBeFalsy();
+  });
+});
+
 describe('ActiveToolController Task 21 extensions', () => {
   it('setToolKind("select") instantiates SelectTool', () => {
     const controller = new ActiveToolController({

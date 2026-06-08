@@ -35,6 +35,7 @@ export type ControllerDeps = {
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
   onDimensionReady?(d: DimensionConstraint): void;
+  isConstructionMode?(): boolean;
 };
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
@@ -197,11 +198,14 @@ export class ActiveToolController {
       case 'preview':
         this.deps.onPreview(output.polyline, snap);
         break;
-      case 'committed':
-        this.deps.emitPrimitive(output.primitive);
+      case 'committed': {
+        const primitive: SketchPrimitive = this.deps.isConstructionMode?.()
+          ? { ...output.primitive, construction: true }
+          : output.primitive;
+        this.deps.emitPrimitive(primitive);
         if (output.snapEvents.length > 0 && this.deps.sketcherClient) {
           void this.deps.sketcherClient
-            .inferFromSnaps(output.primitive, output.snapEvents)
+            .inferFromSnaps(primitive, output.snapEvents)
             .then((inferred) => {
               if (this.deps.emitConstraint) {
                 for (const c of inferred) this.deps.emitConstraint!(c);
@@ -210,6 +214,7 @@ export class ActiveToolController {
         }
         this.deps.onPreview(null, snap);
         break;
+      }
       case 'aborted':
       case 'idle':
         this.deps.onPreview(null, snap);
