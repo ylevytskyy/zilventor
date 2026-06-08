@@ -130,4 +130,49 @@ describe('Save/Load round-trip via FakeHandle', () => {
     expect(exec.value.mesh.indices.length).toBeGreaterThan(0);
     expect(exec.value.faceNames?.length).toBe(6);
   }, 120_000);
+
+  it('construction flag on SketchPrimitive survives packProject → loadFromBytes round-trip', async () => {
+    // Build the archive directly (bypassing saveToBytes / executeTree) so the
+    // test focuses on JSON serialisation of the construction flag only.
+    // Task 3 will add construction-exclusion to executeSketchFeature; until
+    // then a sketch with only open lines cannot pass executeTree.
+    const { packProject } = await import('../storage/ProjectPacker');
+    const partDoc = {
+      id: 'ctor-test-part',
+      name: 'ConstructionTest',
+      units: 'mm',
+      parameters: {},
+      featureTree: [
+        {
+          kind: 'sketch',
+          id: 's1',
+          plane: { source: 'workPlane', featureId: 'origin.XY' },
+          primitives: [
+            { id: 'p1', kind: 'line', x1: 0, y1: 0, x2: 50, y2: 0 },
+            { id: 'p2', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 50, construction: true },
+          ],
+          constraints: [],
+        },
+      ],
+      properties: {},
+      materials: [],
+      hardware: [],
+    };
+    const archive = await packProject({
+      manifest: { formatVersion: 20, kind: 'part', createdAt: new Date().toISOString(), appVersion: '0.0.0', document: partDoc },
+      blobs: {},
+    });
+
+    const api4 = createKernelApi();
+    await api4.init();
+    const id4 = await api4.loadFromBytes(archive);
+    const part4 = await api4.getPart(id4);
+
+    const sketch = part4?.featureTree.find(f => f.id === 's1');
+    if (!sketch || sketch.kind !== 'sketch') throw new Error('sketch s1 not found after reload');
+    const p1 = sketch.primitives.find(p => p.id === 'p1');
+    const p2 = sketch.primitives.find(p => p.id === 'p2');
+    expect(p2?.construction).toBe(true);
+    expect(p1?.construction).toBeFalsy();
+  }, 120_000);
 });

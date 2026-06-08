@@ -24,11 +24,11 @@ export type Mesh = {
 };
 
 export type SketchPrimitive =
-  | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number }
-  | { id: string; kind: 'rectangle'; x: number; y: number; w: number; h: number }
-  | { id: string; kind: 'circle'; cx: number; cy: number; r: number }
-  | { id: string; kind: 'arc'; cx: number; cy: number; r: number; startAngle: number; endAngle: number }
-  | { id: string; kind: 'spline'; controlPoints: ReadonlyArray<{ x: number; y: number }>; degree: 2 | 3; closed: boolean };
+  | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; construction?: boolean }
+  | { id: string; kind: 'rectangle'; x: number; y: number; w: number; h: number; construction?: boolean }
+  | { id: string; kind: 'circle'; cx: number; cy: number; r: number; construction?: boolean }
+  | { id: string; kind: 'arc'; cx: number; cy: number; r: number; startAngle: number; endAngle: number; construction?: boolean }
+  | { id: string; kind: 'spline'; controlPoints: ReadonlyArray<{ x: number; y: number }>; degree: 2 | 3; closed: boolean; construction?: boolean };
 
 export type BooleanOperation = 'new' | 'join' | 'cut';
 
