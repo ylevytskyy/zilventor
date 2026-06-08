@@ -14,6 +14,19 @@ export type FilletResult = {
   trimmedL2: Line;
 };
 
+export type ChamferResult = {
+  corner: Pt;
+  p1: Pt;
+  p2: Pt;
+  line: Line;
+  trimmedL1: Line;
+  trimmedL2: Line;
+  /** Which endpoint of l1 was at the corner — 'start' = x1/y1, 'end' = x2/y2 */
+  l1CornerAnchor: 'start' | 'end';
+  /** Which endpoint of l2 was at the corner */
+  l2CornerAnchor: 'start' | 'end';
+};
+
 const TOL = 1e-6;
 
 function sharedCorner(a: Line, b: Line) {
@@ -107,3 +120,44 @@ const norm = (v: Pt): Pt | null => {
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+export function computeChamfer(a: Line, b: Line, setback: number): ChamferResult | null {
+  if (setback <= TOL) return null;
+  const sc = sharedCorner(a, b);
+  if (!sc) return null;
+  const { corner, aFar, bFar, aCornerIsStart, bCornerIsStart } = sc;
+
+  const d1 = norm({ x: aFar.x - corner.x, y: aFar.y - corner.y });
+  const d2 = norm({ x: bFar.x - corner.x, y: bFar.y - corner.y });
+  if (!d1 || !d2) return null;
+
+  const len1 = dist(corner, aFar);
+  const len2 = dist(corner, bFar);
+  if (setback > len1 - TOL || setback > len2 - TOL) return null;
+
+  const p1: Pt = { x: corner.x + d1.x * setback, y: corner.y + d1.y * setback };
+  const p2: Pt = { x: corner.x + d2.x * setback, y: corner.y + d2.y * setback };
+
+  const line: Line = {
+    id: `p-cha-${Math.random().toString(36).slice(2, 8)}`,
+    kind: 'line',
+    x1: p1.x,
+    y1: p1.y,
+    x2: p2.x,
+    y2: p2.y,
+  };
+
+  const trimmedL1 = setCornerEndpoint(a, aCornerIsStart, p1);
+  const trimmedL2 = setCornerEndpoint(b, bCornerIsStart, p2);
+
+  return {
+    corner,
+    p1,
+    p2,
+    line,
+    trimmedL1,
+    trimmedL2,
+    l1CornerAnchor: aCornerIsStart ? 'start' : 'end',
+    l2CornerAnchor: bCornerIsStart ? 'start' : 'end',
+  };
+}

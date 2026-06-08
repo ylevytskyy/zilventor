@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeFillet } from '../fillet';
+import { computeFillet, computeChamfer } from '../fillet';
 
 const near = (a: number, b: number) => expect(a).toBeCloseTo(b, 4);
 
@@ -37,5 +37,20 @@ describe('computeFillet', () => {
 
   it('returns null when the radius is too large to fit the corner', () => {
     expect(computeFillet(lx, ly, 50)).toBeNull();
+  });
+});
+
+describe('computeChamfer (equal setback)', () => {
+  const lx = { id: 'lx', kind: 'line' as const, x1: 0, y1: 0, x2: 10, y2: 0 };
+  const ly = { id: 'ly', kind: 'line' as const, x1: 0, y1: 0, x2: 0, y2: 10 };
+  it('places setback points and a connecting line for a right angle', () => {
+    const c = computeChamfer(lx, ly, 3)!;
+    expect([c.p1.x, c.p1.y].map(Math.round)).toEqual([3, 0]);
+    expect([c.p2.x, c.p2.y].map(Math.round)).toEqual([0, 3]);
+    expect(c.line.kind).toBe('line');
+    expect([c.line.x1, c.line.y1, c.line.x2, c.line.y2].map(Math.round)).toEqual([3, 0, 0, 3]);
+  });
+  it('returns null when setback exceeds a leg length', () => {
+    expect(computeChamfer(lx, ly, 50)).toBeNull();
   });
 });
