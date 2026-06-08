@@ -122,11 +122,29 @@ test(
     // ── 5. Screenshot the component array ────────────────────────────────────
     await page.screenshot({ path: '/tmp/pattern-shelf-array.png' });
 
-    // ── 6. Mirror the source component across YZ plane ────────────────────────
-    // loadFromBytes returns the kernel part UUID needed by MirrorComponentCommand.
-    // opfs.read(srcComp.partPath) reads the .zipt archive written by ImportStepAsComponentCommand.
+    // ── 6. Mirror the x=45 patterned component across YZ plane ───────────────
+    // Mirroring a non-origin instance proves the sign-flip t'=M·t end-to-end:
+    // source at x=45, YZ plane (M=diag(-1,1,1)) → reflected x = -45.
+    // This is stronger than mirroring the origin component (x=0→0 is trivially 0).
+
+    // Resolve the instance id for the component closest to x=45
+    const x45CompId = await page.evaluate(() => {
+      const s = (window as any).__zilventorStore?.getState();
+      const comps: any[] = s?.activeAssembly?.components ?? [];
+      // Find the component with x translation closest to 45
+      let best: any = null;
+      let bestDist = Infinity;
+      for (const c of comps) {
+        const cx = c.pose?.translation.x ?? c.position?.x ?? 0;
+        const dist = Math.abs(cx - 45);
+        if (dist < bestDist) { bestDist = dist; best = c; }
+      }
+      return best?.id ?? null;
+    });
+    expect(x45CompId).toBeTruthy();
+
     await page.evaluate(
-      async ([srcId]: [string]) => {
+      async ([instId]: [string]) => {
         const w = window as any;
         const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { MirrorComponentCommand } = await import('/src/commands/MirrorComponentCommand.ts');
@@ -134,13 +152,13 @@ test(
         if (!kernel) throw new Error('no kernel');
         const opfs = await w.__zilventorGetOpfs();
         const asm = useAppStore.getState().activeAssembly;
-        const srcComp = (asm?.components as any[])?.find((c: any) => c.id === srcId);
-        if (!srcComp) throw new Error('src component not found');
+        const instComp = (asm?.components as any[])?.find((c: any) => c.id === instId);
+        if (!instComp) throw new Error('x=45 component not found');
         // Load source part bytes from OPFS → get kernel part UUID
-        const srcBytes = await opfs.read(srcComp.partPath);
+        const srcBytes = await opfs.read(instComp.partPath);
         const srcKernelId = await kernel.loadFromBytes(srcBytes);
         const cmd = new MirrorComponentCommand({
-          sourceInstanceId: srcId,
+          sourceInstanceId: instId,
           sourcePartKernelId: srcKernelId,
           plane: 'yz',
           kernel,
@@ -148,7 +166,7 @@ test(
         });
         await useAppStore.getState().bus.execute(cmd);
       },
-      [srcCompId] as [string],
+      [x45CompId] as [string],
     );
 
     // Assert 5 components total (4 from pattern + 1 mirrored)
@@ -171,11 +189,12 @@ test(
     expect(mirrorState.count).toBe(5);
     // Mirrored part path must contain "_mirror"
     expect(mirrorState.mirroredPartPath).toMatch(/_mirror/);
-    // Source is at x=0 (origin); YZ mirror: x → -x → mirrored at x≈0
-    expect(mirrorState.mirroredX).toBeCloseTo(0, 5);
+    // Source is at x=45; YZ mirror (M=diag(-1,1,1)): t'=M·t → x'=−45
+    // This proves the sign-flip through the full kernel+pose pipeline.
+    expect(mirrorState.mirroredX).toBeCloseTo(-45, 1);
 
-    // ── 7. Screenshot the mirrored assembly ──────────────────────────────────
-    await page.screenshot({ path: '/tmp/pattern-mirror-assembly.png' });
+    // ── 7. Screenshot the final mirrored assembly ─────────────────────────────
+    await page.screenshot({ path: '/tmp/task9-pattern-mirror-final.png' });
 
     // ── 8. Undo mirror → back to 4 ───────────────────────────────────────────
     await page.evaluate(async () => {
