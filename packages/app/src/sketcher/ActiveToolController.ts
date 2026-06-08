@@ -11,6 +11,9 @@ import { SplineTool } from './tools/SplineTool';
 import { SelectTool } from './tools/SelectTool';
 import { ConstraintTool } from './tools/ConstraintTool';
 import { GeneralDimensionTool } from './tools/GeneralDimensionTool';
+import { OffsetTool } from './tools/OffsetTool';
+import { FilletTool } from './tools/FilletTool';
+import { ChamferTool } from './tools/ChamferTool';
 import type { SketcherClient } from './SketcherClient';
 
 export type ToolKind =
@@ -19,7 +22,10 @@ export type ToolKind =
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
-  | 'dimension';
+  | 'dimension'
+  | 'offset'
+  | 'fillet'
+  | 'chamfer';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
@@ -31,15 +37,20 @@ export type ControllerDeps = {
   emitPrimitive(primitive: SketchPrimitive): void;
   onPreview(polyline: Point2[] | null, snap: SnapResult): void;
   emitConstraint?(c: SketchConstraint): void;
+  updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): void;
   sketcherClient?: SketcherClient;
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
   onDimensionReady?(d: DimensionConstraint): void;
+  isConstructionMode?(): boolean;
 };
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 
-type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool;
+const DEFAULT_FILLET_RADIUS = 5;
+const DEFAULT_CHAMFER_SETBACK = 5;
+
+type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool | FilletTool | ChamferTool;
 
 export class ActiveToolController {
   private tool: ActiveTool | null = null;
@@ -52,6 +63,12 @@ export class ActiveToolController {
     } else if (this.tool instanceof ConstraintTool) {
       this.tool.onEscapePressed();
     } else if (this.tool instanceof GeneralDimensionTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof OffsetTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof FilletTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof ChamferTool) {
       this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
@@ -87,6 +104,28 @@ export class ActiveToolController {
       case 'dimension':
         return new GeneralDimensionTool({
           onDimensionReady: (d) => { this.deps.onDimensionReady?.(d); },
+        });
+
+      case 'offset':
+        return new OffsetTool({
+          onCommit: (p) => this.deps.emitPrimitive(this.stampC(p)),
+          onPreview: (poly) => this.deps.onPreview(poly, NEUTRAL_SNAP),
+        });
+
+      case 'fillet':
+        return new FilletTool({
+          radius: DEFAULT_FILLET_RADIUS,
+          emitArc: (a) => this.deps.emitPrimitive(this.stampC(a)),
+          updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+          emitConstraint: (c) => this.deps.emitConstraint?.(c),
+        });
+
+      case 'chamfer':
+        return new ChamferTool({
+          setback: DEFAULT_CHAMFER_SETBACK,
+          emitLine: (l) => this.deps.emitPrimitive(this.stampC(l)),
+          updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+          emitConstraint: (c) => this.deps.emitConstraint?.(c),
         });
 
       case 'constrain-coincident':
@@ -138,6 +177,28 @@ export class ActiveToolController {
       return;
     }
 
+    if (this.tool instanceof OffsetTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      else if (event.type === 'move') this.tool.onPointerMove(event.point);
+      // OffsetTool uses callbacks (onCommit/onPreview) — do NOT call applyOutput
+      return;
+    }
+
+    if (this.tool instanceof FilletTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      // FilletTool uses callbacks — do NOT call applyOutput
+      return;
+    }
+
+    if (this.tool instanceof ChamferTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      // ChamferTool uses callbacks — do NOT call applyOutput
+      return;
+    }
+
     // SketchTool path
     const sketchTool = this.tool;
     const anchor = sketchTool.getAnchor();
@@ -171,25 +232,52 @@ export class ActiveToolController {
 
     if (this.tool instanceof SelectTool) return;
 
+    if (this.tool instanceof OffsetTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof FilletTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof ChamferTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
     const output = this.tool.handle({ type: key === 'Enter' ? 'enterPressed' : 'escapePressed' });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   handleNumericCommit(values: number[]): void {
     if (!this.tool) return;
+    if (this.tool instanceof OffsetTool) {
+      this.tool.onNumericCommit(values);
+      return;
+    }
     if (!(this.tool instanceof SketchTool)) return;
     const output = this.tool.handle({ type: 'numericCommit', values });
     this.applyOutput(output, NEUTRAL_SNAP);
   }
 
   numericFieldCount(): number {
-    if (!this.tool || !(this.tool instanceof SketchTool)) return 0;
+    if (!this.tool) return 0;
+    if (this.tool instanceof OffsetTool) return this.tool.numericFieldCount();
+    if (!(this.tool instanceof SketchTool)) return 0;
     return this.tool.numericFieldCount();
   }
 
   getAnchor(): Point2 | null {
-    if (!this.tool || !(this.tool instanceof SketchTool)) return null;
+    if (!this.tool) return null;
+    if (this.tool instanceof OffsetTool) return this.tool.getAnchor();
+    if (!(this.tool instanceof SketchTool)) return null;
     return this.tool.getAnchor();
+  }
+
+  private stampC<T extends SketchPrimitive>(p: T): T {
+    return this.deps.isConstructionMode?.() ? { ...p, construction: true } : p;
   }
 
   private applyOutput(output: ToolOutput, snap: SnapResult): void {
@@ -197,11 +285,14 @@ export class ActiveToolController {
       case 'preview':
         this.deps.onPreview(output.polyline, snap);
         break;
-      case 'committed':
-        this.deps.emitPrimitive(output.primitive);
+      case 'committed': {
+        const primitive: SketchPrimitive = this.deps.isConstructionMode?.()
+          ? { ...output.primitive, construction: true }
+          : output.primitive;
+        this.deps.emitPrimitive(primitive);
         if (output.snapEvents.length > 0 && this.deps.sketcherClient) {
           void this.deps.sketcherClient
-            .inferFromSnaps(output.primitive, output.snapEvents)
+            .inferFromSnaps(primitive, output.snapEvents)
             .then((inferred) => {
               if (this.deps.emitConstraint) {
                 for (const c of inferred) this.deps.emitConstraint!(c);
@@ -210,6 +301,7 @@ export class ActiveToolController {
         }
         this.deps.onPreview(null, snap);
         break;
+      }
       case 'aborted':
       case 'idle':
         this.deps.onPreview(null, snap);

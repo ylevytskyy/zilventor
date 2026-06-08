@@ -17,6 +17,7 @@ const BUTTONS: PrimitiveBtn[] = [
 export default function SketchTab() {
   const activePart = useAppStore((s) => s.activePart);
   const sketchMode = useAppStore((s) => s.sketchMode);
+  const constructionMode = useAppStore((s) => s.constructionMode);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const canSketch = !!activePart;
   const [numericFallbackOpen, setNumericFallbackOpen] = useState(false);
@@ -83,6 +84,16 @@ export default function SketchTab() {
           </button>
         ))}
       </RibbonPanel>
+      <RibbonPanel title="Construction">
+        <button
+          aria-pressed={constructionMode}
+          className={`text-xs ${constructionMode ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setConstructionMode(!constructionMode)}
+        >
+          Construction <span className="text-neutral-500">(X)</span>
+        </button>
+      </RibbonPanel>
       <RibbonPanel title="Constrain">
         <div className="flex flex-col gap-1">
           {([
@@ -107,6 +118,32 @@ export default function SketchTab() {
             </button>
           ))}
         </div>
+      </RibbonPanel>
+      <RibbonPanel title="Modify">
+        <button
+          aria-pressed={activeToolKind === 'offset'}
+          className={`text-xs ${activeToolKind === 'offset' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('offset')}
+        >
+          Offset
+        </button>
+        <button
+          aria-pressed={activeToolKind === 'fillet'}
+          className={`text-xs ${activeToolKind === 'fillet' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('fillet')}
+        >
+          Fillet
+        </button>
+        <button
+          aria-pressed={activeToolKind === 'chamfer'}
+          className={`text-xs ${activeToolKind === 'chamfer' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('chamfer')}
+        >
+          Chamfer
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Dimension">
         <button

@@ -1,5 +1,6 @@
 import type { SketchPrimitive, SketchConstraint, DimensionConstraint, PointRef } from '@zilventor/shared';
 import type { Point2 } from '../snap';
+import { pickPrimitiveAt, distToSegment } from './pick';
 
 // ConstraintTool only handles geometric constraints. Dimensional constraints
 // have their own GeneralDimensionTool (Sub-project 2c Task 15).
@@ -132,17 +133,4 @@ export class ConstraintTool {
   }
 }
 
-function distToSegment(
-  p: { x: number; y: number },
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-): number {
-  const vx = b.x - a.x, vy = b.y - a.y;
-  const wx = p.x - a.x, wy = p.y - a.y;
-  const c1 = vx * wx + vy * wy;
-  if (c1 <= 0) return Math.hypot(p.x - a.x, p.y - a.y);
-  const c2 = vx * vx + vy * vy;
-  if (c1 >= c2) return Math.hypot(p.x - b.x, p.y - b.y);
-  const t = c1 / c2;
-  return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
-}
+// distToSegment is imported from ./pick

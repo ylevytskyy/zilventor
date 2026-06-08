@@ -19,7 +19,10 @@ export type ToolKind =
   | 'constrain-coincident' | 'constrain-horizontal' | 'constrain-vertical'
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
-  | 'dimension';
+  | 'dimension'
+  | 'offset'
+  | 'fillet'
+  | 'chamfer';
 
 export type ActiveDocument =
   | { kind: 'part';     document: PartDocument }
@@ -137,6 +140,7 @@ type AppState = {
   selectedFeatureId: string | null;
   viewport: ViewportRef | null;
   sketchMode: boolean;
+  constructionMode: boolean;
   activeSketchId: string | null;
   activeToolKind: ToolKind | null;
   selectedPrimitiveId: string | null;
@@ -217,6 +221,7 @@ type AppState = {
   setSelectedFeature(id: string | null): void;
   setViewport(v: ViewportRef | null): void;
   setSketchMode(mode: boolean, sketchId?: string | null): void;
+  setConstructionMode(on: boolean): void;
   setActiveToolKind(kind: ToolKind | null): void;
   setSelectedPrimitive(id: string | null): void;
   setSketchDof(v: DofStatus | null): void;
@@ -384,6 +389,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedFeatureId: null,
   viewport: null,
   sketchMode: false,
+  constructionMode: false,
   activeSketchId: null,
   activeToolKind: null,
   selectedPrimitiveId: null,
@@ -453,8 +459,10 @@ export const useAppStore = create<AppState>((set) => ({
       sketchMode: mode,
       activeSketchId: sketchId,
       activeToolKind: null,
-      selectedPrimitiveId: null
+      selectedPrimitiveId: null,
+      constructionMode: false,
     }),
+  setConstructionMode: (on) => set({ constructionMode: on }),
   setActiveToolKind: (kind) => set({ activeToolKind: kind }),
   setSelectedPrimitive: (id) => set({ selectedPrimitiveId: id }),
   sketchDof: null,

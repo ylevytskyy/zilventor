@@ -95,6 +95,7 @@ export function executeSketchFeature(
   const edges: EdgeHandle[] = [];
   try {
     for (const p of feature.primitives) {
+      if (p.construction) continue; // construction geometry is reference-only — excluded from profiles
       switch (p.kind) {
         case 'line':
           edges.push(makeLineEdge(oc, { x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }, frame));

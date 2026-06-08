@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import type { SketchPrimitive } from '@zilventor/shared';
 
 const SKETCH_COLOR = 0xe8e8e8;
+const CONSTRUCTION_COLOR = 0x8a8f98;
 const SKETCH_Z = 0.005;
 
 /**
  * Renders committed sketch primitives as three.js objects.
- * Rebuild the whole group whenever the primitives array changes (by joined-id key).
+ * Rebuild the whole group whenever the primitives array changes (by joined-id + construction key).
  * Cheap — primitive count is small and geometry is simple.
  */
 export class CommittedSketchRenderer {
@@ -14,7 +15,7 @@ export class CommittedSketchRenderer {
   private currentKey: string | null = null;
 
   update(primitives: ReadonlyArray<SketchPrimitive>): void {
-    const key = primitives.map((p) => p.id).join(',');
+    const key = primitives.map((p) => `${p.id}:${p.construction ? 1 : 0}`).join(',');
     if (key === this.currentKey) return;
     this.currentKey = key;
     this.clear();
@@ -22,7 +23,17 @@ export class CommittedSketchRenderer {
   }
 
   private buildObject(p: SketchPrimitive): THREE.Object3D {
-    const mat = new THREE.LineBasicMaterial({ color: SKETCH_COLOR });
+    const mat: THREE.LineBasicMaterial | THREE.LineDashedMaterial = p.construction
+      ? new THREE.LineDashedMaterial({ color: CONSTRUCTION_COLOR, dashSize: 2, gapSize: 1.5 })
+      : new THREE.LineBasicMaterial({ color: SKETCH_COLOR });
+    const obj = this.buildGeometry(p, mat);
+    if (p.construction) {
+      obj.computeLineDistances();
+    }
+    return obj;
+  }
+
+  private buildGeometry(p: SketchPrimitive, mat: THREE.LineBasicMaterial | THREE.LineDashedMaterial): THREE.Line {
     if (p.kind === 'line') {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
@@ -55,7 +66,7 @@ export class CommittedSketchRenderer {
 
   private buildArcLike(
     cx: number, cy: number, r: number, a0: number, a1: number, segs: number,
-    mat: THREE.LineBasicMaterial
+    mat: THREE.Material
   ): THREE.Line {
     const arr = new Float32Array((segs + 1) * 3);
     for (let i = 0; i <= segs; i++) {
@@ -70,7 +81,7 @@ export class CommittedSketchRenderer {
     return new THREE.Line(g, mat);
   }
 
-  private buildSpline(controlPoints: ReadonlyArray<{ x: number; y: number }>, mat: THREE.LineBasicMaterial): THREE.Line {
+  private buildSpline(controlPoints: ReadonlyArray<{ x: number; y: number }>, mat: THREE.Material): THREE.Line {
     const pts = controlPoints.map((cp) => new THREE.Vector3(cp.x, cp.y, SKETCH_Z));
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
     const samples = curve.getPoints(Math.max(32, controlPoints.length * 8));

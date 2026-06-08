@@ -106,6 +106,30 @@ describe('SketchFeature — rectangle on XY', () => {
     if (!result.ok) expect(result.error.message).toMatch(/empty/i);
   });
 
+  it('excludes construction primitives from wire extraction', () => {
+    // 4 real lines forming a closed square + 1 construction diagonal.
+    // Without the filter the diagonal becomes a real edge → combineEdgesIntoWires
+    // returns 1 closed wire + 1 open chain → "valid loop plus disconnected line".
+    const result = executeSketchFeature(occt, {
+      kind: 'sketch',
+      id: 's_construction',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [
+        { id: 'l1', kind: 'line', x1: 0,  y1: 0,  x2: 50, y2: 0  },
+        { id: 'l2', kind: 'line', x1: 50, y1: 0,  x2: 50, y2: 50 },
+        { id: 'l3', kind: 'line', x1: 50, y1: 50, x2: 0,  y2: 50 },
+        { id: 'l4', kind: 'line', x1: 0,  y1: 50, x2: 0,  y2: 0  },
+        { id: 'c1', kind: 'line', x1: 0,  y1: 0,  x2: 50, y2: 50, construction: true },
+      ],
+      constraints: []
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.closed).toBe(true);
+      disposeSketchResult(occt, result.value);
+    }
+  });
+
   it('executeSketchFeature result has NamedShape with empty faceNames', () => {
     const sketchFeature = {
       kind: 'sketch' as const, id: 'S1', plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
