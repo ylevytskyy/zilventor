@@ -26,4 +26,48 @@ describe('OffsetTool', () => {
     tool.onNumericCommit([7]);
     expect(committed[0].y1).toBeCloseTo(-7, 6);
   });
+
+  // FIX 2 (S4): OffsetTool must clear its preview on commit and escape
+  it('clears the preview (onPreview with empty array) after click-commit', () => {
+    const previews: any[][] = [];
+    const tool = new OffsetTool({
+      onCommit: () => {},
+      onPreview: (poly) => previews.push(poly),
+    });
+    tool.setPrimitives([{ id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]);
+    tool.onPointerClick({ x: 5, y: 0 });   // pick
+    tool.onPointerMove({ x: 5, y: 4 });    // preview fires (non-empty)
+    tool.onPointerClick({ x: 5, y: 4 });   // commit
+    // Last preview call must be an empty array (< 2 points → App.tsx clearDraft)
+    const lastPreview = previews[previews.length - 1];
+    expect(lastPreview.length).toBeLessThan(2);
+  });
+
+  it('clears the preview after numeric-commit', () => {
+    const previews: any[][] = [];
+    const tool = new OffsetTool({
+      onCommit: () => {},
+      onPreview: (poly) => previews.push(poly),
+    });
+    tool.setPrimitives([{ id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]);
+    tool.onPointerClick({ x: 5, y: 0 });
+    tool.onPointerMove({ x: 5, y: 4 });
+    tool.onNumericCommit([4]);
+    const lastPreview = previews[previews.length - 1];
+    expect(lastPreview.length).toBeLessThan(2);
+  });
+
+  it('clears the preview on onEscapePressed after a pick', () => {
+    const previews: any[][] = [];
+    const tool = new OffsetTool({
+      onCommit: () => {},
+      onPreview: (poly) => previews.push(poly),
+    });
+    tool.setPrimitives([{ id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 }]);
+    tool.onPointerClick({ x: 5, y: 0 });
+    tool.onPointerMove({ x: 5, y: 4 });
+    tool.onEscapePressed();
+    const lastPreview = previews[previews.length - 1];
+    expect(lastPreview.length).toBeLessThan(2);
+  });
 });

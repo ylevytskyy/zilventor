@@ -108,14 +108,14 @@ export class ActiveToolController {
 
       case 'offset':
         return new OffsetTool({
-          onCommit: (p) => this.deps.emitPrimitive(p),
+          onCommit: (p) => this.deps.emitPrimitive(this.stampC(p)),
           onPreview: (poly) => this.deps.onPreview(poly, NEUTRAL_SNAP),
         });
 
       case 'fillet':
         return new FilletTool({
           radius: DEFAULT_FILLET_RADIUS,
-          emitArc: (a) => this.deps.emitPrimitive(a),
+          emitArc: (a) => this.deps.emitPrimitive(this.stampC(a)),
           updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
           emitConstraint: (c) => this.deps.emitConstraint?.(c),
         });
@@ -123,7 +123,7 @@ export class ActiveToolController {
       case 'chamfer':
         return new ChamferTool({
           setback: DEFAULT_CHAMFER_SETBACK,
-          emitLine: (l) => this.deps.emitPrimitive(l),
+          emitLine: (l) => this.deps.emitPrimitive(this.stampC(l)),
           updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
           emitConstraint: (c) => this.deps.emitConstraint?.(c),
         });
@@ -274,6 +274,10 @@ export class ActiveToolController {
     if (this.tool instanceof OffsetTool) return this.tool.getAnchor();
     if (!(this.tool instanceof SketchTool)) return null;
     return this.tool.getAnchor();
+  }
+
+  private stampC<T extends SketchPrimitive>(p: T): T {
+    return this.deps.isConstructionMode?.() ? { ...p, construction: true } : p;
   }
 
   private applyOutput(output: ToolOutput, snap: SnapResult): void {

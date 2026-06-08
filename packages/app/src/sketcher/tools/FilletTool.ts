@@ -1,5 +1,5 @@
 import type { SketchConstraint, SketchPrimitive } from '@zilventor/shared';
-import { computeFillet } from '../geometry/fillet';
+import { computeFillet, diffLine } from '../geometry/fillet';
 import { pickPrimitiveAt } from './pick';
 
 type Line = Extract<SketchPrimitive, { kind: 'line' }>;
@@ -81,14 +81,4 @@ export class FilletTool {
   onEscapePressed(): void {
     this.firstPick = null;
   }
-}
-
-/** Returns only the keys in `next` that differ from `orig`. */
-function diffLine(orig: Line, next: Line): Partial<Line> {
-  const patch: Partial<Line> = {};
-  if (next.x1 !== orig.x1) patch.x1 = next.x1;
-  if (next.y1 !== orig.y1) patch.y1 = next.y1;
-  if (next.x2 !== orig.x2) patch.x2 = next.x2;
-  if (next.y2 !== orig.y2) patch.y2 = next.y2;
-  return patch;
 }

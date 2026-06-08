@@ -3,6 +3,16 @@ import type { SketchPrimitive } from '@zilventor/shared';
 type Line = Extract<SketchPrimitive, { kind: 'line' }>;
 type Pt = { x: number; y: number };
 
+/** Returns only the keys in `next` that differ from `orig`. */
+export function diffLine(orig: Line, next: Line): Partial<Line> {
+  const patch: Partial<Line> = {};
+  if (next.x1 !== orig.x1) patch.x1 = next.x1;
+  if (next.y1 !== orig.y1) patch.y1 = next.y1;
+  if (next.x2 !== orig.x2) patch.x2 = next.x2;
+  if (next.y2 !== orig.y2) patch.y2 = next.y2;
+  return patch;
+}
+
 export type FilletResult = {
   corner: Pt;
   center: Pt;

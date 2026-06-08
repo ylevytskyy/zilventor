@@ -3,6 +3,82 @@ import { ActiveToolController } from '../ActiveToolController';
 import { OffsetTool } from '../tools/OffsetTool';
 import type { SketchPrimitive } from '@zilventor/shared';
 
+// FIX 1 (S1): construction-mode stamp for offset/fillet/chamfer
+describe('ActiveToolController — construction mode stamp for offset/fillet/chamfer (S1)', () => {
+  const linePrimitives: SketchPrimitive[] = [
+    { id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+  ];
+
+  it('offset: emitted primitive has construction===true when isConstructionMode returns true', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview: vi.fn(),
+      isConstructionMode: () => true,
+    });
+    c.setToolKind('offset');
+    c.handlePointer({ type: 'click', point: { x: 5, y: 0 } }, linePrimitives);   // pick
+    c.handlePointer({ type: 'move',  point: { x: 5, y: 4 } }, linePrimitives);   // set side
+    c.handlePointer({ type: 'click', point: { x: 5, y: 4 } }, linePrimitives);   // commit
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].construction).toBe(true);
+  });
+
+  it('offset: emitted primitive has no construction flag when isConstructionMode returns false', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview: vi.fn(),
+      isConstructionMode: () => false,
+    });
+    c.setToolKind('offset');
+    c.handlePointer({ type: 'click', point: { x: 5, y: 0 } }, linePrimitives);
+    c.handlePointer({ type: 'move',  point: { x: 5, y: 4 } }, linePrimitives);
+    c.handlePointer({ type: 'click', point: { x: 5, y: 4 } }, linePrimitives);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].construction).toBeFalsy();
+  });
+
+  const cornerPrimitives: SketchPrimitive[] = [
+    { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+    { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0,  y2: 10 },
+  ];
+
+  it('fillet: emitted arc has construction===true when isConstructionMode returns true', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview: vi.fn(),
+      updatePrimitive: vi.fn(),
+      emitConstraint: vi.fn(),
+      isConstructionMode: () => true,
+    });
+    c.setToolKind('fillet');
+    c.handlePointer({ type: 'click', point: { x: 5, y: 0 } }, cornerPrimitives); // pick lx
+    c.handlePointer({ type: 'click', point: { x: 0, y: 5 } }, cornerPrimitives); // pick ly → commit
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].kind).toBe('arc');
+    expect(emit.mock.calls[0]![0].construction).toBe(true);
+  });
+
+  it('chamfer: emitted line has construction===true when isConstructionMode returns true', () => {
+    const emit = vi.fn<(p: SketchPrimitive) => void>();
+    const c = new ActiveToolController({
+      emitPrimitive: emit,
+      onPreview: vi.fn(),
+      updatePrimitive: vi.fn(),
+      emitConstraint: vi.fn(),
+      isConstructionMode: () => true,
+    });
+    c.setToolKind('chamfer');
+    c.handlePointer({ type: 'click', point: { x: 5, y: 0 } }, cornerPrimitives); // pick lx
+    c.handlePointer({ type: 'click', point: { x: 0, y: 5 } }, cornerPrimitives); // pick ly → commit
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]![0].kind).toBe('line');
+    expect(emit.mock.calls[0]![0].construction).toBe(true);
+  });
+});
+
 describe('ActiveToolController — OffsetTool integration (Task 7)', () => {
   it("setToolKind('offset') instantiates an OffsetTool", () => {
     const c = new ActiveToolController({ emitPrimitive: vi.fn(), onPreview: vi.fn() });

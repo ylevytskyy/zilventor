@@ -130,6 +130,7 @@ export class OffsetTool {
 
   onEscapePressed(): void {
     this.state = { kind: 'idle' };
+    this.opts.onPreview([]);
   }
 
   getAnchor(): Point2 | null {
@@ -148,6 +149,7 @@ export class OffsetTool {
     if (offsetted) {
       this.opts.onCommit(offsetted);
       this.state = { kind: 'idle' };
+      this.opts.onPreview([]);
     }
   }
 }

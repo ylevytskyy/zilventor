@@ -13,6 +13,7 @@ describe('CommittedSketchRenderer construction styling', () => {
     const normalMat = objs[0].material as THREE.Material;
     const constructionMat = objs[1].material as THREE.Material;
     expect(normalMat).toBeInstanceOf(THREE.LineBasicMaterial);
+    expect(normalMat).not.toBeInstanceOf(THREE.LineDashedMaterial);
     expect(constructionMat).toBeInstanceOf(THREE.LineDashedMaterial);
   });
 
@@ -28,6 +29,8 @@ describe('CommittedSketchRenderer construction styling', () => {
     r.update([
       { id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
     ]);
-    expect((r.group.children[0] as THREE.Line).material).toBeInstanceOf(THREE.LineBasicMaterial);
+    const toggledBackMat = (r.group.children[0] as THREE.Line).material as THREE.Material;
+    expect(toggledBackMat).toBeInstanceOf(THREE.LineBasicMaterial);
+    expect(toggledBackMat).not.toBeInstanceOf(THREE.LineDashedMaterial);
   });
 });
