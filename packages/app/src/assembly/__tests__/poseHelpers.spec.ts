@@ -133,6 +133,37 @@ describe('computeMirroredPose', () => {
     expect(worldZ).toBeCloseTo(0, 6);
   });
 
+  it('round-trip: XZ plane — world point maps to M_xz * worldPoint', () => {
+    // Source: 90° around Z, translation (0,10,0). Local pt p=(1,0,1).
+    // R*(1,0,1) = (0,1,1) [Z-rot: x→y, y→-x, z→z]. World=(0,11,1).
+    // M_xz=diag(1,-1,1) negates Y → expected world=(0,-11,1).
+    // Mirrored t'=M_xz*(0,10,0)=(0,-10,0). S*(1,0,1)=(-1,0,1).
+    // R'*(-1,0,1) + t' must equal (0,-11,1).
+    const sqrt2_2 = Math.SQRT2 / 2;
+    const srcQuat: [number, number, number, number] = [0, 0, sqrt2_2, sqrt2_2];
+    const src: Pose = { translation: { x: 0, y: 10, z: 0 }, quaternion: srcQuat };
+    const result = computeMirroredPose(src, 'xz');
+    // Derive expected from M_xz * (R*p + t)
+    const R = quatToMat3(srcQuat);
+    const p = { x: 1, y: 0, z: 1 };
+    const wp_x = R[0]! * p.x + R[1]! * p.y + R[2]! * p.z + src.translation.x;
+    const wp_y = R[3]! * p.x + R[4]! * p.y + R[5]! * p.z + src.translation.y;
+    const wp_z = R[6]! * p.x + R[7]! * p.y + R[8]! * p.z + src.translation.z;
+    // M_xz negates Y
+    const expectedX = wp_x;
+    const expectedY = -wp_y;
+    const expectedZ = wp_z;
+    // Mirrored local pt = S*(1,0,1) = (-1,0,1)
+    const localPt = { x: -1, y: 0, z: 1 };
+    const mR = quatToMat3(result.quaternion);
+    const mwX = mR[0]! * localPt.x + mR[1]! * localPt.y + mR[2]! * localPt.z + result.translation.x;
+    const mwY = mR[3]! * localPt.x + mR[4]! * localPt.y + mR[5]! * localPt.z + result.translation.y;
+    const mwZ = mR[6]! * localPt.x + mR[7]! * localPt.y + mR[8]! * localPt.z + result.translation.z;
+    expect(mwX).toBeCloseTo(expectedX, 6);
+    expect(mwY).toBeCloseTo(expectedY, 6);
+    expect(mwZ).toBeCloseTo(expectedZ, 6);
+  });
+
   it('round-trip: XY plane — world point maps to M_xy * worldPoint', () => {
     // Source: 30° around X. local pt (0,1,0).
     // R*(0,1,0) + t = world point. M_xy = diag(1,1,-1) negates Z.
