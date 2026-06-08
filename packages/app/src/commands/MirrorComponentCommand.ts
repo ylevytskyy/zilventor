@@ -11,7 +11,7 @@ export type MirrorComponentOpts = {
    *  Must NOT be the component/instance id — kernel.mirrorPart operates on part UUIDs. */
   sourcePartKernelId: string;
   plane: MirrorPlane;
-  kernel: Pick<KernelApi, 'mirrorPart' | 'registerPart' | 'deletePart' | 'saveToBytes'>;
+  kernel: Pick<KernelApi, 'mirrorPart' | 'deletePart' | 'saveToBytes'>;
   opfs: {
     write(path: string, data: Uint8Array): Promise<void>;
     delete(path: string): Promise<void>;
