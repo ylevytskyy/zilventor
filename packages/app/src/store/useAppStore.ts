@@ -20,7 +20,9 @@ export type ToolKind =
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
   | 'dimension'
-  | 'offset';
+  | 'offset'
+  | 'fillet'
+  | 'chamfer';
 
 export type ActiveDocument =
   | { kind: 'part';     document: PartDocument }

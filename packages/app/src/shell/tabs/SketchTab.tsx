@@ -128,6 +128,22 @@ export default function SketchTab() {
         >
           Offset
         </button>
+        <button
+          aria-pressed={activeToolKind === 'fillet'}
+          className={`text-xs ${activeToolKind === 'fillet' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('fillet')}
+        >
+          Fillet
+        </button>
+        <button
+          aria-pressed={activeToolKind === 'chamfer'}
+          className={`text-xs ${activeToolKind === 'chamfer' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('chamfer')}
+        >
+          Chamfer
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Dimension">
         <button

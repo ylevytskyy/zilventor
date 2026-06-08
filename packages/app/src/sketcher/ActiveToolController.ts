@@ -12,6 +12,8 @@ import { SelectTool } from './tools/SelectTool';
 import { ConstraintTool } from './tools/ConstraintTool';
 import { GeneralDimensionTool } from './tools/GeneralDimensionTool';
 import { OffsetTool } from './tools/OffsetTool';
+import { FilletTool } from './tools/FilletTool';
+import { ChamferTool } from './tools/ChamferTool';
 import type { SketcherClient } from './SketcherClient';
 
 export type ToolKind =
@@ -21,7 +23,9 @@ export type ToolKind =
   | 'constrain-parallel' | 'constrain-perpendicular' | 'constrain-tangent'
   | 'constrain-equal' | 'constrain-symmetric'
   | 'dimension'
-  | 'offset';
+  | 'offset'
+  | 'fillet'
+  | 'chamfer';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
@@ -33,6 +37,7 @@ export type ControllerDeps = {
   emitPrimitive(primitive: SketchPrimitive): void;
   onPreview(polyline: Point2[] | null, snap: SnapResult): void;
   emitConstraint?(c: SketchConstraint): void;
+  updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): void;
   sketcherClient?: SketcherClient;
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
@@ -42,7 +47,10 @@ export type ControllerDeps = {
 
 const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 
-type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool;
+const DEFAULT_FILLET_RADIUS = 5;
+const DEFAULT_CHAMFER_SETBACK = 5;
+
+type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool | FilletTool | ChamferTool;
 
 export class ActiveToolController {
   private tool: ActiveTool | null = null;
@@ -57,6 +65,10 @@ export class ActiveToolController {
     } else if (this.tool instanceof GeneralDimensionTool) {
       this.tool.onEscapePressed();
     } else if (this.tool instanceof OffsetTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof FilletTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof ChamferTool) {
       this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
@@ -98,6 +110,22 @@ export class ActiveToolController {
         return new OffsetTool({
           onCommit: (p) => this.deps.emitPrimitive(p),
           onPreview: (poly) => this.deps.onPreview(poly, NEUTRAL_SNAP),
+        });
+
+      case 'fillet':
+        return new FilletTool({
+          radius: DEFAULT_FILLET_RADIUS,
+          emitArc: (a) => this.deps.emitPrimitive(a),
+          updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+          emitConstraint: (c) => this.deps.emitConstraint?.(c),
+        });
+
+      case 'chamfer':
+        return new ChamferTool({
+          setback: DEFAULT_CHAMFER_SETBACK,
+          emitLine: (l) => this.deps.emitPrimitive(l),
+          updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+          emitConstraint: (c) => this.deps.emitConstraint?.(c),
         });
 
       case 'constrain-coincident':
@@ -157,6 +185,20 @@ export class ActiveToolController {
       return;
     }
 
+    if (this.tool instanceof FilletTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      // FilletTool uses callbacks — do NOT call applyOutput
+      return;
+    }
+
+    if (this.tool instanceof ChamferTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      // ChamferTool uses callbacks — do NOT call applyOutput
+      return;
+    }
+
     // SketchTool path
     const sketchTool = this.tool;
     const anchor = sketchTool.getAnchor();
@@ -191,6 +233,16 @@ export class ActiveToolController {
     if (this.tool instanceof SelectTool) return;
 
     if (this.tool instanceof OffsetTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof FilletTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof ChamferTool) {
       if (key === 'Escape') this.tool.onEscapePressed();
       return;
     }

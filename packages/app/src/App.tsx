@@ -20,6 +20,7 @@ import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRender
 import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
 import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
+import { UpdatePrimitiveCommand } from './commands/UpdatePrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
@@ -1178,6 +1179,18 @@ export default function App() {
           const store = useAppStore.getState();
           if (!store.activeSketchId) return;
           void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c, sketcherClientRef.current ?? undefined));
+        },
+        updatePrimitive: (id, patch) => {
+          void (async () => {
+            const store = useAppStore.getState();
+            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+            await store.bus.execute(new UpdatePrimitiveCommand({
+              sketchId: store.activeSketchId,
+              id,
+              patch,
+              sketcherClient: sketcherClientRef.current ?? undefined,
+            }));
+          })();
         },
         sketcherClient: sketcherClientRef.current ?? undefined,
         onCoords: (diff) => {
