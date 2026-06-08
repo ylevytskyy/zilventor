@@ -19,7 +19,7 @@ import {
   type Plane,
   type FaceTagMap as KernelFaceTagMap,
 } from './section/cutBySectionPlane';
-import { transformShapeByPose } from './occt/TransformOps';
+import { transformShapeByPose, mirrorShape } from './occt/TransformOps';
 import type { FaceTag } from '@zilventor/shared/src/drawing/projectSectionView';
 
 /**
@@ -88,6 +88,16 @@ export type KernelApi = {
    *  no archive round-trip is needed. Throws if the kernel is not initialized
    *  or if a part with the same id is already registered. */
   registerPart(part: PartDocument): Promise<void>;
+  /**
+   * Create a new part whose geometry is `sourcePartId` mirrored across its
+   * local YZ plane (S = diag(-1,1,1)). The mirrored BREP blob is registered
+   * in importedShapeCache; the new PartDocument is registered in parts.
+   * Returns the new partId and brepBlobId so the caller can save to OPFS.
+   *
+   * The source part must have been executed (namedShapeCache warm) or be
+   * executable. Throws if sourcePartId is unknown or execute fails.
+   */
+  mirrorPart(sourcePartId: string): Promise<{ partId: string; brepBlobId: string }>;
   extractAssemblyRef(partId: string, ref: AssemblyConstraintRef): Promise<Result<PartLocalGeometry, KernelError>>;
   extractAssemblyCircularEdge(partId: string, edge: EdgeName): Promise<Result<PartLocalGeometry, KernelError>>;
   importStep(params: {
@@ -447,6 +457,57 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       if (parts.has(part.id)) throw new Error(`registerPart: part ${part.id} is already registered`);
       parts.set(part.id, part);
+    },
+
+    async mirrorPart(sourcePartId) {
+      if (!occt) throw new Error('kernel not initialized');
+      const srcPart = parts.get(sourcePartId);
+      if (!srcPart) throw new Error(`mirrorPart: unknown part ${sourcePartId}`);
+
+      // Ensure namedShape is warm; execute if needed
+      let ns = namedShapeCache.get(sourcePartId);
+      if (!ns) {
+        const r = await executeTree(occt, srcPart, lookupImportedShape);
+        if (!r.ok) throw new Error(`mirrorPart: execute failed for ${sourcePartId}: ${r.error.message}`);
+        updateNamedShapeCache(sourcePartId, r.value.namedShape, r.value.workFeatures ?? []);
+        ns = r.value.namedShape;
+      }
+
+      // mirrorShape(oc, shape, 'yz') reflects X axis → S = diag(-1,1,1)
+      // Static import at line 22: import { transformShapeByPose, mirrorShape } from './occt/TransformOps'
+      const mirrored = mirrorShape(occt, ns.shape, 'yz');
+      const brepBlobId = `mirror-${crypto.randomUUID()}`;
+      registerImportedShape(brepBlobId, mirrored);
+
+      const newId = crypto.randomUUID();
+      const featureId = `mirror-body-${newId}`;
+
+      // Inline the 7 origin work-features (mirrors ORIGIN_FEATURES from app/src/import/originFeatures.ts)
+      // Kernel cannot import from app — inline directly.
+      const originFeatures: PartDocument['featureTree'] = [
+        { kind: 'workAxis',  id: 'origin.X',  visible: false, source: { mode: 'origin', axis: 'X' } },
+        { kind: 'workAxis',  id: 'origin.Y',  visible: false, source: { mode: 'origin', axis: 'Y' } },
+        { kind: 'workAxis',  id: 'origin.Z',  visible: false, source: { mode: 'origin', axis: 'Z' } },
+        { kind: 'workPlane', id: 'origin.XY', visible: false, source: { mode: 'origin', plane: 'XY' } },
+        { kind: 'workPlane', id: 'origin.YZ', visible: false, source: { mode: 'origin', plane: 'YZ' } },
+        { kind: 'workPlane', id: 'origin.XZ', visible: false, source: { mode: 'origin', plane: 'XZ' } },
+        { kind: 'workPoint', id: 'origin.O',  visible: false, source: { mode: 'origin' } },
+      ];
+      const mirrorPartDoc: PartDocument = {
+        id: newId,
+        name: `${srcPart.name}_mirror`,
+        units: 'mm',
+        parameters: {},
+        featureTree: [
+          ...originFeatures,
+          { kind: 'imported', id: featureId, sourceStep: `${srcPart.name}_mirror`, bodyRef: brepBlobId },
+        ],
+        properties: {},
+        materials: [],
+        hardware: [],
+      };
+      parts.set(newId, mirrorPartDoc);
+      return { partId: newId, brepBlobId };
     },
 
     async extractAssemblyRef(partId, ref) {
