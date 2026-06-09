@@ -110,7 +110,7 @@ describe('dimension commands', () => {
       }],
       materials: [], hardware: [],
     });
-    const coordsResult = { dof: { count: 0, state: 'solved' as const }, coords: [{ primitiveId: 'l1', patch: { x2: 100, y2: 0 } }] };
+    const coordsResult = { dof: { count: 0, state: 'fully' as const }, coords: [{ primitiveId: 'l1', patch: { x2: 100, y2: 0 } }] };
     const updateDimensionValue = vi.fn().mockResolvedValue(coordsResult);
     const client = { updateDimensionValue } as unknown as SketcherClient;
 
@@ -143,7 +143,7 @@ describe('dimension commands', () => {
 
     const cmd = new UpdateDimensionValueCommand('S1', 'd0', 50, 100, client);
     // First apply (mock returns a different diff — not important for this revert test)
-    updateDimensionValue.mockResolvedValueOnce({ dof: { count: 0, state: 'solved' as const }, coords: [] });
+    updateDimensionValue.mockResolvedValueOnce({ dof: { count: 0, state: 'fully' as const }, coords: [] });
     await cmd.apply();
     // Now revert
     updateDimensionValue.mockResolvedValueOnce(revertCoordsResult);
