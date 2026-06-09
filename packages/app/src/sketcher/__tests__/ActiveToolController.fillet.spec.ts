@@ -14,7 +14,8 @@ import type { SketchPrimitive } from '@zilventor/shared';
  * computeFillet(lx, ly, radius=5):
  *   - corner at (0,0), half-angle = π/4, tanDist = 5/tan(π/4) = 5
  *   - t1 = (5,0), t2 = (0,5), center = (5,5)/√2 * cenDist ≈ (5,5)
- *   - emits 1 arc + 2 trim patches + 2 tangent + 1 dim-radius = 3 constraints
+ *   - emits 1 arc + 2 trim patches + 2 coincident + 2 tangent + 1 dim-radius = 5 constraints
+ *     (the 2 coincident pin the arc ends to the trimmed line ends — slice-2 drift fix)
  */
 
 const primitives: SketchPrimitive[] = [
@@ -43,7 +44,7 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     expect(c.currentTool()).toBeInstanceOf(ChamferTool);
   });
 
-  it('fillet: two picks on corner-sharing lines → arc + 2 updatePrimitive + 3 constraints', () => {
+  it('fillet: two picks on corner-sharing lines → arc + 2 updatePrimitive + 5 constraints', () => {
     const emitPrimitive = vi.fn<(p: SketchPrimitive) => void>();
     const updatePrimitive = vi.fn<(id: string, patch: Partial<SketchPrimitive>) => void>();
     const emitConstraint = vi.fn();
@@ -75,9 +76,10 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     // Two trim patches (one per source line)
     expect(updatePrimitive).toHaveBeenCalledTimes(2);
 
-    // Three constraints: tangent-lx, tangent-ly, dim-radius
-    expect(emitConstraint).toHaveBeenCalledTimes(3);
+    // Five constraints: coincident×2 (arc-end↔line-end), tangent×2, dim-radius
+    expect(emitConstraint).toHaveBeenCalledTimes(5);
     const kinds = emitConstraint.mock.calls.map((call) => call[0].kind);
+    expect(kinds.filter((k: string) => k === 'coincident')).toHaveLength(2);
     expect(kinds.filter((k: string) => k === 'tangent')).toHaveLength(2);
     expect(kinds.filter((k: string) => k === 'dim-radius')).toHaveLength(1);
   });
