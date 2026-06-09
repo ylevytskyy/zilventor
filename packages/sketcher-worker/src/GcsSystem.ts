@@ -336,9 +336,15 @@ export class GcsSystem {
   private readDomainPrimitive(id: string): SketchPrimitive | null {
     const original = this.domainPrimitives.get(id);
     if (!original) return null;
-    const all = this.gcs.sketch_index?.get_primitives?.() ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (this.gcs.sketch_index?.get_primitives?.() ?? []) as PlanegcsPrimitive[];
     const pts = new Map<string, { x: number; y: number }>();
-    for (const p of all) if (p.type === 'point') pts.set(p.id, { x: p.x, y: p.y });
+    // Also index circle/arc objects by id so we can read back their solved radius.
+    const gcsPrimById = new Map<string, PlanegcsPrimitive>();
+    for (const p of all) {
+      if (p.type === 'point') pts.set(p.id, { x: p.x, y: p.y });
+      gcsPrimById.set(p.id, p);
+    }
     const d = this.decomp.get(id)!;
     switch (original.kind) {
       case 'line': {
@@ -348,11 +354,15 @@ export class GcsSystem {
       }
       case 'circle': {
         const c = pts.get(d.pointIds['center']!)!;
-        return { ...original, cx: c.x, cy: c.y };
+        const gcsCir = gcsPrimById.get(id);
+        const r = (gcsCir?.type === 'circle') ? gcsCir.radius : original.r;
+        return { ...original, cx: c.x, cy: c.y, r };
       }
       case 'arc': {
         const c = pts.get(d.pointIds['center']!)!;
-        return { ...original, cx: c.x, cy: c.y };
+        const gcsArc = gcsPrimById.get(id);
+        const r = (gcsArc?.type === 'arc') ? gcsArc.radius : original.r;
+        return { ...original, cx: c.x, cy: c.y, r };
       }
       case 'rectangle': {
         const bl = pts.get(d.pointIds['bl']!)!;
