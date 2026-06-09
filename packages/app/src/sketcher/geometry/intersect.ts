@@ -104,25 +104,32 @@ function lineArcHits(
     clampToSegment,
   );
 
-  return circleHits.filter((h) => {
-    const angle = h.tB; // atan2 result ∈ (-π, π]
-    return angleInArcRange(angle, arc.startAngle, arc.endAngle);
-  }).map((h) => ({
-    ...h,
-    // Normalize tB: fractional position within [startAngle, endAngle].
-    tB: (h.tB - arc.startAngle) / (arc.endAngle - arc.startAngle),
-  }));
+  const result: Hit[] = [];
+  for (const h of circleHits) {
+    const rawAngle = h.tB; // atan2 result ∈ (-π, π]
+    // shiftedAngle is rawAngle adjusted by ±2π multiples so it falls in
+    // [startAngle, endAngle].  Use the SAME shifted value for both the
+    // range-check and the tB normalization to avoid the ±π discontinuity bug.
+    const shiftedAngle = shiftAngleIntoRange(rawAngle, arc.startAngle, arc.endAngle);
+    if (shiftedAngle < arc.startAngle - EPS || shiftedAngle > arc.endAngle + EPS) continue;
+    result.push({
+      ...h,
+      // Normalize tB: fractional position within [startAngle, endAngle].
+      tB: (shiftedAngle - arc.startAngle) / (arc.endAngle - arc.startAngle),
+    });
+  }
+  return result;
 }
 
 /**
- * Returns true if `angle` (atan2 output ∈ (-π, π]) lies within the arc's
- * CCW sweep [startAngle, endAngle] (invariant: startAngle < endAngle after
- * slice-1 normalization — same convention as ArcTool and computeFillet).
+ * Shift `angle` (atan2 output ∈ (-π, π]) by ±2π multiples until it is as
+ * close to [start, end] as possible.  Returns the shifted value; callers can
+ * then range-check it against [start, end] AND use it for normalization so
+ * both operations use the same (consistent) shifted angle.
  */
-function angleInArcRange(angle: number, start: number, end: number): boolean {
-  // Normalize angle to lie within the range by subtracting 2π multiples.
+function shiftAngleIntoRange(angle: number, start: number, end: number): number {
   let a = angle;
   while (a < start - EPS) a += 2 * Math.PI;
   while (a > end + EPS) a -= 2 * Math.PI;
-  return a >= start - EPS && a <= end + EPS;
+  return a;
 }

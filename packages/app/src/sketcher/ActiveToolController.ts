@@ -47,6 +47,7 @@ export type ControllerDeps = {
   updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): Promise<void> | void;
   deletePrimitive?(id: string): void;
   getSketchFrame?(): SketchFrame | null;
+  showToast?(message: string): void;
   sketcherClient?: SketcherClient;
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
@@ -159,11 +160,7 @@ export class ActiveToolController {
         return new ProjectGeometryTool({
           frame: this.deps.getSketchFrame?.() ?? null,
           emitPrimitive: (p) => this.deps.emitPrimitive(p),
-          showToast: (msg) => {
-            // Toast surfaced via a ControllerDeps hook or logged — App.tsx wires showToast.
-            // For now: noop (App.tsx extends this in the next wiring step).
-            console.warn('[ProjectGeometryTool]', msg);
-          },
+          showToast: (msg) => this.deps.showToast?.(msg),
         });
 
       case 'constrain-coincident':

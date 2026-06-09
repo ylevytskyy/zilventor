@@ -122,4 +122,46 @@ describe('intersect — line-arc (CCW convention guard)', () => {
     expect(fwd).toHaveLength(rev.length);
     fwd.forEach((h, i) => { near(h.x, rev[i]!.x); near(h.y, rev[i]!.y); });
   });
+
+  // REGRESSION — tB normalization bug for arcs crossing the atan2 ±π discontinuity.
+  // Arc: center (0,0), r=5, startAngle=π/2, endAngle=3π/2 (left-half arc).
+  // Line: (-10,-10)→(0,0) passes through angle 5π/4 on the circle
+  //   (point ≈ (-3.5355, -3.5355); atan2 returns -3π/4 which needs +2π shift).
+  // Correct tB: (5π/4 - π/2) / (3π/2 - π/2) = (3π/4) / π = 0.75
+  // Buggy tB using raw atan2 (-3π/4): (-3π/4 - π/2) / π = -1.25
+  it('>π arc: tB is normalized using the shifted angle, not raw atan2 (-1.25 is WRONG)', () => {
+    const line = { id: 'l', kind: 'line' as const, x1: -10, y1: -10, x2: 0, y2: 0 };
+    const arc  = {
+      id: 'a', kind: 'arc' as const,
+      cx: 0, cy: 0, r: 5,
+      startAngle: Math.PI / 2,
+      endAngle: 3 * Math.PI / 2,
+    };
+    const hits = intersect(line, arc);
+    // The line intersects the full circle at two points on the diagonal.
+    // Only angle 5π/4 (≈ (-3.54,-3.54)) is inside [π/2, 3π/2]; angle π/4 is not.
+    expect(hits).toHaveLength(1);
+    // tB must be ≈ 0.75, NOT ≈ -1.25
+    near(hits[0]!.tB, 0.75);
+    // Also verify the hit point itself is correct.
+    near(hits[0]!.x, -5 * Math.cos(Math.PI / 4)); // cos(5π/4) = -cos(π/4)
+    near(hits[0]!.y, -5 * Math.sin(Math.PI / 4)); // sin(5π/4) = -sin(π/4)
+  });
+
+  // Sanity-guard: common quarter-circle path [0, π/2] still works correctly.
+  it('quarter-circle [0, π/2]: tB=0.5 at angle π/4', () => {
+    // Arc: center (0,0), r=5, startAngle=0, endAngle=π/2.
+    // Line: (0,0)→(10,10) (diagonal at 45°, passes through (5·cos(π/4), 5·sin(π/4))).
+    // atan2(5/√2, 5/√2) = π/4 — no shift needed; tB = (π/4 - 0) / (π/2) = 0.5
+    const line = { id: 'l', kind: 'line' as const, x1: 0, y1: 0, x2: 10, y2: 10 };
+    const arc  = {
+      id: 'a', kind: 'arc' as const,
+      cx: 0, cy: 0, r: 5,
+      startAngle: 0,
+      endAngle: Math.PI / 2,
+    };
+    const hits = intersect(line, arc);
+    expect(hits).toHaveLength(1);
+    near(hits[0]!.tB, 0.5);
+  });
 });

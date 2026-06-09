@@ -1199,6 +1199,7 @@ export default function App() {
           useAppStore.getState().setSketchDof(dof);
         },
         isConstructionMode: () => useAppStore.getState().constructionMode,
+        showToast: (msg) => showToast(msg),
         onDimensionReady: (d) => { setPendingDimension(d); },
         onPreview: (polyline, snap) => {
           const ov = sketchOverlayRef.current;
