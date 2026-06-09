@@ -21,6 +21,7 @@ import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRender
 import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { UpdatePrimitiveCommand } from './commands/UpdatePrimitiveCommand';
+import { DeletePrimitiveCommand } from './commands/DeletePrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
@@ -1216,7 +1217,39 @@ export default function App() {
           const count = activeToolCtrlRef.current?.numericFieldCount() ?? 0;
           setNumericFieldCount(count);
           setNumericVisible(count > 0);
-        }
+        },
+        deletePrimitive: (id) => {
+          void (async () => {
+            const store = useAppStore.getState();
+            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+            await store.bus.execute(new DeletePrimitiveCommand({
+              kernel: store.kernel,
+              store: { activePart: store.activePart, setActivePart: store.setActivePart },
+              sketchId: store.activeSketchId,
+              primitiveId: id,
+            }));
+          })();
+        },
+        getSketchFrame: () => {
+          const store = useAppStore.getState();
+          if (!store.activePart || !store.activeSketchId) return null;
+          const sketch = store.activePart.featureTree.find(
+            (f) => f.kind === 'sketch' && f.id === store.activeSketchId
+          );
+          if (!sketch || sketch.kind !== 'sketch') return null;
+          const plane = sketch.plane;
+          if (plane.source !== 'workPlane') return null; // face-sourced: not supported
+          if (plane.featureId === 'origin.XY') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, xDir: { x: 1, y: 0, z: 0 } };
+          }
+          if (plane.featureId === 'origin.YZ') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 }, xDir: { x: 0, y: 1, z: 0 } };
+          }
+          if (plane.featureId === 'origin.XZ') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 }, xDir: { x: 1, y: 0, z: 0 } };
+          }
+          return null; // custom work plane: resolve from workFeatures if available
+        },
       });
     };
 

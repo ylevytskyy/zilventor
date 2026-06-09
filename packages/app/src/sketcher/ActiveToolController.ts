@@ -14,6 +14,10 @@ import { GeneralDimensionTool } from './tools/GeneralDimensionTool';
 import { OffsetTool } from './tools/OffsetTool';
 import { FilletTool } from './tools/FilletTool';
 import { ChamferTool } from './tools/ChamferTool';
+import { TrimTool } from './tools/TrimTool';
+import { ExtendTool } from './tools/ExtendTool';
+import { ProjectGeometryTool } from './tools/ProjectGeometryTool';
+import type { SketchFrame } from './geometry/projectToSketch';
 import type { SketcherClient } from './SketcherClient';
 
 export type ToolKind =
@@ -25,7 +29,10 @@ export type ToolKind =
   | 'dimension'
   | 'offset'
   | 'fillet'
-  | 'chamfer';
+  | 'chamfer'
+  | 'trim'
+  | 'extend'
+  | 'project-geom';
 
 export type PointerEvent =
   | { type: 'click'; point: Point2 }
@@ -38,6 +45,8 @@ export type ControllerDeps = {
   onPreview(polyline: Point2[] | null, snap: SnapResult): void;
   emitConstraint?(c: SketchConstraint): void;
   updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): void;
+  deletePrimitive?(id: string): void;
+  getSketchFrame?(): SketchFrame | null;
   sketcherClient?: SketcherClient;
   onCoords?(diff: PrimitiveCoordsDiff[]): void;
   onDof?(dof: DofStatus): void;
@@ -50,7 +59,7 @@ const NEUTRAL_SNAP: SnapResult = { point: { x: 0, y: 0 }, kind: 'none' };
 const DEFAULT_FILLET_RADIUS = 5;
 const DEFAULT_CHAMFER_SETBACK = 5;
 
-type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool | FilletTool | ChamferTool;
+type ActiveTool = SketchTool | SelectTool | ConstraintTool | GeneralDimensionTool | OffsetTool | FilletTool | ChamferTool | TrimTool | ExtendTool | ProjectGeometryTool;
 
 export class ActiveToolController {
   private tool: ActiveTool | null = null;
@@ -69,6 +78,12 @@ export class ActiveToolController {
     } else if (this.tool instanceof FilletTool) {
       this.tool.onEscapePressed();
     } else if (this.tool instanceof ChamferTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof TrimTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof ExtendTool) {
+      this.tool.onEscapePressed();
+    } else if (this.tool instanceof ProjectGeometryTool) {
       this.tool.onEscapePressed();
     }
     this.tool = kind ? this.instantiate(kind) : null;
@@ -126,6 +141,29 @@ export class ActiveToolController {
           emitLine: (l) => this.deps.emitPrimitive(this.stampC(l)),
           updateLine: (id, patch) => this.deps.updatePrimitive?.(id, patch),
           emitConstraint: (c) => this.deps.emitConstraint?.(c),
+        });
+
+      case 'trim':
+        return new TrimTool({
+          addPrimitive: (p) => this.deps.emitPrimitive(p),
+          deletePrimitive: (id) => this.deps.deletePrimitive?.(id),
+          updatePrimitive: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+        });
+
+      case 'extend':
+        return new ExtendTool({
+          updatePrimitive: (id, patch) => this.deps.updatePrimitive?.(id, patch),
+        });
+
+      case 'project-geom':
+        return new ProjectGeometryTool({
+          frame: this.deps.getSketchFrame?.() ?? null,
+          emitPrimitive: (p) => this.deps.emitPrimitive(p),
+          showToast: (msg) => {
+            // Toast surfaced via a ControllerDeps hook or logged — App.tsx wires showToast.
+            // For now: noop (App.tsx extends this in the next wiring step).
+            console.warn('[ProjectGeometryTool]', msg);
+          },
         });
 
       case 'constrain-coincident':
@@ -199,6 +237,24 @@ export class ActiveToolController {
       return;
     }
 
+    if (this.tool instanceof TrimTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      return;
+    }
+
+    if (this.tool instanceof ExtendTool) {
+      this.tool.setPrimitives(primitives);
+      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      return;
+    }
+
+    // ProjectGeometryTool pointer events are handled separately via projectEdge()
+    // called from App.tsx (it needs the tessellatedEdgesRef, not 2D primitives).
+    if (this.tool instanceof ProjectGeometryTool) {
+      return; // handled externally
+    }
+
     // SketchTool path
     const sketchTool = this.tool;
     const anchor = sketchTool.getAnchor();
@@ -243,6 +299,21 @@ export class ActiveToolController {
     }
 
     if (this.tool instanceof ChamferTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof TrimTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof ExtendTool) {
+      if (key === 'Escape') this.tool.onEscapePressed();
+      return;
+    }
+
+    if (this.tool instanceof ProjectGeometryTool) {
       if (key === 'Escape') this.tool.onEscapePressed();
       return;
     }
