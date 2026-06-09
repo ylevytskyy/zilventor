@@ -580,7 +580,15 @@ export class GcsSystem {
     if (!c || !isDimension(c)) return { dof: this.readDof(), coords: [] };
     this.dimensionResolvedValue.set(id, resolvedValue);
     this.rebuildGcs();
-    return { dof: this.readDof(), coords: this.coordDiffForAll() };
+    // Sync domainPrimitives to the post-solve GCS state so that the NEXT call to
+    // coordDiffForAll diffs from the current (post-solve) position, not from the
+    // load-time baseline.  Without this, reverting a dim to its original value
+    // produces an empty diff (GCS == domainPrimitives) while the Zustand store
+    // still holds the intermediate edited position — leaving stale geometry.
+    // Pattern matches addDimension (line ~560) and dragTo (line ~437).
+    const coords = this.coordDiffForAll();
+    this.syncDomainFromGcs();
+    return { dof: this.readDof(), coords };
   }
 
   private translateDimensionConstraint(
