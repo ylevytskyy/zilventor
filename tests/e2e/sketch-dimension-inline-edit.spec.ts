@@ -6,7 +6,11 @@
  * B) Double-click a dim-radius dimension label → type new value → Enter →
  *    assert store dimension value changed + arc radius changed.
  * C) Undo restores both the dimension value and the geometry.
- * D) Double-click a param-bound dim → no inline editor appears (no input in DOM).
+ *
+ * Note: the param-bound-dim refuse path (double-click → toast, no inline editor)
+ * is covered by the DimensionRenderer unit test + the §6 manual browser gate;
+ * it is intentionally not exercised here (seeding a ParameterRegistry-linked dim
+ * end-to-end is deferred — see the design spec's Deferred section).
  */
 
 import { test, expect } from '@playwright/test';
