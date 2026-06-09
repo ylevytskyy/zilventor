@@ -52,19 +52,36 @@ export function findChain(seed: SketchPrimitive, all: SketchPrimitive[]): Sketch
   const chain: SketchPrimitive[] = [seed];
 
   // Grow forward from the last element in chain, then backward from the first.
+  // When a neighbor is found, normalize its direction so chain[i].x2 ≈ chain[i+1].x1
+  // always holds — i.e. if the connection is via the neighbor's far endpoint, flip it.
   const grow = (fromPrim: Extract<SketchPrimitive, { kind: 'line' }>, appendFront: boolean): void => {
     const [ep0, ep1] = lineEndpoints(fromPrim);
     const searchEp = appendFront ? ep0 : ep1;
     for (const other of all) {
       if (visited.has(other.id) || other.kind !== 'line') continue;
       const [oa, ob] = lineEndpoints(other);
-      if (epDist(searchEp, oa) < CHAIN_TOL || epDist(searchEp, ob) < CHAIN_TOL) {
-        visited.add(other.id);
-        if (appendFront) chain.unshift(other);
-        else chain.push(other);
-        grow(other, appendFront);
-        break; // take first neighbor (chain, not tree)
+      const matchesNear = epDist(searchEp, oa) < CHAIN_TOL;
+      const matchesFar  = epDist(searchEp, ob) < CHAIN_TOL;
+      if (!matchesNear && !matchesFar) continue;
+
+      visited.add(other.id);
+
+      // Normalize direction: for chain correctness, when appending to the back
+      // (appendFront=false) the neighbor's x1,y1 must ≈ searchEp (our tail).
+      // When appending to the front, the neighbor's x2,y2 must ≈ searchEp (our head).
+      let normalized: Extract<SketchPrimitive, { kind: 'line' }> = other;
+      if (appendFront && matchesNear) {
+        // other.x1 ≈ searchEp but we need other.x2 ≈ searchEp → flip.
+        normalized = { ...other, x1: other.x2, y1: other.y2, x2: other.x1, y2: other.y1 };
+      } else if (!appendFront && matchesFar) {
+        // other.x2 ≈ searchEp but we need other.x1 ≈ searchEp → flip.
+        normalized = { ...other, x1: other.x2, y1: other.y2, x2: other.x1, y2: other.y1 };
       }
+
+      if (appendFront) chain.unshift(normalized);
+      else chain.push(normalized);
+      grow(normalized, appendFront);
+      break; // take first neighbor (chain, not tree)
     }
   };
 
@@ -94,6 +111,14 @@ export function offsetChain(chain: SketchPrimitive[], d: number): SketchPrimitiv
   const offsets = chain.map((p) => offsetPrimitive(p, d)).filter(Boolean) as SketchPrimitive[];
   if (offsets.length !== chain.length) return offsets; // degenerate
 
+  // Detect closed loop: last original segment's far endpoint ≈ first's near endpoint.
+  const first = chain[0] as Extract<SketchPrimitive, { kind: 'line' }>;
+  const last  = chain[chain.length - 1] as Extract<SketchPrimitive, { kind: 'line' }>;
+  const isLoop =
+    first.kind === 'line' &&
+    last.kind === 'line' &&
+    epDist({ x: last.x2, y: last.y2 }, { x: first.x1, y: first.y1 }) < CHAIN_TOL;
+
   // Miter-join adjacent pairs.
   for (let i = 0; i < offsets.length - 1; i++) {
     const a = offsets[i]!;
@@ -109,6 +134,20 @@ export function offsetChain(chain: SketchPrimitive[], d: number): SketchPrimitiv
     offsets[i] = { ...a, x2: miter.x, y2: miter.y };
     // Update b's near endpoint (x1,y1) to miter point.
     offsets[i + 1] = { ...b, x1: miter.x, y1: miter.y };
+  }
+
+  // For a closed loop, also miter-join the last segment back to the first.
+  if (isLoop) {
+    const a = offsets[offsets.length - 1]!;
+    const b = offsets[0]!;
+    if (a.kind === 'line' && b.kind === 'line') {
+      const hits = intersect(a, b, false); // unbounded
+      if (hits.length > 0) {
+        const miter = hits[0]!;
+        offsets[offsets.length - 1] = { ...a, x2: miter.x, y2: miter.y };
+        offsets[0] = { ...b, x1: miter.x, y1: miter.y };
+      }
+    }
   }
 
   return offsets;

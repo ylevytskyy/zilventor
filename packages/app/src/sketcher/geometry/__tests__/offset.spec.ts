@@ -95,3 +95,134 @@ describe('offsetChain — L-shaped chain, two lines', () => {
     expect(lbOff.y1).toBeCloseTo(2, 2);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW TESTS — closed-loop, mid-seed ordering, reverse-directed segment
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('findChain — mid-seed ordering (3-segment open chain)', () => {
+  // Chain: LA=(0,0)→(5,0), LB=(5,0)→(10,0), LC=(10,0)→(10,5).
+  // Seed from the MIDDLE segment LB.
+  // Expected: findChain returns all three in connected order, length 3.
+  //
+  // Hand-trace:
+  //   grow(LB, false) from ep1=(10,0): LC.ep0=(10,0) matches → chain=[LB,LC].
+  //   grow(LB, true)  from ep0=(5,0):  LA.ep1=(5,0) matches → chain=[LA,LB,LC].
+  it('returns all 3 segments when seeded from the middle', () => {
+    const la: SketchPrimitive = { id: 'la', kind: 'line', x1: 0, y1: 0, x2: 5, y2: 0 };
+    const lb: SketchPrimitive = { id: 'lb', kind: 'line', x1: 5, y1: 0, x2: 10, y2: 0 };
+    const lc: SketchPrimitive = { id: 'lc', kind: 'line', x1: 10, y1: 0, x2: 10, y2: 5 };
+    const chain = findChain(lb, [la, lb, lc]);
+    expect(chain).toHaveLength(3);
+    expect(chain.map((p) => p.id)).toContain('la');
+    expect(chain.map((p) => p.id)).toContain('lb');
+    expect(chain.map((p) => p.id)).toContain('lc');
+    // Connectivity: consecutive segments must share an endpoint.
+    const lines = chain as Extract<SketchPrimitive, { kind: 'line' }>[];
+    near(lines[0]!.x2, lines[1]!.x1);
+    near(lines[0]!.y2, lines[1]!.y1);
+    near(lines[1]!.x2, lines[2]!.x1);
+    near(lines[1]!.y2, lines[2]!.y1);
+  });
+});
+
+describe('offsetChain — reverse-directed segment miter', () => {
+  // Chain built from: L_fwd=(0,0)→(10,0) and L_rev=(10,10)→(10,0).
+  // L_rev is authored in REVERSE — its far endpoint (x2,y2)=(10,0) is the
+  // connecting end, not its near endpoint (x1,y1)=(10,10).
+  //
+  // findChain must normalize L_rev so that chain[0].x2 ≈ chain[1].x1,
+  // i.e. L_rev becomes (10,0)→(10,10) before offsetting.
+  //
+  // After normalization, chain = [(0,0)→(10,0), (10,0)→(10,10)] — same as the
+  // existing L-shape test. Offset d=+2 (inward miter corner at (8,2)):
+  //   O_fwd = (0,2)→(10,2),  O_rev_norm = (8,0)→(8,10).
+  //   Miter intersection of y=2 and x=8 = (8,2).
+  //   Final: (0,2)→(8,2) and (8,2)→(8,10).
+  it('normalizes a reversed segment and miter-joins at (8,2)', () => {
+    const lFwd: SketchPrimitive = { id: 'lf', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 };
+    const lRev: SketchPrimitive = { id: 'lr', kind: 'line', x1: 10, y1: 10, x2: 10, y2: 0 };
+    // Let findChain discover + normalize lRev.
+    const chain = findChain(lFwd, [lFwd, lRev]);
+    expect(chain).toHaveLength(2);
+    // After normalization the chain must be head-to-tail connected.
+    const cl = chain as Extract<SketchPrimitive, { kind: 'line' }>[];
+    near(cl[0]!.x2, cl[1]!.x1);
+    near(cl[0]!.y2, cl[1]!.y1);
+
+    const results = offsetChain(chain, 2);
+    expect(results).toHaveLength(2);
+    const offLines = results as Extract<SketchPrimitive, { kind: 'line' }>[];
+    // Sort so the horizontal segment is [0] and the vertical is [1].
+    const sorted = [...offLines].sort((a, b) => a.x1 - b.x1);
+    const horiz = sorted[0]!; // should be (0,2)→(8,2)
+    const vert  = sorted[1]!; // should be (8,2)→(8,10)
+
+    // Shared miter corner at (8,2).
+    near(horiz.x2, 8); near(horiz.y2, 2);
+    near(vert.x1,  8); near(vert.y1,  2);
+    // Unmoved endpoints.
+    near(horiz.x1, 0); near(horiz.y1, 2);
+    near(vert.x2,  8); near(vert.y2,  10);
+  });
+});
+
+describe('offsetChain — closed-loop rectangle, inward offset', () => {
+  // Rectangle as 4 CCW line segments:
+  //   L1: (0,0)→(10,0)   bottom
+  //   L2: (10,0)→(10,10) right
+  //   L3: (10,10)→(0,10) top
+  //   L4: (0,10)→(0,0)   left
+  //
+  // offsetPrimitive normal: nx=-dy/len, ny=dx/len.
+  //   L1: nx=0,ny=1  → O1=(0,2)→(10,2)
+  //   L2: nx=-1,ny=0 → O2=(8,0)→(8,10)
+  //   L3: nx=0,ny=-1 → O3=(10,8)→(0,8)
+  //   L4: nx=1,ny=0  → O4=(2,10)→(2,0)
+  //
+  // Miter corners (inner rectangle at d=2 inward):
+  //   O1∩O2 → (8,2)    O2∩O3 → (8,8)
+  //   O3∩O4 → (2,8)    O4∩O1 → (2,2)  ← CLOSING CORNER (the bug path)
+  //
+  // All 4 output segments must share exactly the 4 inner-rectangle corners.
+  it('offsets a closed rectangle inward by d=2 — all 4 miter corners correct', () => {
+    const l1: SketchPrimitive = { id: 'l1', kind: 'line', x1: 0,  y1: 0,  x2: 10, y2: 0  };
+    const l2: SketchPrimitive = { id: 'l2', kind: 'line', x1: 10, y1: 0,  x2: 10, y2: 10 };
+    const l3: SketchPrimitive = { id: 'l3', kind: 'line', x1: 10, y1: 10, x2: 0,  y2: 10 };
+    const l4: SketchPrimitive = { id: 'l4', kind: 'line', x1: 0,  y1: 10, x2: 0,  y2: 0  };
+    // Pass as an explicit ordered loop (l1→l2→l3→l4, closing back to l1).
+    const results = offsetChain([l1, l2, l3, l4], 2);
+    expect(results).toHaveLength(4);
+    const segs = results as Extract<SketchPrimitive, { kind: 'line' }>[];
+
+    // Collect all 8 endpoints.
+    const pts = segs.flatMap((s) => [
+      { x: s.x1, y: s.y1 },
+      { x: s.x2, y: s.y2 },
+    ]);
+
+    // Every endpoint must be one of the 4 inner-rectangle corners.
+    const corners = [
+      { x: 2, y: 2 },
+      { x: 8, y: 2 },
+      { x: 8, y: 8 },
+      { x: 2, y: 8 },
+    ];
+    for (const pt of pts) {
+      const matchesCorner = corners.some(
+        (c) => Math.abs(pt.x - c.x) < 0.01 && Math.abs(pt.y - c.y) < 0.01,
+      );
+      expect(matchesCorner, `point (${pt.x},${pt.y}) must be an inner-rectangle corner`).toBe(true);
+    }
+
+    // Explicitly check the CLOSING corner (O4 far-end and O1 near-end must both be (2,2)).
+    // O4 was originally (2,10)→(2,0); after closing-miter its x2,y2 must be (2,2).
+    // O1 was originally (0,2)→(10,2); after closing-miter its x1,y1 must be (2,2).
+    // We identify O1-offset as the segment whose x1≈0,y1≈2 (before miter) — actually
+    // after miter all corners land on the inner rect, so check all.
+    const closingCornerPresent = pts.some(
+      (p) => Math.abs(p.x - 2) < 0.01 && Math.abs(p.y - 2) < 0.01,
+    );
+    expect(closingCornerPresent, 'closing corner (2,2) must appear in output').toBe(true);
+  });
+});
