@@ -15,6 +15,7 @@ import { createSketchModeController, type SketchModeHandle } from './sketcher/Sk
 import { SketcherClient } from './sketcher/SketcherClient';
 import { createSketcherWorkerApi } from './vendor/sketcherWorker';
 import { ActiveToolController } from './sketcher/ActiveToolController';
+import { ProjectGeometryTool } from './sketcher/tools/ProjectGeometryTool';
 import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
 import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
@@ -2093,6 +2094,28 @@ export default function App() {
       return;
     }
     if (!sketchMode || !activeToolCtrlRef.current) return;
+    // Project Geometry: ray-pick a 3D model edge and project it onto the sketch
+    // plane. This branch intercepts click events before the generic 2D handler
+    // because projectEdge needs the tessellated-edge ref, not a 2D canvas point.
+    if (activeToolKind === 'project-geom' && ev.type === 'click') {
+      const tool = activeToolCtrlRef.current.currentTool();
+      if (tool instanceof ProjectGeometryTool && tessellatedEdgesRef.current.length > 0) {
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
+        const pickedNames = edgePickerRef.current.pickFromRay(r.origin, r.direction);
+        if (pickedNames && pickedNames.length > 0) {
+          // pickFromRay returns EdgeName objects that are the same references
+          // stored in tessellatedEdgesRef — find the TessellatedEdge by identity.
+          const pickedEdge = tessellatedEdgesRef.current.find(
+            (e) => e.edgeName === pickedNames[0]
+          );
+          if (pickedEdge) {
+            tool.projectEdge(pickedEdge);
+          }
+        }
+      }
+      return;
+    }
     const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
     const sketch = activePart?.featureTree.find(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === activeSketchId
@@ -2107,7 +2130,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, pickingShellFaces, filletSelectionMode]);
+  }, [sketchMode, activePart, activeSketchId, activeToolKind, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, pickingShellFaces, filletSelectionMode]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
