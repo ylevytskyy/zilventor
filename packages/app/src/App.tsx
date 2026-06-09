@@ -1373,14 +1373,19 @@ export default function App() {
         (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === sketchId
       );
       if (!sketch) return;
-      for (const c of sketch.constraints) {
-        if (!c.kind.startsWith('dim-')) continue;
-        const dim = c as DimensionConstraint;
-        if (dim.value.kind !== 'param') continue;
-        const resolved = parameterRegistry.getValue(dim.value.paramName);
-        if (resolved === undefined) continue;
-        void client.updateDimensionValue(dim.id, resolved);
-      }
+      void (async () => {
+        const coordStore = useAppStore.getState();
+        for (const c of sketch.constraints) {
+          if (!c.kind.startsWith('dim-')) continue;
+          const dim = c as DimensionConstraint;
+          if (dim.value.kind !== 'param') continue;
+          const resolved = parameterRegistry.getValue(dim.value.paramName);
+          if (resolved === undefined) continue;
+          const result = await client.updateDimensionValue(dim.id, resolved);
+          coordStore.applyCoordDiff(sketch.id, result.coords);
+          coordStore.setSketchDof(result.dof);
+        }
+      })();
     });
   }, []);
 
