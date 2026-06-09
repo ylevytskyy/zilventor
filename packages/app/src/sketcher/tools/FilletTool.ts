@@ -7,7 +7,7 @@ type Pt = { x: number; y: number };
 
 export type FilletToolOpts = {
   radius: number;
-  emitArc: (arc: Extract<SketchPrimitive, { kind: 'arc' }>) => void;
+  emitArc: (arc: Extract<SketchPrimitive, { kind: 'arc' }>) => Promise<void> | void;
   updateLine: (id: string, patch: Partial<Line>) => void;
   emitConstraint: (c: SketchConstraint) => void;
 };
@@ -32,7 +32,7 @@ export class FilletTool {
     this.primitives = primitives;
   }
 
-  onPointerClick(pt: Pt): void {
+  async onPointerClick(pt: Pt): Promise<void> {
     const hit = pickPrimitiveAt(this.primitives, pt);
     if (!hit) return;
 
@@ -54,8 +54,11 @@ export class FilletTool {
 
     const { arc, trimmedL1, trimmedL2 } = result;
 
-    // Emit the arc primitive.
-    this.opts.emitArc(arc);
+    // Emit the arc primitive first and AWAIT completion so that AddPrimitiveCommand's
+    // setActivePart(kernelSnapshot) settles before the trim patches are applied.
+    // Without this sequencing, the stale kernel snapshot (taken before UpdatePrimitive runs)
+    // overwrites the trim coord patches — the pre-existing race fixed here.
+    await this.opts.emitArc(arc);
 
     // Emit trim patches — only the fields that changed vs the originals.
     this.opts.updateLine(l1.id, diffLine(l1, trimmedL1));

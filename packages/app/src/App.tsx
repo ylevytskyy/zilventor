@@ -1165,17 +1165,15 @@ export default function App() {
 
       activeToolCtrlRef.current = new ActiveToolController({
         emitPrimitive: (primitive) => {
-          void (async () => {
-            const store = useAppStore.getState();
-            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
-            await store.bus.execute(new AddPrimitiveCommand({
-              kernel: store.kernel,
-              sketcherClient: sketcherClientRef.current ?? undefined,
-              store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
-              sketchId: store.activeSketchId,
-              primitive
-            }));
-          })();
+          const store = useAppStore.getState();
+          if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+          return store.bus.execute(new AddPrimitiveCommand({
+            kernel: store.kernel,
+            sketcherClient: sketcherClientRef.current ?? undefined,
+            store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
+            sketchId: store.activeSketchId,
+            primitive
+          }));
         },
         emitConstraint: (c) => {
           const store = useAppStore.getState();
@@ -1183,16 +1181,14 @@ export default function App() {
           void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c, sketcherClientRef.current ?? undefined));
         },
         updatePrimitive: (id, patch) => {
-          void (async () => {
-            const store = useAppStore.getState();
-            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
-            await store.bus.execute(new UpdatePrimitiveCommand({
-              sketchId: store.activeSketchId,
-              id,
-              patch,
-              sketcherClient: sketcherClientRef.current ?? undefined,
-            }));
-          })();
+          const store = useAppStore.getState();
+          if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+          return store.bus.execute(new UpdatePrimitiveCommand({
+            sketchId: store.activeSketchId,
+            id,
+            patch,
+            sketcherClient: sketcherClientRef.current ?? undefined,
+          }));
         },
         sketcherClient: sketcherClientRef.current ?? undefined,
         onCoords: (diff) => {

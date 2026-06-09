@@ -41,10 +41,10 @@ export type PointerEvent =
   | { type: 'pointerup'; point: Point2 };
 
 export type ControllerDeps = {
-  emitPrimitive(primitive: SketchPrimitive): void;
+  emitPrimitive(primitive: SketchPrimitive): Promise<void> | void;
   onPreview(polyline: Point2[] | null, snap: SnapResult): void;
   emitConstraint?(c: SketchConstraint): void;
-  updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): void;
+  updatePrimitive?(id: string, patch: Partial<SketchPrimitive>): Promise<void> | void;
   deletePrimitive?(id: string): void;
   getSketchFrame?(): SketchFrame | null;
   sketcherClient?: SketcherClient;
@@ -225,14 +225,14 @@ export class ActiveToolController {
 
     if (this.tool instanceof FilletTool) {
       this.tool.setPrimitives(primitives);
-      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      if (event.type === 'click') void this.tool.onPointerClick(event.point);
       // FilletTool uses callbacks — do NOT call applyOutput
       return;
     }
 
     if (this.tool instanceof ChamferTool) {
       this.tool.setPrimitives(primitives);
-      if (event.type === 'click') this.tool.onPointerClick(event.point);
+      if (event.type === 'click') void this.tool.onPointerClick(event.point);
       // ChamferTool uses callbacks — do NOT call applyOutput
       return;
     }

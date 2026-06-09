@@ -7,7 +7,7 @@ type Pt = { x: number; y: number };
 
 export type ChamferToolOpts = {
   setback: number;
-  emitLine: (line: Line) => void;
+  emitLine: (line: Line) => Promise<void> | void;
   updateLine: (id: string, patch: Partial<Line>) => void;
   emitConstraint: (c: SketchConstraint) => void;
 };
@@ -32,7 +32,7 @@ export class ChamferTool {
     this.primitives = primitives;
   }
 
-  onPointerClick(pt: Pt): void {
+  async onPointerClick(pt: Pt): Promise<void> {
     const hit = pickPrimitiveAt(this.primitives, pt);
     if (!hit) return;
 
@@ -54,8 +54,10 @@ export class ChamferTool {
 
     const { line, trimmedL1, trimmedL2, l1CornerAnchor, l2CornerAnchor } = result;
 
-    // Emit the chamfer connecting line.
-    this.opts.emitLine(line);
+    // Emit the chamfer connecting line first and AWAIT completion so that
+    // AddPrimitiveCommand's setActivePart(kernelSnapshot) settles before trim patches apply.
+    // Same sequencing fix as FilletTool — see FilletTool.ts for full explanation.
+    await this.opts.emitLine(line);
 
     // Emit trim patches — only the fields that changed vs the originals.
     this.opts.updateLine(l1.id, diffLine(l1, trimmedL1));
