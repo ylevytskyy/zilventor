@@ -6,6 +6,9 @@ import { loadPlanegcs } from '../planegcsLoader';
 const line = (id: string, x1: number, y1: number, x2: number, y2: number): SketchPrimitive =>
   ({ id, kind: 'line', x1, y1, x2, y2 });
 
+const circle = (id: string, cx: number, cy: number, r: number): SketchPrimitive =>
+  ({ id, kind: 'circle', cx, cy, r });
+
 describe('GcsSystem dimensions (integration)', () => {
   it('dim-length forces the line to exactly that length', async () => {
     const { createWrapper } = await loadPlanegcs();
@@ -136,6 +139,31 @@ describe('GcsSystem dimensions (integration)', () => {
     const coords = sys.readCoords('L1');
     const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
     expect(Math.abs(len - 50)).toBeLessThan(1e-3);
+    await sys.unloadSketch();
+  });
+
+  it('updateDimensionValue on dim-radius emits r patch for the circle (regression: radius readback from GCS)', async () => {
+    // Regression: before fix in readDomainPrimitive, circle/arc only read back cx/cy from
+    // solved GCS points; the solved radius was never fetched from the GCS primitive object.
+    // So a dim-radius update would solve correctly inside planegcs but the returned
+    // coords diff contained no `r` patch — the app never knew the radius changed.
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({ primitives: [circle('C1', 0, 0, 10)], constraints: [] });
+    const dim: DimensionConstraint = {
+      id: 'd0', kind: 'dim-radius', paramName: 'd0', circle: 'C1',
+      value: { kind: 'literal', value: 10 }
+    };
+    const addResult = await sys.addDimension(dim, 10);
+    expect(addResult.ok).toBe(true);
+
+    const { coords } = await sys.updateDimensionValue('d0', 25);
+
+    const diff = coords.find(d => d.primitiveId === 'C1');
+    expect(diff).toBeDefined();
+    // patch.r must be present and equal to the new radius (~25)
+    expect((diff!.patch as { r?: number }).r).toBeCloseTo(25, 3);
+
     await sys.unloadSketch();
   });
 });

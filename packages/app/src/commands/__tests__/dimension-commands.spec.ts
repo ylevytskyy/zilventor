@@ -98,4 +98,60 @@ describe('dimension commands', () => {
     expect(updateDimensionValue).toHaveBeenLastCalledWith('d0', 50);
   });
 
+  it('UpdateDimensionValueCommand.apply patches store primitives with coords from client', async () => {
+    // Arrange: sketch with a line at x1=0,y1=0 → x2=50,y2=0
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [{
+        kind: 'sketch', id: 'S1',
+        plane: { source: 'workPlane', featureId: 'origin.XY' },
+        primitives: [{ id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 50, y2: 0 }],
+        constraints: [{ id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'l1', value: { kind: 'literal', value: 50 } }]
+      }],
+      materials: [], hardware: [],
+    });
+    const coordsResult = { dof: { count: 0, state: 'fully' as const }, coords: [{ primitiveId: 'l1', patch: { x2: 100, y2: 0 } }] };
+    const updateDimensionValue = vi.fn().mockResolvedValue(coordsResult);
+    const client = { updateDimensionValue } as unknown as SketcherClient;
+
+    // Act
+    const cmd = new UpdateDimensionValueCommand('S1', 'd0', 50, 100, client);
+    await cmd.apply();
+
+    // Assert: store primitive l1 must have x2=100 (driven by the returned coords, not hand-authored)
+    const sketch = useAppStore.getState().activePart!.featureTree[0] as { primitives: Array<{ id: string; x2: number }> };
+    expect(sketch.primitives.find((p) => p.id === 'l1')!.x2).toBe(100);
+    // And dof was set
+    expect(useAppStore.getState().sketchDof).toEqual(coordsResult.dof);
+  });
+
+  it('UpdateDimensionValueCommand.revert patches store primitives with before-coords from client', async () => {
+    useAppStore.getState().setActivePart({
+      id: 'P1', name: 'P', units: 'mm', parameters: {}, properties: {},
+      featureTree: [{
+        kind: 'sketch', id: 'S1',
+        plane: { source: 'workPlane', featureId: 'origin.XY' },
+        primitives: [{ id: 'l1', kind: 'line', x1: 0, y1: 0, x2: 100, y2: 0 }],
+        constraints: [{ id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'l1', value: { kind: 'literal', value: 100 } }]
+      }],
+      materials: [], hardware: [],
+    });
+    // On revert the client is called with `before` (50) and returns a diff moving l1.x2 back to 50
+    const revertCoordsResult = { dof: { count: 1, state: 'under' as const }, coords: [{ primitiveId: 'l1', patch: { x2: 50, y2: 0 } }] };
+    const updateDimensionValue = vi.fn().mockResolvedValue(revertCoordsResult);
+    const client = { updateDimensionValue } as unknown as SketcherClient;
+
+    const cmd = new UpdateDimensionValueCommand('S1', 'd0', 50, 100, client);
+    // First apply (mock returns a different diff — not important for this revert test)
+    updateDimensionValue.mockResolvedValueOnce({ dof: { count: 0, state: 'fully' as const }, coords: [] });
+    await cmd.apply();
+    // Now revert
+    updateDimensionValue.mockResolvedValueOnce(revertCoordsResult);
+    await cmd.revert();
+
+    const sketch = useAppStore.getState().activePart!.featureTree[0] as { primitives: Array<{ id: string; x2: number }> };
+    expect(sketch.primitives.find((p) => p.id === 'l1')!.x2).toBe(50);
+    expect(useAppStore.getState().sketchDof).toEqual(revertCoordsResult.dof);
+  });
+
 });
