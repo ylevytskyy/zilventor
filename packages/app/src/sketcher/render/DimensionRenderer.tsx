@@ -69,11 +69,11 @@ function DimensionGlyph({
   parameterValues: Map<string, number>;
   worldToScreen: (x: number, y: number) => { x: number; y: number };
   highlighted: boolean;
-  onEditDimension?: (dimId: string) => void;
+  onEditDimension?: ((dimId: string) => void) | undefined;
   isEditing: boolean;
   editingInitialValue: string;
-  onEditCommit?: (dimId: string, rawValue: string) => void;
-  onEditCancel?: () => void;
+  onEditCommit?: ((dimId: string, rawValue: string) => void) | undefined;
+  onEditCancel?: (() => void) | undefined;
 }) {
   const lineColor = highlighted ? '#c23a3a' : '#e8c36a';
   const labelColor = highlighted ? '#ff9a9a' : '#e8c36a';
