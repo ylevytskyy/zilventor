@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import type { DimensionConstraint, SketchPrimitive } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -192,15 +192,29 @@ function InlineDimEditor({
   onCancel(): void;
 }) {
   const [value, setValue] = useState(initialValue);
+  const committedRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
   return (
     <input
+      ref={inputRef}
       autoFocus
       value={value}
       onChange={(e) => setValue(e.target.value)}
-      onBlur={() => onCommit(value)}
+      onBlur={() => {
+        if (!committedRef.current) {
+          committedRef.current = true;
+          onCommit(value);
+        }
+      }}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === 'Enter') { e.preventDefault(); onCommit(value); }
+        if (e.key === 'Enter') { e.preventDefault(); committedRef.current = true; onCommit(value); }
         if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
       }}
       style={{

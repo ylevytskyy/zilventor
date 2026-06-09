@@ -179,4 +179,27 @@ describe('DimensionRenderer — inline edit', () => {
     fireEvent.blur(input);
     expect(onCommit).toHaveBeenCalledWith('d1', '60');
   });
+
+  it('Enter then blur fires onEditCommit exactly once (double-fire guard)', () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <DimensionRenderer
+        primitives={[LINE_PRIM]}
+        dimensions={[DIM_LITERAL]}
+        parameterValues={new Map()}
+        worldToScreen={worldToScreen}
+        onEditDimension={vi.fn()}
+        editingDimId="d1"
+        editingDimInitialValue="50"
+        onEditCommit={onCommit}
+        onEditCancel={vi.fn()}
+      />
+    );
+    const input = container.querySelector('input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '75' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.blur(input);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith('d1', '75');
+  });
 });
