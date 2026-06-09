@@ -20,7 +20,7 @@ describe('FilletTool', () => {
     expect(out.primitives[0].kind).toBe('arc');
     expect(out.updates).toHaveLength(2);
     const kinds = out.constraints.map((c: any) => c.kind).sort();
-    expect(kinds).toEqual(['dim-radius', 'tangent', 'tangent']);
+    expect(kinds).toEqual(['coincident', 'coincident', 'dim-radius', 'tangent', 'tangent']);
   });
 
   it('non-line picks are ignored', () => {
@@ -134,5 +134,40 @@ describe('FilletTool', () => {
     // x1 is unchanged (still 0) so diffLine omits it from patch
     expect(lyUpdate.patch.x1).toBeUndefined();
     expect(lyUpdate.patch.y1).toBeCloseTo(2, 3);
+  });
+
+  it('emits two coincident constraints pinning arc endpoints to trimmed line endpoints', () => {
+    // Use any[] consistent with the existing FilletTool.spec.ts style.
+    const out: { primitives: any[]; constraints: any[] } = {
+      primitives: [],
+      constraints: [],
+    };
+    const tool = new FilletTool({
+      radius: 2,
+      emitArc: (a) => out.primitives.push(a),
+      updateLine: (_id, _patch) => { /* ignore for this test */ },
+      emitConstraint: (c) => out.constraints.push(c),
+    });
+    tool.setPrimitives([
+      { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+      { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
+    ]);
+    tool.onPointerClick({ x: 5, y: 0 });
+    tool.onPointerClick({ x: 0, y: 5 });
+
+    // Previously: 2 tangent + 1 dim-radius = 3 constraints.
+    // After fix:  2 tangent + 1 dim-radius + 2 coincident = 5 constraints.
+    expect(out.constraints).toHaveLength(5);
+    const coincidents = out.constraints.filter((c: any) => c.kind === 'coincident');
+    expect(coincidents).toHaveLength(2);
+
+    const arcId = out.primitives[0]!.id;
+    // Each coincident must reference the arc (one endpoint 'start', one 'end')
+    // and a trimmed line endpoint.
+    const arcRefs = coincidents.flatMap((c: any) => {
+      const pts = [c.a, c.b];
+      return pts.filter((p: any) => p.primitiveId === arcId);
+    });
+    expect(arcRefs.map((r: any) => r.anchor).sort()).toEqual(['end', 'start']);
   });
 });
