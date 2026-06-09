@@ -25,6 +25,8 @@ import { UpdatePrimitiveCommand } from './commands/UpdatePrimitiveCommand';
 import { DeletePrimitiveCommand } from './commands/DeletePrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
+import { UpdateDimensionValueCommand } from './commands/UpdateDimensionValueCommand';
+import { parseDimensionInput } from './sketcher/parseDimensionInput';
 import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
@@ -219,6 +221,7 @@ export default function App() {
   const [numericFieldCount, setNumericFieldCount] = useState(0);
   const [cursorScreenPos, setCursorScreenPos] = useState({ x: 0, y: 0 });
   const [pendingDimension, setPendingDimension] = useState<DimensionConstraint | null>(null);
+  const [editingDimId, setEditingDimId] = useState<string | null>(null);
   const [pickingAxis, setPickingAxis] = useState(false);
   const [selectedAxisRef, setSelectedAxisRef] = useState<AxisRef | null>(null);
   const [pickingProfile, setPickingProfile] = useState(false);
@@ -1788,6 +1791,41 @@ export default function App() {
   }, [pendingDimension]);
 
   const onDialogCancel = useCallback(() => { setPendingDimension(null); }, []);
+
+  const handleEditDimension = useCallback((dimId: string) => {
+    const store = useAppStore.getState();
+    const sketchId = store.activeSketchId;
+    if (!sketchId || !store.activePart) return;
+    const sketch = store.activePart.featureTree.find((f) => f.kind === 'sketch' && f.id === sketchId);
+    if (!sketch || sketch.kind !== 'sketch') return;
+    const dim = sketch.constraints.find((c): c is DimensionConstraint => c.id === dimId && c.kind.startsWith('dim-'));
+    if (!dim) return;
+    if (dim.value.kind === 'param') {
+      showToast(`Linked to parameter '${dim.value.paramName}' — edit it in the Parameters panel.`);
+      return;
+    }
+    setEditingDimId(dimId);
+  }, [showToast]);
+
+  const handleDimEditCommit = useCallback(async (dimId: string, rawValue: string) => {
+    const store = useAppStore.getState();
+    const sketchId = store.activeSketchId;
+    const client = sketcherClientRef.current;
+    if (!sketchId || !client || !store.activePart) { setEditingDimId(null); return; }
+    const sketch = store.activePart.featureTree.find((f) => f.kind === 'sketch' && f.id === sketchId);
+    if (!sketch || sketch.kind !== 'sketch') { setEditingDimId(null); return; }
+    const dim = sketch.constraints.find((c): c is DimensionConstraint => c.id === dimId && c.kind.startsWith('dim-'));
+    if (!dim || dim.value.kind !== 'literal') { setEditingDimId(null); return; }
+    const parsed = parseDimensionInput(dim.kind, rawValue);
+    if (!parsed.ok) {
+      // Invalid value: keep editor open (don't dismiss).
+      return;
+    }
+    setEditingDimId(null);
+    await store.bus.execute(
+      new UpdateDimensionValueCommand(sketchId, dimId, dim.value.value, parsed.value, client)
+    );
+  }, []);
 
   // Handler for the kernel-offline banner's Restart button. Terminates the
   // current worker, spawns a new one, and re-executes the active part so the
@@ -4447,6 +4485,16 @@ export default function App() {
                   dimensions={dimensions}
                   parameterValues={parameterValues}
                   worldToScreen={worldToScreen}
+                  onEditDimension={handleEditDimension}
+                  onEditCommit={(id, raw) => { void handleDimEditCommit(id, raw); }}
+                  onEditCancel={() => setEditingDimId(null)}
+                  {...(editingDimId != null ? { editingDimId } : {})}
+                  {...(() => {
+                    if (!editingDimId) return {};
+                    const dim = dimensions.find((d) => d.id === editingDimId);
+                    if (!dim || dim.value.kind !== 'literal') return {};
+                    return { editingDimInitialValue: String(dim.value.value) };
+                  })()}
                 />
               </>
             );
