@@ -117,6 +117,7 @@ The slice-1 fillet bug came from a kernel test that **hand-authored the value un
 
 - Arc/circle **projection** (needs a kernel analytic-curve query); **associative** projection (re-project on source edit); **face-sourced** sketch-plane projection (xDir not surfaced).
 - **arc-arc / circle-circle** trim intersections.
+- **Full-circle-target Trim** (circle→arc conversion): a circle has no endpoints so trimming it requires splitting into an arc first; out of scope this slice. **Trim supports `line` and `arc` targets only this slice.** Circle targets are detected and silently no-op'd with a code comment.
 - Rectangle trim/extend; spline trim/extend/offset.
 - Offset self-intersection cleanup; concave-corner gap closing.
 - Trim re-attaching (rather than dropping) orphaned constraints.
