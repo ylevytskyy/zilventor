@@ -28,7 +28,7 @@ App-only. **NO new shared fields, NO kernel change, NO manifest bump (stays v20)
 |---|---|
 | Edit UI | **Inline `<input>`** over the label (mirror `ParametersPanel`); Enter/blur commit, Esc cancel. Fallback to `DimensionDialog` only if edge-clipping bites. |
 | Param-bound dims | **Refuse inline edit**; show a toast/hint pointing to the Parameters panel. No silent linkage break. |
-| Kinds in scope | **All 6 kinds** (the solver path is kind-agnostic). Angle edits/displays in the same unit `DimensionDialog` uses (degrees), converting deg↔rad at the boundary. |
+| Kinds in scope | **All 6 kinds** (the solver path is kind-agnostic). Angle edits/displays in **degrees** and is **stored in degrees** — `GcsSystem.updateDimensionValue` itself multiplies by `π/180` (`GcsSystem.ts:593`), and `DimensionDialog` stores degrees too, so the edit field does NO deg↔rad conversion. |
 | Value entry | **Plain number, validated.** Reject empty/NaN; reject ≤0 for radius/diameter/length. No expressions. |
 
 ## Behavior
@@ -45,7 +45,7 @@ App-only. **NO new shared fields, NO kernel change, NO manifest bump (stays v20)
 ### Validation
 - Parse a plain number. Empty/NaN → invalid (stay in edit; no command).
 - `dim-radius` / `dim-diameter` / `dim-length`: reject ≤0.
-- `dim-angle`: any number; convert degrees→radians before dispatch (match `DimensionDialog`).
+- `dim-angle`: any number; dispatch the **degree value as-is** (the worker converts to radians internally — do NOT pre-convert, or it double-converts).
 - Others (`dim-distance`, `dim-point-line-distance`): any number (matches add-dimension validation).
 
 ### Commit → command → solve → coords applied
@@ -86,4 +86,4 @@ Drive the real canvas in a browser:
 
 1. **Coord-apply gap may be covered by a secondary path** (`AddDimensionCommand` discards coords yet works). Browser gate settles it; do not assume the fix is needed OR redundant.
 2. Inline input clipping near canvas edge → fall back to `DimensionDialog`.
-3. Angle deg/rad round-trip mismatch with `DimensionDialog` → match its exact convention.
+3. ~~Angle deg/rad round-trip~~ — RESOLVED by verifier: angle is stored in degrees; the worker converts. The edit field does no conversion.
