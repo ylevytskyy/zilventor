@@ -144,6 +144,30 @@ export default function SketchTab() {
         >
           Chamfer
         </button>
+        <button
+          aria-pressed={activeToolKind === 'trim'}
+          className={`text-xs ${activeToolKind === 'trim' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('trim')}
+        >
+          Trim
+        </button>
+        <button
+          aria-pressed={activeToolKind === 'extend'}
+          className={`text-xs ${activeToolKind === 'extend' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('extend')}
+        >
+          Extend
+        </button>
+        <button
+          aria-pressed={activeToolKind === 'project-geom'}
+          className={`text-xs ${activeToolKind === 'project-geom' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
+          disabled={!sketchMode}
+          onClick={() => useAppStore.getState().setActiveToolKind('project-geom')}
+        >
+          Project
+        </button>
       </RibbonPanel>
       <RibbonPanel title="Dimension">
         <button

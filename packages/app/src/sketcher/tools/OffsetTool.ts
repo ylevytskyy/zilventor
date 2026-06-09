@@ -1,7 +1,7 @@
 import type { SketchPrimitive } from '@zilventor/shared';
 import type { Point2 } from '../snap';
 import { pickPrimitiveAt } from './pick';
-import { offsetPrimitive } from '../geometry/offset';
+import { offsetPrimitive, findChain, offsetChain } from '../geometry/offset';
 
 type State = { kind: 'idle' } | { kind: 'picked'; primitiveId: string; lastSignedDist: number };
 
@@ -143,13 +143,22 @@ export class OffsetTool {
 
   private _commitAtDist(d: number): void {
     if (this.state.kind !== 'picked') return;
-    const prim = this.primitives.find(p => p.id === (this.state as { kind: 'picked'; primitiveId: string }).primitiveId);
+    const prim = this.primitives.find(
+      (p) => p.id === (this.state as { kind: 'picked'; primitiveId: string }).primitiveId,
+    );
     if (!prim) return;
-    const offsetted = offsetPrimitive(prim, d);
-    if (offsetted) {
-      this.opts.onCommit(offsetted);
-      this.state = { kind: 'idle' };
-      this.opts.onPreview([]);
+
+    const chain = findChain(prim, this.primitives);
+    if (chain.length > 1) {
+      // Multi-segment path: offset the whole chain and emit all results.
+      const results = offsetChain(chain, d);
+      for (const r of results) this.opts.onCommit(r);
+    } else {
+      // Single-primitive path (preserved from slice 1).
+      const offsetted = offsetPrimitive(prim, d);
+      if (offsetted) this.opts.onCommit(offsetted);
     }
+    this.state = { kind: 'idle' };
+    this.opts.onPreview([]);
   }
 }

@@ -7,7 +7,7 @@ type Pt = { x: number; y: number };
 
 export type FilletToolOpts = {
   radius: number;
-  emitArc: (arc: Extract<SketchPrimitive, { kind: 'arc' }>) => void;
+  emitArc: (arc: Extract<SketchPrimitive, { kind: 'arc' }>) => Promise<void> | void;
   updateLine: (id: string, patch: Partial<Line>) => void;
   emitConstraint: (c: SketchConstraint) => void;
 };
@@ -32,7 +32,7 @@ export class FilletTool {
     this.primitives = primitives;
   }
 
-  onPointerClick(pt: Pt): void {
+  async onPointerClick(pt: Pt): Promise<void> {
     const hit = pickPrimitiveAt(this.primitives, pt);
     if (!hit) return;
 
@@ -54,8 +54,11 @@ export class FilletTool {
 
     const { arc, trimmedL1, trimmedL2 } = result;
 
-    // Emit the arc primitive.
-    this.opts.emitArc(arc);
+    // Emit the arc primitive first and AWAIT completion so that AddPrimitiveCommand's
+    // setActivePart(kernelSnapshot) settles before the trim patches are applied.
+    // Without this sequencing, the stale kernel snapshot (taken before UpdatePrimitive runs)
+    // overwrites the trim coord patches — the pre-existing race fixed here.
+    await this.opts.emitArc(arc);
 
     // Emit trim patches — only the fields that changed vs the originals.
     this.opts.updateLine(l1.id, diffLine(l1, trimmedL1));
@@ -76,6 +79,58 @@ export class FilletTool {
       value: { kind: 'literal', value: this.opts.radius },
       paramName,
     });
+
+    // Emit two coincident constraints pinning arc endpoints to the trimmed line endpoints.
+    // arc.startAngle corresponds to one tangent point (t1 or t2 depending on angle swap in
+    // computeFillet). Determine the mapping by comparing the arc's start/end geometric points
+    // to each line's changed (corner-trimmed) endpoint.
+    const arcStartPt = {
+      x: arc.cx + arc.r * Math.cos(arc.startAngle),
+      y: arc.cy + arc.r * Math.sin(arc.startAngle),
+    };
+
+    // Detect which endpoint of each line was the corner by comparing trimmed vs original.
+    const l1CornerIsStart = trimmedL1.x1 !== l1.x1 || trimmedL1.y1 !== l1.y1;
+    const l1TrimmedPt = l1CornerIsStart
+      ? { x: trimmedL1.x1, y: trimmedL1.y1 }
+      : { x: trimmedL1.x2, y: trimmedL1.y2 };
+
+    // If the arc start point is close to l1's trimmed endpoint, map arc.start ↔ l1, arc.end ↔ l2.
+    // Otherwise map arc.start ↔ l2, arc.end ↔ l1.
+    const distArcStartToL1 = Math.hypot(arcStartPt.x - l1TrimmedPt.x, arcStartPt.y - l1TrimmedPt.y);
+    const arcStartMapsToL1 = distArcStartToL1 < arc.r * 0.01 + 1e-4;
+
+    const l2CornerIsStart = trimmedL2.x1 !== l2.x1 || trimmedL2.y1 !== l2.y1;
+    const l1Anchor: 'start' | 'end' = l1CornerIsStart ? 'start' : 'end';
+    const l2Anchor: 'start' | 'end' = l2CornerIsStart ? 'start' : 'end';
+
+    if (arcStartMapsToL1) {
+      this.opts.emitConstraint({
+        id: `c-co-${arc.id}-start`,
+        kind: 'coincident',
+        a: { primitiveId: arc.id, anchor: 'start' },
+        b: { primitiveId: l1.id, anchor: l1Anchor },
+      });
+      this.opts.emitConstraint({
+        id: `c-co-${arc.id}-end`,
+        kind: 'coincident',
+        a: { primitiveId: arc.id, anchor: 'end' },
+        b: { primitiveId: l2.id, anchor: l2Anchor },
+      });
+    } else {
+      this.opts.emitConstraint({
+        id: `c-co-${arc.id}-start`,
+        kind: 'coincident',
+        a: { primitiveId: arc.id, anchor: 'start' },
+        b: { primitiveId: l2.id, anchor: l2Anchor },
+      });
+      this.opts.emitConstraint({
+        id: `c-co-${arc.id}-end`,
+        kind: 'coincident',
+        a: { primitiveId: arc.id, anchor: 'end' },
+        b: { primitiveId: l1.id, anchor: l1Anchor },
+      });
+    }
   }
 
   onEscapePressed(): void {

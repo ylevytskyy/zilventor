@@ -22,7 +22,10 @@ export type ToolKind =
   | 'dimension'
   | 'offset'
   | 'fillet'
-  | 'chamfer';
+  | 'chamfer'
+  | 'trim'
+  | 'extend'
+  | 'project-geom';
 
 export type ActiveDocument =
   | { kind: 'part';     document: PartDocument }

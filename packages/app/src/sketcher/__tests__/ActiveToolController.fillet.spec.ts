@@ -14,7 +14,8 @@ import type { SketchPrimitive } from '@zilventor/shared';
  * computeFillet(lx, ly, radius=5):
  *   - corner at (0,0), half-angle = π/4, tanDist = 5/tan(π/4) = 5
  *   - t1 = (5,0), t2 = (0,5), center = (5,5)/√2 * cenDist ≈ (5,5)
- *   - emits 1 arc + 2 trim patches + 2 tangent + 1 dim-radius = 3 constraints
+ *   - emits 1 arc + 2 trim patches + 2 coincident + 2 tangent + 1 dim-radius = 5 constraints
+ *     (the 2 coincident pin the arc ends to the trimmed line ends — slice-2 drift fix)
  */
 
 const primitives: SketchPrimitive[] = [
@@ -43,7 +44,7 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     expect(c.currentTool()).toBeInstanceOf(ChamferTool);
   });
 
-  it('fillet: two picks on corner-sharing lines → arc + 2 updatePrimitive + 3 constraints', () => {
+  it('fillet: two picks on corner-sharing lines → arc + 2 updatePrimitive + 5 constraints', async () => {
     const emitPrimitive = vi.fn<(p: SketchPrimitive) => void>();
     const updatePrimitive = vi.fn<(id: string, patch: Partial<SketchPrimitive>) => void>();
     const emitConstraint = vi.fn();
@@ -67,6 +68,10 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     // Second pick: click near midpoint of ly (x=0 axis)
     c.handlePointer({ type: 'click', point: { x: 0, y: 5 } }, primitives);
 
+    // handlePointer calls void this.tool.onPointerClick() — flush the microtask queue
+    // so the internal await emitArc() → updateLine sequencing completes before asserting.
+    await Promise.resolve();
+
     // One arc emitted
     expect(emitPrimitive).toHaveBeenCalledTimes(1);
     const arc = emitPrimitive.mock.calls[0]![0];
@@ -75,14 +80,15 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     // Two trim patches (one per source line)
     expect(updatePrimitive).toHaveBeenCalledTimes(2);
 
-    // Three constraints: tangent-lx, tangent-ly, dim-radius
-    expect(emitConstraint).toHaveBeenCalledTimes(3);
+    // Five constraints: coincident×2 (arc-end↔line-end), tangent×2, dim-radius
+    expect(emitConstraint).toHaveBeenCalledTimes(5);
     const kinds = emitConstraint.mock.calls.map((call) => call[0].kind);
+    expect(kinds.filter((k: string) => k === 'coincident')).toHaveLength(2);
     expect(kinds.filter((k: string) => k === 'tangent')).toHaveLength(2);
     expect(kinds.filter((k: string) => k === 'dim-radius')).toHaveLength(1);
   });
 
-  it('fillet Escape resets to idle (no commit)', () => {
+  it('fillet Escape resets to idle (no commit)', async () => {
     const emitPrimitive = vi.fn();
     const updatePrimitive = vi.fn();
     const c = new ActiveToolController({
@@ -98,6 +104,8 @@ describe('ActiveToolController — FilletTool integration (Task 11)', () => {
     c.handleKey('Escape');
     // Second click should NOT commit (tool is idle again, first pick cleared)
     c.handlePointer({ type: 'click', point: { x: 0, y: 5 } }, primitives);
+    // Flush microtasks — confirm nothing fires even after the queue drains
+    await Promise.resolve();
     expect(emitPrimitive).not.toHaveBeenCalled();
     expect(updatePrimitive).not.toHaveBeenCalled();
   });

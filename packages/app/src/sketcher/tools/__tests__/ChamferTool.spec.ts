@@ -1,8 +1,47 @@
 import { describe, it, expect } from 'vitest';
 import { ChamferTool } from '../ChamferTool';
 
+/**
+ * Regression test for the chamfer-line-emit / source-line-trim sequencing race.
+ * Identical root cause to FilletTool: emitLine (emitPrimitive in App.tsx) was
+ * fire-and-forget async; the delayed setActivePart overwrite clobbered updateLine patches.
+ */
+describe('ChamferTool — line-emit / line-trim sequencing regression', () => {
+  it('source line trim patches survive an async line-emit that overwrites store state (regression)', async () => {
+    const store = { lxX1: 0 };
+
+    const emitLine = async (_line: any): Promise<void> => {
+      const staleValue = store.lxX1;
+      await Promise.resolve();
+      store.lxX1 = staleValue; // simulate stale setActivePart overwrite
+    };
+
+    const updateLine = (_id: string, patch: any): void => {
+      if (patch.x1 !== undefined) store.lxX1 = patch.x1;
+    };
+
+    const tool = new ChamferTool({
+      setback: 3,
+      emitLine,
+      updateLine,
+      emitConstraint: () => { /* not under test */ },
+    });
+    tool.setPrimitives([
+      { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+      { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
+    ]);
+
+    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 0, y: 5 });
+
+    // With fix: emitLine is awaited before updateLine → patch (x1 ≈ 3) survives.
+    // Without fix: updateLine runs sync, then stale snapshot resets to 0.
+    expect(store.lxX1).toBeCloseTo(3, 3);
+  });
+});
+
 describe('ChamferTool', () => {
-  it('after picking two lines sharing a corner, emits a line + trims + coincident constraints', () => {
+  it('after picking two lines sharing a corner, emits a line + trims + coincident constraints', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -16,7 +55,7 @@ describe('ChamferTool', () => {
     ]);
     // click body of lx near (5,0), then body of ly near (0,5)
     tool.onPointerClick({ x: 5, y: 0 });
-    tool.onPointerClick({ x: 0, y: 5 });
+    await tool.onPointerClick({ x: 0, y: 5 });
 
     expect(out.lines).toHaveLength(1);
     expect(out.lines[0].kind).toBe('line');
@@ -27,7 +66,7 @@ describe('ChamferTool', () => {
     expect(kinds).toEqual(['coincident', 'coincident']);
   });
 
-  it('emitted coincident constraints tie connecting line endpoints to trimmed source-line corners', () => {
+  it('emitted coincident constraints tie connecting line endpoints to trimmed source-line corners', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -40,7 +79,7 @@ describe('ChamferTool', () => {
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
     tool.onPointerClick({ x: 5, y: 0 });
-    tool.onPointerClick({ x: 0, y: 5 });
+    await tool.onPointerClick({ x: 0, y: 5 });
 
     const lineId = out.lines[0].id;
     const constraints = out.constraints as any[];
@@ -69,7 +108,7 @@ describe('ChamferTool', () => {
     expect(lyAnchorOnSource).toBe('start');
   });
 
-  it('updateLine patches carry the changed corner endpoint', () => {
+  it('updateLine patches carry the changed corner endpoint', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -82,7 +121,7 @@ describe('ChamferTool', () => {
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
     tool.onPointerClick({ x: 5, y: 0 });
-    tool.onPointerClick({ x: 0, y: 5 });
+    await tool.onPointerClick({ x: 0, y: 5 });
 
     const lxUpdate = out.updates.find((u: any) => u.id === 'lx');
     const lyUpdate = out.updates.find((u: any) => u.id === 'ly');
@@ -96,7 +135,7 @@ describe('ChamferTool', () => {
     expect(lyUpdate.patch.y1).toBeCloseTo(3, 3);
   });
 
-  it('non-line picks are ignored', () => {
+  it('non-line picks are ignored', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -109,11 +148,11 @@ describe('ChamferTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
     ]);
     // click on circle body — should not count as first pick
-    tool.onPointerClick({ x: 5, y: 3 });
+    await tool.onPointerClick({ x: 5, y: 3 });
     expect(out.lines).toHaveLength(0);
   });
 
-  it('two lines not sharing a corner reset without emitting', () => {
+  it('two lines not sharing a corner reset without emitting', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -126,11 +165,11 @@ describe('ChamferTool', () => {
       { id: 'lb', kind: 'line', x1: 5, y1: 5, x2: 15, y2: 5 },
     ]);
     tool.onPointerClick({ x: 5, y: 0 });
-    tool.onPointerClick({ x: 10, y: 5 });
+    await tool.onPointerClick({ x: 10, y: 5 });
     expect(out.lines).toHaveLength(0);
   });
 
-  it('escape resets state', () => {
+  it('escape resets state', async () => {
     const out: any = { lines: [], updates: [], constraints: [] };
     const tool = new ChamferTool({
       setback: 3,
@@ -145,7 +184,7 @@ describe('ChamferTool', () => {
     tool.onPointerClick({ x: 5, y: 0 });
     tool.onEscapePressed();
     // After escape, second click should start fresh (one pick only), no commit
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     expect(out.lines).toHaveLength(0);
   });
 });

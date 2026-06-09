@@ -15,12 +15,14 @@ import { createSketchModeController, type SketchModeHandle } from './sketcher/Sk
 import { SketcherClient } from './sketcher/SketcherClient';
 import { createSketcherWorkerApi } from './vendor/sketcherWorker';
 import { ActiveToolController } from './sketcher/ActiveToolController';
+import { ProjectGeometryTool } from './sketcher/tools/ProjectGeometryTool';
 import { SketchOverlay } from './sketcher/overlay/SketchOverlay';
 import { CommittedSketchRenderer } from './sketcher/render/CommittedSketchRenderer';
 import { ConstraintBadgeRenderer } from './sketcher/render/ConstraintBadgeRenderer';
 import { DimensionRenderer } from './sketcher/render/DimensionRenderer';
 import { AddPrimitiveCommand } from './commands/AddPrimitiveCommand';
 import { UpdatePrimitiveCommand } from './commands/UpdatePrimitiveCommand';
+import { DeletePrimitiveCommand } from './commands/DeletePrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
@@ -1163,17 +1165,15 @@ export default function App() {
 
       activeToolCtrlRef.current = new ActiveToolController({
         emitPrimitive: (primitive) => {
-          void (async () => {
-            const store = useAppStore.getState();
-            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
-            await store.bus.execute(new AddPrimitiveCommand({
-              kernel: store.kernel,
-              sketcherClient: sketcherClientRef.current ?? undefined,
-              store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
-              sketchId: store.activeSketchId,
-              primitive
-            }));
-          })();
+          const store = useAppStore.getState();
+          if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+          return store.bus.execute(new AddPrimitiveCommand({
+            kernel: store.kernel,
+            sketcherClient: sketcherClientRef.current ?? undefined,
+            store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
+            sketchId: store.activeSketchId,
+            primitive
+          }));
         },
         emitConstraint: (c) => {
           const store = useAppStore.getState();
@@ -1181,16 +1181,14 @@ export default function App() {
           void store.bus.execute(new AddConstraintCommand(store.activeSketchId, c, sketcherClientRef.current ?? undefined));
         },
         updatePrimitive: (id, patch) => {
-          void (async () => {
-            const store = useAppStore.getState();
-            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
-            await store.bus.execute(new UpdatePrimitiveCommand({
-              sketchId: store.activeSketchId,
-              id,
-              patch,
-              sketcherClient: sketcherClientRef.current ?? undefined,
-            }));
-          })();
+          const store = useAppStore.getState();
+          if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+          return store.bus.execute(new UpdatePrimitiveCommand({
+            sketchId: store.activeSketchId,
+            id,
+            patch,
+            sketcherClient: sketcherClientRef.current ?? undefined,
+          }));
         },
         sketcherClient: sketcherClientRef.current ?? undefined,
         onCoords: (diff) => {
@@ -1201,6 +1199,7 @@ export default function App() {
           useAppStore.getState().setSketchDof(dof);
         },
         isConstructionMode: () => useAppStore.getState().constructionMode,
+        showToast: (msg) => showToast(msg),
         onDimensionReady: (d) => { setPendingDimension(d); },
         onPreview: (polyline, snap) => {
           const ov = sketchOverlayRef.current;
@@ -1216,7 +1215,39 @@ export default function App() {
           const count = activeToolCtrlRef.current?.numericFieldCount() ?? 0;
           setNumericFieldCount(count);
           setNumericVisible(count > 0);
-        }
+        },
+        deletePrimitive: (id) => {
+          void (async () => {
+            const store = useAppStore.getState();
+            if (!store.kernel || !store.activePart || !store.activeSketchId) return;
+            await store.bus.execute(new DeletePrimitiveCommand({
+              kernel: store.kernel,
+              store: { activePart: store.activePart, setActivePart: store.setActivePart },
+              sketchId: store.activeSketchId,
+              primitiveId: id,
+            }));
+          })();
+        },
+        getSketchFrame: () => {
+          const store = useAppStore.getState();
+          if (!store.activePart || !store.activeSketchId) return null;
+          const sketch = store.activePart.featureTree.find(
+            (f) => f.kind === 'sketch' && f.id === store.activeSketchId
+          );
+          if (!sketch || sketch.kind !== 'sketch') return null;
+          const plane = sketch.plane;
+          if (plane.source !== 'workPlane') return null; // face-sourced: not supported
+          if (plane.featureId === 'origin.XY') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, xDir: { x: 1, y: 0, z: 0 } };
+          }
+          if (plane.featureId === 'origin.YZ') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 }, xDir: { x: 0, y: 1, z: 0 } };
+          }
+          if (plane.featureId === 'origin.XZ') {
+            return { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 1, z: 0 }, xDir: { x: 1, y: 0, z: 0 } };
+          }
+          return null; // custom work plane: resolve from workFeatures if available
+        },
       });
     };
 
@@ -2060,6 +2091,28 @@ export default function App() {
       return;
     }
     if (!sketchMode || !activeToolCtrlRef.current) return;
+    // Project Geometry: ray-pick a 3D model edge and project it onto the sketch
+    // plane. This branch intercepts click events before the generic 2D handler
+    // because projectEdge needs the tessellated-edge ref, not a 2D canvas point.
+    if (activeToolKind === 'project-geom' && ev.type === 'click') {
+      const tool = activeToolCtrlRef.current.currentTool();
+      if (tool instanceof ProjectGeometryTool && tessellatedEdgesRef.current.length > 0) {
+        const r = viewportRef.current.screenToRay(ev.clientX, ev.clientY);
+        edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
+        const pickedNames = edgePickerRef.current.pickFromRay(r.origin, r.direction);
+        if (pickedNames && pickedNames.length > 0) {
+          // pickFromRay returns EdgeName objects that are the same references
+          // stored in tessellatedEdgesRef — find the TessellatedEdge by identity.
+          const pickedEdge = tessellatedEdgesRef.current.find(
+            (e) => e.edgeName === pickedNames[0]
+          );
+          if (pickedEdge) {
+            tool.projectEdge(pickedEdge);
+          }
+        }
+      }
+      return;
+    }
     const world = viewportRef.current.screenToWorld(ev.clientX, ev.clientY);
     const sketch = activePart?.featureTree.find(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === activeSketchId
@@ -2074,7 +2127,7 @@ export default function App() {
       [...primitives]
     );
     if (ev.type === 'move') setCursorScreenPos({ x: ev.clientX, y: ev.clientY });
-  }, [sketchMode, activePart, activeSketchId, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, pickingShellFaces, filletSelectionMode]);
+  }, [sketchMode, activePart, activeSketchId, activeToolKind, pickingAxis, pickingProfile, pickingFilletEdges, pickingChamferEdges, pickingShellFaces, filletSelectionMode]);
 
   // Revolve dialog helpers and handlers.
   // computeProfileRef: find a sketch suitable as a revolve profile. T13
