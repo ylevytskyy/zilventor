@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { DimensionConstraint, SketchPrimitive } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -7,12 +7,22 @@ type Props = {
   dimensions: DimensionConstraint[];
   parameterValues: Map<string, number>;
   worldToScreen(x: number, y: number): { x: number; y: number };
+  /** Called when user double-clicks any dimension glyph. Caller decides literal vs param. */
+  onEditDimension?: (dimId: string) => void;
+  /** If set, the dimension with this id shows an inline editor. */
+  editingDimId?: string;
+  /** The initial string value to seed the inline editor (angle in degrees, others as-is). */
+  editingDimInitialValue?: string;
+  /** Called when the editor commits (Enter or blur). Caller validates + dispatches. */
+  onEditCommit?: (dimId: string, rawValue: string) => void;
+  /** Called when the editor is cancelled (Escape). */
+  onEditCancel?: () => void;
 };
 
 const OFFSET_PX = 20;
 const ARC_RADIUS_PX = 40;
 
-export function DimensionRenderer({ primitives, dimensions, parameterValues, worldToScreen }: Props) {
+export function DimensionRenderer({ primitives, dimensions, parameterValues, worldToScreen, onEditDimension, editingDimId, editingDimInitialValue, onEditCommit, onEditCancel }: Props) {
   const byId = new Map(primitives.map((p) => [p.id, p]));
   const highlightedIds = useAppStore((s) => s.highlightedConstraintIds);
   const highlightedSet = new Set(highlightedIds);
@@ -26,6 +36,11 @@ export function DimensionRenderer({ primitives, dimensions, parameterValues, wor
           parameterValues={parameterValues}
           worldToScreen={worldToScreen}
           highlighted={highlightedSet.has(d.id)}
+          onEditDimension={onEditDimension}
+          isEditing={editingDimId === d.id}
+          editingInitialValue={editingDimInitialValue ?? ''}
+          onEditCommit={onEditCommit}
+          onEditCancel={onEditCancel}
         />
       ))}
     </svg>
@@ -46,13 +61,19 @@ function format(val: number, kind: DimensionConstraint['kind']): string {
 }
 
 function DimensionGlyph({
-  d, byId, parameterValues, worldToScreen, highlighted
+  d, byId, parameterValues, worldToScreen, highlighted,
+  onEditDimension, isEditing, editingInitialValue, onEditCommit, onEditCancel
 }: {
   d: DimensionConstraint;
   byId: Map<string, SketchPrimitive>;
   parameterValues: Map<string, number>;
   worldToScreen: (x: number, y: number) => { x: number; y: number };
   highlighted: boolean;
+  onEditDimension?: (dimId: string) => void;
+  isEditing: boolean;
+  editingInitialValue: string;
+  onEditCommit?: (dimId: string, rawValue: string) => void;
+  onEditCancel?: () => void;
 }) {
   const lineColor = highlighted ? '#c23a3a' : '#e8c36a';
   const labelColor = highlighted ? '#ff9a9a' : '#e8c36a';
@@ -135,13 +156,62 @@ function DimensionGlyph({
   }
 
   return (
-    <g data-testid="dimension-glyph" style={{ pointerEvents: 'auto' }}>
+    <g
+      data-testid="dimension-glyph"
+      style={{ pointerEvents: 'auto' }}
+      onDoubleClick={(e) => { e.stopPropagation(); onEditDimension?.(d.id); }}
+    >
       {els}
-      <rect x={labelAt.x - 24} y={labelAt.y - 8} width={48} height={16} fill="#1a1a1a" opacity={0.9} />
-      <text x={labelAt.x} y={labelAt.y + 4} fill={labelColor} fontSize={11} fontFamily="ui-monospace, monospace" textAnchor="middle">
-        {text}
-      </text>
+      {isEditing ? (
+        <foreignObject x={labelAt.x - 28} y={labelAt.y - 10} width={56} height={22}>
+          <InlineDimEditor
+            dimId={d.id}
+            initialValue={editingInitialValue}
+            onCommit={(raw) => onEditCommit?.(d.id, raw)}
+            onCancel={() => onEditCancel?.()}
+          />
+        </foreignObject>
+      ) : (
+        <>
+          <rect x={labelAt.x - 24} y={labelAt.y - 8} width={48} height={16} fill="#1a1a1a" opacity={0.9} />
+          <text x={labelAt.x} y={labelAt.y + 4} fill={labelColor} fontSize={11} fontFamily="ui-monospace, monospace" textAnchor="middle">
+            {text}
+          </text>
+        </>
+      )}
     </g>
+  );
+}
+
+function InlineDimEditor({
+  dimId, initialValue, onCommit, onCancel
+}: {
+  dimId: string;
+  initialValue: string;
+  onCommit(raw: string): void;
+  onCancel(): void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onCommit(value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); onCommit(value); }
+        if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      }}
+      style={{
+        width: '100%', height: '100%', fontSize: 11,
+        fontFamily: 'ui-monospace, monospace',
+        background: '#222', color: '#e8c36a',
+        border: '1px solid #555', padding: '0 2px',
+        boxSizing: 'border-box'
+      }}
+      data-testid={`dim-inline-input-${dimId}`}
+    />
   );
 }
 
