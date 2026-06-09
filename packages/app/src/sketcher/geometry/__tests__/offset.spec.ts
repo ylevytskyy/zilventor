@@ -167,6 +167,100 @@ describe('offsetChain — reverse-directed segment miter', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FULL REAL PATH: findChain → offsetChain, closed-loop rectangle
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Rectangle corners: (0,0),(10,0),(10,10),(0,10).
+//
+// Segments given in ARBITRARY ORDER with TWO REVERSED:
+//   l1: (0,0)→(10,0)    bottom, normal direction
+//   l2: (10,10)→(10,0)  right, REVERSED  (canonical: (10,0)→(10,10))
+//   l3: (0,10)→(10,10)  top, used as SEED (canonical: (10,10)→(0,10))
+//   l4: (0,10)→(0,0)    left, normal direction
+//
+// findChain(l3, [l1,l2,l3,l4]) must discover and normalize all 4 into a
+// head-to-tail loop:  (0,10)→(10,10) → (10,10)→(10,0) → (10,0)→(0,0) → (0,0)→(0,10)
+// The loop closes: last.x2,y2=(0,10) ≈ first.x1,y1=(0,10) → isLoop=true.
+//
+// Offset d=-2 (inward for this CW-wound chain):
+//   Normal formula: nx=-dy/len, ny=dx/len.
+//   O0=(0,10)→(10,10)  [dx=10,dy=0]:  shift (0,-2)  → (0,8)→(10,8)
+//   O1=(10,10)→(10,0)  [dx=0,dy=-10]: shift (-2,0)  → (8,10)→(8,0)
+//   O2=(10,0)→(0,0)    [dx=-10,dy=0]: shift (0,+2)  → (10,2)→(0,2)
+//   O3=(0,0)→(0,10)    [dx=0,dy=10]:  shift (+2,0)  → (2,0)→(2,10)
+//
+// Miter intersections (inner rectangle):
+//   O0∩O1 → (8,8)   O1∩O2 → (8,2)
+//   O2∩O3 → (2,2)   O3∩O0 (closing) → (2,8)    ← the un-tested closing corner
+//
+describe('findChain → offsetChain — full real path, closed-loop rectangle', () => {
+  it('builds chain from arbitrary-order reversed segments then offsets all 4 miter corners', () => {
+    // Segments in non-canonical order; l2 and l3 are reversed relative to CCW winding.
+    const l1: SketchPrimitive = { id: 'l1', kind: 'line', x1: 0,  y1: 0,  x2: 10, y2: 0  }; // bottom, normal
+    const l2: SketchPrimitive = { id: 'l2', kind: 'line', x1: 10, y1: 10, x2: 10, y2: 0  }; // right, REVERSED
+    const l3: SketchPrimitive = { id: 'l3', kind: 'line', x1: 0,  y1: 10, x2: 10, y2: 10 }; // top, SEED
+    const l4: SketchPrimitive = { id: 'l4', kind: 'line', x1: 0,  y1: 10, x2: 0,  y2: 0  }; // left, normal
+
+    // Step 1: findChain from seed l3 across all 4 segments.
+    const chain = findChain(l3, [l1, l2, l3, l4]);
+
+    // Must collect all 4 segments.
+    expect(chain).toHaveLength(4);
+    expect(chain.map((p) => p.id)).toContain('l1');
+    expect(chain.map((p) => p.id)).toContain('l2');
+    expect(chain.map((p) => p.id)).toContain('l3');
+    expect(chain.map((p) => p.id)).toContain('l4');
+
+    // Connectivity invariant: consecutive segments head-to-tail.
+    const cl = chain as Extract<SketchPrimitive, { kind: 'line' }>[];
+    for (let i = 0; i < cl.length - 1; i++) {
+      near(cl[i]!.x2, cl[i + 1]!.x1);
+      near(cl[i]!.y2, cl[i + 1]!.y1);
+    }
+
+    // Loop closure invariant: last.x2,y2 ≈ first.x1,y1.
+    near(cl[cl.length - 1]!.x2, cl[0]!.x1);
+    near(cl[cl.length - 1]!.y2, cl[0]!.y1);
+
+    // Step 2: offsetChain with d=-2 (inward for CW-wound chain).
+    const results = offsetChain(chain, -2);
+    expect(results).toHaveLength(4);
+
+    // Collect all endpoints.
+    const segs = results as Extract<SketchPrimitive, { kind: 'line' }>[];
+    const pts = segs.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }]);
+
+    // Hand-derived: every endpoint must be one of the 4 inner-rectangle corners.
+    const innerCorners = [
+      { x: 2, y: 2 },
+      { x: 8, y: 2 },
+      { x: 8, y: 8 },
+      { x: 2, y: 8 },
+    ];
+    for (const pt of pts) {
+      const matches = innerCorners.some(
+        (c) => Math.abs(pt.x - c.x) < 0.01 && Math.abs(pt.y - c.y) < 0.01,
+      );
+      expect(matches, `point (${pt.x.toFixed(4)},${pt.y.toFixed(4)}) must be an inner-rectangle corner`).toBe(true);
+    }
+
+    // Explicitly assert the CLOSING corner (2,8) — the previously untested path.
+    // This corner is produced by the closing-loop miter between the last offset segment
+    // and the first one; it only fires when isLoop=true inside offsetChain.
+    const closingCorner = pts.some(
+      (p) => Math.abs(p.x - 2) < 0.01 && Math.abs(p.y - 8) < 0.01,
+    );
+    expect(closingCorner, 'closing corner (2,8) must appear — proves isLoop fired via findChain path').toBe(true);
+
+    // Also assert the opposite closing corner (2,2) which depends on O2∩O3 miter.
+    const corner22 = pts.some(
+      (p) => Math.abs(p.x - 2) < 0.01 && Math.abs(p.y - 2) < 0.01,
+    );
+    expect(corner22, 'corner (2,2) must appear').toBe(true);
+  });
+});
+
 describe('offsetChain — closed-loop rectangle, inward offset', () => {
   // Rectangle as 4 CCW line segments:
   //   L1: (0,0)→(10,0)   bottom
