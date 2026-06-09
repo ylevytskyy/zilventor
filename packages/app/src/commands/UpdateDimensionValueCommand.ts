@@ -15,14 +15,18 @@ export class UpdateDimensionValueCommand implements Command {
   async apply(): Promise<void> {
     useAppStore.getState().updateDimensionValueInStore(this.sketchId, this.dimId, this.after);
     if (this.sketcherClient) {
-      await this.sketcherClient.updateDimensionValue(this.dimId, this.after);
+      const result = await this.sketcherClient.updateDimensionValue(this.dimId, this.after);
+      useAppStore.getState().applyCoordDiff(this.sketchId, result.coords);
+      useAppStore.getState().setSketchDof(result.dof);
     }
   }
 
   async revert(): Promise<void> {
     useAppStore.getState().updateDimensionValueInStore(this.sketchId, this.dimId, this.before);
     if (this.sketcherClient) {
-      await this.sketcherClient.updateDimensionValue(this.dimId, this.before);
+      const result = await this.sketcherClient.updateDimensionValue(this.dimId, this.before);
+      useAppStore.getState().applyCoordDiff(this.sketchId, result.coords);
+      useAppStore.getState().setSketchDof(result.dof);
     }
   }
 }
