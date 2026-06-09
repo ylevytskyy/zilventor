@@ -166,4 +166,42 @@ describe('GcsSystem dimensions (integration)', () => {
 
     await sys.unloadSketch();
   });
+
+  it('updateDimensionValue emits a non-empty coord diff when reverting a dim to its original value (revert path)', async () => {
+    // Regression: before the syncDomainFromGcs() fix in updateDimensionValue, the domain
+    // baseline was never advanced after each call. When you edited a dim to a new value
+    // (e.g. 50→80) then reverted back to the original (80→50), the second call found
+    // GCS state == domainPrimitives (both at the load-time position) and coordDiffForAll
+    // returned an EMPTY diff. The Zustand store then kept the stale intermediate geometry
+    // (length=80) because no patch arrived to move it back to 50.
+    // Fix: capture coords, then call syncDomainFromGcs() before returning so the baseline
+    // advances after every call — matching addDimension and dragTo.
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({ primitives: [line('L1', 0, 0, 50, 0)], constraints: [] });
+    await sys.addDimension({
+      id: 'd0', kind: 'dim-length', paramName: 'd0', line: 'L1',
+      value: { kind: 'literal', value: 50 }
+    }, 50);
+
+    // First edit: 50 → 80 (sanity check — must produce a non-empty diff)
+    const first = await sys.updateDimensionValue('d0', 80);
+    expect(first.coords.length).toBeGreaterThan(0);
+    const firstDiff = first.coords.find(d => d.primitiveId === 'L1');
+    expect(firstDiff).toBeDefined();
+
+    // Second edit: 80 → 50 (revert to original value). Without syncDomainFromGcs this
+    // returns an empty diff because GCS state matches the stale load-time baseline.
+    const second = await sys.updateDimensionValue('d0', 50);
+    expect(second.coords.length).toBeGreaterThan(0);
+    const secondDiff = second.coords.find(d => d.primitiveId === 'L1');
+    expect(secondDiff).toBeDefined();
+
+    // The geometry must actually reflect length 50 again.
+    const coords = sys.readCoords('L1');
+    const len = Math.hypot(coords.x2 - coords.x1, coords.y2 - coords.y1);
+    expect(Math.abs(len - 50)).toBeLessThan(1e-3);
+
+    await sys.unloadSketch();
+  });
 });

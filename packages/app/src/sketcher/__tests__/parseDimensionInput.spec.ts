@@ -6,8 +6,9 @@ describe('parseDimensionInput', () => {
     expect(parseDimensionInput('dim-length', '')).toEqual({ ok: false });
   });
 
-  it('rejects NaN string', () => {
-    expect(parseDimensionInput('dim-length', 'abc')).toEqual({ ok: false });
+  it('rejects bare identifier string (now treated as param-ref)', () => {
+    const r = parseDimensionInput('dim-length', 'abc');
+    expect(r.ok).toBe(false);
   });
 
   it('rejects zero for dim-length', () => {
@@ -76,5 +77,51 @@ describe('parseDimensionInput', () => {
     const res = parseDimensionInput('dim-angle', '0');
     expect(res.ok).toBe(true);
     expect((res as { ok: true; value: number }).value).toBe(0);
+  });
+});
+
+describe('parseDimensionInput — constant arithmetic', () => {
+  it('evaluates 100/2 to 50 for dim-length', () => {
+    expect(parseDimensionInput('dim-length', '100/2')).toEqual({ ok: true, value: 50 });
+  });
+
+  it('evaluates 2*30+5 to 65 for dim-length', () => {
+    expect(parseDimensionInput('dim-length', '2*30+5')).toEqual({ ok: true, value: 65 });
+  });
+
+  it('evaluates 360/4 to 90 for dim-angle (no deg→rad conversion)', () => {
+    expect(parseDimensionInput('dim-angle', '360/4')).toEqual({ ok: true, value: 90 });
+  });
+
+  it('rejects arithmetic that evaluates to 0 for dim-length', () => {
+    const r = parseDimensionInput('dim-length', '5-5');
+    expect(r.ok).toBe(false);
+  });
+
+  it('rejects arithmetic that evaluates to negative for dim-radius', () => {
+    const r = parseDimensionInput('dim-radius', '5-10');
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('parseDimensionInput — param-ref rejection', () => {
+  it('rejects a bare identifier (param name) with reason param-ref', () => {
+    const r = parseDimensionInput('dim-length', 'width');
+    expect(r).toEqual({ ok: false, reason: 'param-ref' });
+  });
+
+  it('rejects an expression containing a var reference with reason param-ref', () => {
+    const r = parseDimensionInput('dim-length', 'width-18');
+    expect(r).toEqual({ ok: false, reason: 'param-ref' });
+  });
+
+  it('rejects a param-ref for dim-angle too', () => {
+    const r = parseDimensionInput('dim-angle', 'myAngle');
+    expect(r).toEqual({ ok: false, reason: 'param-ref' });
+  });
+
+  it('plain numbers still return plain {ok:false} (not param-ref) for empty', () => {
+    const r = parseDimensionInput('dim-length', '');
+    expect(r).toEqual({ ok: false });
   });
 });

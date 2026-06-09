@@ -26,6 +26,7 @@ import { DeletePrimitiveCommand } from './commands/DeletePrimitiveCommand';
 import { AddConstraintCommand } from './commands/AddConstraintCommand';
 import { AddDimensionCommand, AddDimensionConflictError } from './commands/AddDimensionCommand';
 import { UpdateDimensionValueCommand } from './commands/UpdateDimensionValueCommand';
+import { UpdateParameterExpressionCommand } from './commands/UpdateParameterExpressionCommand';
 import { parseDimensionInput } from './sketcher/parseDimensionInput';
 import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSelectionMode, FilletFeature, ChamferEdgeSpec, ChamferFeature, ShellFeature, LinearPatternFeature, MirrorFeature, EdgeName, SweepFeature, SweepOrientation, BooleanOperation } from '@zilventor/shared';
 import { ParameterRegistry } from './parameters/ParameterRegistry';
@@ -1373,14 +1374,19 @@ export default function App() {
         (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === sketchId
       );
       if (!sketch) return;
-      for (const c of sketch.constraints) {
-        if (!c.kind.startsWith('dim-')) continue;
-        const dim = c as DimensionConstraint;
-        if (dim.value.kind !== 'param') continue;
-        const resolved = parameterRegistry.getValue(dim.value.paramName);
-        if (resolved === undefined) continue;
-        void client.updateDimensionValue(dim.id, resolved);
-      }
+      void (async () => {
+        const coordStore = useAppStore.getState();
+        for (const c of sketch.constraints) {
+          if (!c.kind.startsWith('dim-')) continue;
+          const dim = c as DimensionConstraint;
+          if (dim.value.kind !== 'param') continue;
+          const resolved = parameterRegistry.getValue(dim.value.paramName);
+          if (resolved === undefined) continue;
+          const result = await client.updateDimensionValue(dim.id, resolved);
+          coordStore.applyCoordDiff(sketch.id, result.coords);
+          coordStore.setSketchDof(result.dof);
+        }
+      })();
     });
   }, []);
 
@@ -1800,12 +1806,9 @@ export default function App() {
     if (!sketch || sketch.kind !== 'sketch') return;
     const dim = sketch.constraints.find((c): c is DimensionConstraint => c.id === dimId && c.kind.startsWith('dim-'));
     if (!dim) return;
-    if (dim.value.kind === 'param') {
-      showToast(`Linked to parameter '${dim.value.paramName}' — edit it in the Parameters panel.`);
-      return;
-    }
+    // Both literal and param dims open the inline editor.
     setEditingDimId(dimId);
-  }, [showToast]);
+  }, []);
 
   const handleDimEditCommit = useCallback(async (dimId: string, rawValue: string) => {
     const store = useAppStore.getState();
@@ -1815,17 +1818,51 @@ export default function App() {
     const sketch = store.activePart.featureTree.find((f) => f.kind === 'sketch' && f.id === sketchId);
     if (!sketch || sketch.kind !== 'sketch') { setEditingDimId(null); return; }
     const dim = sketch.constraints.find((c): c is DimensionConstraint => c.id === dimId && c.kind.startsWith('dim-'));
-    if (!dim || dim.value.kind !== 'literal') { setEditingDimId(null); return; }
-    const parsed = parseDimensionInput(dim.kind, rawValue);
-    if (!parsed.ok) {
-      // Invalid value: keep editor open (don't dismiss).
-      return;
+    if (!dim) { setEditingDimId(null); return; }
+
+    if (dim.value.kind === 'literal') {
+      // Literal dim: parse arithmetic, reject param-refs.
+      const parsed = parseDimensionInput(dim.kind, rawValue);
+      if (!parsed.ok) {
+        if (parsed.reason === 'param-ref') {
+          showToast('References a parameter — bind it via the dimension dialog.');
+        }
+        // Invalid value: keep editor open (don't dismiss).
+        return;
+      }
+      setEditingDimId(null);
+      await store.bus.execute(
+        new UpdateDimensionValueCommand(sketchId, dimId, dim.value.value, parsed.value, client)
+      );
+    } else {
+      // Param dim: validate via registry.dryRun then dispatch UpdateParameterExpressionCommand.
+      const dimValue = dim.value;
+      if (dimValue.kind !== 'param') { setEditingDimId(null); return; }
+      const param = parameterRegistry.getAll().find((p) => p.name === dimValue.paramName);
+      if (!param) { setEditingDimId(null); return; }
+
+      const dryResult = parameterRegistry.dryRun({ name: param.name, expression: rawValue, unit: param.unit });
+      if (!dryResult.ok) {
+        showToast(formatExpressionError(dryResult.error));
+        // Keep editor open.
+        return;
+      }
+
+      // Kind-aware ≤0 guard on the evaluated value.
+      const POSITIVE_ONLY: ReadonlySet<DimensionConstraint['kind']> = new Set([
+        'dim-length', 'dim-radius', 'dim-diameter',
+      ]);
+      if (POSITIVE_ONLY.has(dim.kind) && dryResult.value.value <= 0) {
+        showToast('Value must be greater than zero.');
+        return;
+      }
+
+      setEditingDimId(null);
+      await store.bus.execute(
+        new UpdateParameterExpressionCommand(param, rawValue, parameterRegistry)
+      );
     }
-    setEditingDimId(null);
-    await store.bus.execute(
-      new UpdateDimensionValueCommand(sketchId, dimId, dim.value.value, parsed.value, client)
-    );
-  }, []);
+  }, [showToast]);
 
   // Handler for the kernel-offline banner's Restart button. Terminates the
   // current worker, spawns a new one, and re-executes the active part so the
@@ -4492,8 +4529,15 @@ export default function App() {
                   {...(() => {
                     if (!editingDimId) return {};
                     const dim = dimensions.find((d) => d.id === editingDimId);
-                    if (!dim || dim.value.kind !== 'literal') return {};
-                    return { editingDimInitialValue: String(dim.value.value) };
+                    if (!dim) return {};
+                    if (dim.value.kind === 'literal') {
+                      return { editingDimInitialValue: String(dim.value.value) };
+                    }
+                    // Param dim: seed with the parameter's current expression.
+                    const dv = dim.value;
+                    if (dv.kind !== 'param') return {};
+                    const param = parameterRegistry.getAll().find((p) => p.name === dv.paramName);
+                    return { editingDimInitialValue: param?.expression ?? '' };
                   })()}
                 />
               </>
