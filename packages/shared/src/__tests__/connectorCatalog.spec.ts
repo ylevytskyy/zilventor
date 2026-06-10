@@ -172,11 +172,67 @@ describe('generateMinifix', () => {
     for (const c of cross) expect(c.diameter).toBe(8);
     for (const b of bolts) expect(b.diameter).toBe(8);
   });
+
+  it('minifix-cam depth must be positive and ≤ boardThicknessA (blind cam housing)', () => {
+    const r = generateMinifix(swappedSideBottomJoint(), defaults);
+    const cams = r.boresA.filter((b) => b.role === 'minifix-cam');
+    expect(cams.length).toBeGreaterThan(0);
+    for (const c of cams) {
+      expect(typeof c.depth).toBe('number');
+      expect(c.depth as number).toBeGreaterThan(0);
+      // cam housing must not exceed the board thickness (blind bore)
+      expect(c.depth as number).toBeLessThanOrEqual(18); // boardThicknessA = 18
+    }
+  });
+
+  it('minifix-cross depth must be positive and ≤ boardThicknessA (cross bore fits in panel)', () => {
+    const r = generateMinifix(swappedSideBottomJoint(), defaults);
+    const cross = r.boresA.filter((b) => b.role === 'minifix-cross');
+    expect(cross.length).toBeGreaterThan(0);
+    for (const c of cross) {
+      expect(typeof c.depth).toBe('number');
+      expect(c.depth as number).toBeGreaterThan(0);
+      // cross bore must fit inside the panel face (depth ≤ boardThicknessA)
+      expect(c.depth as number).toBeLessThanOrEqual(18); // boardThicknessA = 18
+    }
+  });
+
+  it('minifix-bolt depth must be positive and ≤ boardThicknessB', () => {
+    const r = generateMinifix(swappedSideBottomJoint(), defaults);
+    const bolts = r.boresB.filter((b) => b.role === 'minifix-bolt');
+    expect(bolts.length).toBeGreaterThan(0);
+    for (const b of bolts) {
+      expect(typeof b.depth).toBe('number');
+      expect(b.depth as number).toBeGreaterThan(0);
+      expect(b.depth as number).toBeLessThanOrEqual(18); // boardThicknessB = 18
+    }
+  });
+
+  it('minifix-bolt u must be thickness-centerline ≈9 (Left face, u in [0,18])', () => {
+    const r = generateMinifix(swappedSideBottomJoint(), defaults);
+    const bolts = r.boresB.filter((b) => b.role === 'minifix-bolt');
+    for (const b of bolts) {
+      expect(b.u).toBeGreaterThanOrEqual(0);
+      expect(b.u).toBeLessThanOrEqual(18);
+      expect(b.u).toBeCloseTo(9, 1); // boardThicknessB / 2 = 9
+    }
+  });
+
+  it('minifix-bolt v must be the along-joint spacing (60/277/494), same as confirmat', () => {
+    const r = generateMinifix(swappedSideBottomJoint(), defaults);
+    const bolts = r.boresB.filter((b) => b.role === 'minifix-bolt');
+    const expectedSpacings = [60, 277, 494];
+    const vs = bolts.map((b) => b.v).sort((a, b) => a - b);
+    expect(vs).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      expect(vs[i]).toBeCloseTo(expectedSpacings[i]!, 1);
+    }
+  });
 });
 
 describe('generateDowel', () => {
-  it('A Ø8 face ×12, B Ø8 end ×20, dowel-face / dowel-edge roles', () => {
-    const r = generateDowel(joint(700), defaults);
+  it('A Ø8 face depth=12; B Ø8 end depth=min(13,tB-1)=13 (standard 25mm pin; 18mm board); roles dowel-face/dowel-edge', () => {
+    const r = generateDowel(joint(700), defaults); // boardThicknessB=18 → endDepth = min(13,17) = 13
     for (const b of r.boresA) {
       expect(b.diameter).toBe(8);
       expect(b.depth).toBe(12);
@@ -184,8 +240,45 @@ describe('generateDowel', () => {
     }
     for (const b of r.boresB) {
       expect(b.diameter).toBe(8);
-      expect(b.depth).toBe(20);
+      expect(b.depth).toBe(13); // min(DOWEL_END_NOMINAL=13, 18-1=17) = 13
       expect(b.role).toBe('dowel-edge');
+    }
+  });
+
+  it('dowel-face depth > 0 and ≤ boardThicknessA (blind bore in face panel)', () => {
+    const r = generateDowel(swappedSideBottomJoint(), defaults);
+    for (const b of r.boresA) {
+      expect(typeof b.depth).toBe('number');
+      expect(b.depth as number).toBeGreaterThan(0);
+      expect(b.depth as number).toBeLessThanOrEqual(18); // boardThicknessA = 18
+    }
+  });
+
+  it('dowel-edge depth > 0 and ≤ boardThicknessB (blind bore in end panel)', () => {
+    const r = generateDowel(swappedSideBottomJoint(), defaults);
+    for (const b of r.boresB) {
+      expect(typeof b.depth).toBe('number');
+      expect(b.depth as number).toBeGreaterThan(0);
+      expect(b.depth as number).toBeLessThanOrEqual(18); // boardThicknessB = 18
+    }
+  });
+
+  it('dowel-edge u must be thickness-centerline ≈9 (Left face, u in [0,18])', () => {
+    const r = generateDowel(swappedSideBottomJoint(), defaults);
+    for (const b of r.boresB) {
+      expect(b.u).toBeGreaterThanOrEqual(0);
+      expect(b.u).toBeLessThanOrEqual(18);
+      expect(b.u).toBeCloseTo(9, 1); // boardThicknessB / 2 = 9
+    }
+  });
+
+  it('dowel-edge v must be the along-joint spacing (60/277/494), same as confirmat', () => {
+    const r = generateDowel(swappedSideBottomJoint(), defaults);
+    const vs = r.boresB.map((b) => b.v).sort((a, b) => a - b);
+    const expectedSpacings = [60, 277, 494];
+    expect(vs).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      expect(vs[i]).toBeCloseTo(expectedSpacings[i]!, 1);
     }
   });
 });

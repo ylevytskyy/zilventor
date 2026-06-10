@@ -126,17 +126,55 @@ export function generateConfirmat(j: JointInput, p: BoringParams): { boresA: Bor
   return { boresA: a.bores, boresB: b.bores };
 }
 
+// ─── Minifix parametric constants ────────────────────────────────────────────
+/** Cam housing: nominal blind depth. Fits an 18mm board (12.5 < 18). */
+const MINIFIX_CAM_DEPTH = 12.5;
+/**
+ * Cross bore: horizontal bore from panel A's face into the cam body.
+ * Nominal furniture value is ~34mm, but the bore must stay within the board face
+ * (depth ≤ boardThicknessA). Clamped to `boardThicknessA - 1` so the bore
+ * is blind and doesn't exit the opposite face.
+ * NOTE: For thick stock (e.g. 38mm+) the nominal 34mm applies; for 18mm board
+ * this gives 17mm, which is geometrically valid. Exact offset is a tunable
+ * follow-up (spec §6).
+ */
+const MINIFIX_CROSS_NOMINAL = 34;
+/**
+ * Bolt bore: Ø8 into panel B's end. Nominal 34mm; clamped to `boardThicknessB - 1`
+ * so the bore stays inside the board end.
+ */
+const MINIFIX_BOLT_NOMINAL = 34;
+
+// ─── Dowel parametric constants ───────────────────────────────────────────────
+/** Face bore into panel A: standard Ø8 × 12mm socket (half of 25mm pin). */
+const DOWEL_FACE_DEPTH = 12;
+/**
+ * End bore into panel B: standard Ø8 × 13mm socket (slightly deeper end side).
+ * Clamped to `boardThicknessB - 1` for thin stock below 14mm.
+ */
+const DOWEL_END_NOMINAL = 13;
+
 export function generateMinifix(j: JointInput, p: BoringParams): { boresA: BoreOp[]; boresB: BoreOp[] } {
+  const tA = j.boardThicknessA ?? j.panelA.dims.thickness;
+  const tB = j.boardThicknessB ?? j.panelB.dims.thickness;
+  // Cross bore and bolt bore are clamped to fit within the real board thickness.
+  const crossDepth = Math.min(MINIFIX_CROSS_NOMINAL, tA - 1);
+  const boltDepth = Math.min(MINIFIX_BOLT_NOMINAL, tB - 1);
+  // Cam depth is already 12.5mm — fits standard 18mm board. Clamp for thin stock.
+  const camDepth = Math.min(MINIFIX_CAM_DEPTH, tA - 1);
   const a = makeBores(j, p, 'minifix', 'A', () => [
-    { diameter: 15, depth: 12.5, role: 'minifix-cam' },
-    { diameter: 8, depth: 34, role: 'minifix-cross' },
+    { diameter: 15, depth: camDepth, role: 'minifix-cam' },
+    { diameter: 8, depth: crossDepth, role: 'minifix-cross' },
   ]);
-  const b = makeBores(j, p, 'minifix', 'B', () => [{ diameter: 8, depth: 34, role: 'minifix-bolt' }]);
+  const b = makeBores(j, p, 'minifix', 'B', () => [{ diameter: 8, depth: boltDepth, role: 'minifix-bolt' }]);
   return { boresA: a.bores, boresB: b.bores };
 }
 
 export function generateDowel(j: JointInput, p: BoringParams): { boresA: BoreOp[]; boresB: BoreOp[] } {
-  const a = makeBores(j, p, 'dowel', 'A', () => [{ diameter: 8, depth: 12, role: 'dowel-face' }]);
-  const b = makeBores(j, p, 'dowel', 'B', () => [{ diameter: 8, depth: 20, role: 'dowel-edge' }]);
+  const tB = j.boardThicknessB ?? j.panelB.dims.thickness;
+  // End bore clamped to fit within the real board thickness (for thin stock < 14mm).
+  const endDepth = Math.min(DOWEL_END_NOMINAL, tB - 1);
+  const a = makeBores(j, p, 'dowel', 'A', () => [{ diameter: 8, depth: DOWEL_FACE_DEPTH, role: 'dowel-face' }]);
+  const b = makeBores(j, p, 'dowel', 'B', () => [{ diameter: 8, depth: endDepth, role: 'dowel-edge' }]);
   return { boresA: a.bores, boresB: b.bores };
 }
