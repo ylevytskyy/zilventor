@@ -360,7 +360,7 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
       </div>
 
       <section style={{ marginBottom: 12 }}>
-        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>{t('dialog.hole.profile')}</h2>
+        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>{t('dialog.hole.profile.label')}</h2>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           {(['simple', 'counterbore', 'countersink'] as const).map((k) => (
             <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -370,7 +370,7 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
                 checked={profileKind === k}
                 onChange={() => setProfileKind(k)}
               />
-              {k === 'simple' ? 'Simple' : k === 'counterbore' ? 'Counterbore' : 'Countersink'}
+              {t('dialog.hole.profile.' + k)}
             </label>
           ))}
         </div>

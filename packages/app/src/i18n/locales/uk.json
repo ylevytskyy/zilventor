@@ -259,7 +259,12 @@
       "pick_sketch": "Вибрати ескіз",
       "pick_target_face": "Вибрати цільову грань",
       "placement": "Розміщення",
-      "profile": "Профіль",
+      "profile": {
+        "counterbore": "Зенкування",
+        "countersink": "Зенкування під потай",
+        "label": "Профіль",
+        "simple": "Проста"
+      },
       "termination": "Завершення",
       "through_all": "Наскрізь",
       "title": "Отвір",
@@ -807,8 +812,13 @@
     "kernelFailed": "Помилка ядра: {{message}}",
     "kernelRestartFailed": "Помилка перезапуску ядра: {{message}}",
     "loadingKernel": "Завантаження ядра CAD…",
+    "explodeFailed": "Помилка розкладання: {{error}}",
+    "imported": "Імпортовано",
+    "insertStepFailed": "Помилка вставлення зі STEP: {{error}}",
     "modified": "Змінено",
     "openCancelled": "Відкриття скасовано",
+    "opened": "Відкрито",
+    "savedAt": "Збережено о {{time}}",
     "openFile": {
       "notLoaded": "Не вдається відкрити: {{partPath}} не завантажено",
       "opened": "Відкрито {{partPath}}",

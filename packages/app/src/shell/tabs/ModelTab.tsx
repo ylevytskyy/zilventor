@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { isImportedPart } from '@zilventor/shared';
@@ -47,7 +48,7 @@ export default function ModelTab() {
       await bus.execute(new ExplodeIntoAssemblyCommand({ kernel, opfs }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
-      useAppStore.getState().setStatus(`Explode failed: ${(e as Error).message}`);
+      useAppStore.getState().setStatus(i18n.t('status.explodeFailed', { error: (e as Error).message }));
     }
   };
 

@@ -259,7 +259,12 @@
       "pick_sketch": "Pick sketch",
       "pick_target_face": "Pick target face",
       "placement": "Placement",
-      "profile": "Profile",
+      "profile": {
+        "counterbore": "Counterbore",
+        "countersink": "Countersink",
+        "label": "Profile",
+        "simple": "Simple"
+      },
       "termination": "Termination",
       "through_all": "Through All",
       "title": "Hole",
@@ -807,8 +812,13 @@
     "kernelFailed": "Kernel failed: {{message}}",
     "kernelRestartFailed": "Kernel restart failed: {{message}}",
     "loadingKernel": "Loading CAD kernel…",
+    "explodeFailed": "Explode failed: {{error}}",
+    "imported": "Imported",
+    "insertStepFailed": "Insert From STEP failed: {{error}}",
     "modified": "Modified",
     "openCancelled": "Open cancelled",
+    "opened": "Opened",
+    "savedAt": "Saved at {{time}}",
     "openFile": {
       "notLoaded": "Cannot open: {{partPath}} not loaded",
       "opened": "Opened {{partPath}}",

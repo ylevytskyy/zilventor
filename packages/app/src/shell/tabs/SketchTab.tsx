@@ -44,7 +44,7 @@ export default function SketchTab() {
     const store = useAppStore.getState();
     store.setSketchMode(false);
     store.setActiveToolKind(null);
-    store.setStatus('Ready');
+    store.setStatus(t('status.ready'));
   };
 
   return (

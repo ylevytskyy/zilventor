@@ -70,7 +70,7 @@ export default function FileTab() {
           `${doc.name}.zidw`,
           [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
         );
-        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
       }
       if (activeDocument.kind === 'assembly') {
@@ -81,7 +81,7 @@ export default function FileTab() {
           `${doc.name}.ziasm`,
           [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
         );
-        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
       }
 
@@ -93,7 +93,7 @@ export default function FileTab() {
         `${activePart.name}.zipt`,
         [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
       );
-      if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+      if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setErrorDialog(`Save failed: ${(e as Error).message}`);
@@ -151,7 +151,7 @@ export default function FileTab() {
             const { part } = await importStepIntoNewPart(stepFile, kernel);
             stopTicker();
             setActivePart(part);
-            setStatus('Imported');
+            setStatus(t('status.imported'));
           }
         } finally {
           stopTicker();
@@ -184,7 +184,7 @@ export default function FileTab() {
             await kernel.registerPart(part);
             stopTicker();
             setActivePart(part);
-            setStatus('Imported');
+            setStatus(t('status.imported'));
           }
         } finally {
           stopTicker();
@@ -216,7 +216,7 @@ export default function FileTab() {
         // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
         useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
         setActiveDocument({ kind: 'assembly', document: doc });
-        setStatus('Opened');
+        setStatus(t('status.opened'));
       } else {
         // part path
         const partId = await kernel.loadFromBytes(bytes);
@@ -234,7 +234,7 @@ export default function FileTab() {
         }
         const part = await kernel.getPart(partId);
         setActivePart(part);
-        setStatus('Opened');
+        setStatus(t('status.opened'));
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;

@@ -29,7 +29,7 @@ export default function PropertiesPanel() {
       store: { activePart: ap, setActivePart },
       parameter: { name: param.name, expression: draft, value: v, unit: 'mm' }
     }));
-    setStatus('Modified');
+    setStatus(t('status.modified'));
   };
 
   return (

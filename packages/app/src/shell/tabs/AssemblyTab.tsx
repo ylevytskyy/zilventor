@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { useAppStore } from '../../store/useAppStore';
 import { OpenPlaceComponentDialogCommand } from '../../commands/OpenPlaceComponentDialogCommand';
 import { OpenEditComponentDialogCommand } from '../../commands/OpenEditComponentDialogCommand';
@@ -54,7 +55,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
         const extracted = extractStepFromZip(zipBytes);
         if (!extracted) {
           useAppStore.getState().setStatus(
-            'Insert From STEP failed: No STEP/STP file found in archive',
+            i18n.t('status.insertStepFailed', { error: 'No STEP/STP file found in archive' }),
           );
           return;
         }
@@ -74,7 +75,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
       await bus.execute(cmd);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
-      useAppStore.getState().setStatus(`Insert From STEP failed: ${(e as Error).message}`);
+      useAppStore.getState().setStatus(i18n.t('status.insertStepFailed', { error: (e as Error).message }));
     }
   };
 
