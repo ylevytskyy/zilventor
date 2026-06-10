@@ -51,6 +51,6 @@ export class ExportBomCsvCommand {
     a2.href = url; a2.download = suggestedName;
     document.body.appendChild(a2); a2.click(); document.body.removeChild(a2);
     URL.revokeObjectURL(url);
-    useAppStore.getState().setStatus(rows.length === 0 ? 'Exported empty BOM' : `Exported ${rows.length} BOM rows`);
+    useAppStore.getState().setStatus(rows.length === 0 ? i18n.t('status.exportBom.empty') : i18n.t('status.exportBom.rows', { count: rows.length }));
   }
 }

@@ -97,12 +97,12 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
                 e.preventDefault();
                 if (isSubAsm) {
                   // Right-click on a sub-asm opens the underlying .ziasm in standalone (Inventor convention).
-                  if (window.confirm(`Open ${partFileName} in standalone?`)) {
+                  if (window.confirm(t('dialog.openStandalone', { name: partFileName }))) {
                     OpenProjectFileCommand(c.partPath);
                   }
                 } else {
                   // Right-click on a leaf opens an Override color dialog (minimal: prompt for hex).
-                  const hex = window.prompt('Override color (hex, e.g. #d4a574); blank to clear:');
+                  const hex = window.prompt(t('dialog.overrideColor'));
                   if (hex === null) return;
                   const trimmed = hex.trim();
                   void new SetComponentColorOverrideCommand({
@@ -115,7 +115,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
               {isGrounded ? '⛓ ' : ''}{c.id} — {partFileName}
               {isSubAsm && <span style={{ color: '#888' }}> ({childCount} components)</span>}
               {c.flexible && <span style={{ marginLeft: 6, color: '#fbbf24' }}>{t('common.flexible')}</span>}
-              {isCycle && <span style={{ marginLeft: 6, color: '#f87171' }}>cycle</span>}
+              {isCycle && <span style={{ marginLeft: 6, color: '#f87171' }}>{t('common.cycle')}</span>}
             </span>
           </div>
           {myConstraints.length > 0 && (
@@ -563,7 +563,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  const action = window.prompt('Panel actions: type "suppress" or "delete"');
+                  const action = window.prompt(t('dialog.panelActions'));
                   if (action === null) return;
                   const cur = useAppStore.getState().activePart;
                   if (!cur) return;

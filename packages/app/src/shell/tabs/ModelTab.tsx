@@ -86,7 +86,7 @@ export default function ModelTab() {
           disabled={!hasSketch || readOnly}
           onClick={() => OpenSweepDialogCommand()}
           aria-label={t('ribbon.model.sweep')}
-          title={readOnly ? readOnlyTip : t('ribbon.model.sweep')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.sweepTitle')}
         >
           {t('ribbon.model.sweep')}
         </button>
