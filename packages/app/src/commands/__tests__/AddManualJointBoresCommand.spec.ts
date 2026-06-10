@@ -11,9 +11,11 @@ class MemOpfs {
   async read(p: string) { const b = this.files.get(p); if (!b) throw new Error(`no ${p}`); return b; }
   async write(p: string, b: Uint8Array) { this.files.set(p, b); }
 }
+// Task 11: document.id is a UUID distinct from the file path — verifies that the command
+// resolves the storage path via the threaded partPath, NOT via document.id.
 async function writePanel(opfs: MemOpfs, path: string, length: number, width: number, thickness: number) {
   const doc: Partial<PartDocument> = {
-    id: path, name: path, units: 'mm', parameters: {},
+    id: `uuid-${path}-deadbeef`, name: path, units: 'mm', parameters: {},  // id !== path (T11 regression guard)
     featureTree: [{ kind: 'panel', id: 'panel', length, width, thickness, materialId: 'm', edgeBands: {} } as unknown as import('@zilventor/shared').Feature],
   };
   const manifest = { formatVersion: CURRENT_FORMAT_VERSION, kind: 'part' as const, document: doc };
