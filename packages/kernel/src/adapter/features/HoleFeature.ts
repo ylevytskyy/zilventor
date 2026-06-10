@@ -275,6 +275,15 @@ function resolveConcentricLocation(
  * normal (outward) + the panel-local 2D frame from face2DFrame (shared). The axis
  * points INTO the material (negated outward normal), matching resolveLinearLocation.
  * The (u,v)→3D point uses face2DFrame so the kernel and the marker/DXF code agree.
+ *
+ * NOTE on normal sign: BRepAdaptor_Surface_2.Plane().Axis().Direction() returns the
+ * underlying geometric plane's natural axis, which does NOT account for the BREP face's
+ * orientation (TopAbs_FORWARD vs TopAbs_REVERSED). For MakeBox solids, the three
+ * "negative" faces (Left/Back/Bottom — those whose outward normals point in the -X/-Y/-Z
+ * direction) are stored REVERSED, so their adaptor normal points INWARD. We correct the
+ * sign by checking which side of the face plane the body's center-of-mass lies on: the
+ * outward normal must point AWAY from the body interior, i.e. the body centroid must be
+ * on the NEGATIVE side of (face_centroid + outward_normal).
  */
 export function resolveAtFaceLocations(
   oc: OcctInstance,
@@ -285,10 +294,39 @@ export function resolveAtFaceLocations(
 ): HoleLocation[] {
   const faceRaw = findFaceByName(runningBody, placement.faceName);
   if (!faceRaw) throw new Error(`atFace: face ${placement.faceName.role} not found`);
-  const { normal } = facePlaneNormal(oc, faceRaw);
+  const { origin: faceOrigin, normal: rawNormal } = facePlaneNormal(oc, faceRaw);
+
+  // Correct the adaptor normal sign by confirming it points AWAY from the body interior.
+  // BRepAdaptor_Surface_2.Plane().Axis().Direction() returns the underlying plane's
+  // geometric normal, which does NOT account for the BREP face's orientation
+  // (TopAbs_FORWARD vs TopAbs_REVERSED). For MakeBox solids, the three "negative" faces
+  // (Left/Back/Bottom) are stored REVERSED, so their adaptor normal points INWARD.
+  // We correct by checking the body center-of-mass: the outward normal must point AWAY.
+  let outwardNormal: Vec3 = rawNormal;
+  try {
+    const bodyProps = new (oc as any).GProp_GProps_1();
+    (oc as any).BRepGProp.VolumeProperties_1(
+      runningBody.shape, bodyProps, 1e-7, false as never, false as never,
+    );
+    const bodyCom = bodyProps.CentreOfMass();
+    const bodyCenter: Vec3 = { x: bodyCom.X(), y: bodyCom.Y(), z: bodyCom.Z() };
+    bodyProps.delete?.();
+    // Vector from face-plane origin to body CoM.
+    const toBody: Vec3 = {
+      x: bodyCenter.x - faceOrigin.x,
+      y: bodyCenter.y - faceOrigin.y,
+      z: bodyCenter.z - faceOrigin.z,
+    };
+    // If rawNormal points toward the body interior (dot > 0), negate to get outward.
+    if (dot(rawNormal, toBody) > 0) outwardNormal = neg(rawNormal);
+  } catch {
+    // Fallback (e.g. in unit tests with fake oc): use rawNormal as-is.
+    // This is safe for FORWARD faces (Right/Front/Top) whose rawNormal IS outward.
+  }
+
   // Outward face normal → negate so the drill axis points INTO the material.
   // flipAxis reverses (drill from inside out), matching resolveLinearLocation.
-  const axisVec = flipAxis ? normal : neg(normal);
+  const axisVec = flipAxis ? outwardNormal : neg(outwardNormal);
 
   // (u,v) → panel-local 3D point via the SAME frame the markers/DXF use.
   const role = placement.faceName.role as 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right';

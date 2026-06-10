@@ -105,6 +105,8 @@ export function inferManualJoint(a: PanelInput, b: PanelInput, eps = 1.0): Joint
       if (aThin === bThin) continue;
       const A = aThin ? a : b;
       const B = aThin ? b : a;
+      const Abb = aThin ? ba : bb;
+      const Bbb = aThin ? bb : ba;
       // joint line: along the LONGER of the two overlapping axes
       const len1 = o1[1] - o1[0], len2 = o2[1] - o2[0];
       const lineAxis = len1 >= len2 ? others[0]! : others[1]!;
@@ -117,11 +119,21 @@ export function inferManualJoint(a: PanelInput, b: PanelInput, eps = 1.0): Joint
       (p0 as Record<string, number>)[fixed] = fixedVal; (p1 as Record<string, number>)[fixed] = fixedVal;
       (p0 as Record<string, number>)[lineAxis] = ov[0]; (p1 as Record<string, number>)[lineAxis] = ov[1];
       (p0 as Record<string, number>)[otherAx] = mid; (p1 as Record<string, number>)[otherAx] = mid;
+
+      // Infer which named face of A presents to the contact plane, and which face of B is
+      // the end (the face at fixedVal on axis ax). The face role depends on whether fixedVal
+      // is at the panel's min or max on that axis (panel-local ≡ world for identity rotation).
+      // Min side: x→Left, y→Back, z→Bottom. Max side: x→Right, y→Front, z→Top.
+      const minFace: Record<Axis, PanelFaceRole> = { x: 'Left', y: 'Back', z: 'Bottom' };
+      const maxFace: Record<Axis, PanelFaceRole> = { x: 'Right', y: 'Front', z: 'Top' };
+      const faceA: PanelFaceRole = Math.abs(fixedVal - Abb.max[ax]) < eps ? maxFace[ax] : minFace[ax];
+      const endB: PanelFaceRole = Math.abs(fixedVal - Bbb.max[ax]) < eps ? maxFace[ax] : minFace[ax];
+
       return {
         line: { p0, p1 }, panelA: A, panelB: B,
-        faceA: 'Left', endB: 'Top',
-        frameA: face2DFrame(A.dims, 'Left'),
-        frameB: face2DFrame(B.dims, 'Top'),
+        faceA, endB,
+        frameA: face2DFrame(A.dims, faceA),
+        frameB: face2DFrame(B.dims, endB),
       };
     }
   }
@@ -142,9 +154,23 @@ export function enumerateAutoJoints(panels: ReadonlyArray<PanelInput>): Joint[] 
     for (const e of ends) {
       const j = inferManualJoint(s, e);
       if (!j) continue;
-      // force A = side, B = end (role-deterministic, overriding the geometric A/B)
+      // force A = side, B = end (role-deterministic, overriding the geometric A/B).
+      // When swapping panelA/panelB, also swap faceA/endB and recompute frames.
       const sideIsA = j.panelA.role === s.role;
-      joints.push(sideIsA ? j : { ...j, panelA: s, panelB: e, frameA: face2DFrame(s.dims, 'Left'), frameB: face2DFrame(e.dims, 'Top') });
+      if (sideIsA) {
+        joints.push(j);
+      } else {
+        // inferManualJoint assigned A=end, B=side; swap them and swap face roles too.
+        const { faceA: inferredFaceA, endB: inferredEndB } = j;
+        joints.push({
+          ...j,
+          panelA: s, panelB: e,
+          faceA: inferredEndB,   // the face that was B's end is now A's face
+          endB: inferredFaceA,   // the face that was A's face is now B's end
+          frameA: face2DFrame(s.dims, inferredEndB),
+          frameB: face2DFrame(e.dims, inferredFaceA),
+        });
+      }
     }
   }
   return joints;

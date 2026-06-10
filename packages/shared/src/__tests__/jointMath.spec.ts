@@ -47,6 +47,34 @@ describe('inferManualJoint — world-AABB butt-joint inference', () => {
     expect(j!.frameB).toBeDefined();
   });
 
+  /**
+   * LOCKING: endB must be 'Left' (the actual end face of the bottom panel that
+   * butts the left side panel) — NOT 'Top'. Before the fix, endB was hardcoded
+   * as 'Top', causing BakeBoresCommand to emit a confirmat-edge bore targeting the
+   * Top face with depth=32 > T=18, which produced an invalid OCCT Boolean → crash.
+   */
+  it('LOCKING endB=Left for left-side↔bottom joint (not Top)', () => {
+    const j = inferManualJoint(side(0, 'leftSide'), bottom());
+    expect(j).not.toBeNull();
+    // The bottom panel's end face that butts the left side is at x=18 = bb.min.x → 'Left'
+    expect(j!.endB).toBe('Left');
+    // The side panel's face that presents to the contact is at x=18 = Abb.max.x → 'Right'
+    expect(j!.faceA).toBe('Right');
+  });
+
+  it('LOCKING endB=Right for right-side↔bottom joint (contact at x=max of bottom panel)', () => {
+    // right side panel: x=[564,582], bottom: x=[18,582] → contact at x=582 = bottom's max → 'Right'
+    const rightSide: PanelInput = {
+      dims: { length: 18, width: 500, thickness: 800 },
+      pose: { translation: { x: 564 + 9, y: 250, z: 400 }, quaternion: [0, 0, 0, 1] },
+      role: 'rightSide',
+    };
+    const j = inferManualJoint(bottom(), rightSide);
+    expect(j).not.toBeNull();
+    // Contact at x=564 = bottom's max.x → endB='Right'
+    expect(j!.endB).toBe('Right');
+  });
+
   it('two coplanar but non-overlapping panels → null', () => {
     const far = bottom();
     far.pose = { translation: { x: 5000, y: 5000, z: 9 }, quaternion: [0, 0, 0, 1] };
