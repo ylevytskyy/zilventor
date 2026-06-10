@@ -148,9 +148,10 @@ Input: two panels as `{ dims, pose, role? }`. Output: `Joint = { line: {p0,p1}, 
 faceA: FaceName, endB: FaceName, frameA, frameB }` or `null` if no valid butt joint.
 
 - **Auto (template):** from persisted `role` + pose + dims, enumerate the standard carcass
-  joints — side↔bottom, side↔top, side↔shelf(s), back↔(sides/bottom/top). For each, role
-  fixes A (face-drilled) vs B (end-drilled) deterministically; right-side joints mirror the
-  left. No geometric contact test.
+  joints — side↔bottom, side↔top, side↔shelf(s). For each, role fixes A (face-drilled) vs B
+  (end-drilled) deterministically; right-side joints mirror the left. No geometric contact test.
+  **Back↔carcass and toekick joints are DEFERRED** — backs sit in a groove/rebate (not
+  connector-drilled) and toekick is non-structural; `enumerateAutoJoints` must NOT pair these.
 - **Manual:** infer from the two picked panels' world AABBs/poses — find the coplanar-adjacent
   face↔end pair (A's face plane within ε of B's end plane, overlapping extents). Choose A =
   the panel whose **face** lies in the joint plane, B = the panel whose **end** butts it
@@ -243,6 +244,7 @@ Each phase = red→green→refactor; suite green after each.
 - Per-connector hardware-BOM rollup (count confirmats/minifix into the Hardware CSV).
 - Bores in `.zidw` **without** baking (separate 2D-annotation path).
 - Auto-role-tagging of pre-existing (pre-feature) cabinets.
+- Back-panel and toekick auto-присадка (backs are grooved/rebated into the sides, not connector-drilled; toekick is non-structural; both are excluded from `enumerateAutoJoints` in slice 1).
 
 ## 16. Key risks & mitigations
 
