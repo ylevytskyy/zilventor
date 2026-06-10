@@ -23,6 +23,7 @@ export default function FurnitureTab() {
   const disabled = !activePart && !activeAssembly;
   const cabinetDisabled = !activeAssembly;
   const cutListResult = useCutListResult();
+  const showBores = useAppStore((s) => s.showBores);
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -117,6 +118,15 @@ export default function FurnitureTab() {
               result: cutListResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
             }).apply()}>Export CSV</button>
+        </RibbonPanel>
+      </div>
+      <div aria-label="Присадка panel">
+        <RibbonPanel title="Присадка">
+          <button type="button" className="text-xs hover:text-white"
+            aria-pressed={showBores}
+            onClick={() => useAppStore.getState().setShowBores(!showBores)}>
+            {showBores ? 'Hide Bores' : 'Show Bores'}
+          </button>
         </RibbonPanel>
       </div>
       <div aria-label="Nesting panel">
