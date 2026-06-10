@@ -14,7 +14,12 @@ import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
+import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
+import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
+import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
+import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { useCutListResult } from '../useCutListResult';
+import { useBoringResult } from '../useBoringResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
@@ -23,6 +28,8 @@ export default function FurnitureTab() {
   const disabled = !activePart && !activeAssembly;
   const cabinetDisabled = !activeAssembly;
   const cutListResult = useCutListResult();
+  const boringResult = useBoringResult();
+  const showBores = useAppStore((s) => s.showBores);
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -63,6 +70,22 @@ export default function FurnitureTab() {
       }
     };
     await new OpenHardwareDialogCommand({ onSubmit }).apply();
+  };
+
+  const handleGenerateBores = () => {
+    useAppStore.getState().setBoringDialog({
+      onSubmit: async ({ confirmat, minifix, dowel }) => {
+        const opfs = await Opfs.forNavigator();
+        const cmd = new GenerateCarcassBoresCommand({
+          params: { endSetback: 60, maxSpacing: 250, minCount: 2, confirmat, minifix, dowel },
+          opfs,
+        });
+        // The command self-invalidates bore/geometry caches via boreCacheInvalidator
+        // (registered by App.tsx) so bore markers re-render on apply AND undo/redo.
+        await useAppStore.getState().bus.execute(cmd);
+      },
+      onCancel: () => useAppStore.getState().setBoringDialog(null),
+    });
   };
 
   return (
@@ -117,6 +140,75 @@ export default function FurnitureTab() {
               result: cutListResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
             }).apply()}>Export CSV</button>
+        </RibbonPanel>
+      </div>
+      <div aria-label="Присадка panel">
+        <RibbonPanel title="Присадка">
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+            onClick={() => { handleGenerateBores(); }}
+            aria-label="Generate Присадку"
+          >
+            Генерувати присадку
+          </button>
+          <button type="button" className="text-xs hover:text-white"
+            aria-pressed={showBores}
+            onClick={() => useAppStore.getState().setShowBores(!showBores)}>
+            {showBores ? 'Hide Bores' : 'Show Bores'}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            aria-label="Очистити присадку"
+            title={!activeAssembly ? 'Open or create an assembly first' : 'Remove all bore operations from assembly panels'}
+            onClick={() => {
+              const state = useAppStore.getState();
+              const asm = state.activeAssembly;
+              if (!asm) return;
+              // Clear bores from all panels that currently have a non-empty bores[].
+              // Each ClearBoresCommand is undoable independently.
+              void (async () => {
+                const opfs = await (await import('@zilventor/kernel/src/storage/Opfs')).Opfs.forNavigator();
+                const { unpackProject } = await import('@zilventor/kernel/src/storage/ProjectPacker');
+                for (const comp of asm.components) {
+                  if (!comp.partPath.endsWith('.zipt')) continue;
+                  try {
+                    const bytes = await opfs.read(comp.partPath);
+                    const project = await unpackProject(bytes);
+                    const doc = (project.manifest as { document: { bores?: import('@zilventor/shared').BoreOp[] } }).document;
+                    if (!doc.bores || doc.bores.length === 0) continue;
+                    await state.bus.execute(new ClearBoresCommand({ doc, partPath: comp.partPath, opfs }));
+                  } catch {
+                    // panel not yet in OPFS (not yet saved) — skip
+                  }
+                }
+              })();
+            }}>
+            Очистити присадку
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            onClick={() => void new ExportBoringCsvCommand({
+              result: boringResult,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.csv`,
+            }).apply()}>
+            Export CSV (Boring)
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            onClick={() => void new ExportBoringDxfCommand({
+              result: boringResult,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.dxf`,
+            }).apply()}>
+            Export DXF (Boring)
+          </button>
         </RibbonPanel>
       </div>
       <div aria-label="Nesting panel">

@@ -181,8 +181,11 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
   // The host (App.tsx) owns the 150 ms debounce timer.
   React.useEffect(() => {
     if (!open || !onDraftChange) return;
+    // atFace is a baked placement not shown in this dialog; normalise to 'fromSketch'.
+    const draftPlacementMode: HoleDraftValue['placementMode'] =
+      placementMode === 'atFace' ? 'fromSketch' : placementMode;
     onDraftChange({
-      placementMode,
+      placementMode: draftPlacementMode,
       sketchId,
       placementFace,
       refEdges,

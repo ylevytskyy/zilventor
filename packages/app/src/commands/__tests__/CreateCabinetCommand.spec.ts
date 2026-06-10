@@ -4,6 +4,8 @@ import { CreateCabinetCommand } from '../CreateCabinetCommand';
 import type { OpfsLike } from '../../assembly/SubAssemblyCache';
 import { useAppStore } from '../../store/useAppStore';
 import type { AssemblyDocument, MaterialEntry } from '@zilventor/shared';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import type { PanelRole } from '@zilventor/shared';
 
 class MemOpfs implements OpfsLike {
   files = new Map<string, Uint8Array>();
@@ -155,5 +157,39 @@ describe('CreateCabinetCommand — mid-flight rollback', () => {
     await expect(cmd.apply()).rejects.toThrow('disk full');
     expect(await opfs.list()).toEqual([]);
     expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
+  });
+});
+
+describe('CreateCabinetCommand — persists ComponentInstance.role', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('stamps each cabinet sub-component instance with its panel role', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+
+    // The placed top-level component is the .ziasm; read it back and inspect its instances.
+    const ziasmBytes = await opfs.read('Base Cabinet 1.ziasm');
+    const project = await unpackProject(ziasmBytes);
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; role?: PanelRole }> } }).document;
+
+    const roleByPath = new Map(doc.components.map((c) => [c.partPath, c.role]));
+    expect(roleByPath.get('Base Cabinet 1 - Left Side.zipt')).toBe('leftSide');
+    expect(roleByPath.get('Base Cabinet 1 - Right Side.zipt')).toBe('rightSide');
+    expect(roleByPath.get('Base Cabinet 1 - Bottom.zipt')).toBe('bottom');
+    expect(roleByPath.get('Base Cabinet 1 - Top.zipt')).toBe('top');
+    expect(roleByPath.get('Base Cabinet 1 - Back.zipt')).toBe('back');
+    expect(roleByPath.get('Base Cabinet 1 - Toekick.zipt')).toBe('toekick');
+    expect(roleByPath.get('Base Cabinet 1 - Shelf 1.zipt')).toBe('shelf');
+  });
+
+  it('every component instance has a defined role (no undefined)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    const project = await unpackProject(await opfs.read('Base Cabinet 1.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ role?: PanelRole }> } }).document;
+    expect(doc.components.length).toBe(7);
+    for (const c of doc.components) expect(c.role).toBeDefined();
   });
 });

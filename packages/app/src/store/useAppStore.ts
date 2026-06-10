@@ -89,6 +89,11 @@ export type HardwareDialogState = {
 
 export type NestDialogState = { kind: 'open' };
 
+export type BoringDialogState = {
+  onSubmit: (params: { confirmat: boolean; minifix: boolean; dowel: boolean }) => void;
+  onCancel: () => void;
+};
+
 // Sub-project 6 Phase 8 — drawing dialogs
 export type AddViewDialogKind = 'base' | 'projected' | 'iso';
 
@@ -166,7 +171,7 @@ type AppState = {
   mirrorDialogOpen: boolean;
   importFromInventorDialogOpen: boolean;
   holeDialogOpen: boolean;
-  holePlacementMode: 'fromSketch' | 'linear' | 'concentric';
+  holePlacementMode: 'fromSketch' | 'linear' | 'concentric' | 'atFace';
   holeSketchId: string | null;
   holePlacementFace: FaceName | null;
   holeRefEdges: [EdgeName | null, EdgeName | null];
@@ -264,6 +269,7 @@ type AppState = {
   cutListTabActive: boolean;
   showComponentColors: boolean;
   showEdgeBands: boolean;
+  showBores: boolean;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -278,6 +284,7 @@ type AppState = {
   setCutListTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
+  setShowBores: (v: boolean) => void;
   setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
   setComponentFlexible: (componentId: string, flag: boolean) => void;
 
@@ -313,6 +320,16 @@ type AppState = {
   setNestingTabActive: (v: boolean) => void;
   nestDialog: NestDialogState | null;
   setNestDialog: (s: NestDialogState | null) => void;
+  boringDialog: BoringDialogState | null;
+  setBoringDialog: (s: BoringDialogState | null) => void;
+
+  /**
+   * Registered by App.tsx on mount; called by bore commands in apply() and revert()
+   * to evict geometry + bore caches so undo/redo re-renders bore markers correctly.
+   * Null in unit tests (no App mounted) — commands guard with `?.`.
+   */
+  boreCacheInvalidator: ((paths: string[]) => void) | null;
+  setBoreCacheInvalidator: (fn: ((paths: string[]) => void) | null) => void;
 
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: boolean;
@@ -604,6 +621,7 @@ export const useAppStore = create<AppState>((set) => ({
   cutListTabActive: false,
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
+  showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -624,6 +642,10 @@ export const useAppStore = create<AppState>((set) => ({
   setShowEdgeBands: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));
     set({ showEdgeBands: v });
+  },
+  setShowBores: (v) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('showBores', String(v));
+    set({ showBores: v });
   },
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
@@ -825,6 +847,10 @@ export const useAppStore = create<AppState>((set) => ({
   setNestingTabActive: (v) => set({ nestingTabActive: v }),
   nestDialog: null,
   setNestDialog: (s) => set({ nestDialog: s }),
+  boringDialog: null,
+  setBoringDialog: (s) => set({ boringDialog: s }),
+  boreCacheInvalidator: null,
+  setBoreCacheInvalidator: (fn) => set({ boreCacheInvalidator: fn }),
 
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: false,
@@ -967,12 +993,16 @@ export const useAppStore = create<AppState>((set) => ({
       return { ...s, holeDialogOpen: true, editingHoleId: id };
     }
     const placement = feature.placement;
+    // atFace holes are baked by BakeBoresCommand and are not user-editable via HoleDialog;
+    // fall back to 'fromSketch' so the dialog opens in a safe read-only-ish state.
+    const displayMode: AppState['holePlacementMode'] =
+      placement.kind === 'atFace' ? 'fromSketch' : placement.kind;
     return {
       ...s,
       holeDialogOpen: true,
       editingHoleId: id,
       holeInitialValues: feature,
-      holePlacementMode: placement.kind,
+      holePlacementMode: displayMode,
       holeSketchId: placement.kind === 'fromSketch' ? placement.sketchId : null,
       holePlacementFace:
         placement.kind === 'linear' ? placement.faceName :

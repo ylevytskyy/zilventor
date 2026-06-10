@@ -60,7 +60,8 @@ import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
-import type { PanelOverlaySpec } from './viewport/SceneManager';
+import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
+import type { BoreOp } from '@zilventor/shared';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
@@ -108,6 +109,7 @@ import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
 import { mergeAndPruneCutList } from './storage/mergeCutListItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateCutListRecursive } from './assembly/walkers/aggregateCutListRecursive';
+import { aggregateBoresRecursive } from './assembly/walkers/aggregateBoresRecursive';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartInfo } from './shell/resolvePartInfo';
@@ -123,6 +125,7 @@ import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
+import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
 import type { NestInputRow } from '@zilventor/shared';
 import { projectView } from '@zilventor/shared/src/drawing/projector';
@@ -516,6 +519,30 @@ export default function App() {
         await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
         // Force re-render by updating the document identity (no-op content change).
         s.setActiveDocument({ kind: 'assembly', document: { ...a } });
+      };
+
+      // Boring-map E2E hook: return the aggregated bore result for the active assembly.
+      // Tasks 32/33 e2e slices call window.__zilventorBoringAggregate() to verify export bytes.
+      w.__zilventorBoringAggregate = () => {
+        const s = useAppStore.getState();
+        const asm = s.activeAssembly;
+        if (!asm) return { panels: [] };
+        const subAsmCacheAdapter = {
+          get: (p: string) => {
+            const d = s.subAssemblyDocs[p];
+            return d ? { kind: 'ok' as const, doc: d, partPath: p } : undefined;
+          },
+        };
+        const boresCache = new Map<string, BoreOp[]>();
+        for (const [k, v] of partBoresCacheRef.current.entries()) {
+          if (v && v.length > 0) boresCache.set(k, v);
+        }
+        return aggregateBoresRecursive(
+          asm,
+          subAsmCacheAdapter,
+          boresCache,
+          partInfoCacheRef.current,
+        );
       };
 
       w.__zilventorDetailViewMs = async (n = 100) => {
@@ -2667,6 +2694,32 @@ export default function App() {
     }
     useAppStore.getState().setSubAssemblyInnerPoses(inner);
   }, [subAssemblyDocsForInnerPoses]);
+  // DEFECT 2 fix: when sub-assembly docs are populated for the first time
+  // (placeholder 50mm boxes → real panel geometry), arm a one-shot camera
+  // re-fit so the viewport frames the real cabinet instead of the tiny box.
+  //
+  // Strategy: track doc count per active assembly. Reset the baseline when the
+  // active 3D document changes (active3dDocId changes → new assembly opened →
+  // prevSubAsmDocCountRef resets to 0 so the next 0→N fires). This means that
+  // if the user re-opens the same cabinet assembly, the doc count was never
+  // reset to 0 in the store (subAssemblyDocs is additive), so count starts > 0
+  // immediately and we DON'T arm a redundant re-fit — which is correct because
+  // the existing active3dDocId effect (line ~180) already armed one on open.
+  const prevSubAsmDocCountRef = useRef(0);
+  // Reset baseline counter when the shown 3D document changes.
+  useEffect(() => {
+    prevSubAsmDocCountRef.current = 0;
+  }, [active3dDocId]);
+  useEffect(() => {
+    const count = Object.keys(subAssemblyDocsForInnerPoses).length;
+    if (prevSubAsmDocCountRef.current === 0 && count > 0) {
+      // Sub-assembly docs just arrived for the first time on this assembly open.
+      // The mesh-sync effect will re-render real panels; arm a camera re-fit so
+      // it frames real geometry instead of the 50mm placeholder boxes.
+      viewportRef.current?.requestFrameOnNextMesh();
+    }
+    prevSubAsmDocCountRef.current = count;
+  }, [subAssemblyDocsForInnerPoses]);
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
@@ -2674,10 +2727,17 @@ export default function App() {
   // geometryCacheRef. Must be invalidated at the same sites as geometryCacheRef
   // so a material edit that changes textureId is not served stale.
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
+  // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
+  const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
   const [partInfoVersion, setPartInfoVersion] = useState(0);
+  // Bumped by the assembly mesh-sync effect AFTER it has finished populating
+  // partBoresCacheRef for all leaf parts. The bore-marker effect lists this as
+  // a dep so it re-runs (and reads the now-full cache) after mesh-sync completes,
+  // rather than racing against it.
+  const [geometryReadyTick, setGeometryReadyTick] = useState(0);
   // Snapshot whose identity changes whenever the partInfo cache mutates,
   // so memoised consumers (BomTable) recompute.
   const partInfoSnapshot = useMemo(() => new Map(partInfoCacheRef.current), [partInfoVersion]);
@@ -2734,6 +2794,7 @@ export default function App() {
         assemblyPartIdCacheRef.current.delete(partPath);
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
+        partBoresCacheRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3084,6 +3145,59 @@ export default function App() {
       delete w.__zilventorFlattenAndSolveMs;
     };
   }, []);
+
+  // Production sub-assembly loader: when the active assembly changes, walk its
+  // .ziasm components and load any docs not yet in subAssemblyDocs from OPFS.
+  // This unblocks cabinet rendering in production — without it visibleLeaves()
+  // returns every .ziasm component as kind:'placeholder' (50mm grey box).
+  //
+  // Anti-loop guard: deps are [assembly] only (NOT subAssemblyDocs). The effect
+  // is additive (never replaces existing entries) and only calls setSubAssemblyDocs
+  // when at least one new doc was fetched, so a setSubAssemblyDocs call does NOT
+  // re-trigger this effect (assembly identity is unchanged).
+  useEffect(() => {
+    if (!assembly) return;
+    let cancelled = false;
+    void (async () => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const existing = useAppStore.getState().subAssemblyDocs;
+      const next = { ...existing };
+      const seen = new Set<string>();
+      // BFS walk: seed with the top-level assembly, then recurse into sub-asm docs.
+      const stack: AssemblyDocument[] = [assembly];
+      while (stack.length) {
+        const d = stack.pop()!;
+        for (const c of d.components) {
+          if (!c.partPath.endsWith('.ziasm')) continue;
+          if (seen.has(c.partPath)) continue;
+          seen.add(c.partPath);
+          if (next[c.partPath]) {
+            // Already loaded — still recurse into it to find deeper nesting.
+            stack.push(next[c.partPath]!);
+            continue;
+          }
+          try {
+            if (await opfs.exists(c.partPath)) {
+              const sub = await unpackAssembly(await opfs.read(c.partPath));
+              next[c.partPath] = sub;
+              stack.push(sub);
+            }
+          } catch { /* skip corrupt sub-assemblies */ }
+        }
+      }
+      if (cancelled) return;
+      // Only update the store if we actually loaded new docs.
+      if (Object.keys(next).length > Object.keys(existing).length) {
+        useAppStore.getState().setSubAssemblyDocs(next);
+        useAppStore.getState().setSolverDirty(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  // Intentionally omit subAssemblyDocs from deps — this effect is additive and
+  // must not loop when setSubAssemblyDocs is called.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assembly]);
 
   // Sub-project 6 perf hooks (T62): drawing projection, sheet render, PDF export.
   useEffect(() => {
@@ -3750,6 +3864,19 @@ export default function App() {
               const partMat = panelFeat ? partDoc.materials.find((m) => m.id === panelFeat.materialId) : undefined;
               // Persist textureId so subsequent cache-hit renders still see it.
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
+              // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
+              partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
+              // hand so bore markers render without requiring the Cut List tab to be visited.
+              // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so
+              // cache.has() correctly skips re-resolution on subsequent mesh-sync runs (no loop).
+              if (!panelSpecCacheRef.current.has(partPath)) {
+                const pf = partDoc.featureTree.find((f) => isPanelFeature(f)) as PanelFeature | undefined;
+                panelSpecCacheRef.current.set(
+                  partPath,
+                  pf ? resolvePanelSpecFromFeature(pf, partDoc.parameters) : null,
+                );
+              }
             }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
@@ -3796,6 +3923,12 @@ export default function App() {
       if (!cancelled) {
         vp.setComponentMeshes(componentLeaves);
         useAppStore.getState().setComponentDiagnostics(diagnostics);
+        // Signal the bore-marker effect that partBoresCacheRef is now fully
+        // populated for this render cycle. The marker effect lists this counter
+        // as a dep so it runs AFTER the async WASM loads above complete — fixing
+        // the race where both effects fired on the same componentPoses change but
+        // the marker effect read an empty cache before WASM had written it.
+        setGeometryReadyTick((t) => t + 1);
       }
     })();
     return () => { cancelled = true; };
@@ -3839,6 +3972,54 @@ export default function App() {
     }
     vp.setPanelOverlays(specs, materials);
   }, [activePart, assembly, parameterValues]);
+
+  // Phase 5 — Bore marker sync. Builds MarkerOverlaySpec[] from all assembly leaf
+  // components whose part has bores, using the panelSpecCacheRef for panelDims and
+  // the same composedPoses world pose used by setComponentMeshes. Calls
+  // vp.setBoreMarkers() so SceneManager renders ring markers on the panel faces.
+  //
+  // Runs when: assembly changes, or componentPoses change (a constraint solve
+  // updates the poses). The panelSpecCacheRef and partBoresCacheRef are populated
+  // by the assembly mesh sync effect above (same dep list = same timing).
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || !assembly) {
+      vp?.setBoreMarkers([]);
+      return;
+    }
+    const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+    const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
+    const subAsmCacheAdapter = {
+      get: (p: string) => subAssemblyDocs[p]
+        ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
+        : undefined,
+    };
+    const leaves = visibleLeaves(assembly, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
+    const markerSpecs: MarkerOverlaySpec[] = [];
+    for (const leaf of leaves) {
+      const bores = partBoresCacheRef.current.get(leaf.partPath);
+      if (!bores || bores.length === 0) continue;
+      const spec = panelSpecCacheRef.current.get(leaf.partPath);
+      if (!spec) continue;
+      const worldPose = componentPoses.get(pathKey(leaf.componentPath)) ?? {
+        translation: { x: 0, y: 0, z: 0 },
+        quaternion: [0, 0, 0, 1] as [number, number, number, number],
+      };
+      markerSpecs.push({
+        key: pathKey(leaf.componentPath),
+        panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
+        worldPose,
+        bores,
+      });
+    }
+    vp.setBoreMarkers(markerSpecs);
+  // geometryReadyTick is bumped by the mesh-sync effect after it finishes all
+  // async WASM loads and has written every leaf's bores into partBoresCacheRef.
+  // Without it this effect and mesh-sync both fire on the same componentPoses
+  // change; this effect reads the cache BEFORE the async work completes → finds
+  // nothing → marker count stays 0 and never re-triggers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assembly, componentPoses, geometryReadyTick]);
 
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
   // description) for each unique partPath referenced by the active assembly so
@@ -4469,8 +4650,43 @@ export default function App() {
     s.setActiveDocument({ kind: 'assembly', document: { ...a } });
   }, [panelSpecCacheRef]);
 
+  // Evict geometry + bore + kernel-id caches for the given partPaths, then bump
+  // the active-assembly identity so the mesh-sync effect re-loads them from OPFS.
+  // Used by FurnitureTab after GenerateCarcassBoresCommand to force bore re-render.
+  const invalidatePartPaths = useCallback(async (paths: string[]): Promise<void> => {
+    if (paths.length === 0) return;
+    const kernelClient = useAppStore.getState().kernel;
+    for (const partPath of paths) {
+      const stalePartId = assemblyPartIdCacheRef.current.get(partPath);
+      assemblyRefCacheRef.current.invalidate(partPath);
+      assemblyPartIdCacheRef.current.delete(partPath);
+      geometryCacheRef.current.delete(partPath);
+      partTextureIdCacheRef.current.delete(partPath);
+      partBoresCacheRef.current.delete(partPath);
+      if (stalePartId && kernelClient) {
+        try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
+      }
+    }
+    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects.
+    const s = useAppStore.getState();
+    const doc = s.activeDocument;
+    if (doc?.kind === 'assembly') {
+      s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
+    }
+  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef]);
+
+  // Register invalidatePartPaths into the store so bore commands can self-invalidate
+  // caches on both apply() AND revert() (fixing undo/redo visual staleness).
+  useEffect(() => {
+    const { setBoreCacheInvalidator } = useAppStore.getState();
+    // Wrap in a synchronous shim since the store callback is synchronous but
+    // invalidatePartPaths is async; fire-and-forget is acceptable here.
+    setBoreCacheInvalidator((paths: string[]) => { void invalidatePartPaths(paths); });
+    return () => { useAppStore.getState().setBoreCacheInvalidator(null); };
+  }, [invalidatePartPaths]);
+
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, warmCache: warmCutListCache }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

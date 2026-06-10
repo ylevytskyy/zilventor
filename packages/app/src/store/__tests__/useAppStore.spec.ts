@@ -791,3 +791,15 @@ describe('showEdgeBands', () => {
   });
 });
 
+describe('showBores', () => {
+  it('defaults to true', () => {
+    expect(useAppStore.getState().showBores).toBe(true);
+  });
+  it('setShowBores toggles and persists', () => {
+    useAppStore.getState().setShowBores(false);
+    expect(useAppStore.getState().showBores).toBe(false);
+    useAppStore.getState().setShowBores(true);
+    expect(useAppStore.getState().showBores).toBe(true);
+  });
+});
+

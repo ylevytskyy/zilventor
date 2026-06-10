@@ -13,6 +13,9 @@ export * from './panel-feature';
 export type { UvProjection } from './uv-projection';
 export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
+export * from './bore';
+export * from './connectorCatalog';
+export * from './jointMath';
 export type {
   HardwareCategory,
   HardwareEntry,
