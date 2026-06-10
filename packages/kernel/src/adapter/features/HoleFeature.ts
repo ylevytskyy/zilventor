@@ -24,7 +24,7 @@ import type {
   ParamOrLiteral,
   FaceName,
 } from '@zilventor/shared';
-import { originPlaneLiteralOf } from '@zilventor/shared';
+import { originPlaneLiteralOf, face2DFrame } from '@zilventor/shared';
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -271,6 +271,52 @@ function resolveConcentricLocation(
 }
 
 /**
+ * Map each (u,v) on a named panel face to a HoleLocation using the face's plane
+ * normal (outward) + the panel-local 2D frame from face2DFrame (shared). The axis
+ * points INTO the material (negated outward normal), matching resolveLinearLocation.
+ * The (u,v)→3D point uses face2DFrame so the kernel and the marker/DXF code agree.
+ */
+export function resolveAtFaceLocations(
+  oc: OcctInstance,
+  runningBody: NamedShape,
+  placement: Extract<HolePlacement, { kind: 'atFace' }>,
+  panelDims: { length: number; width: number; thickness: number },
+  flipAxis: boolean,
+): HoleLocation[] {
+  const faceRaw = findFaceByName(runningBody, placement.faceName);
+  if (!faceRaw) throw new Error(`atFace: face ${placement.faceName.role} not found`);
+  const { normal } = facePlaneNormal(oc, faceRaw);
+  // Outward face normal → negate so the drill axis points INTO the material.
+  // flipAxis reverses (drill from inside out), matching resolveLinearLocation.
+  const axisVec = flipAxis ? normal : neg(normal);
+
+  // (u,v) → panel-local 3D point via the SAME frame the markers/DXF use.
+  const role = placement.faceName.role as 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right';
+  const frame = face2DFrame(panelDims, role);
+
+  const locations: HoleLocation[] = [];
+  for (const { u, v } of placement.points) {
+    const P: Vec3 = add(frame.origin, add(scale(frame.uDir, u), scale(frame.vDir, v)));
+    const origin = new (oc as any).gp_Pnt_3(P.x, P.y, P.z);
+    const axis = new (oc as any).gp_Dir_4(axisVec.x, axisVec.y, axisVec.z);
+    locations.push({ origin, axis });
+  }
+  return locations;
+}
+
+function panelDimsFromBody(oc: OcctInstance, body: unknown): { length: number; width: number; thickness: number } {
+  const bnd = new (oc as any).Bnd_Box_1();
+  (oc as any).BRepBndLib.Add(body, bnd, false);
+  const lo = bnd.CornerMin();
+  const hi = bnd.CornerMax();
+  return {
+    length: hi.X() - lo.X(),
+    width: hi.Y() - lo.Y(),
+    thickness: hi.Z() - lo.Z(),
+  };
+}
+
+/**
  * Execute a hole feature against a running body.
  *
  * Task 10 scope: fromSketch placement + simple/cbore/csk profiles + distance/throughAll/toNext
@@ -301,6 +347,9 @@ export function executeHoleFeature(
     )];
   } else if (feature.placement.kind === 'concentric') {
     locations = [resolveConcentricLocation(oc, runningBody, feature.placement, feature.flipAxis)];
+  } else if (feature.placement.kind === 'atFace') {
+    const dims = panelDimsFromBody(oc, runningBody.shape);
+    locations = resolveAtFaceLocations(oc, runningBody, feature.placement, dims, feature.flipAxis);
   } else {
     throw new Error(`hole: placement ${(feature.placement as { kind: string }).kind} not implemented`);
   }
