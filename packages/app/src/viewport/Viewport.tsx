@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { SceneManager, type WorkFeatureSpec, type ComponentLeaf, type PanelOverlaySpec, type MarkerOverlaySpec } from './SceneManager';
 import type { ComponentPath, MaterialEntry } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
+import { createTwoComponentPicker } from './createTwoComponentPicker';
 import ViewCube from './ViewCube';
 
 /**
@@ -76,6 +77,16 @@ export type ViewportRef = {
     clientX: number,
     clientY: number,
   ): AssemblyRefHit | null;
+  /**
+   * Manual присадка: begin a two-panel pick sequence.
+   * Returns a handle with `pick(clientX, clientY)` (call on each user click) and `reset()`.
+   * After two DISTINCT component picks, `onComplete(partPathA, partPathB)` fires.
+   * No-TDD for the three.js raycast path — covered by §6/e2e group 5.
+   */
+  beginTwoComponentPick(
+    resolvePartPath: (path: ComponentPath) => string,
+    onComplete: (partPathA: string, partPathB: string) => void,
+  ): { pick: (clientX: number, clientY: number) => void; reset: () => void };
   /**
    * T37 drag-along-free-DOFs stub.
    *
@@ -345,6 +356,22 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       const x = ((vec.x + 1) / 2) * rect.width;
       const y = ((-vec.y + 1) / 2) * rect.height;
       return { x, y };
+    },
+    beginTwoComponentPick: (resolvePartPath, onComplete) => {
+      const picker = createTwoComponentPicker({ resolvePartPath, onComplete });
+      return {
+        pick: (clientX, clientY) => {
+          if (!sceneRef.current || !canvasRef.current) return;
+          const rect = canvasRef.current.getBoundingClientRect();
+          const ndc = new THREE.Vector2(
+            ((clientX - rect.left) / rect.width) * 2 - 1,
+            -(((clientY - rect.top) / rect.height) * 2 - 1),
+          );
+          const hit = sceneRef.current.raycastComponent(sceneRef.current.getCamera(), ndc);
+          if (hit) picker.pick(hit);
+        },
+        reset: () => picker.reset(),
+      };
     },
     dragAlongFreeDofs: (componentPath, deltaWorldXY, freeDofBasis, onComplete) => {
       if (!sceneRef.current) return;
