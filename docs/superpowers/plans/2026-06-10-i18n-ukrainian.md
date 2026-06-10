@@ -469,7 +469,10 @@ render in-app — NOT the CSV export).
 **only** the React UI controls/panels (e.g. `DrawingTreePane.tsx`, toolbar buttons,
 `AddViewDialog` orientation options if not already covered) — **NOT** the SVG sheet
 renderers (`renderDrawingSvg.ts`, `AnnotationElement.tsx`, `HoleTableElement.tsx`,
-`DimensionElement.tsx`) which are out of scope.
+`DimensionElement.tsx`, `TitleBlock.tsx`, `ViewElement.tsx`, `renderDrawingPdf.ts`,
+`renderDrawingPngForSheet.ts`, `renderDrawingDxf.ts`, `dxfWriter.ts`) which are out of scope.
+**`DrawingCanvas.tsx` is mixed**: sweep only its React-layer UI strings (dialog/button
+labels); do NOT touch any SVG `<text>` content it renders into the drawing sheet.
 
 - [ ] **Step 1:** Apply sweep rules to the UI-control files only. If unsure whether a
   string renders to a drawing **sheet** vs. an app **panel**, leave drawing-sheet
@@ -633,10 +636,10 @@ Expected: all green (baseline ~2570 app tests + the new i18n tests).
 Run: `cd packages/app && npx tsc --noEmit`
 Expected: clean.
 
-- [ ] **Step 3:** Build.
+- [ ] **Step 3:** Build (uses the package's own `build` script = `tsc --noEmit && vite build`).
 
-Run: `cd packages/app && npx vite build`
-Expected: build succeeds.
+Run: `cd packages/app && pnpm run build`
+Expected: build succeeds (typecheck + vite build).
 
 - [ ] **Step 4:** If anything fails, fix before proceeding. No commit unless fixes
   were needed (then `git commit -m "fix(i18n): <what>"`).
