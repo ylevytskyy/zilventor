@@ -836,7 +836,8 @@
     "placeComponent": {
       "cycle": "Cannot place {{partPath}}: would create a sub-assembly cycle."
     },
-    "ready": "Ready"
+    "ready": "Ready",
+    "unitMm": "mm"
   },
   "stub": {
     "comingIn": "{{what}} — coming in sub-project {{subProject}}."

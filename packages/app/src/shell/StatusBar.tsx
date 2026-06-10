@@ -19,7 +19,7 @@ export function StatusBar({ message, modified = false, selection }: Props) {
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
   const subAssemblyDiagnostics = useAppStore((s) => s.subAssemblyDiagnostics);
 
-  const displayMessage = message ?? statusMessage ?? 'Ready';
+  const displayMessage = message ?? statusMessage ?? t('status.ready');
   const hasConstraints = (activeAssembly?.constraints?.length ?? 0) > 0;
 
   // Compute sub-asm leaf totals from the active assembly.
@@ -73,7 +73,7 @@ export function StatusBar({ message, modified = false, selection }: Props) {
           ⚠ {subAssemblyDiagnostics.length}
         </span>
       )}
-      <span style={{ marginLeft: 'auto' }}>mm</span>
+      <span style={{ marginLeft: 'auto' }}>{t('status.unitMm')}</span>
     </div>
   );
 }
