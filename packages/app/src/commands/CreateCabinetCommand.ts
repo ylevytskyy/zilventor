@@ -129,6 +129,7 @@ export class CreateCabinetCommand implements Command {
       position: { x: c.position.x, y: c.position.y, z: c.position.z },
       rotation: { rx: c.rotation.rx, ry: c.rotation.ry, rz: c.rotation.rz },
       visible: true,
+      role: built.panels.find((p) => p.fileNameSuffix === c.fileNameSuffix)!.role,
     }));
     return {
       id: `A${Date.now()}`,
