@@ -8,7 +8,7 @@ type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8A
 interface ClearBoresOpts {
   doc: { bores?: BoreOp[] };
   partPath: string;
-  opfs: OpfsRW;
+  opfs: OpfsRW | null;
 }
 
 /**
@@ -23,9 +23,8 @@ export class ClearBoresCommand implements Command {
   }
 
   async apply(): Promise<void> {
-    // Set to empty array in memory (callers checking .bores?.length work correctly).
-    // The persist() writes the document with the bores key ABSENT (exactOptionalPropertyTypes contract).
-    this.opts.doc.bores = [];
+    // Delete the bores key entirely (exactOptionalPropertyTypes contract: absent, not []).
+    delete this.opts.doc.bores;
     // Persist if opfs is available (null in unit tests).
     if (this.opts.opfs) await this.persist();
   }
@@ -41,7 +40,9 @@ export class ClearBoresCommand implements Command {
   }
 
   private async persist(): Promise<void> {
-    const bytes = await this.opts.opfs.read(this.opts.partPath);
+    // Only called when this.opts.opfs is non-null (callers guard with `if (this.opts.opfs)`).
+    const opfs = this.opts.opfs!;
+    const bytes = await opfs.read(this.opts.partPath);
     const proj = await unpackProject(bytes);
     const manifest = proj.manifest as { document: Record<string, unknown> };
     // Sync the current state of doc.bores into the packed manifest.
@@ -54,6 +55,6 @@ export class ClearBoresCommand implements Command {
       manifest: { ...manifest, formatVersion: CURRENT_FORMAT_VERSION },
       blobs: {},
     });
-    await this.opts.opfs.write(this.opts.partPath, packed);
+    await opfs.write(this.opts.partPath, packed);
   }
 }

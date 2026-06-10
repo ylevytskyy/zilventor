@@ -11,6 +11,17 @@ export interface JointInput {
   panelB: { dims: { length: number; width: number; thickness: number }; pose: Pose };
   faceA: PanelFaceRole;
   endB: PanelFaceRole;
+  /**
+   * Real board thickness of panel A (mm). Must be supplied when panelA.dims may have
+   * been swapped for AABB purposes (e.g. side panels in GenerateCarcassBoresCommand).
+   * Falls back to panelA.dims.thickness if absent (backward-compatible for tests that
+   * construct JointInput with unswapped dims).
+   */
+  boardThicknessA?: number;
+  /**
+   * Real board thickness of panel B (mm). Likewise for the end-drilled panel.
+   */
+  boardThicknessB?: number;
 }
 
 export interface BoringParams {
@@ -49,8 +60,18 @@ const FACE_OF = (j: JointInput, which: 'A' | 'B'): FaceName => ({
 // panel's thickness. For slice 1 it is the half-thickness of the OTHER panel
 // (placeholder — frame placement is refined in jointMath/Generate command);
 // the unit tests pin `u` (along-joint) + role/Ø/depth/pairing only.
-function crossCoord(otherThickness: number): number {
-  return otherThickness / 2;
+function crossCoord(boardThickness: number): number {
+  return boardThickness / 2;
+}
+
+/**
+ * Whether the end face's face2DFrame places uDir along the board's THICKNESS axis (+Z).
+ * For Left/Right/Front/Back: uDir=+Z → u is the thickness-centerline coord, v is along-joint.
+ * For Top/Bottom: uDir=+X → u is along-joint, v is the thickness-centerline coord.
+ * This controls the u↔v swap for boresB so the bore lands inside the panel face.
+ */
+function endFaceUsesZforU(endFace: PanelFaceRole): boolean {
+  return endFace === 'Left' || endFace === 'Right' || endFace === 'Front' || endFace === 'Back';
 }
 
 interface BoreSpec {
@@ -66,15 +87,27 @@ function makeBores(
   const dists = spacingDistances(jointLength(j), p);
   const bores: BoreOp[] = [];
   const ids: string[] = [];
-  const otherT = side === 'A' ? j.panelB.dims.thickness : j.panelA.dims.thickness;
-  dists.forEach((u, i) => {
+  // Use boardThicknessA/B if provided (avoids reading from swapped dims.thickness).
+  // Fall back to dims.thickness for callers that construct JointInput with unswapped dims.
+  const otherBoardT = side === 'A'
+    ? (j.boardThicknessB ?? j.panelB.dims.thickness)
+    : (j.boardThicknessA ?? j.panelA.dims.thickness);
+  // For the B end face, determine whether the face frame puts uDir along Z (thickness axis).
+  // If so, the bore's u = thickness-centerline coord and v = along-joint spacing.
+  const bSwapUV = side === 'B' && endFaceUsesZforU(j.endB);
+  dists.forEach((dist, i) => {
     const cid = `${kind}-${i}`;
     if (i === 0 || ids[ids.length - 1] !== cid) ids.push(cid);
+    const cross = crossCoord(otherBoardT);
+    // For B side on Left/Right/Front/Back faces: u=cross (thickness-center), v=dist (along-joint).
+    // For A side and B side on Top/Bottom faces: u=dist (along-joint), v=cross.
+    const boreU = bSwapUV ? cross : dist;
+    const boreV = bSwapUV ? dist : cross;
     for (const s of specs(cid)) {
       bores.push({
         id: `${cid}-${side}-${bores.length}`,
         face: FACE_OF(j, side),
-        u, v: crossCoord(otherT),
+        u: boreU, v: boreV,
         diameter: s.diameter, depth: s.depth, role: s.role,
         connectorId: cid, connectorKind: kind,
       });
@@ -84,8 +117,12 @@ function makeBores(
 }
 
 export function generateConfirmat(j: JointInput, p: BoringParams): { boresA: BoreOp[]; boresB: BoreOp[] } {
+  // boardThicknessA is the REAL board thickness of panel A (the face-drilled side panel).
+  // Falls back to dims.thickness for callers that supply unswapped dims.
+  const tA = j.boardThicknessA ?? j.panelA.dims.thickness;
   const a = makeBores(j, p, 'confirmat', 'A', () => [{ diameter: 7, depth: 'throughAll', role: 'confirmat-face' }]);
-  const b = makeBores(j, p, 'confirmat', 'B', () => [{ diameter: 5, depth: 50 - j.panelA.dims.thickness, role: 'confirmat-edge' }]);
+  // Confirmat screw length 50mm; depth into end-panel = screw length - A's real board thickness.
+  const b = makeBores(j, p, 'confirmat', 'B', () => [{ diameter: 5, depth: 50 - tA, role: 'confirmat-edge' }]);
   return { boresA: a.bores, boresB: b.bores };
 }
 

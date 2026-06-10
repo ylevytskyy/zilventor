@@ -84,7 +84,7 @@ export class GenerateCarcassBoresCommand implements Command {
     // Recurses into nested .ziasm sub-assemblies so each cabinet's panels are processed
     // as a self-contained group (joints are only computed among panels of the SAME cabinet).
     const processAssemblyDoc = async (doc: AssemblyDocument): Promise<void> => {
-      const panelInputs: Array<PanelInput & { partPath: string }> = [];
+      const panelInputs: Array<PanelInput & { partPath: string; boardThickness: number }> = [];
 
       for (const c of doc.components) {
         // Recurse into nested sub-assemblies (each cabinet group is independent).
@@ -137,6 +137,9 @@ export class GenerateCarcassBoresCommand implements Command {
           dims: effectiveDims,
           pose: { translation: { x: cx, y: cy, z: cz }, quaternion: [0, 0, 0, 1] },
           role,
+          // T is the REAL board thickness (from the unswapped dims). For side panels the
+          // swap moved it to dims.length (Teff), but T is still the correct value.
+          boardThickness: T,
         });
       }
 
@@ -145,17 +148,25 @@ export class GenerateCarcassBoresCommand implements Command {
       // Enumerate auto joints (role-driven butt-joint detection) for THIS cabinet group.
       const joints = enumerateAutoJoints(panelInputs);
 
-      /** Map a PanelInput reference back to its partPath via identity comparison. */
-      const pathOf = (pi: PanelInput): string =>
-        (panelInputs.find((p) => p === pi) as { partPath: string }).partPath;
+      /** Map a PanelInput reference back to its extended entry via identity comparison. */
+      const entryOf = (pi: PanelInput): { partPath: string; boardThickness: number } =>
+        panelInputs.find((p) => p === pi) as { partPath: string; boardThickness: number };
 
       for (const joint of joints) {
-        const aPath = pathOf(joint.panelA);
-        const bPath = pathOf(joint.panelB);
+        const eA = entryOf(joint.panelA);
+        const eB = entryOf(joint.panelB);
+        const aPath = eA.partPath;
+        const bPath = eB.partPath;
 
         // JointInput is structurally compatible with Joint — cast is safe since Joint
         // extends JointInput with the same line/panelA/panelB/faceA/endB fields.
-        const ji = joint as unknown as JointInput;
+        // Populate boardThicknessA/B from the pre-swap real board thickness so the
+        // connector catalog uses the correct board thickness (not swapped dims.thickness).
+        const ji: JointInput = {
+          ...(joint as unknown as JointInput),
+          boardThicknessA: eA.boardThickness,
+          boardThicknessB: eB.boardThickness,
+        };
 
         if (this.opts.params.confirmat) {
           const { boresA, boresB } = generateConfirmat(ji, this.opts.params);

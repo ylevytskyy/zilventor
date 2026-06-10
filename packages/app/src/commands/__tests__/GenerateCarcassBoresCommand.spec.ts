@@ -177,6 +177,54 @@ describe('GenerateCarcassBoresCommand — auto', () => {
       expect(b.v).toBeCloseTo(9, 1);
     }
   });
+
+  /**
+   * BLOCKER B1+B2 guard: the bottom/top panel (B-side, end-drilled) must receive
+   * confirmat-edge bores with correct depth and u/v — not corrupted by the side-panel
+   * L↔T swap.
+   *
+   * For the bottom panel ('Left' end face, face2DFrame uDir=+Z):
+   *   B1: depth = 50 - boardThicknessA(side) = 50 - 18 = 32 (NOT 50-720=-670)
+   *   B2: u = boardThicknessB(bottom)/2 = 9  (within [0,18], the Z-axis of the bottom panel)
+   *       v = spacing ∈ {60, 277, 494}        (along Y, the joint direction)
+   */
+  it('BLOCKER B1: confirmat-edge depth on bottom panel = 32 (not negative from swapped dims)', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+    await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
+
+    const bBores = await boresOf(opfs, 'B.zipt');
+    const edgeBores = bBores.filter((b) => b.role === 'confirmat-edge');
+    expect(edgeBores.length).toBeGreaterThan(0);
+    for (const b of edgeBores) {
+      expect(typeof b.depth).toBe('number');
+      expect(b.depth as number).toBeGreaterThan(0);
+      expect(b.depth as number).toBeCloseTo(32, 1); // 50 - T_side(18) = 32
+    }
+  });
+
+  it('BLOCKER B2: confirmat-edge u/v on bottom panel end face — u≈9 (thickness-center), v∈{60,277,494}', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+    await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
+
+    const bBores = await boresOf(opfs, 'B.zipt');
+    const edgeBores = bBores.filter((b) => b.role === 'confirmat-edge');
+    expect(edgeBores.length).toBeGreaterThan(0);
+
+    const expectedSpacings = [60, 277, 494];
+    for (const b of edgeBores) {
+      // u = thickness-centerline = boardThicknessB/2 = 9, must be within [0,18]
+      expect(b.u).toBeGreaterThanOrEqual(0);
+      expect(b.u).toBeLessThanOrEqual(18);
+      expect(b.u).toBeCloseTo(9, 1);
+      // v = along-joint spacing
+      const matchesSpacing = expectedSpacings.some((s) => Math.abs(b.v - s) < 1);
+      expect(matchesSpacing).toBe(true);
+    }
+  });
 });
 
 describe('GenerateCarcassBoresCommand — revert', () => {

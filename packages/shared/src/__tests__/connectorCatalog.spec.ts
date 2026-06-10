@@ -18,8 +18,97 @@ function joint(len = 700): JointInput {
       pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
     faceA: 'Left',
     endB: 'Top',
+    boardThicknessA: 18,
+    boardThicknessB: 18,
   };
 }
+
+/**
+ * BLOCKER GUARD: real cabinet dims after L↔T swap for side panels.
+ *
+ * GenerateCarcassBoresCommand swaps length↔thickness for leftSide/rightSide panels so
+ * jointMath computes the correct world AABB. After the swap the joint fed to the catalog has:
+ *   panelA = side panel with effective dims {length:18, width:560, thickness:720}
+ *            (real board thickness = 18, but dims.thickness = 720 after swap)
+ *   panelB = bottom panel with real dims {length:564, width:554, thickness:18}
+ *   faceA  = 'Right'  (side panel's inner face)
+ *   endB   = 'Left'   (bottom panel's left end, the one that butts the side)
+ *
+ * face2DFrame('Left', {L:564, W:554, T:18}):
+ *   origin={-282,-277,0}, uDir={0,0,1}(+Z = thickness axis of bottom), vDir={0,1,0}(+Y)
+ *   → u must be in [0,18] (thickness-centerline of bottom = 9)
+ *   → v must be the along-joint spacing (in Y: 60, 277, 494 for 554mm joint)
+ *
+ * Before the fix:
+ *   B1: depth = 50 - panelA.dims.thickness = 50 - 720 = -670  (NEGATIVE → BLOCKER)
+ *   B2: v = panelA.dims.thickness / 2 = 360  (out of bounds, Y∈[0,554])
+ *       u = spacing (60,277,494)            (wrong: u must be ≤18 for Left face)
+ */
+function swappedSideBottomJoint(): JointInput {
+  // 554mm joint (left↔bottom, same 600×560×720 cabinet fixture as the command spec).
+  // endSetback=60, maxSpacing=250 → count=3, spacings=[60, 277, 494].
+  const jointLen = 554;
+  return {
+    line: { p0: { x: 18, y: 6, z: 9 }, p1: { x: 18, y: 560, z: 9 } },
+    panelA: {
+      // Side panel AFTER L↔T swap: dims.thickness = 720 (WRONG for board thickness).
+      dims: { length: 18, width: 560, thickness: 720 },
+      pose: { translation: { x: 9, y: 280, z: 360 }, quaternion: [0, 0, 0, 1] },
+    },
+    panelB: {
+      // Bottom panel: real dims, no swap.
+      dims: { length: 564, width: 554, thickness: 18 },
+      pose: { translation: { x: 300, y: 280, z: 9 }, quaternion: [0, 0, 0, 1] },
+    },
+    faceA: 'Right',
+    endB: 'Left',
+    // Real board thickness — not read from dims.thickness after swap.
+    boardThicknessA: 18,
+    boardThicknessB: 18,
+  };
+}
+
+describe('BLOCKER B1+B2 — swapped side-panel dims must not corrupt depth/u/v', () => {
+  it('B1: confirmat-edge depth must be positive (50 - boardThicknessA = 32, not 50-720=-670)', () => {
+    const r = generateConfirmat(swappedSideBottomJoint(), defaults);
+    for (const b of r.boresB) {
+      expect(typeof b.depth).toBe('number');
+      expect(b.depth as number).toBeGreaterThan(0);
+      expect(b.depth as number).toBeCloseTo(32, 1); // 50 - 18 = 32
+    }
+  });
+
+  it('B2: confirmat-edge u must be ≤18 (thickness-centerline ≈9, not spacing 60/277/494)', () => {
+    const r = generateConfirmat(swappedSideBottomJoint(), defaults);
+    // face2DFrame('Left'): uDir=+Z → u must be within [0, T_bottom=18]
+    for (const b of r.boresB) {
+      expect(b.u).toBeGreaterThanOrEqual(0);
+      expect(b.u).toBeLessThanOrEqual(18);
+      expect(b.u).toBeCloseTo(9, 1); // boardThicknessB / 2 = 9
+    }
+  });
+
+  it('B2: confirmat-edge v must be the along-joint spacing (60/277/494), not 360', () => {
+    const r = generateConfirmat(swappedSideBottomJoint(), defaults);
+    const expectedSpacings = [60, 277, 494];
+    const vs = r.boresB.map((b) => b.v).sort((a, b) => a - b);
+    expect(vs).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      expect(vs[i]).toBeCloseTo(expectedSpacings[i]!, 1);
+    }
+  });
+
+  it('B2: v must be one of the spacing values (60/277/494), NOT the corrupt 360', () => {
+    const r = generateConfirmat(swappedSideBottomJoint(), defaults);
+    const expectedSpacings = [60, 277, 494];
+    for (const b of r.boresB) {
+      expect(b.v).toBeLessThan(560); // within the joint length
+      // v must be one of the spacing distances — 360 is NOT a valid spacing and must not appear
+      const matchesSpacing = expectedSpacings.some((s) => Math.abs(b.v - s) < 1);
+      expect(matchesSpacing).toBe(true);
+    }
+  });
+});
 
 describe('count/spacing math (via confirmat)', () => {
   it('700mm joint, defaults → ceil((700-120)/250)+1 = 4 confirmats per side', () => {
