@@ -48,7 +48,7 @@ describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role 
     const bare = { formatVersion: 21,
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: [] } };
-    const out = migrateManifest(bare) as { kind: string };
+    const out = migrateManifest(bare) as unknown as { kind: string };
     expect(out.kind).toBe('part');
   });
 });
