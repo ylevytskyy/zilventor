@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeCameraFrame } from './frameView';
-import { pathKey, findTextureDef, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { pathKey, findTextureDef, face2DFrame, type BoreOp, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
 import type { CustomTextureRegistry } from '../textures/customTextureRegistry';
@@ -41,6 +41,18 @@ export type PanelOverlaySpec = {
   width: number;
   thickness: number;
   edgeBands: { readonly [K in PanelEdgeKey]: { materialId: string } | null };
+};
+
+/**
+ * Phase 5: one entry per assembly component that carries bores. SceneManager
+ * builds a CircleGeometry/RingGeometry marker per bore, transformed first by the
+ * face's panel-local 2D frame (face2DFrame), then by the component's world pose.
+ */
+export type MarkerOverlaySpec = {
+  key: string;
+  panelDims: { length: number; width: number; thickness: number };
+  worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+  bores: BoreOp[];
 };
 
 
@@ -91,9 +103,17 @@ export class SceneManager {
   private panelOverlaySpecs: PanelOverlaySpec[] = [];
   private materialColorMap: Map<string, string> = new Map();
   private showEdgeBands = true;
+  private boreMarkers: THREE.Mesh[] = [];
+  private boreOverlaySpecs: MarkerOverlaySpec[] = [];
+  private showBores = true;
   private storeUnsubscribers: Array<() => void> = [];
   private customTextureRegistry: CustomTextureRegistry | null = null;
   private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
+  static readonly BORE_COLORS: Record<'confirmat' | 'minifix' | 'dowel', string> = {
+    confirmat: '#2e7dd1',
+    minifix: '#d14f2e',
+    dowel: '#2eb872',
+  };
 
 
   constructor(canvas: HTMLCanvasElement) {
@@ -603,6 +623,87 @@ export class SceneManager {
     return this.edgeBandOverlays;
   }
 
+  /** Phase 5: store the per-component bore specs; rebuild markers if shown. */
+  setBoreMarkers(specs: MarkerOverlaySpec[]): void {
+    this.boreOverlaySpecs = specs.slice();
+    this.rebuildBoreMarkers();
+  }
+
+  /** Phase 5: toggle bore-marker visibility (subscribed to useAppStore.showBores via attach()). */
+  setShowBores(v: boolean): void {
+    this.showBores = v;
+    this.rebuildBoreMarkers();
+  }
+
+  /** Phase 5: test/debug accessor — count of attached bore markers. */
+  boreMarkerCount(): number {
+    return this.boreMarkers.length;
+  }
+
+  /** Phase 5: test/debug accessor — read-only handle to the marker meshes. */
+  boreMarkerList(): ReadonlyArray<THREE.Mesh> {
+    return this.boreMarkers;
+  }
+
+  /** Phase 5: test/debug accessor — the last-set specs. */
+  boreMarkerSpecList(): ReadonlyArray<MarkerOverlaySpec> {
+    return this.boreOverlaySpecs;
+  }
+
+  /**
+   * Phase 5: drop existing bore markers; if showBores, build one RingGeometry
+   * disc per bore. The ring sits in the face plane at face2DFrame(u,v), then the
+   * whole marker is transformed by the component world pose. Mirrors
+   * rebuildEdgeBandOverlays' clear-then-rebuild shape.
+   */
+  rebuildBoreMarkers(): void {
+    for (const marker of this.boreMarkers) {
+      this.scene.remove(marker);
+      marker.geometry.dispose();
+      (marker.material as THREE.Material).dispose();
+    }
+    this.boreMarkers.length = 0;
+    if (!this.showBores) return;
+    for (const spec of this.boreOverlaySpecs) {
+      const q = new THREE.Quaternion(
+        spec.worldPose.quaternion[0], spec.worldPose.quaternion[1],
+        spec.worldPose.quaternion[2], spec.worldPose.quaternion[3],
+      );
+      const t = new THREE.Vector3(
+        spec.worldPose.translation.x, spec.worldPose.translation.y, spec.worldPose.translation.z,
+      );
+      const compMat = new THREE.Matrix4().compose(t, q, new THREE.Vector3(1, 1, 1));
+      for (const bore of spec.bores) {
+        // bore.face is FaceName (object); face2DFrame takes the role string.
+        const f = face2DFrame(spec.panelDims, bore.face.role as PanelFaceRole);
+        const uDir = new THREE.Vector3(f.uDir.x, f.uDir.y, f.uDir.z).normalize();
+        const vDir = new THREE.Vector3(f.vDir.x, f.vDir.y, f.vDir.z).normalize();
+        const nDir = new THREE.Vector3().crossVectors(uDir, vDir).normalize();
+        // Panel-local position of the bore.
+        const p = new THREE.Vector3(f.origin.x, f.origin.y, f.origin.z)
+          .addScaledVector(uDir, bore.u)
+          .addScaledVector(vDir, bore.v);
+        // RingGeometry is authored in the XY plane (normal +Z); build basis so
+        // +X aligns with uDir, +Y aligns with vDir, +Z aligns with nDir.
+        const basis = new THREE.Matrix4().makeBasis(uDir, vDir, nDir);
+        const localMat = new THREE.Matrix4().copy(basis).setPosition(p);
+        const worldMat = new THREE.Matrix4().multiplyMatrices(compMat, localMat);
+        const outer = bore.diameter / 2;
+        const geom = new THREE.RingGeometry(outer * 0.6, outer, 24);
+        const color = SceneManager.BORE_COLORS[bore.connectorKind];
+        const mat = new THREE.MeshBasicMaterial({ color, depthWrite: false, side: THREE.DoubleSide });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.matrixAutoUpdate = false;
+        mesh.matrix.copy(worldMat);
+        mesh.userData.kind = 'boreMarker';
+        mesh.userData.boreId = bore.id;
+        mesh.userData.markerKey = spec.key;
+        this.scene.add(mesh);
+        this.boreMarkers.push(mesh);
+      }
+    }
+  }
+
   /**
    * T30: Subscribe to `useAppStore.showEdgeBands` so the scene reflects the
    * View-tab toggle without the caller having to wire it manually. Fires
@@ -788,6 +889,12 @@ export class SceneManager {
       (overlay.material as THREE.Material).dispose();
     }
     this.edgeBandOverlays.length = 0;
+    for (const marker of this.boreMarkers) {
+      this.scene.remove(marker);
+      marker.geometry.dispose();
+      (marker.material as THREE.Material).dispose();
+    }
+    this.boreMarkers.length = 0;
     this.renderer.dispose();
     for (const mat of this.colorMaterials.values()) mat.dispose();
     this.colorMaterials.clear();
