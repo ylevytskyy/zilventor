@@ -1,0 +1,175 @@
+import type { Command } from './Command';
+import type { BoreOp, PanelInput, PanelRole } from '@zilventor/shared';
+import {
+  enumerateAutoJoints,
+  generateConfirmat, generateMinifix, generateDowel,
+  CURRENT_FORMAT_VERSION,
+} from '@zilventor/shared';
+import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { useAppStore } from '../store/useAppStore';
+import type { JointInput } from '@zilventor/shared';
+
+type BoringParams = {
+  endSetback: number;
+  maxSpacing: number;
+  minCount: number;
+  confirmat: boolean;
+  minifix: boolean;
+  dowel: boolean;
+};
+
+type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8Array): Promise<void> };
+
+/**
+ * Read a panel's resolved dims from its single PanelFeature inside the .zipt manifest.
+ * Uses `featureTree` (the real PartDocument field) — NOT `features`.
+ * Panel dims are stored as ParamOrLiteral; only `literal` values are supported here
+ * (parameter-bound panels are an extension point for later).
+ */
+function panelDimsFromDoc(
+  doc: { featureTree?: Array<Record<string, unknown>> },
+): { length: number; width: number; thickness: number } {
+  const panel = (doc.featureTree ?? []).find((f) => f.kind === 'panel') as
+    | { length: unknown; width: unknown; thickness: unknown }
+    | undefined;
+  if (!panel) throw new Error('NO_PANEL_FEATURE');
+
+  function resolve(v: unknown, name: string): number {
+    if (typeof v === 'number') return v;
+    if (v !== null && typeof v === 'object' && (v as Record<string, unknown>).kind === 'literal') {
+      const val = (v as { value: unknown }).value;
+      if (typeof val === 'number') return val;
+    }
+    throw new Error(`UNRESOLVABLE_DIM: ${name}`);
+  }
+
+  return {
+    length: resolve(panel.length, 'length'),
+    width: resolve(panel.width, 'width'),
+    thickness: resolve(panel.thickness, 'thickness'),
+  };
+}
+
+export class GenerateCarcassBoresCommand implements Command {
+  readonly name = 'GenerateCarcassBores';
+  /** partPath → prior bores[] (for revert). Captured during apply(). */
+  private priorBores = new Map<string, BoreOp[]>();
+  private readonly store: typeof useAppStore;
+
+  constructor(private readonly opts: {
+    params: BoringParams;
+    opfs: OpfsRW;
+    store?: typeof useAppStore;
+  }) {
+    this.store = opts.store ?? useAppStore;
+  }
+
+  async apply(): Promise<void> {
+    const asm = this.store.getState().activeAssembly;
+    if (!asm) return;
+
+    // 1. Load each involved panel's manifest + dims once; build PanelInput[].
+    const docs = new Map<string, { manifest: Record<string, unknown>; document: Record<string, unknown> }>();
+    const panelInputs: Array<PanelInput & { partPath: string }> = [];
+
+    for (const c of asm.components) {
+      if (!c.role) continue; // pre-feature cabinets lack role → skip (manual path covers them)
+
+      const project = await this.opts.opfs.read(c.partPath).then(unpackProject);
+      const manifest = project.manifest as { document: Record<string, unknown> };
+      docs.set(c.partPath, { manifest: manifest as unknown as Record<string, unknown>, document: manifest.document });
+
+      const dims = panelDimsFromDoc(manifest.document as { featureTree?: Array<Record<string, unknown>> });
+
+      // ComponentInstance.position is the bottom-left-back CORNER of the part-local box
+      // (part-local box is [-L/2,-W/2,0]..[L/2,W/2,T], centered in X/Y, bottom at Z=0).
+      // jointMath.worldAABB expects pose.translation = GEOMETRIC CENTER of the fully-centered
+      // equivalent box. For identity quaternion, the center in world space = corner + {L/2, W/2, T/2}.
+      const { length: L, width: W, thickness: T } = dims;
+      const cx = c.position.x + L / 2;
+      const cy = c.position.y + W / 2;
+      const cz = c.position.z + T / 2;
+
+      panelInputs.push({
+        partPath: c.partPath,
+        dims,
+        pose: { translation: { x: cx, y: cy, z: cz }, quaternion: [0, 0, 0, 1] },
+        role: c.role as PanelRole,
+      });
+    }
+
+    // 2. Enumerate auto joints (role-driven butt-joint detection).
+    const joints = enumerateAutoJoints(panelInputs);
+
+    // 3. Accumulate bores per partPath.
+    const accum = new Map<string, BoreOp[]>();
+    const append = (partPath: string, bores: BoreOp[]) => {
+      const list = accum.get(partPath) ?? [];
+      list.push(...bores);
+      accum.set(partPath, list);
+    };
+
+    /** Map a PanelInput reference back to its partPath via identity comparison. */
+    const pathOf = (pi: PanelInput): string =>
+      (panelInputs.find((p) => p === pi) as { partPath: string }).partPath;
+
+    for (const joint of joints) {
+      const aPath = pathOf(joint.panelA);
+      const bPath = pathOf(joint.panelB);
+
+      // JointInput is structurally compatible with Joint — cast is safe since Joint
+      // extends JointInput with the same line/panelA/panelB/faceA/endB fields.
+      const ji = joint as unknown as JointInput;
+
+      if (this.opts.params.confirmat) {
+        const { boresA, boresB } = generateConfirmat(ji, this.opts.params);
+        append(aPath, boresA); append(bPath, boresB);
+      }
+      if (this.opts.params.minifix) {
+        const { boresA, boresB } = generateMinifix(ji, this.opts.params);
+        append(aPath, boresA); append(bPath, boresB);
+      }
+      if (this.opts.params.dowel) {
+        const { boresA, boresB } = generateDowel(ji, this.opts.params);
+        append(aPath, boresA); append(bPath, boresB);
+      }
+    }
+
+    // 4. Persist: snapshot prior bores, set new bores[], repack each .zipt.
+    for (const [partPath, newBores] of accum) {
+      const entry = docs.get(partPath)!;
+      const existing = (entry.document.bores as BoreOp[] | undefined) ?? [];
+      this.priorBores.set(partPath, existing);
+      entry.document.bores = [...existing, ...newBores];
+      const repackedManifest = {
+        ...entry.manifest,
+        formatVersion: CURRENT_FORMAT_VERSION,
+        document: entry.document,
+      };
+      await this.opts.opfs.write(
+        partPath,
+        await packProject({ manifest: repackedManifest, blobs: {} }),
+      );
+    }
+  }
+
+  async revert(): Promise<void> {
+    for (const [partPath, prior] of this.priorBores) {
+      const project = await this.opts.opfs.read(partPath).then(unpackProject);
+      const manifest = project.manifest as { document: Record<string, unknown> };
+      if (prior.length > 0) {
+        manifest.document.bores = prior;
+      } else {
+        delete manifest.document.bores;
+      }
+      await this.opts.opfs.write(
+        partPath,
+        await packProject({
+          manifest: { ...manifest, formatVersion: CURRENT_FORMAT_VERSION },
+          blobs: {},
+        }),
+      );
+    }
+    this.priorBores.clear();
+  }
+}
