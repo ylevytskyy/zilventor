@@ -115,4 +115,19 @@ describe('SceneManager — bore markers (Phase 5)', () => {
     expect(mgr.boreMarkerCount()).toBe(0);
     unsub();
   });
+
+  // Regression for DEFECT 1 (geometry-ready tick race):
+  // The bore-marker React effect fires twice:
+  //   1st fire (same tick as mesh-sync): partBoresCacheRef empty → setBoreMarkers([])
+  //   2nd fire (after geometryReadyTick bumped by mesh-sync): cache populated → setBoreMarkers([spec])
+  // SceneManager must produce markers on the 2nd call even though the 1st was empty.
+  it('re-populates markers after an initial empty call (geometry-ready tick race)', () => {
+    mgr.setShowBores(true);
+    // Simulates the first bore-marker effect fire (races mesh-sync, reads empty cache).
+    mgr.setBoreMarkers([]);
+    expect(mgr.boreMarkerCount()).toBe(0);
+    // Simulates the second fire after geometryReadyTick bumps (cache now populated).
+    mgr.setBoreMarkers([oneBoreSpec()]);
+    expect(mgr.boreMarkerCount()).toBe(1);
+  });
 });

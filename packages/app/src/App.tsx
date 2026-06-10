@@ -2693,6 +2693,32 @@ export default function App() {
     }
     useAppStore.getState().setSubAssemblyInnerPoses(inner);
   }, [subAssemblyDocsForInnerPoses]);
+  // DEFECT 2 fix: when sub-assembly docs are populated for the first time
+  // (placeholder 50mm boxes → real panel geometry), arm a one-shot camera
+  // re-fit so the viewport frames the real cabinet instead of the tiny box.
+  //
+  // Strategy: track doc count per active assembly. Reset the baseline when the
+  // active 3D document changes (active3dDocId changes → new assembly opened →
+  // prevSubAsmDocCountRef resets to 0 so the next 0→N fires). This means that
+  // if the user re-opens the same cabinet assembly, the doc count was never
+  // reset to 0 in the store (subAssemblyDocs is additive), so count starts > 0
+  // immediately and we DON'T arm a redundant re-fit — which is correct because
+  // the existing active3dDocId effect (line ~180) already armed one on open.
+  const prevSubAsmDocCountRef = useRef(0);
+  // Reset baseline counter when the shown 3D document changes.
+  useEffect(() => {
+    prevSubAsmDocCountRef.current = 0;
+  }, [active3dDocId]);
+  useEffect(() => {
+    const count = Object.keys(subAssemblyDocsForInnerPoses).length;
+    if (prevSubAsmDocCountRef.current === 0 && count > 0) {
+      // Sub-assembly docs just arrived for the first time on this assembly open.
+      // The mesh-sync effect will re-render real panels; arm a camera re-fit so
+      // it frames real geometry instead of the 50mm placeholder boxes.
+      viewportRef.current?.requestFrameOnNextMesh();
+    }
+    prevSubAsmDocCountRef.current = count;
+  }, [subAssemblyDocsForInnerPoses]);
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
@@ -2706,6 +2732,11 @@ export default function App() {
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
   const [partInfoVersion, setPartInfoVersion] = useState(0);
+  // Bumped by the assembly mesh-sync effect AFTER it has finished populating
+  // partBoresCacheRef for all leaf parts. The bore-marker effect lists this as
+  // a dep so it re-runs (and reads the now-full cache) after mesh-sync completes,
+  // rather than racing against it.
+  const [geometryReadyTick, setGeometryReadyTick] = useState(0);
   // Snapshot whose identity changes whenever the partInfo cache mutates,
   // so memoised consumers (BomTable) recompute.
   const partInfoSnapshot = useMemo(() => new Map(partInfoCacheRef.current), [partInfoVersion]);
@@ -3880,6 +3911,12 @@ export default function App() {
       if (!cancelled) {
         vp.setComponentMeshes(componentLeaves);
         useAppStore.getState().setComponentDiagnostics(diagnostics);
+        // Signal the bore-marker effect that partBoresCacheRef is now fully
+        // populated for this render cycle. The marker effect lists this counter
+        // as a dep so it runs AFTER the async WASM loads above complete — fixing
+        // the race where both effects fired on the same componentPoses change but
+        // the marker effect read an empty cache before WASM had written it.
+        setGeometryReadyTick((t) => t + 1);
       }
     })();
     return () => { cancelled = true; };
@@ -3964,7 +4001,13 @@ export default function App() {
       });
     }
     vp.setBoreMarkers(markerSpecs);
-  }, [assembly, componentPoses]);
+  // geometryReadyTick is bumped by the mesh-sync effect after it finishes all
+  // async WASM loads and has written every leaf's bores into partBoresCacheRef.
+  // Without it this effect and mesh-sync both fire on the same componentPoses
+  // change; this effect reads the cache BEFORE the async work completes → finds
+  // nothing → marker count stays 0 and never re-triggers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assembly, componentPoses, geometryReadyTick]);
 
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
   // description) for each unique partPath referenced by the active assembly so
