@@ -104,8 +104,8 @@ export default function ModelTab() {
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkPlaneDialogCommand()}
-          aria-label={t('ribbon.model.plane')}
-          title={readOnly ? readOnlyTip : t('ribbon.model.plane')}
+          aria-label={t('ribbon.model.planeAria')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.planeTitle')}
         >
           {t('ribbon.model.plane')}
         </button>
@@ -113,8 +113,8 @@ export default function ModelTab() {
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkAxisDialogCommand()}
-          aria-label={t('ribbon.model.axis')}
-          title={readOnly ? readOnlyTip : t('ribbon.model.axis')}
+          aria-label={t('ribbon.model.axisAria')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.axisTitle')}
         >
           {t('ribbon.model.axis')}
         </button>
@@ -122,8 +122,8 @@ export default function ModelTab() {
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkPointDialogCommand()}
-          aria-label={t('ribbon.model.point')}
-          title={readOnly ? readOnlyTip : t('ribbon.model.point')}
+          aria-label={t('ribbon.model.pointAria')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.pointTitle')}
         >
           {t('ribbon.model.point')}
         </button>

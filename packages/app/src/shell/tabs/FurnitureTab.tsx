@@ -103,7 +103,7 @@ export default function FurnitureTab() {
           {t('ribbon.furniture.panel')}
         </button>
       </RibbonPanel>
-      <div aria-label={t('ribbon.furniture.cabinets')}>
+      <div aria-label={t('ribbon.furniture.cabinetsPanel')}>
         <RibbonPanel title={t('ribbon.furniture.cabinets')}>
           <button
             type="button"
@@ -117,7 +117,7 @@ export default function FurnitureTab() {
           </button>
         </RibbonPanel>
       </div>
-      <div aria-label={t('ribbon.furniture.hardware')}>
+      <div aria-label={t('ribbon.furniture.hardwarePanel')}>
         <RibbonPanel title={t('ribbon.furniture.hardware')}>
           <button
             type="button"
@@ -131,7 +131,7 @@ export default function FurnitureTab() {
           </button>
         </RibbonPanel>
       </div>
-      <div aria-label={t('ribbon.furniture.cutList')}>
+      <div aria-label={t('ribbon.furniture.cutListPanel')}>
         <RibbonPanel title={t('ribbon.furniture.cutList')}>
           <button type="button" className="text-xs hover:text-white"
             onClick={() => void new OpenCutListTabCommand().apply()}>{t('ribbon.furniture.cutList')}</button>

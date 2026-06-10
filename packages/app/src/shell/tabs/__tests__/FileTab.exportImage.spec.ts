@@ -41,7 +41,7 @@ describe('FileTab — Export Image button', () => {
   it('Export Image button is disabled when activeDoc.kind === drawing', async () => {
     const src = await readSrc(FILE_TAB_PATH);
     // The button must be conditionally disabled when activeDoc kind is 'drawing'
-    expect(src).toContain("Export Image");
+    expect(src).toContain("menu.file.exportImage");
     expect(src).toContain("kind === 'drawing'");
   });
 
