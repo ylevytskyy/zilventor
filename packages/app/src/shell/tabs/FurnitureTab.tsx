@@ -16,6 +16,7 @@ import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand'
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
 import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
+import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
@@ -166,6 +167,15 @@ export default function FurnitureTab() {
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.csv`,
             }).apply()}>
             Export CSV (Boring)
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            onClick={() => void new ExportBoringDxfCommand({
+              result: boringResult,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.dxf`,
+            }).apply()}>
+            Export DXF (Boring)
           </button>
         </RibbonPanel>
       </div>
