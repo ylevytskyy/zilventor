@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type ExtrudeOperation = 'new' | 'join' | 'cut';
 
@@ -27,6 +28,7 @@ export default function ExtrudeDialog({
   onCommit,
   onCancel,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [distance, setDistance] = useState(initialDistance);
   const [operation, setOperation] = useState<ExtrudeOperation>(hasRunningBody ? 'join' : 'new');
 
@@ -42,12 +44,12 @@ export default function ExtrudeDialog({
   };
 
   return (
-    <div role="dialog" aria-label="Extrude dialog" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div role="dialog" aria-label={t('aria.extrude_dialog')} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <form onSubmit={handleSubmit} className="bg-shell-panel border border-shell-border p-4 w-64 text-xs">
-        <h3 className="mb-3 text-sm">Extrude</h3>
-        <label>Distance
+        <h3 className="mb-3 text-sm">{t('dialog.extrude.title')}</h3>
+        <label>{t('dialog.extrude.distance')}
           <input
-            aria-label="Distance"
+            aria-label={t('dialog.extrude.distance')}
             className="block w-full mt-1 bg-shell text-white px-2 py-1"
             value={distance}
             onChange={(e) => setDistance(e.target.value)}
@@ -55,7 +57,7 @@ export default function ExtrudeDialog({
         </label>
 
         <div className="mt-3">
-          <span className="block font-semibold mb-1">Operation</span>
+          <span className="block font-semibold mb-1">{t('dialog.extrude.operation')}</span>
           <div className="flex gap-1">
             <button
               type="button"
@@ -63,7 +65,7 @@ export default function ExtrudeDialog({
               className={toggleBtnClass(operation === 'new', false)}
               onClick={() => setOperation('new')}
             >
-              New
+              {t('dialog.extrude.new')}
             </button>
             <button
               type="button"
@@ -72,7 +74,7 @@ export default function ExtrudeDialog({
               className={toggleBtnClass(operation === 'join', !hasRunningBody)}
               onClick={() => setOperation('join')}
             >
-              Join
+              {t('dialog.extrude.join')}
             </button>
             <button
               type="button"
@@ -81,14 +83,14 @@ export default function ExtrudeDialog({
               className={toggleBtnClass(operation === 'cut', !hasRunningBody)}
               onClick={() => setOperation('cut')}
             >
-              Cut
+              {t('dialog.extrude.cut')}
             </button>
           </div>
         </div>
 
         <div className="flex gap-2 mt-4 justify-end">
-          <button type="button" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="font-semibold" disabled={!canCommit}>OK</button>
+          <button type="button" onClick={onCancel}>{t('common.cancel')}</button>
+          <button type="submit" className="font-semibold" disabled={!canCommit}>{t('common.ok')}</button>
         </div>
       </form>
     </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'mate' | 'flush' | 'angle' | 'insert';
 type PickedRefDescription = { label: string };
@@ -29,32 +30,33 @@ const row: React.CSSProperties = {
 };
 
 export function PlaceConstraintDialog(p: Props): JSX.Element {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>(p.mode);
-  const valueLabel = mode === 'angle' ? 'Angle:' : 'Offset:';
+  const valueLabel = mode === 'angle' ? t('dialog.placeConstraint.angleLabel') : t('dialog.placeConstraint.offsetLabel');
   const valueUnit = mode === 'angle' ? '°' : 'mm';
   const okEnabled = p.pickedRefA !== null && p.pickedRefB !== null;
 
   return (
-    <div role="dialog" aria-label="Place Constraint" style={panel}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Place Constraint</div>
+    <div role="dialog" aria-label={t('dialog.placeConstraint.ariaLabel')} style={panel}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.placeConstraint.title')}</div>
       <div style={row}>
-        <span style={{ width: 60 }}>Type:</span>
+        <span style={{ width: 60 }}>{t('dialog.placeConstraint.type')}</span>
         <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} style={btn}>
-          <option value="mate">Mate</option>
-          <option value="flush">Flush</option>
-          <option value="angle">Angle</option>
-          <option value="insert">Insert</option>
+          <option value="mate">{t('dialog.placeConstraint.mate')}</option>
+          <option value="flush">{t('dialog.placeConstraint.flush')}</option>
+          <option value="angle">{t('dialog.placeConstraint.angle')}</option>
+          <option value="insert">{t('dialog.placeConstraint.insert')}</option>
         </select>
       </div>
       <div style={row}>
-        <span style={{ width: 80 }}>Selection 1:</span>
-        <button style={btn} onClick={() => p.onPick('A')}>Pick…</button>
-        <span style={{ marginLeft: 6, color: '#aaa' }}>{p.pickedRefA?.label ?? '(none)'}</span>
+        <span style={{ width: 80 }}>{t('dialog.placeConstraint.selection1')}</span>
+        <button style={btn} onClick={() => p.onPick('A')}>{t('common.pick_ellipsis')}</button>
+        <span style={{ marginLeft: 6, color: '#aaa' }}>{p.pickedRefA?.label ?? t('dialog.placeConstraint.noneSelected')}</span>
       </div>
       <div style={row}>
-        <span style={{ width: 80 }}>Selection 2:</span>
-        <button style={btn} onClick={() => p.onPick('B')}>Pick…</button>
-        <span style={{ marginLeft: 6, color: '#aaa' }}>{p.pickedRefB?.label ?? '(none)'}</span>
+        <span style={{ width: 80 }}>{t('dialog.placeConstraint.selection2')}</span>
+        <button style={btn} onClick={() => p.onPick('B')}>{t('common.pick_ellipsis')}</button>
+        <span style={{ marginLeft: 6, color: '#aaa' }}>{p.pickedRefB?.label ?? t('dialog.placeConstraint.noneSelected')}</span>
       </div>
       <div style={row}>
         <span style={{ width: 60 }}>{valueLabel}</span>
@@ -62,9 +64,9 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
         <span>{valueUnit}</span>
       </div>
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-        <button onClick={p.onApply} disabled={!okEnabled} style={btn}>Apply</button>
-        <button onClick={p.onCancel} style={btn}>Cancel</button>
-        <button onClick={p.onCommit} disabled={!okEnabled} style={btn}>OK</button>
+        <button onClick={p.onApply} disabled={!okEnabled} style={btn}>{t('common.apply')}</button>
+        <button onClick={p.onCancel} style={btn}>{t('common.cancel')}</button>
+        <button onClick={p.onCommit} disabled={!okEnabled} style={btn}>{t('common.ok')}</button>
       </div>
     </div>
   );

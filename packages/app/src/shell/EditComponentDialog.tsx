@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ComponentColor, ComponentInstance } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { ColorPicker } from './ColorPicker';
@@ -21,6 +22,7 @@ const inputStyle: React.CSSProperties = { flex: 1, background: '#222', color: '#
 const btn: React.CSSProperties = { background: '#2a2a2a', color: '#eee', border: '1px solid #444', padding: '4px 10px', cursor: 'pointer', fontSize: 11 };
 
 export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [x, setX] = useState(String(initial.position.x));
   const [y, setY] = useState(String(initial.position.y));
   const [z, setZ] = useState(String(initial.position.z));
@@ -48,12 +50,12 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
   };
 
   return (
-    <form role="dialog" aria-label="Edit Component" onSubmit={handleSubmit} style={panel}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Edit Component</div>
+    <form role="dialog" aria-label={t('aria.edit_component')} onSubmit={handleSubmit} style={panel}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.editComponent.title')}</div>
       <div style={{ color: '#888', fontSize: 11, marginBottom: 8 }}>{initial.partPath}</div>
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Position (mm)</div>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('dialog.editComponent.position')}</div>
         <div style={row}>
           <label htmlFor="ecd-x" style={{ width: 24 }}>X</label>
           <input id="ecd-x" aria-label="X" value={x} onChange={(e) => setX(e.target.value)} style={inputStyle} />
@@ -69,7 +71,7 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
       </div>
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Rotation (deg)</div>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('dialog.editComponent.rotation')}</div>
         <div style={row}>
           <label htmlFor="ecd-rx" style={{ width: 24 }}>RX</label>
           <input id="ecd-rx" aria-label="RX" value={rx} onChange={(e) => setRx(e.target.value)} style={inputStyle} />
@@ -87,11 +89,11 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
       <label style={row}>
         <input
           type="checkbox"
-          aria-label="visible"
+          aria-label={t('aria.visible')}
           checked={visible}
           onChange={(e) => setVisible(e.target.checked)}
         />
-        <span>visible</span>
+        <span>{t('dialog.editComponent.visible')}</span>
       </label>
 
       {isSubAssembly && (
@@ -102,19 +104,19 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
           <label style={row}>
             <input
               type="checkbox"
-              aria-label="flexible"
+              aria-label={t('aria.flexible')}
               checked={flexibleChecked}
               onChange={() => {
                 void new ToggleSubAssemblyFlexibleCommand({ componentId: initial.id }).apply();
               }}
             />
-            <span>Flexible</span>
+            <span>{t('common.flexible')}</span>
           </label>
         </div>
       )}
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Color</div>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('dialog.editComponent.color')}</div>
         <ColorPicker
           value={color}
           palette={palette}
@@ -124,8 +126,8 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
       </div>
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-        <button type="button" onClick={onCancel} style={btn}>Cancel</button>
-        <button type="submit" style={btn}>OK</button>
+        <button type="button" onClick={onCancel} style={btn}>{t('common.cancel')}</button>
+        <button type="submit" style={btn}>{t('common.ok')}</button>
       </div>
     </form>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CutListResult, CutListRow } from '@zilventor/shared/src/cutListRow';
 
 export type CutListTableProps = {
@@ -48,6 +49,7 @@ function ItemNumberCell({
 }
 
 export function CutListTable({ result, onSelectRow, onEditItemNumber, onExportCsv }: CutListTableProps): JSX.Element {
+  const { t } = useTranslation();
   const canExport = result.rows.length > 0 || result.excluded.componentCount > 0;
   return (
     <div className="flex flex-col gap-3 p-2 text-xs">
@@ -58,28 +60,28 @@ export function CutListTable({ result, onSelectRow, onEditItemNumber, onExportCs
           disabled={!canExport}
           className="px-2 py-1 rounded border bg-white disabled:opacity-50"
         >
-          Export CSV
+          {t('common.export_csv')}
         </button>
       </div>
       {result.rows.length === 0 ? (
-        <div className="italic text-gray-500 px-2">No panels</div>
+        <div className="italic text-gray-500 px-2">{t('common.no_panels')}</div>
       ) : (
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-100 text-left">
-              <th className="px-2 py-1 border-b">Item#</th>
-              <th className="px-2 py-1 border-b">QTY</th>
-              <th className="px-2 py-1 border-b">Material</th>
-              <th className="px-2 py-1 border-b">L</th>
-              <th className="px-2 py-1 border-b">W</th>
-              <th className="px-2 py-1 border-b">T</th>
-              <th className="px-2 py-1 border-b">Grain</th>
-              <th className="px-2 py-1 border-b">Front</th>
-              <th className="px-2 py-1 border-b">Back</th>
-              <th className="px-2 py-1 border-b">Left</th>
-              <th className="px-2 py-1 border-b">Right</th>
-              <th className="px-2 py-1 border-b">Part Name</th>
-              <th className="px-2 py-1 border-b">Part Path</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.item_num')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.qty')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.material')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.length')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.width')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.thickness')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.grain')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.front')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.back')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.left')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.right')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.part_name')}</th>
+              <th className="px-2 py-1 border-b">{t('table.cutlist.part_path')}</th>
             </tr>
           </thead>
           <tbody>
@@ -114,13 +116,13 @@ export function CutListTable({ result, onSelectRow, onEditItemNumber, onExportCs
       )}
       {result.bandTotals.length > 0 && (
         <div>
-          <div className="font-semibold mb-1">Edge Band Totals</div>
+          <div className="font-semibold mb-1">{t('table.cutlist.edge_band_totals')}</div>
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-100 text-left">
-                <th className="px-2 py-1 border-b">Material</th>
-                <th className="px-2 py-1 border-b">Total (mm)</th>
-                <th className="px-2 py-1 border-b">Total (m)</th>
+                <th className="px-2 py-1 border-b">{t('table.cutlist.material')}</th>
+                <th className="px-2 py-1 border-b">{t('table.cutlist.total_mm')}</th>
+                <th className="px-2 py-1 border-b">{t('table.cutlist.total_m')}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,8 +138,7 @@ export function CutListTable({ result, onSelectRow, onEditItemNumber, onExportCs
         </div>
       )}
       <div className="text-gray-600 italic">
-        Excluded from cut list: {result.excluded.componentCount} components
-        ({result.excluded.partCount} distinct parts)
+        {t('table.cutlist.excluded', { componentCount: result.excluded.componentCount, partCount: result.excluded.partCount })}
       </div>
     </div>
   );

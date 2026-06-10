@@ -1,20 +1,22 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import type { ToolKind } from '../../store/useAppStore';
 import SketchRectangleDialog from '../SketchRectangleDialog';
 import type { Feature } from '@zilventor/shared';
 
-type PrimitiveBtn = { kind: 'line' | 'rect' | 'circle' | 'arc' | 'spline'; label: string; shortcut: string };
+type PrimitiveBtn = { kind: 'line' | 'rect' | 'circle' | 'arc' | 'spline'; labelKey: string; shortcut: string };
 const BUTTONS: PrimitiveBtn[] = [
-  { kind: 'line',   label: 'Line',      shortcut: 'L' },
-  { kind: 'rect',   label: 'Rectangle', shortcut: 'R' },
-  { kind: 'circle', label: 'Circle',    shortcut: 'C' },
-  { kind: 'arc',    label: 'Arc',       shortcut: 'A' },
-  { kind: 'spline', label: 'Spline',    shortcut: 'S' }
+  { kind: 'line',   labelKey: 'ribbon.sketch.line',   shortcut: 'L' },
+  { kind: 'rect',   labelKey: 'ribbon.sketch.rect',   shortcut: 'R' },
+  { kind: 'circle', labelKey: 'ribbon.sketch.circle', shortcut: 'C' },
+  { kind: 'arc',    labelKey: 'ribbon.sketch.arc',    shortcut: 'A' },
+  { kind: 'spline', labelKey: 'ribbon.sketch.spline', shortcut: 'S' },
 ];
 
 export default function SketchTab() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const sketchMode = useAppStore((s) => s.sketchMode);
   const constructionMode = useAppStore((s) => s.constructionMode);
@@ -47,30 +49,30 @@ export default function SketchTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2">
-      <RibbonPanel title="Sketch">
+      <RibbonPanel title={t('ribbon.sketch.sketch')}>
         {!sketchMode && (
           <button
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!canSketch}
             onClick={() => { void startSketch(); }}
           >
-            2D Sketch
+            {t('ribbon.sketch.sketch2d')}
           </button>
         )}
         {sketchMode && (
           <button className="text-xs hover:text-white" onClick={finishSketch}>
-            Finish Sketch
+            {t('ribbon.sketch.finishSketch')}
           </button>
         )}
       </RibbonPanel>
-      <RibbonPanel title="Draw">
+      <RibbonPanel title={t('ribbon.sketch.draw')}>
         <button
           aria-pressed={activeToolKind === 'select'}
           className={`text-xs ${activeToolKind === 'select' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('select')}
         >
-          Select
+          {t('ribbon.sketch.select')}
         </button>
         {BUTTONS.map((b) => (
           <button
@@ -80,53 +82,53 @@ export default function SketchTab() {
             disabled={!sketchMode}
             onClick={() => useAppStore.getState().setActiveToolKind(b.kind)}
           >
-            {b.label} <span className="text-neutral-500">({b.shortcut})</span>
+            {t(b.labelKey)} <span className="text-neutral-500">({b.shortcut})</span>
           </button>
         ))}
       </RibbonPanel>
-      <RibbonPanel title="Construction">
+      <RibbonPanel title={t('ribbon.sketch.construction')}>
         <button
           aria-pressed={constructionMode}
           className={`text-xs ${constructionMode ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setConstructionMode(!constructionMode)}
         >
-          Construction <span className="text-neutral-500">(X)</span>
+          {t('ribbon.sketch.constructionBtn')} <span className="text-neutral-500">(X)</span>
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Constrain">
+      <RibbonPanel title={t('ribbon.sketch.constrain')}>
         <div className="flex flex-col gap-1">
           {([
-            ['coincident',    'Coincident (N)', '●'],
-            ['horizontal',    'Horizontal (H)', '—'],
-            ['vertical',      'Vertical (V)',   '|'],
-            ['parallel',      'Parallel (P)',   '∥'],
-            ['perpendicular', 'Perpendicular (E)', '⊥'],
-            ['tangent',       'Tangent (T)',    '⌒'],
-            ['equal',         'Equal (Q)',      '='],
-            ['symmetric',     'Symmetric (Y)',  '⇄'],
-          ] as const).map(([kind, label, glyph]) => (
+            ['coincident',    'ribbon.sketch.coincident', '●'],
+            ['horizontal',    'ribbon.sketch.horizontal', '—'],
+            ['vertical',      'ribbon.sketch.vertical',   '|'],
+            ['parallel',      'ribbon.sketch.parallel',   '∥'],
+            ['perpendicular', 'ribbon.sketch.perpendicular', '⊥'],
+            ['tangent',       'ribbon.sketch.tangent',    '⌒'],
+            ['equal',         'ribbon.sketch.equal',      '='],
+            ['symmetric',     'ribbon.sketch.symmetric',  '⇄'],
+          ] as const).map(([kind, labelKey, glyph]) => (
             <button
               key={kind}
               aria-pressed={activeToolKind === `constrain-${kind}`}
               className={`text-xs ${activeToolKind === `constrain-${kind}` ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
               disabled={!sketchMode}
-              title={label}
+              title={t(labelKey)}
               onClick={() => useAppStore.getState().setActiveToolKind(`constrain-${kind}` as ToolKind)}
             >
-              <span className="glyph">{glyph}</span> {label}
+              <span className="glyph">{glyph}</span> {t(labelKey)}
             </button>
           ))}
         </div>
       </RibbonPanel>
-      <RibbonPanel title="Modify">
+      <RibbonPanel title={t('ribbon.sketch.modify')}>
         <button
           aria-pressed={activeToolKind === 'offset'}
           className={`text-xs ${activeToolKind === 'offset' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('offset')}
         >
-          Offset
+          {t('ribbon.sketch.offset')}
         </button>
         <button
           aria-pressed={activeToolKind === 'fillet'}
@@ -134,7 +136,7 @@ export default function SketchTab() {
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('fillet')}
         >
-          Fillet
+          {t('ribbon.sketch.fillet')}
         </button>
         <button
           aria-pressed={activeToolKind === 'chamfer'}
@@ -142,7 +144,7 @@ export default function SketchTab() {
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('chamfer')}
         >
-          Chamfer
+          {t('ribbon.sketch.chamfer')}
         </button>
         <button
           aria-pressed={activeToolKind === 'trim'}
@@ -150,7 +152,7 @@ export default function SketchTab() {
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('trim')}
         >
-          Trim
+          {t('ribbon.sketch.trim')}
         </button>
         <button
           aria-pressed={activeToolKind === 'extend'}
@@ -158,7 +160,7 @@ export default function SketchTab() {
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('extend')}
         >
-          Extend
+          {t('ribbon.sketch.extend')}
         </button>
         <button
           aria-pressed={activeToolKind === 'project-geom'}
@@ -166,21 +168,21 @@ export default function SketchTab() {
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('project-geom')}
         >
-          Project
+          {t('ribbon.sketch.project')}
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Dimension">
+      <RibbonPanel title={t('ribbon.sketch.dimension')}>
         <button
           aria-pressed={activeToolKind === 'dimension'}
           className={`text-xs ${activeToolKind === 'dimension' ? 'text-white font-semibold' : 'text-neutral-300 hover:text-white'} disabled:text-neutral-500`}
           disabled={!sketchMode}
           onClick={() => useAppStore.getState().setActiveToolKind('dimension')}
         >
-          General Dimension <span className="text-neutral-500">(D)</span>
+          {t('ribbon.sketch.generalDim')} <span className="text-neutral-500">(D)</span>
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Fallback">
-        <button className="text-xs text-neutral-400 hover:text-white" onClick={() => setNumericFallbackOpen(true)}>Numeric rectangle…</button>
+      <RibbonPanel title={t('ribbon.sketch.fallback')}>
+        <button className="text-xs text-neutral-400 hover:text-white" onClick={() => setNumericFallbackOpen(true)}>{t('ribbon.sketch.numericRect')}</button>
       </RibbonPanel>
       {numericFallbackOpen && <SketchRectangleDialog onClose={() => setNumericFallbackOpen(false)} />}
     </div>

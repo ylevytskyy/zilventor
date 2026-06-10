@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkPointFeature, WorkAxisRef, WorkPlaneRef } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -15,14 +16,6 @@ export type WorkPointDialogProps = {
 
 type Mode = WorkPointFeature['source']['mode'];
 
-const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
-  { value: 'origin', label: 'Origin (0, 0, 0)' },
-  { value: 'vertex', label: 'Vertex' },
-  { value: 'midpointOfEdge', label: 'Midpoint of Edge' },
-  { value: 'centerOfArc', label: 'Center of Arc' },
-  { value: 'axisIntersectsPlane', label: 'Axis ∩ Plane' },
-  { value: 'threePlanes', label: 'Three Planes (intersection)' },
-];
 
 const panel: React.CSSProperties = {
   position: 'fixed', top: 80, right: 20, background: '#1a1a1a',
@@ -40,6 +33,15 @@ const planeRef = (text: string): WorkPlaneRef => ({ source: 'workPlane', feature
 const axisRef = (text: string): WorkAxisRef => ({ source: 'workAxis', featureId: text.trim() || 'origin.X' });
 
 export function WorkPointDialog({ initialValues, onCommit, onCancel }: WorkPointDialogProps): React.ReactElement {
+  const { t } = useTranslation();
+  const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
+    { value: 'origin', label: t('dialog.workPoint.modeOrigin') },
+    { value: 'vertex', label: t('dialog.workPoint.modeVertex') },
+    { value: 'midpointOfEdge', label: t('dialog.workPoint.modeMidpoint') },
+    { value: 'centerOfArc', label: t('dialog.workPoint.modeCenterOfArc') },
+    { value: 'axisIntersectsPlane', label: t('dialog.workPoint.modeAxisPlane') },
+    { value: 'threePlanes', label: t('dialog.workPoint.modeThreePlanes') },
+  ];
   const [mode, setMode] = React.useState<Mode>(initialValues?.source.mode ?? 'origin');
   const [edgeText, setEdgeText] = React.useState('');
   const [face, setFace] = React.useState('');
@@ -107,43 +109,43 @@ export function WorkPointDialog({ initialValues, onCommit, onCancel }: WorkPoint
   }
 
   return (
-    <div style={panel} role="dialog" aria-label="Work Point">
-      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>Work Point</h3>
+    <div style={panel} role="dialog" aria-label={t('dialog.workPoint.ariaLabel')}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>{t('dialog.workPoint.title')}</h3>
       <div style={row}>
-        <label htmlFor="wpt-mode" style={label}>Mode</label>
+        <label htmlFor="wpt-mode" style={label}>{t('common.mode')}</label>
         <select id="wpt-mode" aria-label="mode" value={mode} onChange={(e) => setMode(e.target.value as Mode)} style={input}>
           {ALL_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </div>
 
       {(mode === 'vertex' || mode === 'midpointOfEdge') && (
-        <div style={row}><label style={label}>Edge featureId</label><input aria-label="edge featureId" value={edgeText} onChange={(e) => setEdgeText(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('common.edgeFeatureId')}</label><input aria-label={t('common.edgeFeatureIdAria')} value={edgeText} onChange={(e) => setEdgeText(e.target.value)} style={input} /></div>
       )}
       {mode === 'vertex' && (
         <div style={row}>
-          <label style={label}>End</label>
-          <select aria-label="end" value={end} onChange={(e) => setEnd(e.target.value as 'start' | 'end')} style={input}>
-            <option value="start">start</option>
-            <option value="end">end</option>
+          <label style={label}>{t('dialog.workPoint.end')}</label>
+          <select aria-label={t('dialog.workPoint.endAria')} value={end} onChange={(e) => setEnd(e.target.value as 'start' | 'end')} style={input}>
+            <option value="start">{t('dialog.workPoint.start')}</option>
+            <option value="end">{t('dialog.workPoint.endOpt')}</option>
           </select>
         </div>
       )}
 
       {mode === 'centerOfArc' && (
-        <div style={row}><label style={label}>Face featureId</label><input aria-label="face featureId" value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('common.faceFeatureId')}</label><input aria-label={t('common.faceFeatureIdAria')} value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
       )}
 
       {mode === 'axisIntersectsPlane' && (
         <>
           <div style={row}>
-            <label style={label}>Axis</label>
-            <input aria-label="axis ref" value={axis} onChange={(e) => setAxis(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick axis ref" style={pickBtn} onClick={() => requestPick('axis', 'axis', 'workAxis')}>Pick…</button>
+            <label style={label}>{t('common.axisRef')}</label>
+            <input aria-label={t('common.axisRefAria')} value={axis} onChange={(e) => setAxis(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickAxisRef')} style={pickBtn} onClick={() => requestPick('axis', 'axis', 'workAxis')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Plane</label>
-            <input aria-label="plane ref" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane ref" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeRef')}</label>
+            <input aria-label={t('common.planeRefAria')} value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneRef')} style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
         </>
       )}
@@ -151,26 +153,26 @@ export function WorkPointDialog({ initialValues, onCommit, onCancel }: WorkPoint
       {mode === 'threePlanes' && (
         <>
           <div style={row}>
-            <label style={label}>Plane A</label>
-            <input aria-label="plane A" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane A" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeA')}</label>
+            <input aria-label={t('common.planeAAria')} value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneA')} style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Plane B</label>
-            <input aria-label="plane B" value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane B" style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeB')}</label>
+            <input aria-label={t('common.planeBRefAria')} value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneB')} style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Plane C</label>
-            <input aria-label="plane C" value={planeC} onChange={(e) => setPlaneC(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane C" style={pickBtn} onClick={() => requestPick('plane', 'planeC', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeC')}</label>
+            <input aria-label={t('common.planeCAria')} value={planeC} onChange={(e) => setPlaneC(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneC')} style={pickBtn} onClick={() => requestPick('plane', 'planeC', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
         </>
       )}
 
       <div style={{ ...row, justifyContent: 'flex-end', marginTop: 12 }}>
-        <button style={btn} onClick={onCancel}>Cancel</button>
-        <button style={ok} onClick={handleOk}>OK</button>
+        <button style={btn} onClick={onCancel}>{t('common.cancel')}</button>
+        <button style={ok} onClick={handleOk}>{t('common.ok')}</button>
       </div>
     </div>
   );

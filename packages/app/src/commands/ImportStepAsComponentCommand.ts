@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { ComponentColor, ComponentInstance, PartDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import i18n from '../i18n';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
 import { stepFilenameBasename } from '../import/originFeatures';
 import { importStepIntoNewParts } from '../import/importStepIntoNewParts';
@@ -126,8 +127,8 @@ export class ImportStepAsComponentCommand implements Command {
       }
       useAppStore.getState().setStatus(
         results.length === 1
-          ? `Imported ${results[0]?.part.name ?? fileName}`
-          : `Imported ${results.length} bodies from ${fileName}`,
+          ? i18n.t('status.importStep.importedOne', { name: results[0]?.part.name ?? fileName })
+          : i18n.t('status.importStep.importedMany', { count: results.length, fileName }),
       );
     } else {
       // Part-mode: register first part as active document
@@ -135,10 +136,10 @@ export class ImportStepAsComponentCommand implements Command {
         useAppStore.getState().setActivePart(results[0].part);
         if (results.length > 1) {
           useAppStore.getState().setStatus(
-            `Imported first body of ${results.length} from ${fileName}`,
+            i18n.t('status.importStep.importedFirstOf', { count: results.length, fileName }),
           );
         } else {
-          useAppStore.getState().setStatus('Imported');
+          useAppStore.getState().setStatus(i18n.t('status.importStep.imported'));
         }
       }
     }

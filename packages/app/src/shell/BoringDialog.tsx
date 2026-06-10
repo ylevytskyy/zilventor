@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 
 const overlayStyle: React.CSSProperties = {
@@ -18,6 +19,7 @@ const btnStyle: React.CSSProperties = {
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
 
 export function BoringDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const dialog = useAppStore((s) => s.boringDialog);
   const setDialog = useAppStore((s) => s.setBoringDialog);
 
@@ -57,11 +59,11 @@ export function BoringDialog(): JSX.Element | null {
       <div
         style={panelStyle}
         role="dialog"
-        aria-label="Boring dialog"
+        aria-label={t('aria.boring_dialog')}
         onKeyDown={(e) => { if (e.key === 'Escape') handleCancel(); }}
         tabIndex={-1}
       >
-        <div style={{ fontWeight: 600, marginBottom: 10 }}>Connector Type</div>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>{t('dialog.boring.title')}</div>
 
         <div style={rowStyle}>
           <input
@@ -70,7 +72,7 @@ export function BoringDialog(): JSX.Element | null {
             checked={confirmat}
             onChange={(e) => setConfirmat(e.target.checked)}
           />
-          <label htmlFor="boring-confirmat">Confirmat</label>
+          <label htmlFor="boring-confirmat">{t('dialog.boring.confirmat')}</label>
         </div>
         <div style={rowStyle}>
           <input
@@ -79,7 +81,7 @@ export function BoringDialog(): JSX.Element | null {
             checked={minifix}
             onChange={(e) => setMinifix(e.target.checked)}
           />
-          <label htmlFor="boring-minifix">Minifix</label>
+          <label htmlFor="boring-minifix">{t('dialog.boring.minifix')}</label>
         </div>
         <div style={rowStyle}>
           <input
@@ -88,22 +90,22 @@ export function BoringDialog(): JSX.Element | null {
             checked={dowel}
             onChange={(e) => setDowel(e.target.checked)}
           />
-          <label htmlFor="boring-dowel">Dowel</label>
+          <label htmlFor="boring-dowel">{t('dialog.boring.dowel')}</label>
         </div>
 
         {!valid && (
-          <div role="alert" style={errStyle}>Select at least one connector type.</div>
+          <div role="alert" style={errStyle}>{t('dialog.boring.select_at_least_one')}</div>
         )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
-          <button style={btnStyle} onClick={handleCancel}>Cancel</button>
+          <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
           <button
             style={okBtnStyle}
             onClick={handleOk}
             disabled={!valid}
             aria-disabled={!valid ? 'true' : undefined}
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       </div>

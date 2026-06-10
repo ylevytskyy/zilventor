@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MirrorPlane } from '@zilventor/shared';
 
 export type MirrorComponentDialogValue = {
@@ -52,6 +53,7 @@ export function MirrorComponentDialog({
   onCommit,
   onCancel,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [sourceComponentId, setSourceComponentId] = useState(components[0]?.id ?? '');
   const [plane, setPlane] = useState<MirrorPlane>('yz');
 
@@ -64,18 +66,18 @@ export function MirrorComponentDialog({
   };
 
   return (
-    <form role="dialog" aria-label="Mirror Component" onSubmit={handleSubmit} style={panelStyle}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Mirror Component</div>
+    <form role="dialog" aria-label={t('dialog.mirrorComponent.title')} onSubmit={handleSubmit} style={panelStyle}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.mirrorComponent.title')}</div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Source</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.mirrorComponent.source')}</label>
         <select
-          aria-label="Source component"
+          aria-label={t('dialog.mirrorComponent.sourceAriaLabel')}
           value={sourceComponentId}
           onChange={(e) => setSourceComponentId(e.target.value)}
           style={inputStyle}
         >
-          {components.length === 0 && <option value="">(no components)</option>}
+          {components.length === 0 && <option value="">{t('dialog.mirrorComponent.noComponents')}</option>}
           {components.map((c) => (
             <option key={c.id} value={c.id}>{c.label}</option>
           ))}
@@ -83,7 +85,7 @@ export function MirrorComponentDialog({
       </div>
 
       <div style={rowStyle}>
-        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Plane</span>
+        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.mirrorComponent.plane')}</span>
         <div style={{ display: 'flex', gap: 4, flex: 1 }}>
           {(['yz', 'xz', 'xy'] as MirrorPlane[]).map((p) => (
             <button
@@ -103,12 +105,12 @@ export function MirrorComponentDialog({
         </div>
       </div>
       <div style={{ color: '#888', fontSize: 11, marginBottom: 8 }}>
-        YZ mirrors across x=0; XZ across y=0; XY across z=0.
+        {t('dialog.mirrorComponent.hint')}
       </div>
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
-        <button type="submit" disabled={!canCommit} style={btnStyle}>OK</button>
+        <button type="button" onClick={onCancel} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="submit" disabled={!canCommit} style={btnStyle}>{t('common.ok')}</button>
       </div>
     </form>
   );

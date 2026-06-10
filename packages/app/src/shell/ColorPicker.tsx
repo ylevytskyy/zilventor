@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ComponentColor } from '@zilventor/shared';
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Props) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'select' | 'newPalette' | 'customHex'>('select');
   const [pendingName, setPendingName] = useState('');
   const [pendingHex, setPendingHex] = useState('#888888');
@@ -17,13 +19,13 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
     return (
       <div>
         <input
-          aria-label="palette-name"
+          aria-label={t('aria.palette_name')}
           value={pendingName}
           onChange={(e) => setPendingName(e.target.value)}
-          placeholder="Color name"
+          placeholder={t('color.name_placeholder')}
         />
         <input
-          aria-label="palette-hex"
+          aria-label={t('aria.palette_hex')}
           type="color"
           value={pendingHex}
           onChange={(e) => setPendingHex(e.target.value)}
@@ -38,7 +40,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
             setPendingName('');
           }}
         >
-          OK
+          {t('common.ok')}
         </button>
         <button
           type="button"
@@ -47,7 +49,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
             setPendingName('');
           }}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     );
@@ -57,7 +59,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
     return (
       <div>
         <input
-          aria-label="custom-hex"
+          aria-label={t('aria.custom_hex')}
           type="color"
           value={pendingHex}
           onChange={(e) => setPendingHex(e.target.value)}
@@ -69,9 +71,9 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
             setMode('select');
           }}
         >
-          OK
+          {t('common.ok')}
         </button>
-        <button type="button" onClick={() => setMode('select')}>Cancel</button>
+        <button type="button" onClick={() => setMode('select')}>{t('common.cancel')}</button>
       </div>
     );
   }
@@ -83,7 +85,7 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
       : `hex:${value.hex}`;
   return (
     <select
-      aria-label="component-color"
+      aria-label={t('aria.component_color')}
       value={selected}
       onChange={(e) => {
         const v = e.target.value;
@@ -94,14 +96,14 @@ export function ColorPicker({ value, palette, onChange, onAddPaletteColor }: Pro
         else if (v.startsWith('hex:')) onChange({ kind: 'hex', hex: v.slice('hex:'.length) });
       }}
     >
-      <option value="__none__">(no color)</option>
+      <option value="__none__">{t('color.no_color')}</option>
       {Object.entries(palette).map(([n, h]) => (
         <option key={n} value={`palette:${n}`} style={{ backgroundColor: h }}>
           {n}
         </option>
       ))}
-      <option value="__newPalette__">+ New palette color…</option>
-      <option value="__customHex__">Custom hex…</option>
+      <option value="__newPalette__">{t('color.new_palette')}</option>
+      <option value="__customHex__">{t('color.custom_hex')}</option>
     </select>
   );
 }

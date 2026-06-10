@@ -1,5 +1,6 @@
 // packages/app/src/drawing/DrawingTreePane.tsx
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { SetActiveSheetCommand } from '../commands/SetActiveSheetCommand';
 import { RenameSheetCommand } from '../commands/RenameSheetCommand';
@@ -34,6 +35,7 @@ function SheetNode({
   onSelect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const dimCount = sheet.dimensions.length;
   const annCount = sheet.annotations.length;
@@ -55,7 +57,7 @@ function SheetNode({
       {expanded && (
         <ul style={{ paddingLeft: 24, listStyle: 'none', margin: 0 }}>
           <li>
-            <div style={{ paddingLeft: 16 }}>Views</div>
+            <div style={{ paddingLeft: 16 }}>{t('panel.drawingTree.views')}</div>
             <ul style={{ paddingLeft: 24, listStyle: 'none', margin: 0 }}>
               {sheet.views.map((v) => {
                 let label: string;
@@ -91,13 +93,13 @@ function SheetNode({
             </ul>
           </li>
           <li style={{ paddingLeft: 16, fontSize: '0.8em', color: '#555' }}>
-            Dimensions ({dimCount})
+            {t('panel.drawingTree.dimensions', { count: dimCount })}
           </li>
           <li style={{ paddingLeft: 16, fontSize: '0.8em', color: '#555' }}>
-            Annotations ({annCount})
+            {t('panel.drawingTree.annotations', { count: annCount })}
           </li>
           <li style={{ paddingLeft: 16, fontSize: '0.8em', color: '#555' }}>
-            Title Block
+            {t('panel.drawingTree.titleBlock')}
           </li>
         </ul>
       )}
@@ -106,6 +108,7 @@ function SheetNode({
 }
 
 export function DrawingTreePane() {
+  const { t } = useTranslation();
   const drawing = useAppStore((s) => s.activeDrawing);
   const bus = useAppStore((s) => s.bus);
   const [sheetsExpanded, setSheetsExpanded] = useState(true);
@@ -113,7 +116,7 @@ export function DrawingTreePane() {
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
 
   if (!drawing) {
-    return <div style={{ padding: 8, color: '#888', fontSize: '0.85em' }}>No drawing open.</div>;
+    return <div style={{ padding: 8, color: '#888', fontSize: '0.85em' }}>{t('panel.drawingTree.noDrawingOpen')}</div>;
   }
 
   const handleSelectSheet = (sheetId: string) => {
@@ -127,7 +130,7 @@ export function DrawingTreePane() {
   };
 
   const handleRenameSheet = (sheetId: string) => {
-    const name = window.prompt('New sheet name:');
+    const name = window.prompt(t('panel.drawingTree.promptNewSheetName'));
     if (name) void bus.execute(new RenameSheetCommand({ sheetId, name }));
     setContextMenu(null);
   };
@@ -140,18 +143,18 @@ export function DrawingTreePane() {
   return (
     <div
       role="tree"
-      aria-label="Drawing tree"
+      aria-label={t('aria.drawingTree')}
       style={{ fontSize: '0.85em', userSelect: 'none', overflow: 'auto', height: '100%' }}
       onClick={() => setContextMenu(null)}
     >
       {/* Root */}
       <div style={{ fontWeight: 'bold', padding: '4px 8px' }}>
-        Drawing: {drawing.name}
+        {t('panel.drawingTree.drawingLabel', { name: drawing.name })}
       </div>
 
       {/* Source */}
       <div style={{ paddingLeft: 16, color: '#888', fontSize: '0.9em' }}>
-        Source: {drawing.source.partPath}
+        {t('panel.drawingTree.sourceLabel', { path: drawing.source.partPath })}
       </div>
 
       {/* Sheets */}
@@ -160,7 +163,7 @@ export function DrawingTreePane() {
           style={{ cursor: 'pointer', fontWeight: 500 }}
           onClick={() => setSheetsExpanded((v) => !v)}
         >
-          {sheetsExpanded ? '▾' : '▸'} Sheets
+          {sheetsExpanded ? '▾' : '▸'} {t('panel.drawingTree.sheets')}
         </span>
         {sheetsExpanded && (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -183,7 +186,7 @@ export function DrawingTreePane() {
           style={{ cursor: 'pointer', fontWeight: 500 }}
           onClick={() => setPropsExpanded((v) => !v)}
         >
-          {propsExpanded ? '▾' : '▸'} Properties
+          {propsExpanded ? '▾' : '▸'} {t('panel.drawingTree.properties')}
         </span>
         {propsExpanded && (
           <ul style={{ listStyle: 'none', margin: '4px 0 0 16px', padding: 0, color: '#555' }}>
@@ -198,7 +201,7 @@ export function DrawingTreePane() {
       {contextMenu && contextMenu.kind === 'sheet' && (
         <div
           role="menu"
-          aria-label="Sheet context menu"
+          aria-label={t('aria.sheetContextMenu')}
           style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y,
             background: 'white', border: '1px solid #ccc', borderRadius: 4,
@@ -207,9 +210,9 @@ export function DrawingTreePane() {
           onClick={(e) => e.stopPropagation()}
         >
           <div role="menuitem" style={{ padding: '4px 12px', cursor: 'pointer' }}
-            onClick={() => handleRenameSheet(contextMenu.sheetId)}>Rename</div>
+            onClick={() => handleRenameSheet(contextMenu.sheetId)}>{t('common.rename')}</div>
           <div role="menuitem" style={{ padding: '4px 12px', cursor: 'pointer' }}
-            onClick={() => handleDeleteSheet(contextMenu.sheetId)}>Delete</div>
+            onClick={() => handleDeleteSheet(contextMenu.sheetId)}>{t('common.delete')}</div>
         </div>
       )}
     </div>

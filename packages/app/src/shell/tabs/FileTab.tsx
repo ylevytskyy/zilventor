@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
@@ -15,6 +16,7 @@ import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidw
 import { triggerDownload } from '../../nesting/triggerDownload';
 
 export default function FileTab() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const activeDoc = useAppStore((s) => s.activeDocument);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
@@ -254,25 +256,25 @@ export default function FileTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
-      <button className="hover:text-white" onClick={handleNewPart}>New Part</button>
-      <button className="hover:text-white" onClick={handleNewAssembly}>New Assembly</button>
-      <button className="hover:text-white" onClick={handleOpen}>Open…</button>
-      <button className="hover:text-white" disabled>Save</button>
-      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
+      <button className="hover:text-white" onClick={handleNewPart}>{t('tab.file.newPart')}</button>
+      <button className="hover:text-white" onClick={handleNewAssembly}>{t('tab.file.newAssembly')}</button>
+      <button className="hover:text-white" onClick={handleOpen}>{t('tab.file.open')}</button>
+      <button className="hover:text-white" disabled>{t('tab.file.save')}</button>
+      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>{t('tab.file.saveAs')}</button>
       <label className="flex items-center gap-1 select-none">
         <input
           type="checkbox"
           checked={transparentBg}
           onChange={(e) => setTransparentBg(e.target.checked)}
         />
-        Transparent
+        {t('tab.file.transparent')}
       </label>
       <button
         className="hover:text-white disabled:text-neutral-500"
         disabled={!activeDoc || activeDoc.kind === 'drawing'}
         onClick={() => handleExportImage(transparentBg)}
       >
-        Export Image
+        {t('tab.file.exportImage')}
       </button>
       <button
         className="hover:text-white disabled:text-neutral-500"
@@ -280,14 +282,14 @@ export default function FileTab() {
         title={hasDirectoryPicker() ? undefined : 'Import from Inventor requires Chrome, Edge, Brave, or Arc (uses showDirectoryPicker)'}
         onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
       >
-        Import from Inventor
+        {t('tab.file.importFromInventor')}
       </button>
       {errorDialog && (
-        <div role="alertdialog" aria-label="Error" className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div role="alertdialog" aria-label={t('common.error')} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-shell-panel border border-shell-border p-4 w-80 text-xs">
             <div className="text-sm mb-3">{errorDialog}</div>
             <div className="flex justify-end">
-              <button onClick={() => setErrorDialog(null)}>OK</button>
+              <button onClick={() => setErrorDialog(null)}>{t('common.ok')}</button>
             </div>
           </div>
         </div>

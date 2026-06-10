@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/useAppStore';
 import { OpenPlaceComponentDialogCommand } from '../../commands/OpenPlaceComponentDialogCommand';
 import { OpenEditComponentDialogCommand } from '../../commands/OpenEditComponentDialogCommand';
@@ -23,6 +24,7 @@ const btn: React.CSSProperties = {
 type Props = { partInfo?: Map<string, PartInfo> };
 
 export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
+  const { t } = useTranslation();
   const selectedId = useAppStore((s) => {
     const p = s.selectedComponentPaths[0];
     return p ? p[p.length - 1] ?? null : null;
@@ -79,33 +81,33 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: 4 }}>
       <div style={{ marginRight: 12 }}>
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Component</div>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{t('tab.asm.component')}</div>
         <button
-          aria-label="Place"
+          aria-label={t('tab.asm.place')}
           disabled={!hasAssembly}
           onClick={() => OpenPlaceComponentDialogCommand()}
           style={btn}
         >
-          Place
+          {t('tab.asm.place')}
         </button>
         <button
-          aria-label="Insert From STEP…"
+          aria-label={t('tab.asm.insertFromStep')}
           disabled={!hasAssembly}
           onClick={handleInsertFromStep}
           style={btn}
         >
-          Insert From STEP…
+          {t('tab.asm.insertFromStep')}
         </button>
         <button
-          aria-label="Edit"
+          aria-label={t('common.edit')}
           disabled={!selectedId}
           onClick={() => selectedId && OpenEditComponentDialogCommand(selectedId)}
           style={btn}
         >
-          Edit
+          {t('common.edit')}
         </button>
         <button
-          aria-label="Delete"
+          aria-label={t('common.delete')}
           disabled={!selectedId}
           onClick={async () => {
             if (!selectedId) return;
@@ -114,72 +116,72 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           }}
           style={btn}
         >
-          Delete
+          {t('common.delete')}
         </button>
       </div>
       <div style={{ marginRight: 12 }}>
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Pattern</div>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{t('tab.asm.pattern')}</div>
         <button
-          aria-label="Rectangular Pattern"
+          aria-label={t('tab.asm.rectPattern')}
           disabled={!hasAssembly}
           onClick={() => useAppStore.getState().setComponentPatternDialogOpen(true)}
           style={btn}
         >
-          Rectangular Pattern
+          {t('tab.asm.rectPattern')}
         </button>
         <button
-          aria-label="Mirror"
+          aria-label={t('tab.asm.mirror')}
           disabled={!hasAssembly}
           onClick={() => useAppStore.getState().setMirrorComponentDialogOpen(true)}
           style={btn}
         >
-          Mirror
+          {t('tab.asm.mirror')}
         </button>
       </div>
       <div style={{ marginRight: 12 }}>
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Constraint</div>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{t('tab.asm.constraint')}</div>
         <button
-          aria-label="Mate"
+          aria-label={t('dialog.placeConstraint.mate')}
           disabled={!hasAssembly}
           onClick={() => OpenPlaceConstraintDialogCommand('mate')}
           style={btn}
         >
-          Mate
+          {t('dialog.placeConstraint.mate')}
         </button>
         <button
-          aria-label="Flush"
+          aria-label={t('dialog.placeConstraint.flush')}
           disabled={!hasAssembly}
           onClick={() => OpenPlaceConstraintDialogCommand('flush')}
           style={btn}
         >
-          Flush
+          {t('dialog.placeConstraint.flush')}
         </button>
         <button
-          aria-label="Angle"
+          aria-label={t('dialog.placeConstraint.angle')}
           disabled={!hasAssembly}
           onClick={() => OpenPlaceConstraintDialogCommand('angle')}
           style={btn}
         >
-          Angle
+          {t('dialog.placeConstraint.angle')}
         </button>
         <button
-          aria-label="Insert"
+          aria-label={t('dialog.placeConstraint.insert')}
           disabled={!hasAssembly}
           onClick={() => OpenPlaceConstraintDialogCommand('insert')}
           style={btn}
         >
-          Insert
+          {t('dialog.placeConstraint.insert')}
         </button>
         <button
-          aria-label="Edit Constraint"
+          aria-label={t('tab.asm.editConstraint')}
           disabled={!selectedConstraintId}
           onClick={() => selectedConstraintId && OpenEditAssemblyConstraintDialogCommand(selectedConstraintId)}
           style={btn}
         >
-          Edit Constraint
+          {t('tab.asm.editConstraint')}
         </button>
         <button
-          aria-label="Delete Constraint"
+          aria-label={t('tab.asm.deleteConstraint')}
           disabled={!selectedConstraintId}
           onClick={async () => {
             if (!selectedConstraintId) return;
@@ -188,10 +190,10 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           }}
           style={btn}
         >
-          Delete Constraint
+          {t('tab.asm.deleteConstraint')}
         </button>
         <button
-          aria-label="Suppress"
+          aria-label={isSuppressed ? t('tab.asm.unsuppress') : t('tab.asm.suppress')}
           disabled={!selectedConstraintId}
           onClick={async () => {
             if (!selectedConstraintId) return;
@@ -200,13 +202,13 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           }}
           style={btn}
         >
-          {isSuppressed ? 'Unsuppress' : 'Suppress'}
+          {isSuppressed ? t('tab.asm.unsuppress') : t('tab.asm.suppress')}
         </button>
       </div>
-      <div aria-label="BOM panel" style={{ marginRight: 12 }}>
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>BOM</div>
+      <div aria-label={t('tab.asm.bomPanel')} style={{ marginRight: 12 }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>{t('tab.asm.bom')}</div>
         <button
-          aria-label="BOM"
+          aria-label={t('tab.asm.bom')}
           disabled={!hasAssembly}
           onClick={async () => {
             const cmd = new OpenBomTabCommand();
@@ -214,10 +216,10 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           }}
           style={btn}
         >
-          BOM
+          {t('tab.asm.bom')}
         </button>
         <button
-          aria-label="Renumber"
+          aria-label={t('tab.asm.renumber')}
           disabled={!hasAssembly}
           onClick={async () => {
             const cmd = new RenumberBomCommand({ partInfo: partInfo ?? new Map() });
@@ -225,7 +227,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           }}
           style={btn}
         >
-          Renumber
+          {t('tab.asm.renumber')}
         </button>
       </div>
       {componentPatternDialogOpen && activeAssembly && (

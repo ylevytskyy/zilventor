@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { useToolModeStore } from '../drawing/toolMode';
 import type { DrawingView } from '@zilventor/shared';
@@ -26,6 +27,7 @@ const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', bo
 type DialogState = { kind: 'base' } | { kind: 'projected' } | { kind: 'iso' };
 
 export function AddViewDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const dialogState = useAppStore((s) => (s as any).addViewDialogState as DialogState | null);
   const activeDocument = useAppStore((s) => s.activeDocument);
   const setPendingViewParams = useToolModeStore((s) => s.setPendingViewParams);
@@ -90,43 +92,43 @@ export function AddViewDialog(): JSX.Element | null {
       <div
         style={panelStyle}
         role="dialog"
-        aria-label="Add View"
+        aria-label={t('aria.add_view')}
         onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
         tabIndex={-1}
       >
         <div style={{ fontWeight: 600, marginBottom: 12 }}>
-          {dialogState.kind === 'base' ? 'Base View' :
-           dialogState.kind === 'projected' ? 'Projected View' : 'Isometric View'}
+          {dialogState.kind === 'base' ? t('dialog.addView.base') :
+           dialogState.kind === 'projected' ? t('dialog.addView.projected') : t('dialog.addView.isometric')}
         </div>
 
         {dialogState.kind === 'base' && (
           <>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-orientation">Orientation</label>
+              <label style={labelStyle} htmlFor="av-orientation">{t('dialog.addView.orientation')}</label>
               <select
                 id="av-orientation"
-                aria-label="Orientation"
+                aria-label={t('dialog.addView.orientation')}
                 style={inputStyle}
                 value={baseOrientation}
                 onChange={(e) => setBaseOrientation(e.target.value)}
               >
-                <option value="front">Front</option>
-                <option value="top">Top</option>
-                <option value="right">Right</option>
-                <option value="back">Back</option>
-                <option value="bottom">Bottom</option>
-                <option value="left">Left</option>
+                <option value="front">{t('dialog.addView.front')}</option>
+                <option value="top">{t('dialog.addView.top')}</option>
+                <option value="right">{t('dialog.addView.right')}</option>
+                <option value="back">{t('dialog.addView.back')}</option>
+                <option value="bottom">{t('dialog.addView.bottom')}</option>
+                <option value="left">{t('dialog.addView.left')}</option>
               </select>
             </div>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-scale-n">Scale numerator</label>
-              <input id="av-scale-n" aria-label="Scale numerator" type="number"
+              <label style={labelStyle} htmlFor="av-scale-n">{t('dialog.addView.scale_numerator')}</label>
+              <input id="av-scale-n" aria-label={t('dialog.addView.scale_numerator')} type="number"
                 style={inputStyle} value={baseScaleN}
                 onChange={(e) => setBaseScaleN(e.target.value)} />
             </div>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-scale-d">Scale denominator</label>
-              <input id="av-scale-d" aria-label="Scale denominator" type="number"
+              <label style={labelStyle} htmlFor="av-scale-d">{t('dialog.addView.scale_denominator')}</label>
+              <input id="av-scale-d" aria-label={t('dialog.addView.scale_denominator')} type="number"
                 style={inputStyle} value={baseScaleD}
                 onChange={(e) => setBaseScaleD(e.target.value)} />
             </div>
@@ -136,10 +138,10 @@ export function AddViewDialog(): JSX.Element | null {
         {dialogState.kind === 'projected' && (
           <>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-parent">Parent view</label>
+              <label style={labelStyle} htmlFor="av-parent">{t('dialog.addView.parent_view')}</label>
               <select
                 id="av-parent"
-                aria-label="Parent view"
+                aria-label={t('dialog.addView.parent_view')}
                 style={inputStyle}
                 value={projBaseViewId || baseViews[0]?.id}
                 onChange={(e) => setProjBaseViewId(e.target.value)}
@@ -150,7 +152,7 @@ export function AddViewDialog(): JSX.Element | null {
               </select>
             </div>
             <div style={{ ...fieldRow, gap: 12 }}>
-              <span style={labelStyle}>Direction</span>
+              <span style={labelStyle}>{t('dialog.addView.direction')}</span>
               {(['top', 'bottom', 'left', 'right'] as const).map((dir) => (
                 <label key={dir} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
                   <input
@@ -170,10 +172,10 @@ export function AddViewDialog(): JSX.Element | null {
         {dialogState.kind === 'iso' && (
           <>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-corner">Corner</label>
+              <label style={labelStyle} htmlFor="av-corner">{t('dialog.addView.corner')}</label>
               <select
                 id="av-corner"
-                aria-label="Corner"
+                aria-label={t('dialog.addView.corner')}
                 style={inputStyle}
                 value={isoCorner}
                 onChange={(e) => setIsoCorner(e.target.value as 'NE' | 'NW' | 'SE' | 'SW')}
@@ -185,14 +187,14 @@ export function AddViewDialog(): JSX.Element | null {
               </select>
             </div>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-iso-scale-n">Scale numerator</label>
-              <input id="av-iso-scale-n" aria-label="Scale numerator" type="number"
+              <label style={labelStyle} htmlFor="av-iso-scale-n">{t('dialog.addView.scale_numerator')}</label>
+              <input id="av-iso-scale-n" aria-label={t('dialog.addView.scale_numerator')} type="number"
                 style={inputStyle} value={isoScaleN}
                 onChange={(e) => setIsoScaleN(e.target.value)} />
             </div>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="av-iso-scale-d">Scale denominator</label>
-              <input id="av-iso-scale-d" aria-label="Scale denominator" type="number"
+              <label style={labelStyle} htmlFor="av-iso-scale-d">{t('dialog.addView.scale_denominator')}</label>
+              <input id="av-iso-scale-d" aria-label={t('dialog.addView.scale_denominator')} type="number"
                 style={inputStyle} value={isoScaleD}
                 onChange={(e) => setIsoScaleD(e.target.value)} />
             </div>
@@ -200,8 +202,8 @@ export function AddViewDialog(): JSX.Element | null {
         )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
-          <button style={btnStyle} onClick={close}>Cancel</button>
-          <button style={okBtnStyle} onClick={handleOk}>OK</button>
+          <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
+          <button style={okBtnStyle} onClick={handleOk}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

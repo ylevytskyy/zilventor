@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { AddSketchCommand } from '../commands/AddSketchCommand';
 
 export default function SketchRectangleDialog({ onClose }: { onClose(): void }) {
+  const { t } = useTranslation();
   const [x1, setX1] = useState('0');
   const [y1, setY1] = useState('0');
   const [x2, setX2] = useState('100');
@@ -23,9 +25,9 @@ export default function SketchRectangleDialog({ onClose }: { onClose(): void }) 
   };
 
   return (
-    <div role="dialog" aria-label="Rectangle dialog" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div role="dialog" aria-label={t('dialog.sketchRect.ariaLabel')} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-shell-panel border border-shell-border p-4 w-72 text-xs">
-        <h3 className="mb-3 text-sm">Rectangle (two corner points)</h3>
+        <h3 className="mb-3 text-sm">{t('dialog.sketchRect.title')}</h3>
         <div className="grid grid-cols-2 gap-2">
           <label>x1 <input aria-label="x1" className="bg-shell text-white px-2 py-1 w-full" value={x1} onChange={(e) => setX1(e.target.value)} /></label>
           <label>y1 <input aria-label="y1" className="bg-shell text-white px-2 py-1 w-full" value={y1} onChange={(e) => setY1(e.target.value)} /></label>
@@ -33,8 +35,8 @@ export default function SketchRectangleDialog({ onClose }: { onClose(): void }) 
           <label>y2 <input aria-label="y2" className="bg-shell text-white px-2 py-1 w-full" value={y2} onChange={(e) => setY2(e.target.value)} /></label>
         </div>
         <div className="flex gap-2 mt-4 justify-end">
-          <button onClick={onClose}>Cancel</button>
-          <button className="font-semibold" onClick={submit}>OK</button>
+          <button onClick={onClose}>{t('common.cancel')}</button>
+          <button className="font-semibold" onClick={submit}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

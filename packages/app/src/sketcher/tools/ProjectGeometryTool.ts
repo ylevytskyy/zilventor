@@ -1,6 +1,7 @@
 import type { SketchPrimitive, TessellatedEdge } from '@zilventor/shared';
 import type { SketchFrame } from '../geometry/projectToSketch';
 import { projectToSketch } from '../geometry/projectToSketch';
+import i18n from '../../i18n';
 
 export type ProjectGeometryToolOpts = {
   /** null = face-sourced sketch (no xDir known) → toast and no-op */
@@ -29,7 +30,7 @@ export class ProjectGeometryTool {
     // Guard: face-sourced sketches have no xDir → cannot project.
     if (!this.opts.frame) {
       this.opts.showToast(
-        'Project Geometry currently supports workplane-based sketches only.',
+        i18n.t('toast.projectGeometry.workplaneOnly'),
       );
       return;
     }
@@ -38,7 +39,7 @@ export class ProjectGeometryTool {
     // A multi-segment edge represents a curved edge; reject it.
     if (edge.segments.length !== 1) {
       this.opts.showToast(
-        'Curved-edge projection is not yet supported. Pick a straight edge.',
+        i18n.t('toast.projectGeometry.curvedEdgeNotSupported'),
       );
       return;
     }

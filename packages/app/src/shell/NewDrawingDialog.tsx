@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { CreateDrawingCommand } from '../commands/CreateDrawingCommand';
 import type { SheetSize } from '@zilventor/shared';
@@ -26,6 +27,7 @@ const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', bo
 type SizeOption = 'A0' | 'A1' | 'A2' | 'A3' | 'A4' | 'custom';
 
 export function NewDrawingDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const open = useAppStore((s) => (s as any).newDrawingDialogOpen as boolean);
   const sourcePath = useAppStore((s) => (s as any).newDrawingSourcePath as string | null);
   const sourceKind = useAppStore((s) => (s as any).newDrawingSourceKind as 'part' | 'assembly' | null);
@@ -74,17 +76,17 @@ export function NewDrawingDialog(): JSX.Element | null {
       <div
         style={panelStyle}
         role="dialog"
-        aria-label="New Drawing"
+        aria-label={t('dialog.newDrawing.ariaLabel')}
         onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
         tabIndex={-1}
       >
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>New Drawing</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('dialog.newDrawing.title')}</div>
 
         {/* Source (OPFS picker — disabled in jsdom; path injected via store slot) */}
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="nd-source">Source file</label>
+          <label style={labelStyle} htmlFor="nd-source">{t('dialog.newDrawing.sourceFile')}</label>
           <span style={{ ...inputStyle, color: sourcePath ? '#eee' : '#888', flex: 1 }}>
-            {sourcePath ?? '(none selected)'}
+            {sourcePath ?? t('dialog.newDrawing.noneSelected')}
           </span>
           <button
             style={btnStyle}
@@ -103,16 +105,16 @@ export function NewDrawingDialog(): JSX.Element | null {
               }
             }}
           >
-            Browse…
+            {t('common.browse')}
           </button>
         </div>
 
         {/* Sheet size */}
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="nd-size">Sheet size</label>
+          <label style={labelStyle} htmlFor="nd-size">{t('dialog.newDrawing.sheetSize')}</label>
           <select
             id="nd-size"
-            aria-label="Sheet size"
+            aria-label={t('dialog.newDrawing.sheetSizeAriaLabel')}
             style={inputStyle}
             value={sizeOption}
             onChange={(e) => setSizeOption(e.target.value as SizeOption)}
@@ -122,17 +124,17 @@ export function NewDrawingDialog(): JSX.Element | null {
             <option value="A2">A2</option>
             <option value="A3">A3</option>
             <option value="A4">A4</option>
-            <option value="custom">Custom</option>
+            <option value="custom">{t('dialog.newDrawing.custom')}</option>
           </select>
         </div>
 
         {sizeOption === 'custom' && (
           <>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="nd-width">Width (mm)</label>
+              <label style={labelStyle} htmlFor="nd-width">{t('dialog.newDrawing.widthMm')}</label>
               <input
                 id="nd-width"
-                aria-label="Width (mm)"
+                aria-label={t('dialog.newDrawing.widthAriaLabel')}
                 type="number"
                 style={inputStyle}
                 value={widthStr}
@@ -140,10 +142,10 @@ export function NewDrawingDialog(): JSX.Element | null {
               />
             </div>
             <div style={fieldRow}>
-              <label style={labelStyle} htmlFor="nd-height">Height (mm)</label>
+              <label style={labelStyle} htmlFor="nd-height">{t('dialog.newDrawing.heightMm')}</label>
               <input
                 id="nd-height"
-                aria-label="Height (mm)"
+                aria-label={t('dialog.newDrawing.heightAriaLabel')}
                 type="number"
                 style={inputStyle}
                 value={heightStr}
@@ -155,7 +157,7 @@ export function NewDrawingDialog(): JSX.Element | null {
 
         {/* Orientation */}
         <div style={{ ...fieldRow, gap: 12 }}>
-          <span style={labelStyle}>Orientation</span>
+          <span style={labelStyle}>{t('dialog.newDrawing.orientation')}</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
             <input
               type="radio"
@@ -164,7 +166,7 @@ export function NewDrawingDialog(): JSX.Element | null {
               checked={orientation === 'landscape'}
               onChange={() => setOrientation('landscape')}
             />
-            Landscape
+            {t('dialog.newDrawing.landscape')}
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
             <input
@@ -174,19 +176,19 @@ export function NewDrawingDialog(): JSX.Element | null {
               checked={orientation === 'portrait'}
               onChange={() => setOrientation('portrait')}
             />
-            Portrait
+            {t('dialog.newDrawing.portrait')}
           </label>
         </div>
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
-          <button style={btnStyle} onClick={close}>Cancel</button>
+          <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
           <button
             style={okBtnStyle}
             disabled={!canOk}
             aria-disabled={!canOk}
             onClick={() => { void handleOk(); }}
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       </div>

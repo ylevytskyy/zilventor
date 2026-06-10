@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FilletEdgeSpec, FilletSelectionMode } from '@zilventor/shared';
 
 export type FilletMode = 'constant' | 'variable';
@@ -192,6 +193,7 @@ export function FilletDialog({
   onSetbackChange,
   validateExpression,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<FilletMode>(initialMode);
   const [radius, setRadius] = useState(initialRadius ?? '1');
   const [tab, setTab] = useState<Tab>('edges');
@@ -271,15 +273,15 @@ export function FilletDialog({
   return (
     <form
       role="dialog"
-      aria-label="Fillet"
+      aria-label={t('aria.fillet')}
       onSubmit={handleSubmit}
       style={panelStyle}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Fillet</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.fillet.title')}</div>
 
       {/* Constant/Variable mode toggle */}
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Mode</span>
+        <span style={sectionLabelStyle}>{t('dialog.fillet.mode')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
@@ -287,7 +289,7 @@ export function FilletDialog({
             style={toggleBtnStyle(mode === 'constant', false)}
             onClick={() => handleModeChange('constant')}
           >
-            Constant
+            {t('dialog.fillet.constant')}
           </button>
           <button
             type="button"
@@ -295,14 +297,14 @@ export function FilletDialog({
             style={toggleBtnStyle(mode === 'variable', false)}
             onClick={() => handleModeChange('variable')}
           >
-            Variable
+            {t('dialog.fillet.variable')}
           </button>
         </div>
       </div>
 
       {/* 5-way selection-mode toggle */}
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Selection</span>
+        <span style={sectionLabelStyle}>{t('dialog.fillet.selection')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           {selectionModes.map((sm) => (
             <button
@@ -321,7 +323,7 @@ export function FilletDialog({
       {/* Tab bar */}
       <div
         role="tablist"
-        aria-label="Fillet tabs"
+        aria-label={t('aria.fillet_tabs')}
         style={{ display: 'flex', gap: 2, marginBottom: 10, borderBottom: '1px solid #444' }}
       >
         <button
@@ -331,7 +333,7 @@ export function FilletDialog({
           style={tabBtnStyle(tab === 'edges', false)}
           onClick={() => setTab('edges')}
         >
-          Edges
+          {t('dialog.fillet.edges_tab')}
         </button>
         <button
           type="button"
@@ -344,7 +346,7 @@ export function FilletDialog({
             if (!variableDisabled) setTab('variable');
           }}
         >
-          Variable
+          {t('dialog.fillet.variable_tab')}
         </button>
         <button
           type="button"
@@ -353,7 +355,7 @@ export function FilletDialog({
           style={tabBtnStyle(tab === 'setbacks', false)}
           onClick={() => setTab('setbacks')}
         >
-          Setbacks
+          {t('dialog.fillet.setbacks_tab')}
         </button>
       </div>
 
@@ -361,9 +363,9 @@ export function FilletDialog({
       {tab === 'edges' && (
         <div>
           <label style={{ display: 'block', marginBottom: 8 }}>
-            Radius
+            {t('dialog.fillet.radius')}
             <input
-              aria-label="Radius"
+              aria-label={t('dialog.fillet.radius')}
               value={radius}
               onChange={(e) => handleRadiusChange(e.target.value)}
               style={{ ...inputStyle, marginTop: 2, width: '100%' }}
@@ -385,13 +387,13 @@ export function FilletDialog({
 
           <div style={{ marginBottom: 8 }}>
             <div style={{ ...rowStyle, marginBottom: 4 }}>
-              <span style={sectionLabelStyle}>Edges ({edges.length})</span>
+              <span style={sectionLabelStyle}>{t('dialog.fillet.edges_count', { count: edges.length })}</span>
               <div style={{ flex: 1 }} />
               <button type="button" style={pickBtnStyle} onClick={onAddEdges}>
-                Add
+                {t('common.add')}
               </button>
               <button type="button" style={pickBtnStyle} onClick={onClearEdges}>
-                Clear All
+                {t('dialog.fillet.clear_all')}
               </button>
             </div>
 
@@ -405,7 +407,7 @@ export function FilletDialog({
             >
               {edges.length === 0 ? (
                 <div style={{ color: '#888', padding: 8, fontStyle: 'italic' }}>
-                  No edges selected. Click Add to pick edges in the scene.
+                  {t('dialog.fillet.no_edges')}
                 </div>
               ) : (
                 edges.map((spec) => (
@@ -452,11 +454,11 @@ export function FilletDialog({
       {tab === 'variable' && !variableDisabled && (
         <div>
           <div style={{ ...sectionLabelStyle, marginBottom: 6 }}>
-            Per-edge variable radii
+            {t('dialog.fillet.variable_radii')}
           </div>
           {edges.length === 0 ? (
             <div style={{ color: '#888', fontStyle: 'italic' }}>
-              No edges selected.
+              {t('dialog.fillet.no_edges_selected')}
             </div>
           ) : (
             edges.map((spec) => {
@@ -495,7 +497,7 @@ export function FilletDialog({
                     {edgeLabel(spec)}
                   </span>
                   <input
-                    aria-label="Start radius"
+                    aria-label={t('aria.start_radius')}
                     value={draft.startR}
                     onChange={(e) => update(e.target.value, draft.endR)}
                     style={smallInputStyle}
@@ -513,7 +515,7 @@ export function FilletDialog({
                     aria-hidden="true"
                   />
                   <input
-                    aria-label="End radius"
+                    aria-label={t('aria.end_radius')}
                     value={draft.endR}
                     onChange={(e) => update(draft.startR, e.target.value)}
                     style={smallInputStyle}
@@ -529,11 +531,11 @@ export function FilletDialog({
       {tab === 'setbacks' && (
         <div>
           <div style={{ ...sectionLabelStyle, marginBottom: 6 }}>
-            Per-vertex setbacks
+            {t('dialog.fillet.setbacks_label')}
           </div>
           {!vertices || vertices.length === 0 ? (
             <div style={{ color: '#888', fontStyle: 'italic' }}>
-              No 3-edge vertices detected.
+              {t('dialog.fillet.no_vertices')}
             </div>
           ) : (
             vertices.map((v) => (
@@ -575,7 +577,7 @@ export function FilletDialog({
                         {pe.edgeKey}
                       </span>
                       <input
-                        aria-label="Setback"
+                        aria-label={t('aria.setback')}
                         value={value}
                         onChange={(e) => {
                           const next = e.target.value;
@@ -623,13 +625,13 @@ export function FilletDialog({
         }}
       >
         <button type="button" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button type="button" onClick={handleApply} disabled={!canCommit}>
-          Apply
+          {t('common.apply')}
         </button>
         <button type="submit" disabled={!canCommit}>
-          OK
+          {t('common.ok')}
         </button>
       </div>
     </form>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { EditParameterCommand } from '../commands/EditParameterCommand';
 
 export default function PropertiesPanel() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const selectedFeatureId = useAppStore((s) => s.selectedFeatureId);
 
@@ -14,7 +16,7 @@ export default function PropertiesPanel() {
   useEffect(() => { setDraft(param?.expression ?? ''); }, [param?.expression]);
 
   if (!feature || !param) {
-    return <div className="p-3 text-xs text-neutral-500">Select a feature</div>;
+    return <div className="p-3 text-xs text-neutral-500">{t('panel.properties.selectFeature')}</div>;
   }
 
   const submit = async () => {
@@ -34,9 +36,9 @@ export default function PropertiesPanel() {
     <div className="p-3 text-xs">
       <div className="font-semibold mb-2">{feature.id}</div>
       <label className="block">
-        Distance
+        {t('panel.properties.distance')}
         <input
-          aria-label="Distance"
+          aria-label={t('panel.properties.distanceAria')}
           className="block w-full mt-1 bg-shell text-white px-2 py-1"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

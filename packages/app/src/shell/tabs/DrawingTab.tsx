@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../../drawing/toolMode';
@@ -14,6 +15,7 @@ import { ExportAllSheets1to1DxfCommand } from '../../commands/ExportAllSheets1to
 import { StubTab } from './_stub';
 
 export default function DrawingTab(): JSX.Element {
+  const { t } = useTranslation();
   const activeDocument = useAppStore((s) => s.activeDocument);
   const bus = useAppStore((s) => s.bus);
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly ?? s.activeDrawingSourceDocument);
@@ -41,239 +43,239 @@ export default function DrawingTab(): JSX.Element {
   return (
     <div className="flex gap-2 px-3 py-2">
       {/* Sheet panel */}
-      <RibbonPanel title="Sheet">
+      <RibbonPanel title={t('ribbon.drawing.sheet')}>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="New Sheet"
+          aria-label={t('ribbon.drawing.newSheet')}
           onClick={() => { void bus.execute(new AddSheetCommand({})); }}
         >
-          New Sheet
+          {t('ribbon.drawing.newSheet')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Sheet…"
+          aria-label={t('ribbon.drawing.sheetSettings')}
           disabled
           title="Coming in follow-up F1"
         >
-          Sheet…
+          {t('ribbon.drawing.sheetSettings')}
         </button>
       </RibbonPanel>
 
       {/* Place Views panel */}
-      <RibbonPanel title="Place Views">
+      <RibbonPanel title={t('ribbon.drawing.placeViews')}>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Base View"
+          aria-label={t('ribbon.drawing.baseView')}
           onClick={() => {
             setMode('placeBase');
             useAppStore.getState().setAddViewDialogOpen({ kind: 'base' });
           }}
         >
-          Base View
+          {t('ribbon.drawing.baseView')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Projected View"
+          aria-label={t('ribbon.drawing.projectedView')}
           onClick={() => {
             setMode('placeProjected');
             useAppStore.getState().setAddViewDialogOpen({ kind: 'projected' });
           }}
         >
-          Projected View
+          {t('ribbon.drawing.projectedView')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Iso View"
+          aria-label={t('ribbon.drawing.isoView')}
           onClick={() => {
             setMode('placeIso');
             useAppStore.getState().setAddViewDialogOpen({ kind: 'iso' });
           }}
         >
-          Iso View
+          {t('ribbon.drawing.isoView')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Section"
+          aria-label={t('ribbon.drawing.section')}
           onClick={() => {
             useToolModeStore.getState().setSectionMode('full');
             useToolModeStore.getState().enterSectionMode();
           }}
         >
-          Section
+          {t('ribbon.drawing.section')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Half Section"
+          aria-label={t('ribbon.drawing.halfSection')}
           onClick={() => {
             useToolModeStore.getState().setSectionMode('half');
             useToolModeStore.getState().enterSectionMode();
           }}
         >
-          Half Section
+          {t('ribbon.drawing.halfSection')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Stepped Section"
+          aria-label={t('ribbon.drawing.steppedSection')}
           onClick={() => useToolModeStore.getState().enterSteppedSectionMode()}
         >
-          Stepped Section
+          {t('ribbon.drawing.steppedSection')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Detail"
+          aria-label={t('ribbon.drawing.detail')}
           disabled={!hasProjectedView}
-          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          title={!hasProjectedView ? t('ribbon.drawing.needBaseViewTip') : undefined}
           onClick={() => useToolModeStore.getState().enterDetailMode()}
         >
-          Detail
+          {t('ribbon.drawing.detail')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Detail (Rect)"
+          aria-label={t('ribbon.drawing.detailRect')}
           disabled={!hasProjectedView}
-          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          title={!hasProjectedView ? t('ribbon.drawing.needBaseViewTip') : undefined}
           onClick={() => useToolModeStore.getState().enterDetailRectMode()}
         >
-          Detail (Rect)
+          {t('ribbon.drawing.detailRect')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Edit Detail Region"
+          aria-label={t('ribbon.drawing.editDetailRegion')}
           disabled={!hasDetailView}
-          title={!hasDetailView ? 'Add a detail view first' : undefined}
+          title={!hasDetailView ? t('ribbon.drawing.needDetailViewTip') : undefined}
           onClick={() => useToolModeStore.getState().enterEditDetailRegionMode()}
         >
-          Edit Detail Region
+          {t('ribbon.drawing.editDetailRegion')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Add Break"
+          aria-label={t('ribbon.drawing.addBreak')}
           disabled={!hasBreakableProjection}
           title={
             !hasBreakableProjection
-              ? 'Add a base, projected, or iso view with a projection first'
+              ? t('ribbon.drawing.needBreakableTip')
               : undefined
           }
           onClick={() => useToolModeStore.getState().enterBreakMode()}
         >
-          Add Break
+          {t('ribbon.drawing.addBreak')}
         </button>
       </RibbonPanel>
 
       {/* Dimension panel */}
-      <RibbonPanel title="Dimension">
-        <button type="button" className="text-xs hover:text-white" aria-label="Linear (H)"
-          onClick={() => setMode('addLinearH')}>Linear (H)</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Linear (V)"
-          onClick={() => setMode('addLinearV')}>Linear (V)</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Aligned"
-          onClick={() => setMode('addAligned')}>Aligned</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Radial"
-          onClick={() => setMode('addRadial')}>Radial</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Diametric"
-          onClick={() => setMode('addDiametric')}>Diametric</button>
+      <RibbonPanel title={t('ribbon.drawing.dimension')}>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.linearH')}
+          onClick={() => setMode('addLinearH')}>{t('ribbon.drawing.linearH')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.linearV')}
+          onClick={() => setMode('addLinearV')}>{t('ribbon.drawing.linearV')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.aligned')}
+          onClick={() => setMode('addAligned')}>{t('ribbon.drawing.aligned')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.radial')}
+          onClick={() => setMode('addRadial')}>{t('ribbon.drawing.radial')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.diametric')}
+          onClick={() => setMode('addDiametric')}>{t('ribbon.drawing.diametric')}</button>
         {/* Auto-Dim: Drawing F4 — place parametric dims from base sketch */}
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Auto-Dim"
-          title="Place parametric dimensions from base sketch parameters — click a view after enabling"
+          aria-label={t('ribbon.drawing.autoDim')}
+          title={t('ribbon.drawing.autoDimTip')}
           onClick={() => setMode('autoDim')}
         >
-          Auto-Dim
+          {t('ribbon.drawing.autoDim')}
         </button>
         {/* Baseline: Drawing F5 — baseline group from datum + stacked members */}
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Baseline"
-          title="Place a baseline dimension group — click datum, then click features"
+          aria-label={t('ribbon.drawing.baseline')}
+          title={t('ribbon.drawing.baselineTip')}
           onClick={() => setMode('baseline')}
         >
-          Baseline
+          {t('ribbon.drawing.baseline')}
         </button>
         {/* Ordinate: Drawing F5 — ordinate group from origin + L-leader members */}
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Ordinate"
-          title="Place an ordinate dimension group — click origin, then click features"
+          aria-label={t('ribbon.drawing.ordinate')}
+          title={t('ribbon.drawing.ordinateTip')}
           onClick={() => setMode('ordinate')}
         >
-          Ordinate
+          {t('ribbon.drawing.ordinate')}
         </button>
         {/* Angular: Drawing F5 — angular dim from two edges or arc edge */}
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Angular"
-          title="Place an angular dimension — click two edges (or one arc edge)"
+          aria-label={t('ribbon.drawing.angular')}
+          title={t('ribbon.drawing.angularTip')}
           onClick={() => setMode('angular')}
         >
-          Angular
+          {t('ribbon.drawing.angular')}
         </button>
       </RibbonPanel>
 
       {/* Annotate panel */}
-      <RibbonPanel title="Annotate">
-        <button type="button" className="text-xs hover:text-white" aria-label="Centerline"
-          onClick={() => setMode('addCenterline')}>Centerline</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Center Mark"
-          onClick={() => setMode('addCenterMark')}>Center Mark</button>
-        <button type="button" className="text-xs hover:text-white" aria-label="Leader Text"
-          onClick={() => setMode('addLeader')}>Leader Text</button>
+      <RibbonPanel title={t('ribbon.drawing.annotate')}>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.centerline')}
+          onClick={() => setMode('addCenterline')}>{t('ribbon.drawing.centerline')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.centerMark')}
+          onClick={() => setMode('addCenterMark')}>{t('ribbon.drawing.centerMark')}</button>
+        <button type="button" className="text-xs hover:text-white" aria-label={t('ribbon.drawing.leaderText')}
+          onClick={() => setMode('addLeader')}>{t('ribbon.drawing.leaderText')}</button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Balloon"
+          aria-label={t('ribbon.drawing.balloon')}
           disabled={!isAssembly}
           aria-disabled={!isAssembly}
-          title={!isAssembly ? 'Balloon annotations require an assembly drawing' : undefined}
+          title={!isAssembly ? t('ribbon.drawing.balloonTip') : undefined}
           onClick={() => setMode('addBalloon')}
         >
-          Balloon
+          {t('ribbon.drawing.balloon')}
         </button>
         {/* Hole Table: Drawing F6 */}
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Hole Table"
+          aria-label={t('ribbon.drawing.holeTable')}
           disabled={!hasProjectedView}
-          title={!hasProjectedView ? 'Add a base view with a projection first' : undefined}
+          title={!hasProjectedView ? t('ribbon.drawing.needBaseViewTip') : undefined}
           onClick={() => useToolModeStore.getState().enterHoleTableMode()}
         >
-          Hole Table
+          {t('ribbon.drawing.holeTable')}
         </button>
         {/* Parts List: BOM snapshot annotation */}
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Parts List"
-          title="Place a parts list (BOM) table on the sheet — click to position"
+          aria-label={t('ribbon.drawing.partsList')}
+          title={t('ribbon.drawing.partsListTip')}
           onClick={() => useToolModeStore.getState().enterPartsListMode()}
         >
-          Parts List
+          {t('ribbon.drawing.partsList')}
         </button>
       </RibbonPanel>
 
       {/* Reference panel */}
-      <RibbonPanel title="Reference">
+      <RibbonPanel title={t('ribbon.drawing.reference')}>
         <button
           type="button"
           className="text-xs hover:text-white"
-          aria-label="Import DXF Underlay…"
+          aria-label={t('ribbon.drawing.importDxf')}
           onClick={() => {
             const { bus } = useAppStore.getState();
             void (async () => {
@@ -287,14 +289,14 @@ export default function DrawingTab(): JSX.Element {
             })();
           }}
         >
-          Import DXF Underlay…
+          {t('ribbon.drawing.importDxf')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Remove Underlay"
+          aria-label={t('ribbon.drawing.removeUnderlay')}
           disabled={!hasUnderlay}
-          title={hasUnderlay ? 'Remove DXF underlay from active sheet' : 'No underlay to remove'}
+          title={hasUnderlay ? t('ribbon.drawing.removeUnderlayTip') : t('ribbon.drawing.noUnderlayTip')}
           onClick={() => {
             void (async () => {
               const { RemoveDxfUnderlayCommand } = await import('../../commands/RemoveDxfUnderlayCommand');
@@ -302,30 +304,30 @@ export default function DrawingTab(): JSX.Element {
             })();
           }}
         >
-          Remove Underlay
+          {t('ribbon.drawing.removeUnderlay')}
         </button>
       </RibbonPanel>
 
       {/* Export panel */}
-      <RibbonPanel title="Export">
+      <RibbonPanel title={t('ribbon.drawing.export')}>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Export PDF"
+          aria-label={t('ribbon.drawing.exportPdf')}
           disabled={!anySheetHasProjectedView}
-          title={anySheetHasProjectedView ? 'Export to PDF' : 'No projected views to export'}
+          title={anySheetHasProjectedView ? t('ribbon.drawing.exportPdfTip') : t('ribbon.drawing.noViewsTip')}
           onClick={() => {
             void bus.execute(new ExportDrawingPdfCommand({ drawing, source }));
           }}
         >
-          Export PDF
+          {t('ribbon.drawing.exportPdf')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Export SVG"
+          aria-label={t('ribbon.drawing.exportSvg')}
           disabled={!hasProjectedView}
-          title={hasProjectedView ? 'Export to SVG' : 'No projected views to export'}
+          title={hasProjectedView ? t('ribbon.drawing.exportSvgTip') : t('ribbon.drawing.noViewsTip')}
           onClick={() => {
             void bus.execute(new ExportDrawingSvgCommand({
               drawing,
@@ -334,14 +336,14 @@ export default function DrawingTab(): JSX.Element {
             }));
           }}
         >
-          Export SVG
+          {t('ribbon.drawing.exportSvg')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Export PNG"
+          aria-label={t('ribbon.drawing.exportPng')}
           disabled={!hasProjectedView}
-          title={hasProjectedView ? 'Export to PNG' : 'No projected views to export'}
+          title={hasProjectedView ? t('ribbon.drawing.exportPngTip') : t('ribbon.drawing.noViewsTip')}
           onClick={() => {
             void bus.execute(new ExportDrawingPngCommand({
               drawing,
@@ -350,14 +352,14 @@ export default function DrawingTab(): JSX.Element {
             }));
           }}
         >
-          Export PNG
+          {t('ribbon.drawing.exportPng')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Export DXF"
+          aria-label={t('ribbon.drawing.exportDxf')}
           disabled={!hasProjectedView}
-          title={hasProjectedView ? 'Export to DXF' : 'No projected views to export'}
+          title={hasProjectedView ? t('ribbon.drawing.exportDxfTip') : t('ribbon.drawing.noViewsTip')}
           onClick={() => {
             void bus.execute(new ExportDrawingDxfCommand({
               drawing,
@@ -366,14 +368,14 @@ export default function DrawingTab(): JSX.Element {
             }));
           }}
         >
-          Export DXF
+          {t('ribbon.drawing.exportDxf')}
         </button>
         <button
           type="button"
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Export DXF (1:1)"
+          aria-label={t('ribbon.drawing.exportDxf11')}
           disabled={!hasProjectedView}
-          title={hasProjectedView ? 'Export geometry at 1:1 (machining size)' : 'No projected views to export'}
+          title={hasProjectedView ? t('ribbon.drawing.exportDxf11Tip') : t('ribbon.drawing.noViewsTip')}
           onClick={() => {
             void bus.execute(new ExportDrawing1to1DxfCommand({
               drawing,
@@ -381,33 +383,33 @@ export default function DrawingTab(): JSX.Element {
             }));
           }}
         >
-          Export DXF (1:1)
+          {t('ribbon.drawing.exportDxf11')}
         </button>
         {isMultiSheet && (
           <>
             <button
               type="button"
               className="text-xs hover:text-white disabled:text-neutral-500"
-              aria-label="Export All Sheets (DXF)"
+              aria-label={t('ribbon.drawing.exportAllDxf')}
               disabled={!anySheetHasProjectedView}
-              title={anySheetHasProjectedView ? 'Export every sheet as a DXF (zip)' : 'No projected views to export'}
+              title={anySheetHasProjectedView ? t('ribbon.drawing.exportAllDxfTip') : t('ribbon.drawing.noViewsTip')}
               onClick={() => {
                 void bus.execute(new ExportAllSheetsDxfCommand({ drawing, source }));
               }}
             >
-              Export All Sheets (DXF)
+              {t('ribbon.drawing.exportAllDxf')}
             </button>
             <button
               type="button"
               className="text-xs hover:text-white disabled:text-neutral-500"
-              aria-label="Export All Sheets (1:1)"
+              aria-label={t('ribbon.drawing.exportAll11')}
               disabled={!anySheetHasProjectedView}
-              title={anySheetHasProjectedView ? 'Export every sheet at 1:1 (zip)' : 'No projected views to export'}
+              title={anySheetHasProjectedView ? t('ribbon.drawing.exportAll11Tip') : t('ribbon.drawing.noViewsTip')}
               onClick={() => {
                 void bus.execute(new ExportAllSheets1to1DxfCommand({ drawing }));
               }}
             >
-              Export All Sheets (1:1)
+              {t('ribbon.drawing.exportAll11')}
             </button>
           </>
         )}

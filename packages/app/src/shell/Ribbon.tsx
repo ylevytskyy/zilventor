@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import RibbonTab from './RibbonTab';
 import FileTab from './tabs/FileTab';
 import ModelTab from './tabs/ModelTab';
@@ -18,6 +19,7 @@ const DRAWING_TABS  = ['File', 'Drawing',  'View'] as const;
 type Props = { partInfo?: Map<string, PartInfo> };
 
 export default function Ribbon({ partInfo }: Props = {}) {
+  const { t } = useTranslation();
   const kind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
   const TABS: string[] =
     kind === 'drawing'  ? [...DRAWING_TABS]  :
@@ -68,8 +70,8 @@ export default function Ribbon({ partInfo }: Props = {}) {
   return (
     <div className="flex flex-col">
       <div role="tablist" className="flex border-b border-shell-border bg-ribbon-tab">
-        {TABS.map((t) => (
-          <RibbonTab key={t} label={t} selected={t === resolvedActive} onSelect={() => setActive(t)} />
+        {TABS.map((tab) => (
+          <RibbonTab key={tab} label={t(`tab.${tab.toLowerCase()}`)} selected={tab === resolvedActive} onSelect={() => setActive(tab)} />
         ))}
       </div>
       <div className="bg-ribbon-bg min-h-[72px]">{panels[resolvedActive]}</div>

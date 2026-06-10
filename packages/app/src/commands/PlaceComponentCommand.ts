@@ -8,6 +8,7 @@ import type {
 } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION, isPanelFeature, migrateManifest, type AnyManifest } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
+import i18n from '../i18n';
 import { syncPartMaterials } from '../store/syncPartMaterials';
 import { wouldCreateCycle } from '../assembly/cycleCheck';
 import type { OpfsLike } from '../assembly/SubAssemblyCache';
@@ -44,7 +45,7 @@ export class PlaceComponentCommand implements Command {
       const cyclic = await wouldCreateCycle(activeDocPath, this.opts.partPath, this.opts.opfs);
       if (cyclic) {
         useAppStore.getState().setStatus(
-          `Cannot place ${this.opts.partPath}: would create a sub-assembly cycle.`,
+          i18n.t('status.placeComponent.cycle', { partPath: this.opts.partPath }),
         );
         return;
       }

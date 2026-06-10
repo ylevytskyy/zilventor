@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 
 function formatElapsed(sec: number): string {
@@ -13,6 +14,7 @@ function formatElapsed(sec: number): string {
  * aborts via the injected `onCancel` (a hard kernel restart — see the spec).
  */
 export default function FileOpenOverlay({ onCancel }: { onCancel: () => void }) {
+  const { t } = useTranslation();
   const fileOpen = useAppStore((s) => s.fileOpen);
   const [elapsedSec, setElapsedSec] = useState(0);
 
@@ -34,7 +36,7 @@ export default function FileOpenOverlay({ onCancel }: { onCancel: () => void }) 
   return (
     <div
       role="alertdialog"
-      aria-label="Opening file"
+      aria-label={t('aria.opening_file')}
       data-testid="file-open-overlay"
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
     >
@@ -43,20 +45,20 @@ export default function FileOpenOverlay({ onCancel }: { onCancel: () => void }) 
           aria-hidden="true"
           className="w-8 h-8 border-2 border-neutral-600 border-t-white rounded-full animate-spin"
         />
-        <div className="text-sm">Opening {fileOpen.fileName}…</div>
+        <div className="text-sm">{t('overlay.opening', { fileName: fileOpen.fileName })}</div>
         <div className="text-neutral-300" data-testid="file-open-elapsed">
           {formatElapsed(elapsedSec)} elapsed
         </div>
         {elapsedSec >= 3 && (
           <div className="text-neutral-400 text-center">
-            Large assemblies can take several minutes.
+            {t('overlay.large_assembly_hint')}
           </div>
         )}
         <button
           onClick={onCancel}
           className="mt-2 px-3 py-1 border border-shell-border hover:text-white"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { BooleanOperation, SweepOrientation } from '@zilventor/shared';
 
 type Props = {
@@ -31,6 +32,7 @@ const btn: React.CSSProperties = {
 };
 
 export function SweepDialog(props: Props): JSX.Element {
+  const { t } = useTranslation();
   const canCommit =
     props.profileSketchId !== null
     && props.pathSketchId !== null
@@ -46,30 +48,35 @@ export function SweepDialog(props: Props): JSX.Element {
     props.onCommit({ orientation, operation: props.operation });
   };
 
+  const orientationLabel = (k: 'path' | 'parallel' | 'guideRail') =>
+    k === 'path' ? t('dialog.sweep.orientPath') : k === 'parallel' ? t('dialog.sweep.orientParallel') : t('dialog.sweep.orientGuideRail');
+  const operationLabel = (op: 'new' | 'join' | 'cut') =>
+    op === 'new' ? t('common.opNew') : op === 'join' ? t('common.opJoin') : t('common.opCut');
+
   return (
-    <form role="dialog" aria-label="Sweep" onSubmit={handleSubmit} style={panel}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Sweep</div>
+    <form role="dialog" aria-label={t('dialog.sweep.ariaLabel')} onSubmit={handleSubmit} style={panel}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.sweep.title')}</div>
 
       <section style={{ marginBottom: 8 }}>
-        <h2 style={head}>Profile</h2>
+        <h2 style={head}>{t('dialog.sweep.profile')}</h2>
         <div style={row}>
           <button type="button" onClick={props.onPickProfile} style={btn}>
-            {props.profileSketchId ? `Profile: ${props.profileSketchId}` : 'Pick profile'}
+            {props.profileSketchId ? `${t('dialog.sweep.profile')}: ${props.profileSketchId}` : t('dialog.sweep.pickProfile')}
           </button>
         </div>
       </section>
 
       <section style={{ marginBottom: 8 }}>
-        <h2 style={head}>Path</h2>
+        <h2 style={head}>{t('dialog.sweep.path')}</h2>
         <div style={row}>
           <button type="button" onClick={props.onPickPath} style={btn}>
-            {props.pathSketchId ? `Path: ${props.pathSketchId}` : 'Pick path'}
+            {props.pathSketchId ? `${t('dialog.sweep.path')}: ${props.pathSketchId}` : t('dialog.sweep.pickPath')}
           </button>
         </div>
       </section>
 
       <section style={{ marginBottom: 8 }}>
-        <h2 style={head}>Orientation</h2>
+        <h2 style={head}>{t('dialog.sweep.orientation')}</h2>
         <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
           {(['path', 'parallel', 'guideRail'] as const).map((k) => (
             <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -79,19 +86,19 @@ export function SweepDialog(props: Props): JSX.Element {
                 checked={props.orientationKind === k}
                 onChange={() => props.onSetOrientation(k)}
               />
-              {k === 'path' ? 'Path' : k === 'parallel' ? 'Parallel' : 'Guide Rail'}
+              {orientationLabel(k)}
             </label>
           ))}
         </div>
         {props.orientationKind === 'guideRail' && (
           <button type="button" onClick={props.onPickGuideRail} style={btn}>
-            {props.guideRailSketchId ? `Guide rail: ${props.guideRailSketchId}` : 'Pick guide rail'}
+            {props.guideRailSketchId ? `${t('dialog.sweep.orientGuideRail')}: ${props.guideRailSketchId}` : t('dialog.sweep.pickGuideRail')}
           </button>
         )}
       </section>
 
       <section style={{ marginBottom: 8 }}>
-        <h2 style={head}>Operation</h2>
+        <h2 style={head}>{t('dialog.sweep.operation')}</h2>
         <div style={{ display: 'flex', gap: 12 }}>
           {(['new', 'join', 'cut'] as const).map((op) => (
             <label key={op} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -102,7 +109,7 @@ export function SweepDialog(props: Props): JSX.Element {
                 disabled={op !== 'new' && !props.hasRunningBody}
                 onChange={() => props.onSetOperation(op)}
               />
-              {op[0]!.toUpperCase() + op.slice(1)}
+              {operationLabel(op)}
             </label>
           ))}
         </div>
@@ -113,8 +120,8 @@ export function SweepDialog(props: Props): JSX.Element {
       )}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={props.onCancel} style={btn}>Cancel</button>
-        <button type="submit" disabled={!canCommit} style={btn}>OK</button>
+        <button type="button" onClick={props.onCancel} style={btn}>{t('common.cancel')}</button>
+        <button type="submit" disabled={!canCommit} style={btn}>{t('common.ok')}</button>
       </div>
     </form>
   );

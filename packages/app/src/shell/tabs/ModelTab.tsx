@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { isImportedPart } from '@zilventor/shared';
@@ -12,6 +13,7 @@ import { OpenWorkPointDialogCommand } from '../../commands/OpenWorkPointDialogCo
 import ExtrudeDialog, { type ExtrudeDialogValue } from '../ExtrudeDialog';
 
 export default function ModelTab() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const [extrudeOpen, setExtrudeOpen] = useState(false);
 
@@ -74,65 +76,65 @@ export default function ModelTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2">
-      <RibbonPanel title="Create">
-        <button className="text-xs hover:text-white" onClick={handleNewPart}>New Part</button>
-        <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => setExtrudeOpen(true)}>Extrude</button>
-        <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>Revolve (R)</button>
+      <RibbonPanel title={t('ribbon.model.create')}>
+        <button className="text-xs hover:text-white" onClick={handleNewPart}>{t('tab.file.newPart')}</button>
+        <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => setExtrudeOpen(true)}>{t('ribbon.model.extrude')}</button>
+        <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>{t('ribbon.model.revolve')}</button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!hasSketch || readOnly}
           onClick={() => OpenSweepDialogCommand()}
-          aria-label="Sweep"
-          title={readOnly ? readOnlyTip : 'Sweep (W)'}
+          aria-label={t('ribbon.model.sweep')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.sweep')}
         >
-          Sweep
+          {t('ribbon.model.sweep')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
-          aria-label="Explode into Assembly"
+          aria-label={t('ribbon.model.explode')}
           disabled={!isExplodable}
           onClick={() => { void handleExplode(); }}
         >
-          Explode into Assembly
+          {t('ribbon.model.explode')}
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Work Features">
+      <RibbonPanel title={t('ribbon.model.workFeatures')}>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkPlaneDialogCommand()}
-          aria-label="Work Plane"
-          title={readOnly ? readOnlyTip : 'Work Plane (Ctrl+Shift+P)'}
+          aria-label={t('ribbon.model.plane')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.plane')}
         >
-          Plane
+          {t('ribbon.model.plane')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkAxisDialogCommand()}
-          aria-label="Work Axis"
-          title={readOnly ? readOnlyTip : 'Work Axis (Ctrl+Shift+A)'}
+          aria-label={t('ribbon.model.axis')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.axis')}
         >
-          Axis
+          {t('ribbon.model.axis')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!activePart || readOnly}
           onClick={() => OpenWorkPointDialogCommand()}
-          aria-label="Work Point"
-          title={readOnly ? readOnlyTip : 'Work Point (Ctrl+Shift+W)'}
+          aria-label={t('ribbon.model.point')}
+          title={readOnly ? readOnlyTip : t('ribbon.model.point')}
         >
-          Point
+          {t('ribbon.model.point')}
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Modify">
+      <RibbonPanel title={t('ribbon.model.modify')}>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!hasRunningBody || readOnly}
           title={readOnlyTip}
           onClick={() => useAppStore.getState().setFilletDialogOpen(true)}
         >
-          Fillet (F)
+          {t('ribbon.model.fillet')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
@@ -140,7 +142,7 @@ export default function ModelTab() {
           title={readOnlyTip}
           onClick={() => useAppStore.getState().setChamferDialogOpen(true)}
         >
-          Chamfer (K)
+          {t('ribbon.model.chamfer')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
@@ -148,26 +150,26 @@ export default function ModelTab() {
           title={readOnlyTip}
           onClick={() => useAppStore.getState().setShellDialogOpen(true)}
         >
-          Shell (S)
+          {t('ribbon.model.shell')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!hasRunningBody || readOnly}
           onClick={() => OpenHoleDialogCommand()}
-          title={readOnly ? readOnlyTip : 'Hole (H)'}
-          aria-label="Hole"
+          title={readOnly ? readOnlyTip : t('ribbon.model.hole')}
+          aria-label={t('ribbon.model.hole')}
         >
-          Hole (H)
+          {t('ribbon.model.hole')}
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Pattern">
+      <RibbonPanel title={t('ribbon.model.pattern')}>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
           disabled={!hasRunningBody || readOnly}
           title={readOnlyTip}
           onClick={() => useAppStore.getState().setLinearPatternDialogOpen(true)}
         >
-          Linear Pattern (L)
+          {t('ribbon.model.linearPattern')}
         </button>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500"
@@ -175,11 +177,11 @@ export default function ModelTab() {
           title={readOnlyTip}
           onClick={() => useAppStore.getState().setMirrorDialogOpen(true)}
         >
-          Mirror (M)
+          {t('ribbon.model.mirror')}
         </button>
       </RibbonPanel>
-      <RibbonPanel title="Parameters">
-        <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>Parameters…</button>
+      <RibbonPanel title={t('ribbon.model.parameters')}>
+        <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>{t('ribbon.model.parametersBtn')}</button>
       </RibbonPanel>
       {extrudeOpen && (
         <ExtrudeDialog

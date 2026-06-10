@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DrawingTreePane } from '../drawing/DrawingTreePane';
 import type { AssemblyDocument, ComponentInstance, Feature, PanelFeature, PartDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
@@ -42,6 +43,7 @@ function renderAssemblyTree(args: RenderTreeArgs): JSX.Element {
 }
 
 function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }: RenderTreeArgs): JSX.Element {
+  const { t } = useTranslation();
   const subAsmDocs = useAppStore((s) => s.subAssemblyDocs);
   const expanded = useAppStore((s) => s.expandedSubAsmPaths);
 
@@ -112,7 +114,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
             >
               {isGrounded ? '⛓ ' : ''}{c.id} — {partFileName}
               {isSubAsm && <span style={{ color: '#888' }}> ({childCount} components)</span>}
-              {c.flexible && <span style={{ marginLeft: 6, color: '#fbbf24' }}>Flexible</span>}
+              {c.flexible && <span style={{ marginLeft: 6, color: '#fbbf24' }}>{t('common.flexible')}</span>}
               {isCycle && <span style={{ marginLeft: 6, color: '#f87171' }}>cycle</span>}
             </span>
           </div>
@@ -157,6 +159,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
 
 
 function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null; partInfo: Map<string, PartInfo> }): JSX.Element {
+  const { t } = useTranslation();
   const activeDoc = useAppStore((s) => s.activeDocument);
   const bomTabActive = useAppStore((s) => s.bomTabActive);
   const cutListTabActive = useAppStore((s) => s.cutListTabActive);
@@ -189,35 +192,35 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
     <div className="flex gap-1 mb-1 border-b border-shell-border" role="tablist">
       <button
         type="button"
-        aria-label="Assembly tab"
+        aria-label={t('aria.assembly_tab')}
         onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); useAppStore.getState().setNestingTabActive(false); }}
         className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive && !nestingTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
-        Assembly
+        {t('tab.assembly')}
       </button>
       <button
         type="button"
-        aria-label="BOM tab"
+        aria-label={t('aria.bom_tab')}
         onClick={() => setBomTabActive(true)}
         className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
-        BOM
+        {t('tab.bom')}
       </button>
       <button
         type="button"
-        aria-label="Cut List tab"
+        aria-label={t('aria.cut_list_tab')}
         onClick={() => void new OpenCutListTabCommand().apply()}
         className={`px-2 py-0.5 text-xs ${cutListTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
-        Cut List
+        {t('tab.cut_list')}
       </button>
       <button
         type="button"
-        aria-label="Nesting tab"
+        aria-label={t('aria.nesting_tab')}
         onClick={() => void new OpenNestingTabCommand().apply()}
         className={`px-2 py-0.5 text-xs ${nestingTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
-        Nesting
+        {t('tab.nesting')}
       </button>
     </div>
   );
@@ -260,10 +263,10 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   return (
     <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
       {tabStrip}
-      <div className="font-semibold mb-1">Assembly: {asm.name}</div>
+      <div className="font-semibold mb-1">{t('browser.assembly_label', { name: asm.name })}</div>
       <ul className="space-y-0.5">
-        <li className="pl-3">Origin</li>
-        <li className="pl-3">Components ({asm.components.length})</li>
+        <li className="pl-3">{t('browser.origin')}</li>
+        <li className="pl-3">{t('browser.components_count', { count: asm.components.length })}</li>
         {renderAssemblyTree({
           components: asm.components,
           doc: asm,
@@ -276,6 +279,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
 }
 
 export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }: Props) {
+  const { t } = useTranslation();
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
@@ -288,7 +292,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
   }
 
   if (!part) {
-    return <div className="px-3 py-2 text-xs text-neutral-500">No part open</div>;
+    return <div className="px-3 py-2 text-xs text-neutral-500">{t('browser.no_part_open')}</div>;
   }
 
   const openWorkFeatureForEdit = (kind: WorkFeature['kind'], id: string) => {
@@ -375,7 +379,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
       <ul className="space-y-0.5">
         <li className="pl-3">
           <details data-testid="origin-group" open>
-            <summary className="cursor-pointer">Origin</summary>
+            <summary className="cursor-pointer">{t('browser.origin')}</summary>
             <ul className="space-y-0.5 pl-4">
               {originFeatures.map((f) => (
                 <li
@@ -606,7 +610,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
             </li>
           );
         })}
-        <li className="pl-3 text-neutral-500">End of Part</li>
+        <li className="pl-3 text-neutral-500">{t('browser.end_of_part')}</li>
       </ul>
     </div>
   );

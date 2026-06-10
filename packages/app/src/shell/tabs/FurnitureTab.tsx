@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { BaseCabinetParams, PanelFeature } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
 import RibbonPanel from '../RibbonPanel';
@@ -23,6 +24,7 @@ import { useBoringResult } from '../useBoringResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const disabled = !activePart && !activeAssembly;
@@ -90,82 +92,82 @@ export default function FurnitureTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2">
-      <RibbonPanel title="Create">
+      <RibbonPanel title={t('ribbon.furniture.create')}>
         <button
           className="text-xs hover:text-white disabled:text-neutral-500 flex items-center gap-1"
           disabled={disabled}
           onClick={() => { void handlePanel(); }}
-          aria-label="Panel"
+          aria-label={t('ribbon.furniture.panel')}
         >
           <PanelIcon width={14} height={14} />
-          Panel
+          {t('ribbon.furniture.panel')}
         </button>
       </RibbonPanel>
-      <div aria-label="Cabinets panel">
-        <RibbonPanel title="Cabinets">
+      <div aria-label={t('ribbon.furniture.cabinets')}>
+        <RibbonPanel title={t('ribbon.furniture.cabinets')}>
           <button
             type="button"
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={cabinetDisabled}
             onClick={() => { void handleCabinet(); }}
-            aria-label="Base Cabinet"
-            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+            aria-label={t('ribbon.furniture.baseCabinet')}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
           >
-            Base Cabinet
+            {t('ribbon.furniture.baseCabinet')}
           </button>
         </RibbonPanel>
       </div>
-      <div aria-label="Hardware panel">
-        <RibbonPanel title="Hardware">
+      <div aria-label={t('ribbon.furniture.hardware')}>
+        <RibbonPanel title={t('ribbon.furniture.hardware')}>
           <button
             type="button"
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={cabinetDisabled}
             onClick={() => { void handleHardware(); }}
-            aria-label="Add Hardware"
-            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+            aria-label={t('ribbon.furniture.addHardware')}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
           >
-            Add Hardware
+            {t('ribbon.furniture.addHardware')}
           </button>
         </RibbonPanel>
       </div>
-      <div aria-label="Cut List panel">
-        <RibbonPanel title="Cut List">
+      <div aria-label={t('ribbon.furniture.cutList')}>
+        <RibbonPanel title={t('ribbon.furniture.cutList')}>
           <button type="button" className="text-xs hover:text-white"
-            onClick={() => void new OpenCutListTabCommand().apply()}>Cut List</button>
+            onClick={() => void new OpenCutListTabCommand().apply()}>{t('ribbon.furniture.cutList')}</button>
           <button type="button" className="text-xs hover:text-white"
-            onClick={() => void new RenumberCutListCommand({ result: cutListResult }).apply()}>Renumber</button>
+            onClick={() => void new RenumberCutListCommand({ result: cutListResult }).apply()}>{t('tab.asm.renumber')}</button>
           <button type="button" className="text-xs hover:text-white"
             onClick={() => void new ExportCutListCsvCommand({
               result: cutListResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
-            }).apply()}>Export CSV</button>
+            }).apply()}>{t('ribbon.furniture.exportCsv')}</button>
         </RibbonPanel>
       </div>
-      <div aria-label="Присадка panel">
-        <RibbonPanel title="Присадка">
+      <div aria-label={t('ribbon.furniture.presadka')}>
+        <RibbonPanel title={t('ribbon.furniture.presadka')}>
           <button
             type="button"
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={cabinetDisabled}
-            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
             onClick={() => { handleGenerateBores(); }}
-            aria-label="Generate Присадку"
+            aria-label={t('ribbon.furniture.generatePresadku')}
           >
-            Генерувати присадку
+            {t('ribbon.furniture.generatePresadku')}
           </button>
           <button type="button" className="text-xs hover:text-white"
             aria-pressed={showBores}
             onClick={() => useAppStore.getState().setShowBores(!showBores)}>
-            {showBores ? 'Hide Bores' : 'Show Bores'}
+            {showBores ? t('ribbon.furniture.hideBores') : t('ribbon.furniture.showBores')}
           </button>
           <button
             type="button"
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly}
             aria-disabled={!activeAssembly}
-            aria-label="Очистити присадку"
-            title={!activeAssembly ? 'Open or create an assembly first' : 'Remove all bore operations from assembly panels'}
+            aria-label={t('ribbon.furniture.clearPresadku')}
+            title={!activeAssembly ? t('ribbon.furniture.needAssemblyTip') : ''}
             onClick={() => {
               const state = useAppStore.getState();
               const asm = state.activeAssembly;
@@ -189,7 +191,7 @@ export default function FurnitureTab() {
                 }
               })();
             }}>
-            Очистити присадку
+            {t('ribbon.furniture.clearPresadku')}
           </button>
           <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly}
@@ -198,7 +200,7 @@ export default function FurnitureTab() {
               result: boringResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.csv`,
             }).apply()}>
-            Export CSV (Boring)
+            {t('ribbon.furniture.exportBoringCsv')}
           </button>
           <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly}
@@ -207,15 +209,15 @@ export default function FurnitureTab() {
               result: boringResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.dxf`,
             }).apply()}>
-            Export DXF (Boring)
+            {t('ribbon.furniture.exportBoringDxf')}
           </button>
         </RibbonPanel>
       </div>
-      <div aria-label="Nesting panel">
-        <RibbonPanel title="Nesting">
+      <div aria-label={t('ribbon.furniture.nesting')}>
+        <RibbonPanel title={t('ribbon.furniture.nesting')}>
           <button type="button" className="text-xs hover:text-white"
             onClick={() => { void new OpenNestDialogCommand().apply(); }}>
-            Generate Nest
+            {t('ribbon.furniture.generateNest')}
           </button>
           <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly?.nest}
@@ -227,7 +229,7 @@ export default function FurnitureTab() {
                 suggestedName: `${activeAssembly.name}-nest.pdf`,
               }).apply();
             }}>
-            Export PDF
+            {t('ribbon.drawing.exportPdf')}
           </button>
         </RibbonPanel>
       </div>

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   initialName: string;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function DimensionDialog({ initialName, initialExpression, unit, cursor, onCommit, onCancel }: Props) {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [expression, setExpression] = useState(initialExpression);
 
@@ -21,7 +23,7 @@ export function DimensionDialog({ initialName, initialExpression, unit, cursor, 
   return (
     <form
       role="dialog"
-      aria-label="Edit Dimension"
+      aria-label={t('aria.edit_dimension')}
       onSubmit={handleSubmit}
       style={{
         position: 'absolute',
@@ -31,9 +33,9 @@ export function DimensionDialog({ initialName, initialExpression, unit, cursor, 
         zIndex: 50
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Edit Dimension</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.dimension.title')}</div>
       <label style={{ display: 'block', marginBottom: 6 }}>
-        Name
+        {t('dialog.dimension.name')}
         <input
           autoFocus
           value={name}
@@ -42,7 +44,7 @@ export function DimensionDialog({ initialName, initialExpression, unit, cursor, 
         />
       </label>
       <label style={{ display: 'block', marginBottom: 8 }}>
-        Value
+        {t('dialog.dimension.value')}
         <input
           value={expression}
           onChange={(e) => setExpression(e.target.value)}
@@ -51,8 +53,8 @@ export function DimensionDialog({ initialName, initialExpression, unit, cursor, 
         <span style={{ fontSize: 11, color: '#888', marginLeft: 4 }}>{unit}</span>
       </label>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel}>Cancel</button>
-        <button type="submit">OK</button>
+        <button type="button" onClick={onCancel}>{t('common.cancel')}</button>
+        <button type="submit">{t('common.ok')}</button>
       </div>
     </form>
   );

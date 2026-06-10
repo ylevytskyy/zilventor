@@ -1,4 +1,5 @@
 import type { AssemblyDocument } from '@zilventor/shared';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import type { DofStatus } from '@zilventor/sketcher-worker';
 import { visibleLeaves } from '../assembly/walkers/visibleLeaves';
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function StatusBar({ message, modified = false, selection }: Props) {
+  const { t } = useTranslation();
   const statusMessage = useAppStore((s) => s.statusMessage);
   const sketchDof = useAppStore((s) => s.sketchDof);
   const activeAssembly = useAppStore((s) => s.activeAssembly);
@@ -54,17 +56,17 @@ export function StatusBar({ message, modified = false, selection }: Props) {
     <div style={{ display: 'flex', gap: 16, padding: '4px 12px' }}>
       <span>{displayMessage}</span>
       {selection && <span>{selection}</span>}
-      {modified && <span style={{ color: '#facc15' }}>● Modified</span>}
+      {modified && <span style={{ color: '#facc15' }}>● {t('status.modified')}</span>}
       {sketchDof && <DofSegment dof={sketchDof} />}
       {hasConstraints && <AssemblyDofSegment diagnostics={solverDiagnostics} />}
       {activeAssembly && (
         <span style={{ color: '#aaa' }}>
-          {leafCount} components in {subAsmCount} sub-assemblies
+          {t('status.components', { leafCount, subAsmCount })}
         </span>
       )}
       {subAssemblyDiagnostics.length > 0 && (
         <span
-          aria-label={`${subAssemblyDiagnostics.length} diagnostic${subAssemblyDiagnostics.length === 1 ? '' : 's'}`}
+          aria-label={t('status.diagnosticsAria', { count: subAssemblyDiagnostics.length })}
           title={subAssemblyDiagnostics.map((d) => `${d.kind}: ${d.partPath} — ${d.message}`).join('\n')}
           style={{ color: '#f87171', cursor: 'pointer' }}
         >
@@ -77,13 +79,14 @@ export function StatusBar({ message, modified = false, selection }: Props) {
 }
 
 function DofSegment({ dof }: { dof: DofStatus }) {
+  const { t } = useTranslation();
   if (dof.state === 'fully') {
-    return <span style={{ color: '#4ade80' }}>Fully constrained</span>;
+    return <span style={{ color: '#4ade80' }}>{t('status.dof.fully')}</span>;
   }
   if (dof.state === 'over') {
-    return <span style={{ color: '#f87171' }}>Over constrained: {dof.count}</span>;
+    return <span style={{ color: '#f87171' }}>{t('status.dof.over', { count: dof.count })}</span>;
   }
-  return <span style={{ color: '#fbbf24' }}>{dof.count} DOF</span>;
+  return <span style={{ color: '#fbbf24' }}>{t('status.dof.under', { count: dof.count })}</span>;
 }
 
 type SolverDiagnostics = {
@@ -93,17 +96,18 @@ type SolverDiagnostics = {
 };
 
 function AssemblyDofSegment({ diagnostics }: { diagnostics: SolverDiagnostics }) {
+  const { t } = useTranslation();
   if (diagnostics.status === 'fully-constrained') {
-    return <span style={{ color: '#4ade80' }}>Assembly: fully constrained</span>;
+    return <span style={{ color: '#4ade80' }}>{t('status.asm.fully')}</span>;
   }
   if (diagnostics.status === 'underconstrained') {
-    return <span style={{ color: '#fbbf24' }}>Assembly: {diagnostics.dofCount} DOF</span>;
+    return <span style={{ color: '#fbbf24' }}>{t('status.asm.under', { count: diagnostics.dofCount })}</span>;
   }
   if (diagnostics.status === 'over-constrained') {
-    return <span style={{ color: '#f87171' }}>Assembly: over-constrained</span>;
+    return <span style={{ color: '#f87171' }}>{t('status.asm.over')}</span>;
   }
   // did-not-converge
-  return <span style={{ color: '#f87171' }}>Assembly: solver did not converge</span>;
+  return <span style={{ color: '#f87171' }}>{t('status.asm.noConverge')}</span>;
 }
 
 export default StatusBar;
