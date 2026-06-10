@@ -125,6 +125,7 @@ import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
+import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
 import type { NestInputRow } from '@zilventor/shared';
 import { projectView } from '@zilventor/shared/src/drawing/projector';
@@ -3865,6 +3866,17 @@ export default function App() {
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
               // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
               partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
+              // hand so bore markers render without requiring the Cut List tab to be visited.
+              // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so
+              // cache.has() correctly skips re-resolution on subsequent mesh-sync runs (no loop).
+              if (!panelSpecCacheRef.current.has(partPath)) {
+                const pf = partDoc.featureTree.find((f) => isPanelFeature(f)) as PanelFeature | undefined;
+                panelSpecCacheRef.current.set(
+                  partPath,
+                  pf ? resolvePanelSpecFromFeature(pf, partDoc.parameters) : null,
+                );
+              }
             }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
