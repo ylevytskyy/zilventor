@@ -166,7 +166,7 @@ type AppState = {
   mirrorDialogOpen: boolean;
   importFromInventorDialogOpen: boolean;
   holeDialogOpen: boolean;
-  holePlacementMode: 'fromSketch' | 'linear' | 'concentric';
+  holePlacementMode: 'fromSketch' | 'linear' | 'concentric' | 'atFace';
   holeSketchId: string | null;
   holePlacementFace: FaceName | null;
   holeRefEdges: [EdgeName | null, EdgeName | null];
@@ -974,12 +974,16 @@ export const useAppStore = create<AppState>((set) => ({
       return { ...s, holeDialogOpen: true, editingHoleId: id };
     }
     const placement = feature.placement;
+    // atFace holes are baked by BakeBoresCommand and are not user-editable via HoleDialog;
+    // fall back to 'fromSketch' so the dialog opens in a safe read-only-ish state.
+    const displayMode: AppState['holePlacementMode'] =
+      placement.kind === 'atFace' ? 'fromSketch' : placement.kind;
     return {
       ...s,
       holeDialogOpen: true,
       editingHoleId: id,
       holeInitialValues: feature,
-      holePlacementMode: placement.kind,
+      holePlacementMode: displayMode,
       holeSketchId: placement.kind === 'fromSketch' ? placement.sketchId : null,
       holePlacementFace:
         placement.kind === 'linear' ? placement.faceName :
