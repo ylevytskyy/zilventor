@@ -15,6 +15,7 @@ import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
 import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
+import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { useCutListResult } from '../useCutListResult';
@@ -158,6 +159,38 @@ export default function FurnitureTab() {
             aria-pressed={showBores}
             onClick={() => useAppStore.getState().setShowBores(!showBores)}>
             {showBores ? 'Hide Bores' : 'Show Bores'}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            aria-label="Очистити присадку"
+            title={!activeAssembly ? 'Open or create an assembly first' : 'Remove all bore operations from assembly panels'}
+            onClick={() => {
+              const state = useAppStore.getState();
+              const asm = state.activeAssembly;
+              if (!asm) return;
+              // Clear bores from all panels that currently have a non-empty bores[].
+              // Each ClearBoresCommand is undoable independently.
+              void (async () => {
+                const opfs = await (await import('@zilventor/kernel/src/storage/Opfs')).Opfs.forNavigator();
+                const { unpackProject } = await import('@zilventor/kernel/src/storage/ProjectPacker');
+                for (const comp of asm.components) {
+                  if (!comp.partPath.endsWith('.zipt')) continue;
+                  try {
+                    const bytes = await opfs.read(comp.partPath);
+                    const project = await unpackProject(bytes);
+                    const doc = (project.manifest as { document: { bores?: import('@zilventor/shared').BoreOp[] } }).document;
+                    if (!doc.bores || doc.bores.length === 0) continue;
+                    await state.bus.execute(new ClearBoresCommand({ doc, partPath: comp.partPath, opfs }));
+                  } catch {
+                    // panel not yet in OPFS (not yet saved) — skip
+                  }
+                }
+              })();
+            }}>
+            Очистити присадку
           </button>
           <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={!activeAssembly}
