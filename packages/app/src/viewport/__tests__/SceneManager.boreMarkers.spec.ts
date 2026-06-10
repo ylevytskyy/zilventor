@@ -104,4 +104,15 @@ describe('SceneManager — bore markers (Phase 5)', () => {
     // confirmat -> a stable hex; exact value asserted against the constant map.
     expect(mat.color.getHexString()).toBe(SceneManager.BORE_COLORS.confirmat.replace('#', ''));
   });
+
+  it('attach() subscribes setShowBores to the store', async () => {
+    const { useAppStore } = await import('../../store/useAppStore');
+    useAppStore.getState().setShowBores(true);
+    mgr.setBoreMarkers([oneBoreSpec()]);
+    const unsub = mgr.attach();
+    expect(mgr.boreMarkerCount()).toBe(1);
+    useAppStore.getState().setShowBores(false);
+    expect(mgr.boreMarkerCount()).toBe(0);
+    unsub();
+  });
 });

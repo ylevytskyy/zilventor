@@ -264,6 +264,7 @@ type AppState = {
   cutListTabActive: boolean;
   showComponentColors: boolean;
   showEdgeBands: boolean;
+  showBores: boolean;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -278,6 +279,7 @@ type AppState = {
   setCutListTabActive: (v: boolean) => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
+  setShowBores: (v: boolean) => void;
   setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
   setComponentFlexible: (componentId: string, flag: boolean) => void;
 
@@ -604,6 +606,7 @@ export const useAppStore = create<AppState>((set) => ({
   cutListTabActive: false,
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
+  showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -624,6 +627,10 @@ export const useAppStore = create<AppState>((set) => ({
   setShowEdgeBands: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));
     set({ showEdgeBands: v });
+  },
+  setShowBores: (v) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('showBores', String(v));
+    set({ showBores: v });
   },
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;

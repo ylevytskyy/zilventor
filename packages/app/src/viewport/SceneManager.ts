@@ -724,6 +724,15 @@ export class SceneManager {
       }
     });
     this.storeUnsubscribers.push(unsub);
+    this.setShowBores(useAppStore.getState().showBores);
+    let lastShowBores = useAppStore.getState().showBores;
+    const unsubBores = useAppStore.subscribe((s) => {
+      if (s.showBores !== lastShowBores) {
+        lastShowBores = s.showBores;
+        this.setShowBores(s.showBores);
+      }
+    });
+    this.storeUnsubscribers.push(unsubBores);
     return unsub;
   }
 
