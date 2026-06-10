@@ -14,6 +14,7 @@ import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
+import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
 import { useCutListResult } from '../useCutListResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
@@ -64,6 +65,23 @@ export default function FurnitureTab() {
       }
     };
     await new OpenHardwareDialogCommand({ onSubmit }).apply();
+  };
+
+  const handleGenerateBores = async () => {
+    const opfs = await Opfs.forNavigator();
+    await useAppStore.getState().bus.execute(
+      new GenerateCarcassBoresCommand({
+        params: {
+          endSetback: 60,
+          maxSpacing: 250,
+          minCount: 2,
+          confirmat: true,
+          minifix: false,
+          dowel: false,
+        },
+        opfs,
+      }),
+    );
   };
 
   return (
@@ -122,6 +140,16 @@ export default function FurnitureTab() {
       </div>
       <div aria-label="Присадка panel">
         <RibbonPanel title="Присадка">
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? 'Open or create an assembly first' : ''}
+            onClick={() => { void handleGenerateBores(); }}
+            aria-label="Generate Присадку"
+          >
+            Генерувати присадку
+          </button>
           <button type="button" className="text-xs hover:text-white"
             aria-pressed={showBores}
             onClick={() => useAppStore.getState().setShowBores(!showBores)}>
