@@ -3114,6 +3114,59 @@ export default function App() {
     };
   }, []);
 
+  // Production sub-assembly loader: when the active assembly changes, walk its
+  // .ziasm components and load any docs not yet in subAssemblyDocs from OPFS.
+  // This unblocks cabinet rendering in production — without it visibleLeaves()
+  // returns every .ziasm component as kind:'placeholder' (50mm grey box).
+  //
+  // Anti-loop guard: deps are [assembly] only (NOT subAssemblyDocs). The effect
+  // is additive (never replaces existing entries) and only calls setSubAssemblyDocs
+  // when at least one new doc was fetched, so a setSubAssemblyDocs call does NOT
+  // re-trigger this effect (assembly identity is unchanged).
+  useEffect(() => {
+    if (!assembly) return;
+    let cancelled = false;
+    void (async () => {
+      if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+      const opfs = opfsRef.current;
+      const existing = useAppStore.getState().subAssemblyDocs;
+      const next = { ...existing };
+      const seen = new Set<string>();
+      // BFS walk: seed with the top-level assembly, then recurse into sub-asm docs.
+      const stack: AssemblyDocument[] = [assembly];
+      while (stack.length) {
+        const d = stack.pop()!;
+        for (const c of d.components) {
+          if (!c.partPath.endsWith('.ziasm')) continue;
+          if (seen.has(c.partPath)) continue;
+          seen.add(c.partPath);
+          if (next[c.partPath]) {
+            // Already loaded — still recurse into it to find deeper nesting.
+            stack.push(next[c.partPath]!);
+            continue;
+          }
+          try {
+            if (await opfs.exists(c.partPath)) {
+              const sub = await unpackAssembly(await opfs.read(c.partPath));
+              next[c.partPath] = sub;
+              stack.push(sub);
+            }
+          } catch { /* skip corrupt sub-assemblies */ }
+        }
+      }
+      if (cancelled) return;
+      // Only update the store if we actually loaded new docs.
+      if (Object.keys(next).length > Object.keys(existing).length) {
+        useAppStore.getState().setSubAssemblyDocs(next);
+        useAppStore.getState().setSolverDirty(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  // Intentionally omit subAssemblyDocs from deps — this effect is additive and
+  // must not loop when setSubAssemblyDocs is called.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assembly]);
+
   // Sub-project 6 perf hooks (T62): drawing projection, sheet render, PDF export.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -4542,8 +4595,33 @@ export default function App() {
     s.setActiveDocument({ kind: 'assembly', document: { ...a } });
   }, [panelSpecCacheRef]);
 
+  // Evict geometry + bore + kernel-id caches for the given partPaths, then bump
+  // the active-assembly identity so the mesh-sync effect re-loads them from OPFS.
+  // Used by FurnitureTab after GenerateCarcassBoresCommand to force bore re-render.
+  const invalidatePartPaths = useCallback(async (paths: string[]): Promise<void> => {
+    if (paths.length === 0) return;
+    const kernelClient = useAppStore.getState().kernel;
+    for (const partPath of paths) {
+      const stalePartId = assemblyPartIdCacheRef.current.get(partPath);
+      assemblyRefCacheRef.current.invalidate(partPath);
+      assemblyPartIdCacheRef.current.delete(partPath);
+      geometryCacheRef.current.delete(partPath);
+      partTextureIdCacheRef.current.delete(partPath);
+      partBoresCacheRef.current.delete(partPath);
+      if (stalePartId && kernelClient) {
+        try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
+      }
+    }
+    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects.
+    const s = useAppStore.getState();
+    const doc = s.activeDocument;
+    if (doc?.kind === 'assembly') {
+      s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
+    }
+  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef]);
+
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

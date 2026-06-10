@@ -204,6 +204,11 @@ export class GenerateCarcassBoresCommand implements Command {
     }
   }
 
+  /** Returns the part paths that were written during the most recent apply(). */
+  getAffectedPartPaths(): string[] {
+    return [...this.priorBores.keys()];
+  }
+
   async revert(): Promise<void> {
     for (const [partPath, prior] of this.priorBores) {
       const project = await this.opts.opfs.read(partPath).then(unpackProject);
