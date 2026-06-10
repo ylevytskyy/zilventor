@@ -89,6 +89,11 @@ export type HardwareDialogState = {
 
 export type NestDialogState = { kind: 'open' };
 
+export type BoringDialogState = {
+  onSubmit: (params: { confirmat: boolean; minifix: boolean; dowel: boolean }) => void;
+  onCancel: () => void;
+};
+
 // Sub-project 6 Phase 8 — drawing dialogs
 export type AddViewDialogKind = 'base' | 'projected' | 'iso';
 
@@ -315,6 +320,8 @@ type AppState = {
   setNestingTabActive: (v: boolean) => void;
   nestDialog: NestDialogState | null;
   setNestDialog: (s: NestDialogState | null) => void;
+  boringDialog: BoringDialogState | null;
+  setBoringDialog: (s: BoringDialogState | null) => void;
 
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: boolean;
@@ -832,6 +839,8 @@ export const useAppStore = create<AppState>((set) => ({
   setNestingTabActive: (v) => set({ nestingTabActive: v }),
   nestDialog: null,
   setNestDialog: (s) => set({ nestDialog: s }),
+  boringDialog: null,
+  setBoringDialog: (s) => set({ boringDialog: s }),
 
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: false,

@@ -72,21 +72,19 @@ export default function FurnitureTab() {
     await new OpenHardwareDialogCommand({ onSubmit }).apply();
   };
 
-  const handleGenerateBores = async () => {
-    const opfs = await Opfs.forNavigator();
-    await useAppStore.getState().bus.execute(
-      new GenerateCarcassBoresCommand({
-        params: {
-          endSetback: 60,
-          maxSpacing: 250,
-          minCount: 2,
-          confirmat: true,
-          minifix: false,
-          dowel: false,
-        },
-        opfs,
-      }),
-    );
+  const handleGenerateBores = () => {
+    useAppStore.getState().setBoringDialog({
+      onSubmit: async ({ confirmat, minifix, dowel }) => {
+        const opfs = await Opfs.forNavigator();
+        await useAppStore.getState().bus.execute(
+          new GenerateCarcassBoresCommand({
+            params: { endSetback: 60, maxSpacing: 250, minCount: 2, confirmat, minifix, dowel },
+            opfs,
+          }),
+        );
+      },
+      onCancel: () => useAppStore.getState().setBoringDialog(null),
+    });
   };
 
   return (
@@ -150,7 +148,7 @@ export default function FurnitureTab() {
             className="text-xs hover:text-white disabled:text-neutral-500"
             disabled={cabinetDisabled}
             title={cabinetDisabled ? 'Open or create an assembly first' : ''}
-            onClick={() => { void handleGenerateBores(); }}
+            onClick={() => { handleGenerateBores(); }}
             aria-label="Generate Присадку"
           >
             Генерувати присадку
