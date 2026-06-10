@@ -40,8 +40,8 @@ describe('count/spacing math (via confirmat)', () => {
     expect(us[0]).toBeCloseTo(60, 3);
     expect(us[us.length - 1]).toBeCloseTo(640, 3);
     // even spacing
-    const gaps = us.slice(1).map((u, i) => u - us[i]);
-    for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 3);
+    const gaps = us.slice(1).map((u, i) => u - us[i]!);
+    for (const g of gaps) expect(g).toBeCloseTo(gaps[0]!, 3);
   });
 });
 
