@@ -284,8 +284,10 @@ New **single-component picker**: `Viewport.beginOneComponentPick(onPick)` +
 - **Add Door** target (pick the cabinet), and
 - **Manual система-32** target (pick one side/custom panel).
 
-Inner-face choice for the manual path: default from the picked panel's `role` (leftSide→Right,
-rightSide→Left); for a roleless custom panel, the dialog exposes a face selector.
+Inner-face choice for the manual path: default from the picked panel's `role` via the single
+derived constants (`leftSide → LEFT_SIDE_INNER_FACE`, `rightSide → RIGHT_SIDE_INNER_FACE`, both
+`'Top'|'Bottom'` — see §3/§7); for a roleless custom panel, the dialog exposes a `Top|Bottom`
+face selector.
 
 ## 10. Dialogs & ribbon (`packages/app/src/shell`)
 
