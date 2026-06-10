@@ -156,3 +156,48 @@ describe('GenerateCarcassBoresCommand — auto', () => {
     expect(bBores.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('GenerateCarcassBoresCommand — revert', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('removes the bores key entirely when the panel had none before', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+    expect((await boresOf(opfs, 'L.zipt')).length).toBeGreaterThan(0);
+
+    await cmd.revert();
+
+    // Key must be ABSENT from the document, not set to [] — exactOptionalPropertyTypes contract.
+    const project = await unpackProject(await opfs.read('L.zipt'));
+    const doc = (project.manifest as { document: Record<string, unknown> }).document;
+    expect('bores' in doc).toBe(false);
+  });
+
+  it('restores the prior bores[] when the panel already had some', async () => {
+    const opfs = new MemOpfs();
+    const seedBore: BoreOp = {
+      id: 'pre', face: { featureId: 'panel', role: 'Front', instance: 0 },
+      u: 10, v: 10, diameter: 5, depth: 12,
+      role: 'dowel-face', connectorId: 'pre-conn', connectorKind: 'dowel',
+    };
+    // Write L.zipt with a pre-existing bore
+    await writePanel(opfs, 'L.zipt', 18, 560, 720, [seedBore]);
+    await writePanel(opfs, 'R.zipt', 18, 560, 720);
+    await writePanel(opfs, 'B.zipt', 600 - 2 * 18, 560, 18);
+    await writePanel(opfs, 'T.zipt', 600 - 2 * 18, 560, 18);
+    seedCabinetAssembly(opfs);
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+    // After apply: L.zipt should have seedBore plus new bores
+    expect((await boresOf(opfs, 'L.zipt')).length).toBeGreaterThan(1);
+
+    await cmd.revert();
+
+    // After revert: only the original seedBore remains
+    const after = await boresOf(opfs, 'L.zipt');
+    expect(after).toEqual([seedBore]);
+  });
+});
