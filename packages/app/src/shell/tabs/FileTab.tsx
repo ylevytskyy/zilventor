@@ -256,25 +256,25 @@ export default function FileTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
-      <button className="hover:text-white" onClick={handleNewPart}>{t('tab.file.newPart')}</button>
-      <button className="hover:text-white" onClick={handleNewAssembly}>{t('tab.file.newAssembly')}</button>
-      <button className="hover:text-white" onClick={handleOpen}>{t('tab.file.open')}</button>
-      <button className="hover:text-white" disabled>{t('tab.file.save')}</button>
-      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>{t('tab.file.saveAs')}</button>
+      <button className="hover:text-white" onClick={handleNewPart}>{t('menu.file.newPart')}</button>
+      <button className="hover:text-white" onClick={handleNewAssembly}>{t('menu.file.newAssembly')}</button>
+      <button className="hover:text-white" onClick={handleOpen}>{t('menu.file.open')}</button>
+      <button className="hover:text-white" disabled>{t('menu.file.save')}</button>
+      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>{t('menu.file.saveAs')}</button>
       <label className="flex items-center gap-1 select-none">
         <input
           type="checkbox"
           checked={transparentBg}
           onChange={(e) => setTransparentBg(e.target.checked)}
         />
-        {t('tab.file.transparent')}
+        {t('menu.file.transparent')}
       </label>
       <button
         className="hover:text-white disabled:text-neutral-500"
         disabled={!activeDoc || activeDoc.kind === 'drawing'}
         onClick={() => handleExportImage(transparentBg)}
       >
-        {t('tab.file.exportImage')}
+        {t('menu.file.exportImage')}
       </button>
       <button
         className="hover:text-white disabled:text-neutral-500"
@@ -282,7 +282,7 @@ export default function FileTab() {
         title={hasDirectoryPicker() ? undefined : 'Import from Inventor requires Chrome, Edge, Brave, or Arc (uses showDirectoryPicker)'}
         onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
       >
-        {t('tab.file.importFromInventor')}
+        {t('menu.file.importFromInventor')}
       </button>
       {errorDialog && (
         <div role="alertdialog" aria-label={t('common.error')} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

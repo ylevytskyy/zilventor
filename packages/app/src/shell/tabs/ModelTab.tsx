@@ -77,7 +77,7 @@ export default function ModelTab() {
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title={t('ribbon.model.create')}>
-        <button className="text-xs hover:text-white" onClick={handleNewPart}>{t('tab.file.newPart')}</button>
+        <button className="text-xs hover:text-white" onClick={handleNewPart}>{t('menu.file.newPart')}</button>
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => setExtrudeOpen(true)}>{t('ribbon.model.extrude')}</button>
         <button className="text-xs hover:text-white disabled:text-neutral-500" disabled={!hasSketch || readOnly} title={readOnlyTip} onClick={() => useAppStore.getState().setRevolveDialogOpen(true)}>{t('ribbon.model.revolve')}</button>
         <button
