@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GenerateCarcassBoresCommand } from '../GenerateCarcassBoresCommand';
 import { useAppStore } from '../../store/useAppStore';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AssemblyDocument, BoreOp, PanelRole, PartDocument } from '@zilventor/shared';
 
@@ -10,6 +11,7 @@ class MemOpfs {
   files = new Map<string, Uint8Array>();
   async read(p: string) { const b = this.files.get(p); if (!b) throw new Error(`no ${p}`); return b; }
   async write(p: string, b: Uint8Array) { this.files.set(p, b); }
+  async exists(p: string) { return this.files.has(p); }
 }
 
 /**
@@ -219,5 +221,113 @@ describe('GenerateCarcassBoresCommand — revert', () => {
     // After revert: only the original seedBore remains
     const after = await boresOf(opfs, 'L.zipt');
     expect(after).toEqual([seedBore]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LOCKING TEST: nested sub-assembly structure (the REAL structure that
+// CreateCabinetCommand produces).
+//
+// Structure:
+//   Top-level active assembly:
+//     components[0] = { id:'TOP1', partPath:'Base Cabinet 1.ziasm', role:undefined }  ← role-less wrapper
+//
+//   'Base Cabinet 1.ziasm' (sub-assembly):
+//     components = [
+//       { id:'C1', partPath:'Base Cabinet 1 - Left.zipt',   role:'leftSide',  pos:{0,0,0}      }
+//       { id:'C2', partPath:'Base Cabinet 1 - Right.zipt',  role:'rightSide', pos:{582,0,0}     }
+//       { id:'C3', partPath:'Base Cabinet 1 - Bottom.zipt', role:'bottom',    pos:{18,6,0}      }
+//       { id:'C4', partPath:'Base Cabinet 1 - Top.zipt',    role:'top',       pos:{18,6,702}    }
+//     ]
+//
+// This is the EXACT same nested layout used in the real app.
+// The test FAILS against the pre-fix code (0 bores — bug: role-less wrapper is skipped).
+// After the fix it PASSES, asserting bore coords identical to the flat-panel locking test.
+// ---------------------------------------------------------------------------
+describe('GenerateCarcassBoresCommand — nested sub-assembly (REAL cabinet structure)', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  const CAB = 'Base Cabinet 1';
+  const LP  = `${CAB} - Left.zipt`;
+  const RP  = `${CAB} - Right.zipt`;
+  const BP  = `${CAB} - Bottom.zipt`;
+  const TP  = `${CAB} - Top.zipt`;
+  const ZIASM = `${CAB}.ziasm`;
+
+  async function buildNestedStructure(opfs: MemOpfs): Promise<void> {
+    // 1. Write the four panel .zipt files (same dims as flat-panel fixture).
+    await writePanel(opfs, LP, H,         D,      Tc);  // leftSide
+    await writePanel(opfs, RP, H,         D,      Tc);  // rightSide
+    await writePanel(opfs, BP, W - 2*Tc,  D - Tb, Tc);  // bottom
+    await writePanel(opfs, TP, W - 2*Tc,  D - Tb, Tc);  // top
+
+    // 2. Write the .ziasm sub-assembly — exactly what CreateCabinetCommand.buildCabinetAssembly() produces.
+    const cabinetDoc: AssemblyDocument = {
+      id: 'A_CAB', name: CAB, units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C1', partPath: LP, position: { x: 0,      y: 0,  z: 0      }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, role: 'leftSide'  },
+        { id: 'C2', partPath: RP, position: { x: W - Tc, y: 0,  z: 0      }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, role: 'rightSide' },
+        { id: 'C3', partPath: BP, position: { x: Tc,     y: Tb, z: 0      }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, role: 'bottom'    },
+        { id: 'C4', partPath: TP, position: { x: Tc,     y: Tb, z: H - Tc }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, role: 'top'       },
+      ],
+      constraints: [], groundedComponentPaths: [['C1']], colors: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    const ziasmBytes = await packAssembly(cabinetDoc, new Uint8Array());
+    await opfs.write(ZIASM, ziasmBytes);
+
+    // 3. Set up top-level active assembly with a ROLE-LESS wrapper pointing to .ziasm.
+    const topDoc: AssemblyDocument = {
+      id: 'A_TOP', name: 'Room', units: 'mm', parameters: {}, properties: {},
+      components: [
+        // No `role` on the top-level component — exactly what PlaceComponentCommand produces.
+        { id: 'TOP1', partPath: ZIASM, position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [['TOP1']], colors: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: topDoc });
+  }
+
+  it('LOCKING — nested sub-asm: bores are written to panel .zipt files (fails pre-fix with 0 bores)', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+
+    await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
+
+    // All four panels must receive bores.
+    for (const path of [LP, RP, BP, TP]) {
+      expect((await boresOf(opfs, path)).length, `${path} must have bores`).toBeGreaterThan(0);
+    }
+
+    // leftSide bore u-coords must match the flat-panel locking test (same geometry).
+    // Left↔Bottom joint: length=554mm, endSetback=60, maxSpacing=250 → count=3, u=[60,277,494], v=9.
+    const lBores = await boresOf(opfs, LP);
+    expect(lBores.length, 'leftSide: 3 bottom + 3 top = 6').toBeGreaterThanOrEqual(6);
+    const expectedUs = [60, 277, 494];
+    for (const b of lBores) {
+      expect(expectedUs.some((eu) => Math.abs(b.u - eu) < 1), `u=${b.u} not in ${expectedUs}`).toBe(true);
+      expect(b.v).toBeCloseTo(9, 1);
+    }
+  });
+
+  it('LOCKING — nested sub-asm: revert removes bores written into sub-asm panels', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+    expect((await boresOf(opfs, LP)).length).toBeGreaterThan(0);
+
+    await cmd.revert();
+
+    // After revert: bores key must be absent from each panel.
+    for (const path of [LP, RP, BP, TP]) {
+      const project = await unpackProject(await opfs.read(path));
+      const doc = (project.manifest as { document: Record<string, unknown> }).document;
+      expect('bores' in doc, `${path}: bores key must be absent after revert`).toBe(false);
+    }
   });
 });

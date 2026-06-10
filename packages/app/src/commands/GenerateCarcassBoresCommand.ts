@@ -1,11 +1,12 @@
 import type { Command } from './Command';
-import type { BoreOp, PanelInput, PanelRole } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, PanelInput, PanelRole } from '@zilventor/shared';
 import {
   enumerateAutoJoints,
   generateConfirmat, generateMinifix, generateDowel,
   CURRENT_FORMAT_VERSION,
 } from '@zilventor/shared';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { useAppStore } from '../store/useAppStore';
 import type { JointInput } from '@zilventor/shared';
 
@@ -68,92 +69,113 @@ export class GenerateCarcassBoresCommand implements Command {
     const asm = this.store.getState().activeAssembly;
     if (!asm) return;
 
-    // 1. Load each involved panel's manifest + dims once; build PanelInput[].
+    // Loaded panel docs keyed by partPath — shared across all cabinet groups.
     const docs = new Map<string, { manifest: Record<string, unknown>; document: Record<string, unknown> }>();
-    const panelInputs: Array<PanelInput & { partPath: string }> = [];
 
-    for (const c of asm.components) {
-      if (!c.role) continue; // pre-feature cabinets lack role → skip (manual path covers them)
-
-      const project = await this.opts.opfs.read(c.partPath).then(unpackProject);
-      const manifest = project.manifest as { document: Record<string, unknown> };
-      docs.set(c.partPath, { manifest: manifest as unknown as Record<string, unknown>, document: manifest.document });
-
-      const dims = panelDimsFromDoc(manifest.document as { featureTree?: Array<Record<string, unknown>> });
-
-      // buildBaseCabinet stores side panels (leftSide/rightSide) with dims where `length` is
-      // the cabinet HEIGHT (the tall dimension, running along world-Z) and `thickness` is the
-      // board thickness (running along world-X). The part-local box convention is
-      // [-L/2,-W/2,0]..[L/2,W/2,T], so for side panels L maps to world-X and T to world-Z —
-      // which is the opposite of the physical orientation.
-      //
-      // To make jointMath's worldAABB produce the correct world AABB for side panels, we swap
-      // L and T in the dims: this remaps the tall dimension to the T (Z) axis of the fully-
-      // centered box, making the side panel correctly appear thin in X (world) and tall in Z.
-      //
-      // For horizontal panels (bottom/top/shelf/back) the dims already map correctly:
-      // L = X-span, W = Y-span, T = Z-span (board thickness).
-      //
-      // After the optional swap, pose.translation = c.position + (L_eff/2, W/2, T_eff/2) gives
-      // the geometric center of the fully-centered world box for identity rotation.
-      const role = c.role as PanelRole;
-      const { length: L, width: W, thickness: T } = dims;
-      const isSidePanel = role === 'leftSide' || role === 'rightSide';
-      // For side panels: swap length↔thickness so L_eff = T_orig (thin, X), T_eff = L_orig (tall, Z).
-      const Leff = isSidePanel ? T : L;
-      const Teff = isSidePanel ? L : T;
-      const effectiveDims = isSidePanel ? { length: Leff, width: W, thickness: Teff } : dims;
-
-      const cx = c.position.x + Leff / 2;
-      const cy = c.position.y + W / 2;
-      const cz = c.position.z + Teff / 2;
-
-      panelInputs.push({
-        partPath: c.partPath,
-        dims: effectiveDims,
-        pose: { translation: { x: cx, y: cy, z: cz }, quaternion: [0, 0, 0, 1] },
-        role,
-      });
-    }
-
-    // 2. Enumerate auto joints (role-driven butt-joint detection).
-    const joints = enumerateAutoJoints(panelInputs);
-
-    // 3. Accumulate bores per partPath.
+    // Accumulate bores per partPath across all cabinet groups.
     const accum = new Map<string, BoreOp[]>();
-    const append = (partPath: string, bores: BoreOp[]) => {
+    const appendBores = (partPath: string, bores: BoreOp[]) => {
       const list = accum.get(partPath) ?? [];
       list.push(...bores);
       accum.set(partPath, list);
     };
 
-    /** Map a PanelInput reference back to its partPath via identity comparison. */
-    const pathOf = (pi: PanelInput): string =>
-      (panelInputs.find((p) => p === pi) as { partPath: string }).partPath;
+    // Collect panel inputs from an assembly doc and process joints within that group.
+    // Recurses into nested .ziasm sub-assemblies so each cabinet's panels are processed
+    // as a self-contained group (joints are only computed among panels of the SAME cabinet).
+    const processAssemblyDoc = async (doc: AssemblyDocument): Promise<void> => {
+      const panelInputs: Array<PanelInput & { partPath: string }> = [];
 
-    for (const joint of joints) {
-      const aPath = pathOf(joint.panelA);
-      const bPath = pathOf(joint.panelB);
+      for (const c of doc.components) {
+        // Recurse into nested sub-assemblies (each cabinet group is independent).
+        if (c.partPath.endsWith('.ziasm')) {
+          const subDoc = await unpackAssembly(await this.opts.opfs.read(c.partPath));
+          await processAssemblyDoc(subDoc);
+          continue;
+        }
 
-      // JointInput is structurally compatible with Joint — cast is safe since Joint
-      // extends JointInput with the same line/panelA/panelB/faceA/endB fields.
-      const ji = joint as unknown as JointInput;
+        if (!c.role) continue; // role-less non-sub-asm component → skip (not a cabinet panel)
 
-      if (this.opts.params.confirmat) {
-        const { boresA, boresB } = generateConfirmat(ji, this.opts.params);
-        append(aPath, boresA); append(bPath, boresB);
+        // Load panel manifest once.
+        if (!docs.has(c.partPath)) {
+          const project = await this.opts.opfs.read(c.partPath).then(unpackProject);
+          const manifest = project.manifest as { document: Record<string, unknown> };
+          docs.set(c.partPath, { manifest: manifest as unknown as Record<string, unknown>, document: manifest.document });
+        }
+        const entry = docs.get(c.partPath)!;
+        const dims = panelDimsFromDoc(entry.document as { featureTree?: Array<Record<string, unknown>> });
+
+        // buildBaseCabinet stores side panels (leftSide/rightSide) with dims where `length` is
+        // the cabinet HEIGHT (the tall dimension, running along world-Z) and `thickness` is the
+        // board thickness (running along world-X). The part-local box convention is
+        // [-L/2,-W/2,0]..[L/2,W/2,T], so for side panels L maps to world-X and T to world-Z —
+        // which is the opposite of the physical orientation.
+        //
+        // To make jointMath's worldAABB produce the correct world AABB for side panels, we swap
+        // L and T in the dims: this remaps the tall dimension to the T (Z) axis of the fully-
+        // centered box, making the side panel correctly appear thin in X (world) and tall in Z.
+        //
+        // For horizontal panels (bottom/top/shelf/back) the dims already map correctly:
+        // L = X-span, W = Y-span, T = Z-span (board thickness).
+        //
+        // After the optional swap, pose.translation = c.position + (L_eff/2, W/2, T_eff/2) gives
+        // the geometric center of the fully-centered world box for identity rotation.
+        const role = c.role as PanelRole;
+        const { length: L, width: W, thickness: T } = dims;
+        const isSidePanel = role === 'leftSide' || role === 'rightSide';
+        // For side panels: swap length↔thickness so L_eff = T_orig (thin, X), T_eff = L_orig (tall, Z).
+        const Leff = isSidePanel ? T : L;
+        const Teff = isSidePanel ? L : T;
+        const effectiveDims = isSidePanel ? { length: Leff, width: W, thickness: Teff } : dims;
+
+        const cx = c.position.x + Leff / 2;
+        const cy = c.position.y + W / 2;
+        const cz = c.position.z + Teff / 2;
+
+        panelInputs.push({
+          partPath: c.partPath,
+          dims: effectiveDims,
+          pose: { translation: { x: cx, y: cy, z: cz }, quaternion: [0, 0, 0, 1] },
+          role,
+        });
       }
-      if (this.opts.params.minifix) {
-        const { boresA, boresB } = generateMinifix(ji, this.opts.params);
-        append(aPath, boresA); append(bPath, boresB);
-      }
-      if (this.opts.params.dowel) {
-        const { boresA, boresB } = generateDowel(ji, this.opts.params);
-        append(aPath, boresA); append(bPath, boresB);
-      }
-    }
 
-    // 4. Persist: snapshot prior bores, set new bores[], repack each .zipt.
+      if (panelInputs.length === 0) return;
+
+      // Enumerate auto joints (role-driven butt-joint detection) for THIS cabinet group.
+      const joints = enumerateAutoJoints(panelInputs);
+
+      /** Map a PanelInput reference back to its partPath via identity comparison. */
+      const pathOf = (pi: PanelInput): string =>
+        (panelInputs.find((p) => p === pi) as { partPath: string }).partPath;
+
+      for (const joint of joints) {
+        const aPath = pathOf(joint.panelA);
+        const bPath = pathOf(joint.panelB);
+
+        // JointInput is structurally compatible with Joint — cast is safe since Joint
+        // extends JointInput with the same line/panelA/panelB/faceA/endB fields.
+        const ji = joint as unknown as JointInput;
+
+        if (this.opts.params.confirmat) {
+          const { boresA, boresB } = generateConfirmat(ji, this.opts.params);
+          appendBores(aPath, boresA); appendBores(bPath, boresB);
+        }
+        if (this.opts.params.minifix) {
+          const { boresA, boresB } = generateMinifix(ji, this.opts.params);
+          appendBores(aPath, boresA); appendBores(bPath, boresB);
+        }
+        if (this.opts.params.dowel) {
+          const { boresA, boresB } = generateDowel(ji, this.opts.params);
+          appendBores(aPath, boresA); appendBores(bPath, boresB);
+        }
+      }
+    };
+
+    // Start recursion from the top-level active assembly.
+    await processAssemblyDoc(asm);
+
+    // Persist: snapshot prior bores, set new bores[], repack each .zipt.
     for (const [partPath, newBores] of accum) {
       const entry = docs.get(partPath)!;
       const existing = (entry.document.bores as BoreOp[] | undefined) ?? [];
