@@ -81,20 +81,38 @@ export class GenerateCarcassBoresCommand implements Command {
 
       const dims = panelDimsFromDoc(manifest.document as { featureTree?: Array<Record<string, unknown>> });
 
-      // ComponentInstance.position is the bottom-left-back CORNER of the part-local box
-      // (part-local box is [-L/2,-W/2,0]..[L/2,W/2,T], centered in X/Y, bottom at Z=0).
-      // jointMath.worldAABB expects pose.translation = GEOMETRIC CENTER of the fully-centered
-      // equivalent box. For identity quaternion, the center in world space = corner + {L/2, W/2, T/2}.
+      // buildBaseCabinet stores side panels (leftSide/rightSide) with dims where `length` is
+      // the cabinet HEIGHT (the tall dimension, running along world-Z) and `thickness` is the
+      // board thickness (running along world-X). The part-local box convention is
+      // [-L/2,-W/2,0]..[L/2,W/2,T], so for side panels L maps to world-X and T to world-Z —
+      // which is the opposite of the physical orientation.
+      //
+      // To make jointMath's worldAABB produce the correct world AABB for side panels, we swap
+      // L and T in the dims: this remaps the tall dimension to the T (Z) axis of the fully-
+      // centered box, making the side panel correctly appear thin in X (world) and tall in Z.
+      //
+      // For horizontal panels (bottom/top/shelf/back) the dims already map correctly:
+      // L = X-span, W = Y-span, T = Z-span (board thickness).
+      //
+      // After the optional swap, pose.translation = c.position + (L_eff/2, W/2, T_eff/2) gives
+      // the geometric center of the fully-centered world box for identity rotation.
+      const role = c.role as PanelRole;
       const { length: L, width: W, thickness: T } = dims;
-      const cx = c.position.x + L / 2;
+      const isSidePanel = role === 'leftSide' || role === 'rightSide';
+      // For side panels: swap length↔thickness so L_eff = T_orig (thin, X), T_eff = L_orig (tall, Z).
+      const Leff = isSidePanel ? T : L;
+      const Teff = isSidePanel ? L : T;
+      const effectiveDims = isSidePanel ? { length: Leff, width: W, thickness: Teff } : dims;
+
+      const cx = c.position.x + Leff / 2;
       const cy = c.position.y + W / 2;
-      const cz = c.position.z + T / 2;
+      const cz = c.position.z + Teff / 2;
 
       panelInputs.push({
         partPath: c.partPath,
-        dims,
+        dims: effectiveDims,
         pose: { translation: { x: cx, y: cy, z: cz }, quaternion: [0, 0, 0, 1] },
-        role: c.role as PanelRole,
+        role,
       });
     }
 

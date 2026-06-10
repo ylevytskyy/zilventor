@@ -13,9 +13,11 @@ class MemOpfs {
 }
 
 /**
- * Write a minimal panel .zipt. dims are in WORLD-AXIS convention:
- *   length = X-span, width = Y-span, thickness = Z-span.
- * This matches what GenerateCarcassBoresCommand reads back for worldAABB construction.
+ * Write a minimal panel .zipt using the REAL baseCabinet dim convention:
+ *   length = panel HEIGHT (longest dim; maps to world-Z for side panels, world-X for horizontal panels),
+ *   width  = panel DEPTH  (Y),
+ *   thickness = board thickness (T).
+ * GenerateCarcassBoresCommand swaps L↔T for leftSide/rightSide roles to get correct world AABBs.
  */
 async function writePanel(
   opfs: MemOpfs, path: string,
@@ -47,31 +49,32 @@ function instance(
 }
 
 /**
- * Cabinet fixture — 600×560×720mm carcass, T=18mm.
+ * Cabinet fixture — 600×560×720mm carcass, Tc=18mm, Tb=6mm, no toekick.
  *
- * Panels are authored with WORLD-AXIS dims (L=X-span, W=Y-span, T=Z-span) and
- * CORNER positions, so that GenerateCarcassBoresCommand's center-correction
- * ({x+L/2, y+W/2, z+T/2}) produces geometrically correct world AABBs that
- * contact each other:
+ * Uses REAL baseCabinet dimension convention (length = HEIGHT for side panels):
+ *   Left  side: dims=(L=720, W=560, T=18), pos=(0,0,0)     → world X[0,18], Y[0,560], Z[0,720]
+ *   Right side: dims=(L=720, W=560, T=18), pos=(582,0,0)   → world X[582,600], Y[0,560], Z[0,720]
+ *   Bottom:     dims=(L=564, W=554, T=18), pos=(18,6,0)    → world X[18,582], Y[6,560], Z[0,18]
+ *   Top:        dims=(L=564, W=554, T=18), pos=(18,6,702)  → world X[18,582], Y[6,560], Z[702,720]
  *
- *   Left  side: x∈[0,18],    y∈[0,560], z∈[0,720]  — thin in X
- *   Right side: x∈[582,600], y∈[0,560], z∈[0,720]  — thin in X
- *   Bottom:     x∈[18,582],  y∈[0,560], z∈[0,18]   — thin in Z
- *   Top:        x∈[18,582],  y∈[0,560], z∈[702,720] — thin in Z
+ * The command swaps L↔T for side panels so jointMath sees:
+ *   Left side effective dims=(L=18, W=560, T=720), center=(9,280,360)
+ *   World AABB: X[0,18], Y[0,560], Z[0,720] — thin in X ✓, contacts Bottom at X=18.
  *
- * Side inner face (x=18) touches Bottom/Top left end (x=18) → X-axis butt joints.
- * Right side inner face (x=582) touches Bottom/Top right end (x=582) → X-axis butt joints.
- * This is the REALISTIC POSE TEST: non-centered positions, correct world contacts.
+ * Left side ↔ Bottom joint: contact at X=18. Joint line runs along Y (Y-overlap=[6,560], len=554mm).
+ * With PARAMS (endSetback=60, maxSpacing=250, minCount=2):
+ *   count = max(2, ceil((554-120)/250)+1) = 3; u=[60, 277, 494]; v=T_bottom/2=9.
  */
+const W = 600, D = 560, H = 720, Tc = 18, Tb = 6;
+
 function seedCabinetAssembly(opfs: MemOpfs): AssemblyDocument {
-  const W = 600, T = 18;
   const doc: AssemblyDocument = {
     id: 'A1', name: 'Cab', units: 'mm', parameters: {}, properties: {},
     components: [
-      instance('C1', 'L.zipt', 'leftSide',  { x: 0,     y: 0, z: 0 }),
-      instance('C2', 'R.zipt', 'rightSide', { x: W - T, y: 0, z: 0 }),
-      instance('C3', 'B.zipt', 'bottom',    { x: T,     y: 0, z: 0 }),
-      instance('C4', 'T.zipt', 'top',       { x: T,     y: 0, z: 720 - T }),
+      instance('C1', 'L.zipt', 'leftSide',  { x: 0,      y: 0, z: 0 }),
+      instance('C2', 'R.zipt', 'rightSide', { x: W - Tc, y: 0, z: 0 }),
+      instance('C3', 'B.zipt', 'bottom',    { x: Tc,     y: Tb, z: 0 }),
+      instance('C4', 'T.zipt', 'top',       { x: Tc,     y: Tb, z: H - Tc }),
     ],
     constraints: [], groundedComponentPaths: [['C1']], colors: {},
     bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
@@ -82,12 +85,11 @@ function seedCabinetAssembly(opfs: MemOpfs): AssemblyDocument {
 }
 
 async function writeCabinetPanels(opfs: MemOpfs) {
-  const W = 600, D = 560, H = 720, T = 18;
-  // dims: L=X-span, W=Y-span, T=Z-span  (WORLD-AXIS convention)
-  await writePanel(opfs, 'L.zipt', T,         D, H);       // Left  side: 18×560×720
-  await writePanel(opfs, 'R.zipt', T,         D, H);       // Right side: 18×560×720
-  await writePanel(opfs, 'B.zipt', W - 2 * T, D, T);       // Bottom:     564×560×18
-  await writePanel(opfs, 'T.zipt', W - 2 * T, D, T);       // Top:        564×560×18
+  // REAL baseCabinet dims: length = HEIGHT for side panels, T = board thickness.
+  await writePanel(opfs, 'L.zipt', H,         D,      Tc);  // Left  side: 720×560×18
+  await writePanel(opfs, 'R.zipt', H,         D,      Tc);  // Right side: 720×560×18
+  await writePanel(opfs, 'B.zipt', W - 2*Tc,  D - Tb, Tc);  // Bottom:     564×554×18
+  await writePanel(opfs, 'T.zipt', W - 2*Tc,  D - Tb, Tc);  // Top:        564×554×18
 }
 
 async function boresOf(opfs: MemOpfs, path: string): Promise<BoreOp[]> {
@@ -130,30 +132,48 @@ describe('GenerateCarcassBoresCommand — auto', () => {
     expect((await boresOf(opfs, 'L.zipt')).length).toBe((await boresOf(opfs, 'R.zipt')).length);
   });
 
-  it('REALISTIC-POSE: corner positions with center-correction produce correct joints', async () => {
-    // Verify that the 4-panel fixture produces joints at both the bottom AND top,
-    // on BOTH sides — 4 joints total → bores on all 4 panels.
+  /**
+   * LOCKING TEST: real baseCabinet dims + corner positions → correct joints + correct bore coords.
+   *
+   * Left side ↔ Bottom joint geometry (empirically computed):
+   *   - Contact at X=18 (left side inner face X, bottom left end X).
+   *   - Joint line runs along Y: p0=(18,6,9)→p1=(18,560,9), length=554mm.
+   *   - count=3, u=[60, 277, 494], v=T_bottom/2=9.
+   *   - Face-drilled bores on leftSide face 'Left' at u values [60,277,494], v=9.
+   *   - This test FAILS if the side-panel dim swap is missing (wrong center formula produces
+   *     no butt joint → 0 bores).
+   */
+  it('REAL-CABINET: side-panel dim swap → correct world joints + bore u-coords on leftSide', async () => {
     const opfs = new MemOpfs();
     await writeCabinetPanels(opfs);
     seedCabinetAssembly(opfs);
+
     await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
 
+    // All 4 panels receive bores (joints on both sides × bottom + top).
     for (const path of ['L.zipt', 'R.zipt', 'B.zipt', 'T.zipt']) {
       expect((await boresOf(opfs, path)).length).toBeGreaterThan(0);
     }
-    // Left+right sides get bores from BOTH bottom and top joints → more bores than one joint alone
-    // joint length = H = 720mm, setback=60, maxSpacing=250 → usable=600, count=max(2,ceil(600/250)+1)=4 bores/joint
-    // Each side has 2 joints (bottom+top) × 4 bores = 8 confirmat-face bores on each side face
+
+    // leftSide gets bores from 2 joints (bottom + top). Each joint has 3 confirmat bores.
+    // Joint length (left↔bottom) = Y-overlap = 560−6 = 554mm.
+    // count = max(2, ceil(434/250)+1) = 3 per joint → 6 face-drilled bores on leftSide.
     const lBores = await boresOf(opfs, 'L.zipt');
-    const bBores = await boresOf(opfs, 'B.zipt');
-    // joint length for side-bottom: Z overlap = [0,18], along Z-other or X-other?
-    // Actually joint line runs along the LONGEST overlap axis.
-    // For left-side ↔ bottom joint: X contact at x=18.
-    // Other axes: Y overlap [0,560] len=560, Z overlap [0,18] len=18 → lineAxis=Y (len=560).
-    // So joint length=560, setback=60 → usable=440, count=max(2,ceil(440/250)+1)=max(2,3)=3 per joint.
-    // Left side has 2 joints (bottom+top) × 3 bores = 6 confirmat-face bores minimum.
     expect(lBores.length).toBeGreaterThanOrEqual(6);
-    expect(bBores.length).toBeGreaterThanOrEqual(3);
+
+    // Verify leftSide bore u-values come from the correct joint geometry.
+    // Left↔bottom joint: length=554mm, endSetback=60, maxSpacing=250:
+    //   usable=434, count=max(2,ceil(434/250)+1)=max(2,3)=3, step=217
+    //   u=[60, 60+217=277, 277+217=494], v=T_bottom/2=9.
+    // Left↔top joint: same length and params → same u and v.
+    // So leftSide has 3+3=6 bores total. Each bore must have u∈{60,277,494} and v=9.
+    const expectedUs = [60, 277, 494];
+    for (const b of lBores) {
+      const matchesU = expectedUs.some((eu) => Math.abs(b.u - eu) < 1);
+      expect(matchesU).toBe(true);
+      // v = half of the other panel's thickness (bottom or top both have T=18 → v=9)
+      expect(b.v).toBeCloseTo(9, 1);
+    }
   });
 });
 
@@ -183,11 +203,11 @@ describe('GenerateCarcassBoresCommand — revert', () => {
       u: 10, v: 10, diameter: 5, depth: 12,
       role: 'dowel-face', connectorId: 'pre-conn', connectorKind: 'dowel',
     };
-    // Write L.zipt with a pre-existing bore
-    await writePanel(opfs, 'L.zipt', 18, 560, 720, [seedBore]);
-    await writePanel(opfs, 'R.zipt', 18, 560, 720);
-    await writePanel(opfs, 'B.zipt', 600 - 2 * 18, 560, 18);
-    await writePanel(opfs, 'T.zipt', 600 - 2 * 18, 560, 18);
+    // Write L.zipt with a pre-existing bore (real baseCabinet dims)
+    await writePanel(opfs, 'L.zipt', H,        D,      Tc, [seedBore]);
+    await writePanel(opfs, 'R.zipt', H,        D,      Tc);
+    await writePanel(opfs, 'B.zipt', W - 2*Tc, D - Tb, Tc);
+    await writePanel(opfs, 'T.zipt', W - 2*Tc, D - Tb, Tc);
     seedCabinetAssembly(opfs);
     const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
     await cmd.apply();
