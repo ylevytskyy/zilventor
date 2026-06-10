@@ -1,10 +1,9 @@
 import type { BoreOp, BoreRole, BoreConnectorKind, PanelFaceRole } from './bore';
 import type { Vec3, FaceName } from './types';
-
-// NOTE: Pose is declared once in jointMath.ts (Task 6). Until that file is created,
-// we inline the identical type here. When Task 6 adds jointMath.ts, this local type
-// will be replaced by `import type { Pose } from './jointMath'` in a later edit.
-export interface Pose { translation: Vec3; quaternion: [number, number, number, number] }
+import type { Pose } from './jointMath';
+// NOTE: Pose is declared once in jointMath.ts. connectorCatalog imports it rather than
+// re-exporting, to avoid a duplicate export conflict in the barrel when both modules
+// are star-exported.
 
 export interface JointInput {
   line: { p0: Vec3; p1: Vec3 };
