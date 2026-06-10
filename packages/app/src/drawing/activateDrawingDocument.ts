@@ -11,6 +11,7 @@ import type { DrawingDocument } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import type { KernelForLoad, OpfsForLoad } from './loadDrawingSource';
 import { loadDrawingSource, _clearLoadDrawingSourceCache } from './loadDrawingSource';
+import i18n from '../i18n';
 
 export async function activateDrawingDocument(
   doc: DrawingDocument,
@@ -45,11 +46,11 @@ export async function activateDrawingDocument(
         activeDrawingSourceDocument: asmDoc,
         activeDrawingSourceComponentColors: componentColors,
       } as never);
-      useAppStore.getState().setStatus('Opened');
+      useAppStore.getState().setStatus(i18n.t('status.drawing.opened'));
     } catch (e) {
       console.warn('[activateDrawingDocument] assembly source load failed:', (e as Error).message);
       useAppStore.getState().setStatus(
-        'Assembly source load failed — Regenerate disabled. Ensure all assembly parts are saved.',
+        i18n.t('status.drawing.assemblySourceFailed'),
       );
       useAppStore.setState({
         activeDrawingSourceComponents: null,
@@ -83,14 +84,14 @@ export async function activateDrawingDocument(
     } as never);
     // Step 5: confirm success in the status bar. Doing this here (rather than in
     // FileTab) means the assembly/missing-source notices set above are never overwritten.
-    useAppStore.getState().setStatus('Opened');
+    useAppStore.getState().setStatus(i18n.t('status.drawing.opened'));
   } catch (e) {
     // Source part missing or kernel load failed. Drawing is already active (step 1)
     // and renders its saved projection. Regenerate is naturally disabled (slots null).
     // Non-blocking notice via status bar (setStatus) — not a modal error.
     console.warn('[activateDrawingDocument] source part load failed:', (e as Error).message);
     useAppStore.getState().setStatus(
-      'Source part not found — Regenerate disabled. Open and re-save the part to restore.',
+      i18n.t('status.drawing.sourcePartNotFound'),
     );
     // Null slots explicitly so a prior drawing's source slots cannot bleed into this activation.
     useAppStore.setState({

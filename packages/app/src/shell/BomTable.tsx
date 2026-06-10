@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { parsePathKey, type PartInfo } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
@@ -11,6 +12,7 @@ import { ExportBomCsvCommand } from '../commands/ExportBomCsvCommand';
 type Props = { partInfo: Map<string, PartInfo> };
 
 export function BomTable({ partInfo }: Props) {
+  const { t } = useTranslation();
   const assembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
   const palette = assembly?.colors ?? {};
@@ -33,17 +35,17 @@ export function BomTable({ partInfo }: Props) {
 
   return (
     <div data-testid="bom-table">
-      <button onClick={() => void new ExportBomCsvCommand({ partInfo }).apply()}>Export CSV</button>
+      <button onClick={() => void new ExportBomCsvCommand({ partInfo }).apply()}>{t('common.export_csv')}</button>
       <table>
         <thead>
           <tr>
-            <th>Item#</th>
-            <th>Part #</th>
-            <th>Description</th>
-            <th>QTY</th>
-            <th>Part Name</th>
-            <th>Color</th>
-            <th>Part Path</th>
+            <th>{t('table.bom.item_num')}</th>
+            <th>{t('table.bom.part_num')}</th>
+            <th>{t('table.bom.description')}</th>
+            <th>{t('table.bom.qty')}</th>
+            <th>{t('table.bom.part_name')}</th>
+            <th>{t('table.bom.color')}</th>
+            <th>{t('table.bom.part_path')}</th>
           </tr>
         </thead>
         <tbody>
@@ -61,7 +63,7 @@ export function BomTable({ partInfo }: Props) {
                       if (Number.isFinite(n) && n > 0 && n <= 9999) {
                         void new SetBomItemNumberCommand({ rowKey: r.rowKey, n }).apply();
                       } else {
-                        useAppStore.getState().setStatus('Item# must be a positive integer up to 9999');
+                        useAppStore.getState().setStatus(t('status.item_num_invalid'));
                       }
                       setEditingRowKey(null);
                     }}

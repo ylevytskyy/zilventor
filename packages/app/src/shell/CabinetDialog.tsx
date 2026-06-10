@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { BaseCabinetParams, MaterialId } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -34,6 +35,7 @@ const DEFAULTS: Omit<BaseCabinetParams, 'carcassMaterialId' | 'backMaterialId'> 
 };
 
 export function CabinetDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const dialog = useAppStore((s) => s.cabinetDialog);
   const setDialog = useAppStore((s) => s.setCabinetDialog);
   const asm = useAppStore((s) => s.activeAssembly);
@@ -85,23 +87,23 @@ export function CabinetDialog(): JSX.Element | null {
       <div
         style={panelStyle}
         role="dialog"
-        aria-label="Cabinet"
+        aria-label={t('aria.cabinet')}
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleOk();
           else if (e.key === 'Escape') handleCancel();
         }}
         tabIndex={-1}
       >
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Base Cabinet</div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.cabinet.title')}</div>
 
-        <div style={sectionHeading}>Name</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.name_section')}</div>
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="cab-name">Name</label>
+          <label style={labelStyle} htmlFor="cab-name">{t('common.name')}</label>
           <input id="cab-name" style={inputStyle} value={params.name} onChange={(e) => patch('name', e.target.value)} />
         </div>
         {errors.name && <div style={errStyle}>{errors.name}</div>}
 
-        <div style={sectionHeading}>Dimensions (mm)</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.dimensions_section')}</div>
         {(['width', 'depth', 'height'] as const).map((k) => (
           <React.Fragment key={k}>
             <div style={fieldRow}>
@@ -113,7 +115,7 @@ export function CabinetDialog(): JSX.Element | null {
           </React.Fragment>
         ))}
 
-        <div style={sectionHeading}>Toekick (mm)</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.toekick_section')}</div>
         {(['toekickHeight', 'toekickSetback'] as const).map((k) => (
           <React.Fragment key={k}>
             <div style={fieldRow}>
@@ -125,60 +127,60 @@ export function CabinetDialog(): JSX.Element | null {
           </React.Fragment>
         ))}
 
-        <div style={sectionHeading}>Shelves</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.shelves_section')}</div>
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="cab-shelfCount">Shelf count</label>
-          <input id="cab-shelfCount" aria-label="Shelf count" type="number" min={0} style={inputStyle}
+          <label style={labelStyle} htmlFor="cab-shelfCount">{t('dialog.cabinet.shelf_count')}</label>
+          <input id="cab-shelfCount" aria-label={t('dialog.cabinet.shelf_count')} type="number" min={0} style={inputStyle}
             value={params.shelfCount}
             onChange={(e) => patch('shelfCount', Math.max(0, Math.floor(Number(e.target.value))))} />
         </div>
         {errors.shelfCount && <div style={errStyle}>{errors.shelfCount}</div>}
 
-        <div style={sectionHeading}>Materials</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.materials_section')}</div>
         {asm.materials.length === 0 && (
           <div style={{ ...errStyle, color: '#ffd6a3', marginLeft: 0 }}>
-            No materials yet — close this dialog, click <b>Manage materials</b>, then re-open Base Cabinet.
+            {t('dialog.cabinet.no_materials')}
           </div>
         )}
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="cab-carcass">Carcass material</label>
-          <select id="cab-carcass" aria-label="Carcass material" style={inputStyle}
+          <label style={labelStyle} htmlFor="cab-carcass">{t('dialog.cabinet.carcass_material')}</label>
+          <select id="cab-carcass" aria-label={t('dialog.cabinet.carcass_material')} style={inputStyle}
             value={params.carcassMaterialId}
             onChange={(e) => patch('carcassMaterialId', e.target.value as MaterialId)}>
-            <option value="">— pick —</option>
+            <option value="">{t('dialog.cabinet.pick_placeholder')}</option>
             {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         {errors.carcassMaterialId && <div style={errStyle}>{errors.carcassMaterialId}</div>}
 
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="cab-back">Back material</label>
-          <select id="cab-back" aria-label="Back material" style={inputStyle}
+          <label style={labelStyle} htmlFor="cab-back">{t('dialog.cabinet.back_material')}</label>
+          <select id="cab-back" aria-label={t('dialog.cabinet.back_material')} style={inputStyle}
             value={params.backMaterialId}
             onChange={(e) => patch('backMaterialId', e.target.value as MaterialId)}>
-            <option value="">— pick —</option>
+            <option value="">{t('dialog.cabinet.pick_placeholder')}</option>
             {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         {errors.backMaterialId && <div style={errStyle}>{errors.backMaterialId}</div>}
 
-        <div style={sectionHeading}>Edge bands</div>
+        <div style={sectionHeading}>{t('dialog.cabinet.edge_bands_section')}</div>
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="cab-band">Edge band material</label>
-          <select id="cab-band" aria-label="Edge band material" style={inputStyle}
+          <label style={labelStyle} htmlFor="cab-band">{t('dialog.cabinet.edge_band_material')}</label>
+          <select id="cab-band" aria-label={t('dialog.cabinet.edge_band_material')} style={inputStyle}
             value={params.bandMaterialId ?? ''}
             onChange={(e) => patch('bandMaterialId', e.target.value === '' ? null : (e.target.value as MaterialId))}>
-            <option value="">None</option>
+            <option value="">{t('dialog.cabinet.none')}</option>
             {asm.materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         <div style={{ ...errStyle, color: '#9ec0e8', fontStyle: 'italic' }}>
-          Front edges of sides, top, bottom, and shelves will be banded.
+          {t('dialog.cabinet.front_edges_note')}
         </div>
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
-          <button style={btnStyle} onClick={handleCancel}>Cancel</button>
-          <button style={okBtnStyle} onClick={handleOk} disabled={hasErr} aria-disabled={hasErr}>OK</button>
+          <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
+          <button style={okBtnStyle} onClick={handleOk} disabled={hasErr} aria-disabled={hasErr}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

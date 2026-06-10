@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { GenerateNestCommand } from '../commands/GenerateNestCommand';
 import { useCutListResult } from './useCutListResult';
@@ -26,6 +27,7 @@ const btnStyle: React.CSSProperties = {
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
 
 export function NestDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const dialog = useAppStore((s) => s.nestDialog);
   const setDialog = useAppStore((s) => s.setNestDialog);
   const bus = useAppStore((s) => s.bus);
@@ -43,7 +45,7 @@ export function NestDialog(): JSX.Element | null {
   const materialsWithStock = materials.filter(
     (m) => materialIdsWithRows.has(m.id) && m.sheetLengthMm !== undefined && m.sheetWidthMm !== undefined,
   );
-  const summary = `${panelCount} panels across ${materialsWithStock.length} materials will be nested`;
+  const summary = t('dialog.nest.summary', { count: panelCount, materials: materialsWithStock.length });
 
   const handleOk = async (): Promise<void> => {
     if (!validKerf) return;
@@ -63,17 +65,17 @@ export function NestDialog(): JSX.Element | null {
       <div
         style={panelStyle}
         role="dialog"
-        aria-label="Nest dialog"
+        aria-label={t('dialog.nest.ariaLabel')}
         onKeyDown={(e) => { if (e.key === 'Escape') handleCancel(); }}
         tabIndex={-1}
       >
-        <div style={{ fontWeight: 600, marginBottom: 10 }}>Generate Nest</div>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>{t('dialog.nest.title')}</div>
 
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="nest-kerf">Kerf (mm)</label>
+          <label style={labelStyle} htmlFor="nest-kerf">{t('dialog.nest.kerf')}</label>
           <input
             id="nest-kerf"
-            aria-label="Kerf"
+            aria-label={t('dialog.nest.kerfAriaLabel')}
             type="text"
             inputMode="numeric"
             style={inputStyle}
@@ -82,20 +84,20 @@ export function NestDialog(): JSX.Element | null {
           />
         </div>
         {!validKerf && (
-          <div role="alert" style={errStyle}>Kerf must be a positive number.</div>
+          <div role="alert" style={errStyle}>{t('dialog.nest.kerfError')}</div>
         )}
 
         <p style={summaryStyle}>{summary}</p>
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button style={btnStyle} onClick={handleCancel}>Cancel</button>
+          <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
           <button
             style={okBtnStyle}
             onClick={() => { void handleOk(); }}
             disabled={!validKerf}
             aria-disabled={!validKerf}
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       </div>

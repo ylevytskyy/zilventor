@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Props = {
   visible: boolean;
@@ -15,6 +16,7 @@ type Props = {
  * Enter commits; Escape cancels; Tab moves between fields.
  */
 export default function NumericInputOverlay({ visible, fieldCount, position, onCommit, onCancel }: Props) {
+  const { t } = useTranslation();
   const [values, setValues] = useState<string[]>(() => Array(Math.max(fieldCount, 1)).fill(''));
   const firstRef = useRef<HTMLInputElement>(null);
 
@@ -62,8 +64,8 @@ export default function NumericInputOverlay({ visible, fieldCount, position, onC
           onChange={(e) => setValues((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
           onKeyDown={(e) => handleKey(e, i)}
           className="bg-shell text-white px-2 py-0.5 text-xs w-20 outline-none focus:ring-1 focus:ring-ribbon-accent"
-          placeholder={fieldCount === 2 ? (i === 0 ? 'w' : 'h') : ''}
-          aria-label={fieldCount === 2 ? (i === 0 ? 'numeric width' : 'numeric height') : 'numeric value'}
+          placeholder={fieldCount === 2 ? (i === 0 ? t('overlay.numeric.widthPlaceholder') : t('overlay.numeric.heightPlaceholder')) : ''}
+          aria-label={fieldCount === 2 ? (i === 0 ? t('overlay.numeric.numericWidth') : t('overlay.numeric.numericHeight')) : t('overlay.numeric.numericValue')}
         />
       ))}
     </div>

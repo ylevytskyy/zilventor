@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { NestSheet } from '@zilventor/shared';
 import type { MaterialEntry } from '@zilventor/shared/src/material';
 import type { GrainDirection } from '@zilventor/shared/src/panel-feature';
@@ -10,17 +11,18 @@ export type SheetSvgProps = {
 };
 
 export function SheetSvg({ sheet, material, grainByRowKey, onExportPng }: SheetSvgProps) {
+  const { t } = useTranslation();
   const fill = material?.color ?? '#dddddd';
   return (
     <div data-nesting-sheet={`${sheet.materialId}:${sheet.sheetIndex}`}>
       <div className="flex items-center justify-between text-xs mb-1">
-        <span>Sheet {sheet.sheetIndex} — {sheet.utilizationPct}% utilisation</span>
+        <span>{t('panel.sheet.sheetInfo', { index: sheet.sheetIndex, pct: sheet.utilizationPct })}</span>
         <button
           type="button"
-          aria-label={`Export PNG sheet ${sheet.sheetIndex}`}
+          aria-label={t('panel.sheet.exportPngAriaLabel', { index: sheet.sheetIndex })}
           onClick={() => onExportPng(sheet)}
         >
-          Export PNG
+          {t('panel.sheet.exportPng')}
         </button>
       </div>
       <svg

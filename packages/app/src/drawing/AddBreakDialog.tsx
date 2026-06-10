@@ -1,4 +1,5 @@
 // packages/app/src/drawing/AddBreakDialog.tsx
+import { useTranslation } from 'react-i18next';
 
 type AddBreakDialogProps = {
   open: boolean;
@@ -7,6 +8,7 @@ type AddBreakDialogProps = {
 };
 
 export function AddBreakDialog({ open, onConfirm, onCancel }: AddBreakDialogProps) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -23,33 +25,33 @@ export function AddBreakDialog({ open, onConfirm, onCancel }: AddBreakDialogProp
       }}
     >
       <div id="add-break-dialog-title" style={{ fontWeight: 600, marginBottom: 12 }}>
-        Choose break direction
+        {t('dialog.addBreak.title')}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         <button
           type="button"
-          aria-label="Horizontal break (X axis)"
+          aria-label={t('dialog.addBreak.horizontalBreak')}
           onClick={() => onConfirm('x')}
           style={{ padding: '6px 12px', cursor: 'pointer' }}
         >
-          Horizontal break (remove X band)
+          {t('dialog.addBreak.horizontalBreak')}
         </button>
         <button
           type="button"
-          aria-label="Vertical break (Y axis)"
+          aria-label={t('dialog.addBreak.verticalBreak')}
           onClick={() => onConfirm('y')}
           style={{ padding: '6px 12px', cursor: 'pointer' }}
         >
-          Vertical break (remove Y band)
+          {t('dialog.addBreak.verticalBreak')}
         </button>
       </div>
       <button
         type="button"
-        aria-label="Cancel"
+        aria-label={t('common.cancel')}
         onClick={onCancel}
         style={{ padding: '4px 10px', cursor: 'pointer', float: 'right' }}
       >
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkPlaneFeature, WorkPlaneRef, WorkAxisRef, WorkPointRef, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -15,15 +16,6 @@ export type WorkPlaneDialogProps = {
 
 type Mode = WorkPlaneFeature['source']['mode'];
 
-const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
-  { value: 'origin', label: 'Origin Plane' },
-  { value: 'offsetFromPlane', label: 'Offset from Plane' },
-  { value: 'threePoints', label: 'Three Points' },
-  { value: 'midplane', label: 'Midplane between Two' },
-  { value: 'axisPerpendicularToPlane', label: 'Axis Perpendicular to Plane' },
-  { value: 'axisAtAngleToPlane', label: 'Axis at Angle to Plane' },
-  { value: 'tangentToSurfaceParallelToPlane', label: 'Tangent to Surface Parallel to Plane' },
-];
 
 const panel: React.CSSProperties = {
   position: 'fixed', top: 80, right: 20, background: '#1a1a1a',
@@ -64,6 +56,16 @@ function paramOrLiteral(text: string, unit: 'mm' | 'deg'): { value: ParamOrLiter
 }
 
 export function WorkPlaneDialog({ initialValues, onCommit, onCancel }: WorkPlaneDialogProps): React.ReactElement {
+  const { t } = useTranslation();
+  const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
+    { value: 'origin', label: t('dialog.workPlane.modeOrigin') },
+    { value: 'offsetFromPlane', label: t('dialog.workPlane.modeOffset') },
+    { value: 'threePoints', label: t('dialog.workPlane.modeThreePoints') },
+    { value: 'midplane', label: t('dialog.workPlane.modeMidplane') },
+    { value: 'axisPerpendicularToPlane', label: t('dialog.workPlane.modeAxisPerp') },
+    { value: 'axisAtAngleToPlane', label: t('dialog.workPlane.modeAxisAngle') },
+    { value: 'tangentToSurfaceParallelToPlane', label: t('dialog.workPlane.modeTangent') },
+  ];
   const [mode, setMode] = React.useState<Mode>(initialValues?.source.mode ?? 'origin');
   const [originPlane, setOriginPlane] = React.useState<'XY' | 'YZ' | 'XZ'>(
     initialValues?.source.mode === 'origin' ? initialValues.source.plane : 'XY'
@@ -159,10 +161,10 @@ export function WorkPlaneDialog({ initialValues, onCommit, onCancel }: WorkPlane
   }
 
   return (
-    <div style={panel} role="dialog" aria-label="Work Plane">
-      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>Work Plane</h3>
+    <div style={panel} role="dialog" aria-label={t('dialog.workPlane.ariaLabel')}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>{t('dialog.workPlane.title')}</h3>
       <div style={row}>
-        <label htmlFor="wp-mode" style={label}>Mode</label>
+        <label htmlFor="wp-mode" style={label}>{t('common.mode')}</label>
         <select
           id="wp-mode"
           aria-label="mode"
@@ -176,8 +178,8 @@ export function WorkPlaneDialog({ initialValues, onCommit, onCancel }: WorkPlane
 
       {mode === 'origin' && (
         <div style={row}>
-          <label htmlFor="wp-origin" style={label}>Plane</label>
-          <select id="wp-origin" aria-label="origin plane" value={originPlane} onChange={(e) => setOriginPlane(e.target.value as 'XY' | 'YZ' | 'XZ')} style={input}>
+          <label htmlFor="wp-origin" style={label}>{t('dialog.workPlane.plane')}</label>
+          <select id="wp-origin" aria-label={t('dialog.workPlane.originPlaneAria')} value={originPlane} onChange={(e) => setOriginPlane(e.target.value as 'XY' | 'YZ' | 'XZ')} style={input}>
             <option value="XY">XY</option>
             <option value="YZ">YZ</option>
             <option value="XZ">XZ</option>
@@ -187,69 +189,69 @@ export function WorkPlaneDialog({ initialValues, onCommit, onCancel }: WorkPlane
 
       {(mode === 'offsetFromPlane' || mode === 'tangentToSurfaceParallelToPlane' || mode === 'axisPerpendicularToPlane' || mode === 'axisAtAngleToPlane') && (
         <div style={row}>
-          <label style={label}>Plane ref</label>
-          <input aria-label="plane ref" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick plane ref" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+          <label style={label}>{t('common.planeRef')}</label>
+          <input aria-label={t('common.planeRefAria')} value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickPlaneRef')} style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
 
       {mode === 'midplane' && (
         <>
           <div style={row}>
-            <label style={label}>Plane A</label>
-            <input aria-label="plane A" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane A" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeA')}</label>
+            <input aria-label={t('common.planeAAria')} value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneA')} style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Plane B</label>
-            <input aria-label="plane B" value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick plane B" style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>Pick…</button>
+            <label style={label}>{t('common.planeB')}</label>
+            <input aria-label={t('common.planeBRefAria')} value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPlaneB')} style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>{t('common.pick_ellipsis')}</button>
           </div>
         </>
       )}
 
       {(mode === 'axisPerpendicularToPlane' || mode === 'axisAtAngleToPlane') && (
         <div style={row}>
-          <label style={label}>Axis ref</label>
-          <input aria-label="axis ref" value={axis} onChange={(e) => setAxis(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick axis ref" style={pickBtn} onClick={() => requestPick('axis', 'axis', 'workAxis')}>Pick…</button>
+          <label style={label}>{t('common.axisRef')}</label>
+          <input aria-label={t('common.axisRefAria')} value={axis} onChange={(e) => setAxis(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickAxisRef')} style={pickBtn} onClick={() => requestPick('axis', 'axis', 'workAxis')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
 
       {mode === 'tangentToSurfaceParallelToPlane' && (
-        <div style={row}><label style={label}>Face featureId</label><input aria-label="face featureId" value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('common.faceFeatureId')}</label><input aria-label={t('common.faceFeatureIdAria')} value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
       )}
 
       {mode === 'threePoints' && (
         <>
           <div style={row}>
-            <label style={label}>Point A</label>
-            <input aria-label="point A" value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick point A" style={pickBtn} onClick={() => requestPick('point', 'pointA', 'workPoint')}>Pick…</button>
+            <label style={label}>{t('common.pointA')}</label>
+            <input aria-label={t('common.pointAAria')} value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPointA')} style={pickBtn} onClick={() => requestPick('point', 'pointA', 'workPoint')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Point B</label>
-            <input aria-label="point B" value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick point B" style={pickBtn} onClick={() => requestPick('point', 'pointB', 'workPoint')}>Pick…</button>
+            <label style={label}>{t('common.pointB')}</label>
+            <input aria-label={t('common.pointBAria')} value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPointB')} style={pickBtn} onClick={() => requestPick('point', 'pointB', 'workPoint')}>{t('common.pick_ellipsis')}</button>
           </div>
           <div style={row}>
-            <label style={label}>Point C</label>
-            <input aria-label="point C" value={pointC} onChange={(e) => setPointC(e.target.value)} style={input} />
-            <button type="button" aria-label="Pick point C" style={pickBtn} onClick={() => requestPick('point', 'pointC', 'workPoint')}>Pick…</button>
+            <label style={label}>{t('common.pointC')}</label>
+            <input aria-label={t('common.pointCAria')} value={pointC} onChange={(e) => setPointC(e.target.value)} style={input} />
+            <button type="button" aria-label={t('common.pickPointC')} style={pickBtn} onClick={() => requestPick('point', 'pointC', 'workPoint')}>{t('common.pick_ellipsis')}</button>
           </div>
         </>
       )}
 
       {mode === 'offsetFromPlane' && (
-        <div style={row}><label style={label}>Offset (mm)</label><input aria-label="offset" value={offset} onChange={(e) => setOffset(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('dialog.workPlane.offset')}</label><input aria-label={t('dialog.workPlane.offsetAria')} value={offset} onChange={(e) => setOffset(e.target.value)} style={input} /></div>
       )}
       {mode === 'axisAtAngleToPlane' && (
-        <div style={row}><label style={label}>Angle (deg)</label><input aria-label="angle" value={angle} onChange={(e) => setAngle(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('dialog.workPlane.angle')}</label><input aria-label={t('dialog.workPlane.angleAria')} value={angle} onChange={(e) => setAngle(e.target.value)} style={input} /></div>
       )}
 
       <div style={{ ...row, justifyContent: 'flex-end', marginTop: 12 }}>
-        <button style={btn} onClick={onCancel}>Cancel</button>
-        <button style={ok} onClick={handleOk}>OK</button>
+        <button style={btn} onClick={onCancel}>{t('common.cancel')}</button>
+        <button style={ok} onClick={handleOk}>{t('common.ok')}</button>
       </div>
     </div>
   );

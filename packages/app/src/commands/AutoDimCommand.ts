@@ -1,5 +1,6 @@
 // packages/app/src/commands/AutoDimCommand.ts
 import type { Command } from './Command';
+import i18n from '../i18n';
 import type {
   DrawingDocument,
   DrawingDimension,
@@ -62,7 +63,7 @@ export class AutoDimCommand implements Command {
     // Resolve base extrude sketch
     const { sketchFeature, extrudeFeature } = resolveBaseExtrude(activePart);
     if (!sketchFeature || !extrudeFeature) {
-      useAppStore.getState().setStatus('No parametric dimensions found on base sketch.');
+      useAppStore.getState().setStatus(i18n.t('status.autoDim.noParamDims'));
       return;
     }
 
@@ -73,7 +74,7 @@ export class AutoDimCommand implements Command {
     );
 
     if (dimConstraints.length === 0) {
-      useAppStore.getState().setStatus('No parametric dimensions found on base sketch.');
+      useAppStore.getState().setStatus(i18n.t('status.autoDim.noParamDims'));
       return;
     }
 
@@ -187,7 +188,7 @@ export class AutoDimCommand implements Command {
     this.placedIds = placedDims.map((d) => d.id);
 
     if (placedDims.length === 0) {
-      useAppStore.getState().setStatus('No parametric dimensions found on base sketch.');
+      useAppStore.getState().setStatus(i18n.t('status.autoDim.noParamDims'));
       return;
     }
 

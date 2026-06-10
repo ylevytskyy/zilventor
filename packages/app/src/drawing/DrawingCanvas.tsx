@@ -1,5 +1,6 @@
 // packages/app/src/drawing/DrawingCanvas.tsx
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import { underlayEntityToSvg } from './renderUnderlayEntity';
 import { useAppStore } from '../store/useAppStore';
 import { useToolModeStore } from './toolMode';
@@ -95,6 +96,7 @@ function sheetToParentLocal(
 }
 
 export function DrawingCanvas() {
+  const { t } = useTranslation();
   const drawing = useAppStore((s) => s.activeDrawing);
   const bus = useAppStore((s) => s.bus);
   const toolMode = useToolModeStore((s) => s.mode);
@@ -141,7 +143,7 @@ export function DrawingCanvas() {
   const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {
-    return <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">No drawing open.</div>;
+    return <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">{t('panel.drawingCanvas.noDrawingOpen')}</div>;
   }
 
   const sheet = drawing.sheets.find((s) => s.id === drawing.activeSheetId) ?? drawing.sheets[0];
@@ -1292,7 +1294,7 @@ export function DrawingCanvas() {
             fill="white"
             fontFamily="sans-serif"
           >
-            Choose axis in dialog
+            {t('panel.drawingCanvas.chooseAxisInDialog')}
           </text>
         </g>
       )}

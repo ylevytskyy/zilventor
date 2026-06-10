@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FaceName, HoleFeature, HolePlacement, HoleProfile, HoleTermination, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { parseParamOrLiteral } from './parseParamOrLiteral';
@@ -132,6 +133,7 @@ type HoleDialogProps = {
 };
 
 export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialogProps = {}): JSX.Element | null {
+  const { t } = useTranslation();
   const open = useAppStore((s) => s.holeDialogOpen);
   const resetHoleDialog = useAppStore((s) => s.resetHoleDialog);
 
@@ -286,11 +288,11 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
 
 
   return (
-    <div role="dialog" aria-label="Hole" style={panelStyle}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Hole</div>
+    <div role="dialog" aria-label={t('aria.hole')} style={panelStyle}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.hole.title')}</div>
 
       <div style={sectionStyle}>
-        <h2 style={sectionHeadingStyle}>Placement</h2>
+        <h2 style={sectionHeadingStyle}>{t('dialog.hole.placement')}</h2>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           {(['fromSketch', 'linear', 'concentric'] as const).map((m) => (
             <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -300,7 +302,7 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
                 checked={placementMode === m}
                 onChange={() => setPlacementMode(m)}
               />
-              {m === 'fromSketch' ? 'From Sketch' : m[0]!.toUpperCase() + m.slice(1)}
+              {m === 'fromSketch' ? t('dialog.hole.from_sketch') : m === 'linear' ? t('dialog.hole.linear') : t('dialog.hole.concentric')}
             </label>
           ))}
         </div>
@@ -311,21 +313,21 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
             style={pickRowStyle}
             onClick={() => { /* T27 wires the SketchPickController activation */ }}
           >
-            {sketchId ? `Sketch: ${sketchId}` : 'Pick sketch'}
+            {sketchId ? `Sketch: ${sketchId}` : t('dialog.hole.pick_sketch')}
           </button>
         )}
 
         {placementMode === 'linear' && (
           <div style={{ display: 'grid', gap: 4 }}>
             <button type="button" style={pickRowStyle}>
-              {placementFace ? `Face: ${placementFace}` : 'Pick face'}
+              {placementFace ? `Face: ${placementFace}` : t('dialog.hole.pick_face')}
             </button>
             <div style={{ display: 'flex', gap: 4 }}>
               <button type="button" style={pickRowFlexStyle}>
-                {refEdges[0] ? 'Edge 1 ✓' : 'Pick edge 1'}
+                {refEdges[0] ? 'Edge 1 ✓' : t('dialog.hole.pick_edge_1')}
               </button>
               <input
-                aria-label="offset 1"
+                aria-label={t('aria.offset1')}
                 type="text"
                 defaultValue="5"
                 style={offsetInputStyle}
@@ -333,10 +335,10 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button type="button" style={pickRowFlexStyle}>
-                {refEdges[1] ? 'Edge 2 ✓' : 'Pick edge 2'}
+                {refEdges[1] ? 'Edge 2 ✓' : t('dialog.hole.pick_edge_2')}
               </button>
               <input
-                aria-label="offset 2"
+                aria-label={t('aria.offset2')}
                 type="text"
                 defaultValue="5"
                 style={offsetInputStyle}
@@ -348,17 +350,17 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
         {placementMode === 'concentric' && (
           <div style={{ display: 'grid', gap: 4 }}>
             <button type="button" style={pickRowStyle}>
-              {placementFace ? `Face: ${placementFace}` : 'Pick face'}
+              {placementFace ? `Face: ${placementFace}` : t('dialog.hole.pick_face')}
             </button>
             <button type="button" style={pickRowStyle}>
-              {circularEdge ? 'Circular edge ✓' : 'Pick circular edge'}
+              {circularEdge ? 'Circular edge ✓' : t('dialog.hole.pick_circular_edge')}
             </button>
           </div>
         )}
       </div>
 
       <section style={{ marginBottom: 12 }}>
-        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>Profile</h2>
+        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>{t('dialog.hole.profile.label')}</h2>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           {(['simple', 'counterbore', 'countersink'] as const).map((k) => (
             <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
@@ -368,16 +370,16 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
                 checked={profileKind === k}
                 onChange={() => setProfileKind(k)}
               />
-              {k[0]!.toUpperCase() + k.slice(1)}
+              {t('dialog.hole.profile.' + k)}
             </label>
           ))}
         </div>
 
         <div style={{ display: 'grid', gap: 4 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-            <span style={{ width: 80 }}>Diameter</span>
+            <span style={{ width: 80 }}>{t('dialog.hole.diameter')}</span>
             <input
-              aria-label="Diameter"
+              aria-label={t('aria.diameter')}
               type="text"
               value={diameter}
               onChange={(e) => setDiameter(e.target.value)}
@@ -387,9 +389,9 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
           {profileKind === 'counterbore' && (
             <>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <span style={{ width: 80 }}>CBORE Ø</span>
+                <span style={{ width: 80 }}>{t('dialog.hole.cbore_diameter')}</span>
                 <input
-                  aria-label="CBORE Ø"
+                  aria-label={t('aria.cbore_diameter')}
                   type="text"
                   value={cboreDiameter}
                   onChange={(e) => setCboreDiameter(e.target.value)}
@@ -397,9 +399,9 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
                 />
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <span style={{ width: 80 }}>CBORE depth</span>
+                <span style={{ width: 80 }}>{t('dialog.hole.cbore_depth')}</span>
                 <input
-                  aria-label="CBORE depth"
+                  aria-label={t('aria.cbore_depth')}
                   type="text"
                   value={cboreDepth}
                   onChange={(e) => setCboreDepth(e.target.value)}
@@ -411,9 +413,9 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
           {profileKind === 'countersink' && (
             <>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <span style={{ width: 80 }}>CSK Ø</span>
+                <span style={{ width: 80 }}>{t('dialog.hole.csk_diameter')}</span>
                 <input
-                  aria-label="CSK Ø"
+                  aria-label={t('aria.csk_diameter')}
                   type="text"
                   value={cskDiameter}
                   onChange={(e) => setCskDiameter(e.target.value)}
@@ -421,9 +423,9 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
                 />
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <span style={{ width: 80 }}>CSK angle</span>
+                <span style={{ width: 80 }}>{t('dialog.hole.csk_angle')}</span>
                 <input
-                  aria-label="CSK angle"
+                  aria-label={t('aria.csk_angle')}
                   type="text"
                   value={cskAngle}
                   onChange={(e) => setCskAngle(e.target.value)}
@@ -436,26 +438,26 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
       </section>
 
       <section style={{ marginBottom: 12 }}>
-        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>Termination</h2>
+        <h2 style={{ marginBottom: 6, fontSize: 12, fontWeight: 600 }}>{t('dialog.hole.termination')}</h2>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 4 }}>
-          <span style={{ width: 80 }}>Termination</span>
+          <span style={{ width: 80 }}>{t('dialog.hole.termination')}</span>
           <select
-            aria-label="Termination"
+            aria-label={t('aria.termination')}
             value={termKind}
             onChange={(e) => setTermKind(e.target.value as 'distance' | 'throughAll' | 'toFace' | 'toNext')}
             style={{ flex: 1, background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 6px', fontSize: 11 }}
           >
-            <option value="distance">Distance</option>
-            <option value="throughAll">Through All</option>
-            <option value="toFace">To Face</option>
-            <option value="toNext">To Next</option>
+            <option value="distance">{t('dialog.hole.distance')}</option>
+            <option value="throughAll">{t('dialog.hole.through_all')}</option>
+            <option value="toFace">{t('dialog.hole.to_face')}</option>
+            <option value="toNext">{t('dialog.hole.to_next')}</option>
           </select>
         </label>
         {termKind === 'distance' && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-            <span style={{ width: 80 }}>Depth</span>
+            <span style={{ width: 80 }}>{t('dialog.hole.depth')}</span>
             <input
-              aria-label="Depth"
+              aria-label={t('aria.depth')}
               type="text"
               value={depth}
               onChange={(e) => setDepth(e.target.value)}
@@ -468,7 +470,7 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
             type="button"
             style={{ width: '100%', background: '#222', border: '1px solid #444', color: '#eee', padding: '4px 8px', fontSize: 11 }}
           >
-            Pick target face
+            {t('dialog.hole.pick_target_face')}
           </button>
         )}
       </section>
@@ -491,8 +493,8 @@ export function HoleDialog({ onDraftChange, previewError, onCommit }: HoleDialog
       )}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-        <button type="button" onClick={resetHoleDialog} style={btnStyle}>Cancel</button>
-        <button type="button" onClick={onOk} style={okBtnStyle}>OK</button>
+        <button type="button" onClick={resetHoleDialog} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="button" onClick={onOk} style={okBtnStyle}>{t('common.ok')}</button>
       </div>
     </div>
   );

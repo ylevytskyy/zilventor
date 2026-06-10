@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PatternAxis } from '@zilventor/shared';
 
 export type ComponentPatternDialogValue = {
@@ -54,6 +55,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export function ComponentPatternDialog({ components, onCommit, onCancel }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [sourceComponentId, setSourceComponentId] = useState(components[0]?.id ?? '');
   const [dir1, setDir1] = useState<PatternAxis>('x');
   const [count1Str, setCount1Str] = useState('3');
@@ -100,29 +102,29 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
   };
 
   return (
-    <form role="dialog" aria-label="Component Pattern" onSubmit={handleSubmit} style={panelStyle}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Rectangular Pattern</div>
+    <form role="dialog" aria-label={t('aria.component_pattern')} onSubmit={handleSubmit} style={panelStyle}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.pattern.title')}</div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-source">Source</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-source">{t('dialog.pattern.source')}</label>
         <select
           id="cpd-source"
-          aria-label="Source component"
+          aria-label={t('dialog.pattern.source_component')}
           value={sourceComponentId}
           onChange={(e) => setSourceComponentId(e.target.value)}
           style={inputStyle}
         >
-          {components.length === 0 && <option value="">(no components)</option>}
+          {components.length === 0 && <option value="">{t('dialog.pattern.no_components')}</option>}
           {components.map((c) => (
             <option key={c.id} value={c.id}>{c.label}</option>
           ))}
         </select>
       </div>
 
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>Direction 1</div>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('dialog.pattern.direction1')}</div>
 
       <div style={rowStyle}>
-        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Axis</span>
+        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.pattern.axis')}</span>
         <div style={{ display: 'flex', gap: 4, flex: 1 }}>
           {(['x', 'y', 'z'] as PatternAxis[]).map((a) => (
             <button
@@ -143,10 +145,10 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
       </div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-count1">Count 1</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-count1">{t('dialog.pattern.count1')}</label>
         <input
           id="cpd-count1"
-          aria-label="Count 1"
+          aria-label={t('dialog.pattern.count1')}
           type="number"
           min={2}
           max={200}
@@ -157,10 +159,10 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
       </div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-spacing1">Spacing 1</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-spacing1">{t('dialog.pattern.spacing1')}</label>
         <input
           id="cpd-spacing1"
-          aria-label="Spacing 1"
+          aria-label={t('dialog.pattern.spacing1')}
           value={spacing1}
           onChange={(e) => setSpacing1(e.target.value)}
           style={inputStyle}
@@ -169,30 +171,30 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
       </div>
 
       {!count1Valid && (
-        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Count 1 must be an integer 2–200.</div>
+        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.pattern.count1_error')}</div>
       )}
       {!spacing1Valid && (
-        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Spacing 1 must be a non-zero number.</div>
+        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.pattern.spacing1_error')}</div>
       )}
 
       <div style={rowStyle}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <input
             type="checkbox"
-            aria-label="Second direction"
+            aria-label={t('dialog.pattern.second_direction')}
             checked={dir2Enabled}
             onChange={(e) => setDir2Enabled(e.target.checked)}
           />
-          Second direction
+          {t('dialog.pattern.second_direction')}
         </label>
       </div>
 
       {dir2Enabled && (
         <>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Direction 2</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('dialog.pattern.direction2')}</div>
 
           <div style={rowStyle}>
-            <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Axis</span>
+            <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.pattern.axis')}</span>
             <div style={{ display: 'flex', gap: 4, flex: 1 }}>
               {(['x', 'y', 'z'] as PatternAxis[]).map((a) => (
                 <button
@@ -213,10 +215,10 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
           </div>
 
           <div style={rowStyle}>
-            <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-count2">Count 2</label>
+            <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-count2">{t('dialog.pattern.count2')}</label>
             <input
               id="cpd-count2"
-              aria-label="Count 2"
+              aria-label={t('dialog.pattern.count2')}
               type="number"
               min={2}
               max={200}
@@ -227,10 +229,10 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
           </div>
 
           <div style={rowStyle}>
-            <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-spacing2">Spacing 2</label>
+            <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }} htmlFor="cpd-spacing2">{t('dialog.pattern.spacing2')}</label>
             <input
               id="cpd-spacing2"
-              aria-label="Spacing 2"
+              aria-label={t('dialog.pattern.spacing2')}
               value={spacing2}
               onChange={(e) => setSpacing2(e.target.value)}
               style={inputStyle}
@@ -239,14 +241,14 @@ export function ComponentPatternDialog({ components, onCommit, onCancel }: Props
           </div>
 
           {dir2 === dir1 && (
-            <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Direction 2 must differ from Direction 1.</div>
+            <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.pattern.dir2_same_error')}</div>
           )}
         </>
       )}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
-        <button type="submit" disabled={!canCommit} style={btnStyle}>OK</button>
+        <button type="button" onClick={onCancel} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="submit" disabled={!canCommit} style={btnStyle}>{t('common.ok')}</button>
       </div>
     </form>
   );

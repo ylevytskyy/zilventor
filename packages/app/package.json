@@ -19,9 +19,12 @@
     "dxf-parser": "^1.1.2",
     "expr-eval": "^2.0.2",
     "fflate": "^0.8.2",
+    "i18next": "^26.3.1",
+    "i18next-browser-languagedetector": "^8.2.1",
     "jspdf": "^2.5.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "react-i18next": "^17.0.8",
     "three": "^0.165.0",
     "zustand": "^4.5.0"
   },

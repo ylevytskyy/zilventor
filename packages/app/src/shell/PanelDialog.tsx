@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { GrainDirection, MaterialEntry, MaterialId, PanelEdgeKey, PanelFeature, ParamOrLiteral } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { parseParamOrLiteral } from './parseParamOrLiteral';
@@ -144,6 +145,7 @@ function GrainArrow({ kind }: { kind: GrainDirection }): JSX.Element {
 }
 
 export function PanelDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const panelDialog = useAppStore((s) => s.panelDialog);
   const setPanelDialog = useAppStore((s) => s.setPanelDialog);
   const activePart = useAppStore((s) => s.activePart);
@@ -249,15 +251,15 @@ export function PanelDialog(): JSX.Element | null {
 
   return (
     <div style={overlayStyle} onClick={onOverlayClick} data-testid="panel-dialog-backdrop">
-      <div role="dialog" aria-label="Panel" style={panelStyle}>
-        <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Panel</div>
+      <div role="dialog" aria-label={t('dialog.panel.ariaLabel')} style={panelStyle}>
+        <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>{t('dialog.panel.title')}</div>
 
         <section style={{ marginBottom: 12 }}>
-          <h2 style={sectionHeading}>Dimensions</h2>
+          <h2 style={sectionHeading}>{t('dialog.panel.dimensions')}</h2>
           <div style={fieldRow}>
-            <span style={labelStyle}>Length</span>
+            <span style={labelStyle}>{t('dialog.panel.length')}</span>
             <input
-              aria-label="Length"
+              aria-label={t('dialog.panel.lengthAriaLabel')}
               type="text"
               value={length}
               onChange={(e) => setLength(e.target.value)}
@@ -265,9 +267,9 @@ export function PanelDialog(): JSX.Element | null {
             />
           </div>
           <div style={fieldRow}>
-            <span style={labelStyle}>Width</span>
+            <span style={labelStyle}>{t('dialog.panel.width')}</span>
             <input
-              aria-label="Width"
+              aria-label={t('dialog.panel.widthAriaLabel')}
               type="text"
               value={width}
               onChange={(e) => setWidth(e.target.value)}
@@ -275,9 +277,9 @@ export function PanelDialog(): JSX.Element | null {
             />
           </div>
           <div style={fieldRow}>
-            <span style={labelStyle}>Thickness</span>
+            <span style={labelStyle}>{t('dialog.panel.thickness')}</span>
             <input
-              aria-label="Thickness"
+              aria-label={t('dialog.panel.thicknessAriaLabel')}
               type="text"
               value={thickness}
               onChange={(e) => onThicknessChange(e.target.value)}
@@ -285,17 +287,17 @@ export function PanelDialog(): JSX.Element | null {
             />
             {thicknessFromMaterial && (
               <span style={badgeStyle} data-testid="thickness-from-material-badge">
-                (from material)
+                {t('dialog.panel.fromMaterial')}
               </span>
             )}
           </div>
         </section>
 
         <section style={{ marginBottom: 12 }}>
-          <h2 style={sectionHeading}>Material</h2>
+          <h2 style={sectionHeading}>{t('dialog.panel.material')}</h2>
           <div style={fieldRow}>
             <select
-              aria-label="Material"
+              aria-label={t('dialog.panel.materialAriaLabel')}
               value={materialId}
               onChange={(e) => onMaterialChange(e.target.value)}
               style={selectStyle}
@@ -312,12 +314,12 @@ export function PanelDialog(): JSX.Element | null {
               style={btnStyle}
               onClick={() => setShowRegistry((v) => !v)}
             >
-              Manage…
+              {t('common.manage')}
             </button>
           </div>
           {brokenMaterialRef && (
             <div role="alert" style={errorStyle}>
-              Material reference "{materialId}" not found in the active registry.
+              {t('dialog.panel.brokenMaterial', { id: materialId })}
             </div>
           )}
           {showRegistry && (
@@ -328,7 +330,7 @@ export function PanelDialog(): JSX.Element | null {
         </section>
 
         <section style={{ marginBottom: 12 }}>
-          <h2 style={sectionHeading}>Grain</h2>
+          <h2 style={sectionHeading}>{t('dialog.panel.grain')}</h2>
           <div style={{ display: 'flex', gap: 12 }}>
             {(['length', 'width', 'none'] as const).map((g) => (
               <label
@@ -342,14 +344,14 @@ export function PanelDialog(): JSX.Element | null {
                   onChange={() => setGrain(g)}
                 />
                 <GrainArrow kind={g} />
-                {g === 'none' ? 'None' : g[0]!.toUpperCase() + g.slice(1)}
+                {g === 'none' ? t('dialog.panel.grainNone') : g === 'length' ? t('dialog.panel.grainLength') : t('dialog.panel.grainWidth')}
               </label>
             ))}
           </div>
         </section>
 
         <section style={{ marginBottom: 12 }}>
-          <h2 style={sectionHeading}>Edge bands</h2>
+          <h2 style={sectionHeading}>{t('dialog.panel.edgeBands')}</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <tbody>
               {EDGE_KEYS.map((k) => (
@@ -357,7 +359,7 @@ export function PanelDialog(): JSX.Element | null {
                   <td style={{ padding: '3px 6px', width: 80 }}>{EDGE_LABELS[k]}</td>
                   <td style={{ padding: '3px 6px' }}>
                     <select
-                      aria-label={`Edge ${EDGE_LABELS[k]}`}
+                      aria-label={t('dialog.panel.edgeAriaLabel', { edge: EDGE_LABELS[k] })}
                       value={edgeBands[k] ?? ''}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -378,14 +380,14 @@ export function PanelDialog(): JSX.Element | null {
         </section>
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-          <button type="button" onClick={cancel} style={btnStyle}>Cancel</button>
+          <button type="button" onClick={cancel} style={btnStyle}>{t('common.cancel')}</button>
           <button
             type="button"
             onClick={submit}
             style={okBtnStyle}
             disabled={brokenMaterialRef}
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       </div>

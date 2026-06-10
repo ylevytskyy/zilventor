@@ -2,6 +2,7 @@ import { useAppStore } from '../store/useAppStore';
 import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { buildBomCsv } from './buildBomCsv';
 import type { PartInfo } from '@zilventor/shared';
+import i18n from '../i18n';
 
 export class ExportBomCsvCommand {
   constructor(private opts: { partInfo: Map<string, PartInfo> }) {}
@@ -37,7 +38,7 @@ export class ExportBomCsvCommand {
         const writable = await handle.createWritable();
         await writable.write(bytes);
         await writable.close();
-        useAppStore.getState().setStatus(rows.length === 0 ? 'Exported empty BOM' : `Exported ${rows.length} BOM rows`);
+        useAppStore.getState().setStatus(rows.length === 0 ? i18n.t('status.exportBom.empty') : i18n.t('status.exportBom.rows', { count: rows.length }));
       } catch {
         // User cancelled or write failed — silent no-op.
       }
@@ -50,6 +51,6 @@ export class ExportBomCsvCommand {
     a2.href = url; a2.download = suggestedName;
     document.body.appendChild(a2); a2.click(); document.body.removeChild(a2);
     URL.revokeObjectURL(url);
-    useAppStore.getState().setStatus(rows.length === 0 ? 'Exported empty BOM' : `Exported ${rows.length} BOM rows`);
+    useAppStore.getState().setStatus(rows.length === 0 ? i18n.t('status.exportBom.empty') : i18n.t('status.exportBom.rows', { count: rows.length }));
   }
 }

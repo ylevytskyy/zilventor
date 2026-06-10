@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { EditTitleBlockCommand } from '../commands/EditTitleBlockCommand';
 import type { TitleBlockOverrides } from '@zilventor/shared';
@@ -38,6 +39,7 @@ const FIELDS: Array<{ key: keyof TitleBlockOverrides; label: string; multiline?:
 ];
 
 export function EditTitleBlockDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const state = useAppStore((s) => (s as any).editTitleBlockDialogState as DialogState | null);
   const bus = useAppStore((s) => s.bus);
 
@@ -69,9 +71,9 @@ export function EditTitleBlockDialog(): JSX.Element | null {
 
   return (
     <div style={overlayStyle} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div style={panelStyle} role="dialog" aria-label="Edit Title Block"
+      <div style={panelStyle} role="dialog" aria-label={t('aria.edit_title_block')}
         onKeyDown={(e) => { if (e.key === 'Escape') close(); }} tabIndex={-1}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Title Block</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('dialog.titleBlock.title')}</div>
         {FIELDS.map(({ key, label, multiline }) => (
           <div key={key} style={fieldRow}>
             <label style={labelStyle} htmlFor={`tb-${key}`}>{label}</label>
@@ -96,8 +98,8 @@ export function EditTitleBlockDialog(): JSX.Element | null {
           </div>
         ))}
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
-          <button style={btnStyle} onClick={close}>Cancel</button>
-          <button style={okBtnStyle} onClick={() => { void handleOk(); }}>OK</button>
+          <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

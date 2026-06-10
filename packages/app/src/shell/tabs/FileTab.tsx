@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
@@ -15,6 +16,7 @@ import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidw
 import { triggerDownload } from '../../nesting/triggerDownload';
 
 export default function FileTab() {
+  const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const activeDoc = useAppStore((s) => s.activeDocument);
   const [errorDialog, setErrorDialog] = useState<string | null>(null);
@@ -68,7 +70,7 @@ export default function FileTab() {
           `${doc.name}.zidw`,
           [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
         );
-        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
       }
       if (activeDocument.kind === 'assembly') {
@@ -79,7 +81,7 @@ export default function FileTab() {
           `${doc.name}.ziasm`,
           [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
         );
-        if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+        if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
       }
 
@@ -91,7 +93,7 @@ export default function FileTab() {
         `${activePart.name}.zipt`,
         [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
       );
-      if (saved) setStatus(`Saved at ${new Date().toLocaleTimeString()}`);
+      if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
       setErrorDialog(`Save failed: ${(e as Error).message}`);
@@ -149,7 +151,7 @@ export default function FileTab() {
             const { part } = await importStepIntoNewPart(stepFile, kernel);
             stopTicker();
             setActivePart(part);
-            setStatus('Imported');
+            setStatus(t('status.imported'));
           }
         } finally {
           stopTicker();
@@ -182,7 +184,7 @@ export default function FileTab() {
             await kernel.registerPart(part);
             stopTicker();
             setActivePart(part);
-            setStatus('Imported');
+            setStatus(t('status.imported'));
           }
         } finally {
           stopTicker();
@@ -214,7 +216,7 @@ export default function FileTab() {
         // Clear SM texture caches so rebuilt blob URLs are used, not stale ones.
         useAppStore.getState().viewport?.getSceneManager()?.setCustomTextureRegistry(globalCustomTextureRegistry);
         setActiveDocument({ kind: 'assembly', document: doc });
-        setStatus('Opened');
+        setStatus(t('status.opened'));
       } else {
         // part path
         const partId = await kernel.loadFromBytes(bytes);
@@ -232,7 +234,7 @@ export default function FileTab() {
         }
         const part = await kernel.getPart(partId);
         setActivePart(part);
-        setStatus('Opened');
+        setStatus(t('status.opened'));
       }
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
@@ -254,25 +256,25 @@ export default function FileTab() {
 
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
-      <button className="hover:text-white" onClick={handleNewPart}>New Part</button>
-      <button className="hover:text-white" onClick={handleNewAssembly}>New Assembly</button>
-      <button className="hover:text-white" onClick={handleOpen}>Open…</button>
-      <button className="hover:text-white" disabled>Save</button>
-      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>Save As…</button>
+      <button className="hover:text-white" onClick={handleNewPart}>{t('menu.file.newPart')}</button>
+      <button className="hover:text-white" onClick={handleNewAssembly}>{t('menu.file.newAssembly')}</button>
+      <button className="hover:text-white" onClick={handleOpen}>{t('menu.file.open')}</button>
+      <button className="hover:text-white" disabled>{t('menu.file.save')}</button>
+      <button className="hover:text-white disabled:text-neutral-500" disabled={!activeDoc} onClick={handleSaveAs}>{t('menu.file.saveAs')}</button>
       <label className="flex items-center gap-1 select-none">
         <input
           type="checkbox"
           checked={transparentBg}
           onChange={(e) => setTransparentBg(e.target.checked)}
         />
-        Transparent
+        {t('menu.file.transparent')}
       </label>
       <button
         className="hover:text-white disabled:text-neutral-500"
         disabled={!activeDoc || activeDoc.kind === 'drawing'}
         onClick={() => handleExportImage(transparentBg)}
       >
-        Export Image
+        {t('menu.file.exportImage')}
       </button>
       <button
         className="hover:text-white disabled:text-neutral-500"
@@ -280,14 +282,14 @@ export default function FileTab() {
         title={hasDirectoryPicker() ? undefined : 'Import from Inventor requires Chrome, Edge, Brave, or Arc (uses showDirectoryPicker)'}
         onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
       >
-        Import from Inventor
+        {t('menu.file.importFromInventor')}
       </button>
       {errorDialog && (
-        <div role="alertdialog" aria-label="Error" className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div role="alertdialog" aria-label={t('common.error')} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-shell-panel border border-shell-border p-4 w-80 text-xs">
             <div className="text-sm mb-3">{errorDialog}</div>
             <div className="flex justify-end">
-              <button onClick={() => setErrorDialog(null)}>OK</button>
+              <button onClick={() => setErrorDialog(null)}>{t('common.ok')}</button>
             </div>
           </div>
         </div>

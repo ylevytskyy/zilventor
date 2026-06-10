@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PatternAxis } from '@zilventor/shared';
 
 export type LinearPatternDialogValue = {
@@ -59,6 +60,7 @@ export function LinearPatternDialog({
   onCancel,
   validateExpression,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [sourceFeatureId, setSourceFeatureId] = useState(patternableFeatures[0]?.id ?? '');
   const [direction, setDirection] = useState<PatternAxis>('x');
   const [spacing, setSpacing] = useState('20');
@@ -76,18 +78,18 @@ export function LinearPatternDialog({
   };
 
   return (
-    <form role="dialog" aria-label="Linear Pattern" onSubmit={handleSubmit} style={panelStyle}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Linear Pattern</div>
+    <form role="dialog" aria-label={t('dialog.linearPattern.title')} onSubmit={handleSubmit} style={panelStyle}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.linearPattern.title')}</div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Source</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.linearPattern.source')}</label>
         <select
-          aria-label="Source feature"
+          aria-label={t('dialog.linearPattern.source')}
           value={sourceFeatureId}
           onChange={(e) => setSourceFeatureId(e.target.value)}
           style={inputStyle}
         >
-          {patternableFeatures.length === 0 && <option value="">(no patternable feature)</option>}
+          {patternableFeatures.length === 0 && <option value="">{t('dialog.linearPattern.noFeature')}</option>}
           {patternableFeatures.map((f) => (
             <option key={f.id} value={f.id}>{f.label}</option>
           ))}
@@ -95,7 +97,7 @@ export function LinearPatternDialog({
       </div>
 
       <div style={rowStyle}>
-        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Axis</span>
+        <span style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.linearPattern.axis')}</span>
         <div style={{ display: 'flex', gap: 4, flex: 1 }}>
           {(['x', 'y', 'z'] as PatternAxis[]).map((a) => (
             <button
@@ -116,9 +118,9 @@ export function LinearPatternDialog({
       </div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Spacing</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.linearPattern.spacing')}</label>
         <input
-          aria-label="Spacing"
+          aria-label={t('dialog.linearPattern.spacing')}
           value={spacing}
           onChange={(e) => setSpacing(e.target.value)}
           style={inputStyle}
@@ -126,9 +128,9 @@ export function LinearPatternDialog({
       </div>
 
       <div style={rowStyle}>
-        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>Count</label>
+        <label style={{ ...labelStyle, marginBottom: 0, minWidth: 70 }}>{t('dialog.linearPattern.count')}</label>
         <input
-          aria-label="Count"
+          aria-label={t('dialog.linearPattern.count')}
           type="number"
           min={2}
           max={200}
@@ -140,13 +142,13 @@ export function LinearPatternDialog({
 
       {exprError && <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{exprError}</div>}
       {!countValid && (
-        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Count must be an integer 2–200.</div>
+        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.linearPattern.countError')}</div>
       )}
       {previewError && <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{previewError}</div>}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
-        <button type="submit" disabled={!canCommit} style={btnStyle}>OK</button>
+        <button type="button" onClick={onCancel} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="submit" disabled={!canCommit} style={btnStyle}>{t('common.ok')}</button>
       </div>
     </form>
   );

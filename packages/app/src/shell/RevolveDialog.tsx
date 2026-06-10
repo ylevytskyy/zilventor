@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type ProfileRef = { sketchId: string; closedProfileCount: number };
 export type AxisRef = { primitiveId: string };
@@ -112,6 +113,7 @@ export function RevolveDialog({
   validateExpression,
   previewError,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [expression, setExpression] = useState(initialExpression);
   const [direction, setDirection] = useState<RevolveDirection>('normal');
@@ -149,42 +151,42 @@ export function RevolveDialog({
   return (
     <form
       role="dialog"
-      aria-label="Revolve"
+      aria-label={t('dialog.revolve.ariaLabel')}
       onSubmit={handleSubmit}
       style={panelStyle}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Revolve</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.revolve.title')}</div>
 
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Profile</span>
+        <span style={sectionLabelStyle}>{t('dialog.revolve.profile')}</span>
         <div style={rowStyle}>
           <button type="button" style={pickBtnStyle} onClick={onPickProfile}>
-            {profile ? 'Change' : 'Pick'}
+            {profile ? t('common.change') : t('common.pick')}
           </button>
           <span style={{ color: profile ? '#eee' : '#888' }}>
             {profile
               ? `${profile.sketchId} (${profile.closedProfileCount} closed loop${profile.closedProfileCount === 1 ? '' : 's'})`
-              : 'None selected'}
+              : t('common.noneSelected')}
           </span>
         </div>
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Axis</span>
+        <span style={sectionLabelStyle}>{t('dialog.revolve.axis')}</span>
         <div style={rowStyle}>
           <button type="button" style={pickBtnStyle} onClick={onPickAxis}>
-            {axis ? 'Change' : 'Pick'}
+            {axis ? t('common.change') : t('common.pick')}
           </button>
           <span style={{ color: axis ? '#eee' : '#888' }}>
-            {axis ? axis.primitiveId : 'None selected'}
+            {axis ? axis.primitiveId : t('common.noneSelected')}
           </span>
         </div>
       </div>
 
       <label style={{ display: 'block', marginBottom: 8 }}>
-        Name
+        {t('dialog.revolve.name')}
         <input
-          aria-label="Name"
+          aria-label={t('dialog.revolve.nameAria')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           style={{ ...inputStyle, marginTop: 2, width: '100%' }}
@@ -192,9 +194,9 @@ export function RevolveDialog({
       </label>
 
       <label style={{ display: 'block', marginBottom: 8 }}>
-        Angle
+        {t('dialog.revolve.angle')}
         <input
-          aria-label="Angle"
+          aria-label={t('dialog.revolve.angleAria')}
           value={expression}
           onChange={(e) => setExpression(e.target.value)}
           style={{ ...inputStyle, marginTop: 2, width: '100%' }}
@@ -211,7 +213,7 @@ export function RevolveDialog({
       </label>
 
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Direction</span>
+        <span style={sectionLabelStyle}>{t('dialog.revolve.direction')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
@@ -219,7 +221,7 @@ export function RevolveDialog({
             style={toggleBtnStyle(direction === 'flipped', false)}
             onClick={() => setDirection('flipped')}
           >
-            Flipped
+            {t('dialog.revolve.flipped')}
           </button>
           <button
             type="button"
@@ -227,7 +229,7 @@ export function RevolveDialog({
             style={toggleBtnStyle(direction === 'symmetric', false)}
             onClick={() => setDirection('symmetric')}
           >
-            Symmetric
+            {t('dialog.revolve.symmetric')}
           </button>
           <button
             type="button"
@@ -235,13 +237,13 @@ export function RevolveDialog({
             style={toggleBtnStyle(direction === 'normal', false)}
             onClick={() => setDirection('normal')}
           >
-            Normal
+            {t('dialog.revolve.normal')}
           </button>
         </div>
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <span style={sectionLabelStyle}>Operation</span>
+        <span style={sectionLabelStyle}>{t('dialog.revolve.operation')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
@@ -249,7 +251,7 @@ export function RevolveDialog({
             style={toggleBtnStyle(operation === 'new', false)}
             onClick={() => setOperation('new')}
           >
-            New
+            {t('common.opNew')}
           </button>
           <button
             type="button"
@@ -258,7 +260,7 @@ export function RevolveDialog({
             style={toggleBtnStyle(operation === 'join', !hasRunningBody)}
             onClick={() => setOperation('join')}
           >
-            Join
+            {t('common.opJoin')}
           </button>
           <button
             type="button"
@@ -267,7 +269,7 @@ export function RevolveDialog({
             style={toggleBtnStyle(operation === 'cut', !hasRunningBody)}
             onClick={() => setOperation('cut')}
           >
-            Cut
+            {t('common.opCut')}
           </button>
         </div>
       </div>
@@ -285,14 +287,14 @@ export function RevolveDialog({
             marginBottom: 8,
           }}
         >
-          Preview: {previewError}
+          {t('common.preview')}: {previewError}
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel}>Cancel</button>
-        <button type="button" onClick={handleApply} disabled={!canCommit}>Apply</button>
-        <button type="submit" disabled={!canCommit}>OK</button>
+        <button type="button" onClick={onCancel}>{t('common.cancel')}</button>
+        <button type="button" onClick={handleApply} disabled={!canCommit}>{t('common.apply')}</button>
+        <button type="submit" disabled={!canCommit}>{t('common.ok')}</button>
       </div>
     </form>
   );

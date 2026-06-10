@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from './i18n';
+import { LanguageSwitcher } from './i18n/LanguageSwitcher';
 import { DrawingCanvas } from './drawing/DrawingCanvas';
 import { DrawingTreePane } from './drawing/DrawingTreePane';
 import Ribbon from './shell/Ribbon';
@@ -158,19 +161,20 @@ function resolvePanelDim(
 
 function formatExpressionError(err: EvaluationError): string {
   switch (err.code) {
-    case 'unknown-var':   return `Unknown parameter '${err.name}' in expression`;
-    case 'cycle':         return `Cycle detected: ${err.namesInCycle.join(' → ')}`;
-    case 'parse-error':   return `Parse error: ${err.message}`;
-    case 'div-by-zero':   return 'Division by zero';
-    case 'non-finite':    return 'Expression evaluates to non-finite value';
-    case 'name-in-use':   return `Parameter name '${err.name}' is already in use`;
-    case 'referenced':    return `Parameter '${err.name}' is referenced by: ${err.referencedBy.join(', ')}`;
+    case 'unknown-var':   return i18n.t('error.unknownParam', { name: err.name });
+    case 'cycle':         return i18n.t('error.cycleDetected', { names: err.namesInCycle.join(' → ') });
+    case 'parse-error':   return i18n.t('error.parseError', { message: err.message });
+    case 'div-by-zero':   return i18n.t('error.divByZero');
+    case 'non-finite':    return i18n.t('error.nonFinite');
+    case 'name-in-use':   return i18n.t('error.nameInUse', { name: err.name });
+    case 'referenced':    return i18n.t('error.referenced', { name: err.name, refs: err.referencedBy.join(', ') });
   }
 }
 
 const THUMB_THROTTLE_MS = 5000;
 
 export default function App() {
+  const { t } = useTranslation();
   const viewportRef = useRef<ViewportRef>(null);
   // When the shown 3D document changes (open part/assembly, switch docs,
   // session restore), arm a one-shot camera fit-to-model so the opened model is
@@ -1065,7 +1069,7 @@ export default function App() {
         terminateRef.current = terminate;
         useAppStore.getState().setKernel(client);
       } catch (e) {
-        useAppStore.getState().setStatus(`Kernel failed: ${(e as Error).message}`);
+        useAppStore.getState().setStatus(t('status.kernelFailed', { message: (e as Error).message }));
       }
     })();
     return () => {
@@ -1130,7 +1134,7 @@ export default function App() {
         useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
         applyWorkFeaturesToViewport(res.value.workFeatures, activePart.featureTree);
       } else {
-        useAppStore.getState().setStatus(`Error: ${res.error.message}`);
+        useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
         useAppStore.getState().setFeatureErrors(new Map());
       }
     })();
@@ -1386,7 +1390,7 @@ export default function App() {
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
             applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree);
           } else if (!res.ok) {
-            useAppStore.getState().setStatus(`Error: ${res.error.message}`);
+            useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
             useAppStore.getState().setFeatureErrors(new Map());
           }
         })();
@@ -1809,8 +1813,8 @@ export default function App() {
       if (e instanceof AddDimensionConflictError) {
         const offending = e.result.offendingConstraintIds;
         const { setHighlightedConstraintIds } = useAppStore.getState();
-        showToast('Over-defined: sketch has conflicting constraints.', offending.length > 0 ? {
-          label: 'Show conflict',
+        showToast(t('toast.overDefined'), offending.length > 0 ? {
+          label: t('toast.showConflict'),
           fn: () => {
             setHighlightedConstraintIds(offending);
             setTimeout(() => setHighlightedConstraintIds([]), 3000);
@@ -1852,7 +1856,7 @@ export default function App() {
       const parsed = parseDimensionInput(dim.kind, rawValue);
       if (!parsed.ok) {
         if (parsed.reason === 'param-ref') {
-          showToast('References a parameter — bind it via the dimension dialog.');
+          showToast(t('toast.paramRef'));
         }
         // Invalid value: keep editor open (don't dismiss).
         return;
@@ -1880,7 +1884,7 @@ export default function App() {
         'dim-length', 'dim-radius', 'dim-diameter',
       ]);
       if (POSITIVE_ONLY.has(dim.kind) && dryResult.value.value <= 0) {
-        showToast('Value must be greater than zero.');
+        showToast(t('toast.valueMin'));
         return;
       }
 
@@ -1934,7 +1938,7 @@ export default function App() {
       }
     } catch (e) {
       if (!unmountedRef.current) {
-        useAppStore.getState().setStatus(`Kernel restart failed: ${(e as Error).message}`);
+        useAppStore.getState().setStatus(t('status.kernelRestartFailed', { message: (e as Error).message }));
       }
     } finally {
       restartingRef.current = false;
@@ -1947,7 +1951,7 @@ export default function App() {
   const handleCancelOpen = useCallback(async () => {
     useAppStore.getState().cancelFileOpen();
     await handleRestart();
-    if (!unmountedRef.current) useAppStore.getState().setStatus('Open cancelled');
+    if (!unmountedRef.current) useAppStore.getState().setStatus(t('status.openCancelled'));
   }, [handleRestart]);
 
   const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
@@ -2387,7 +2391,7 @@ export default function App() {
       setPickingProfile(false);
       setManualProfileRef(null);
     } catch (e) {
-      showToast(`Revolve failed: ${(e as Error).message}`);
+      showToast(t('toast.revolveFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, setRevolveDialogOpen, showToast, clearPreview]);
 
@@ -2411,7 +2415,7 @@ export default function App() {
       setPreviewError(null);
       setManualProfileRef(null);
     } catch (e) {
-      showToast(`Revolve failed: ${(e as Error).message}`);
+      showToast(t('toast.revolveFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, selectedAxisRef, computeProfileRef, buildRevolveFeature, showToast, clearPreview]);
 
@@ -2459,7 +2463,7 @@ export default function App() {
   const onFilletAddEdges = useCallback(() => {
     if (!activePart) return;
     if (tessellatedEdgesRef.current.length === 0) {
-      showToast('No edges available — add a body (extrude/revolve) first.');
+      showToast(t('toast.noEdges'));
       return;
     }
     edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
@@ -2668,7 +2672,7 @@ export default function App() {
       clearHolePreview();
       resetHoleDialog();
     } catch (e) {
-      showToast(`Hole failed: ${(e as Error).message}`);
+      showToast(t('toast.holeFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, editingHoleId, clearHolePreview, resetHoleDialog, showToast]);
 
@@ -4348,7 +4352,7 @@ export default function App() {
       setPickingFilletEdges(false);
       setHoveredEdgeSet(null);
     } catch (e) {
-      showToast(`Fillet failed: ${(e as Error).message}`);
+      showToast(t('toast.filletFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, filletEdges, editingFilletId, clearFilletPreview, setFilletDialogOpen, setEditingFilletId, showToast]);
 
@@ -4378,7 +4382,7 @@ export default function App() {
       filletScratchParamsRef.current.clear();
       clearFilletPreview();
     } catch (e) {
-      showToast(`Fillet failed: ${(e as Error).message}`);
+      showToast(t('toast.filletFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, filletEdges, clearFilletPreview, showToast]);
 
@@ -4406,7 +4410,7 @@ export default function App() {
   const onChamferAddEdges = useCallback(() => {
     if (!activePart) return;
     if (tessellatedEdgesRef.current.length === 0) {
-      showToast('No edges available — add a body (extrude/revolve) first.');
+      showToast(t('toast.noEdges'));
       return;
     }
     edgePickerRef.current.setCandidates(tessellatedEdgesRef.current);
@@ -4450,7 +4454,7 @@ export default function App() {
       setPickingChamferEdges(false);
       setHoveredEdgeSet(null);
     } catch (e) {
-      showToast(`Chamfer failed: ${(e as Error).message}`);
+      showToast(t('toast.chamferFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, chamferEdges, editingChamferId, setChamferDialogOpen, setChamferEdges, setEditingChamferId, showToast]);
 
@@ -4478,7 +4482,7 @@ export default function App() {
         store: { setActivePart: store.setActivePart }
       }));
     } catch (e) {
-      showToast(`Chamfer failed: ${(e as Error).message}`);
+      showToast(t('toast.chamferFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, chamferEdges, editingChamferId, showToast]);
 
@@ -4531,7 +4535,7 @@ export default function App() {
       setShellFacesToRemove([]);
       setEditingShellId(null);
     } catch (e) {
-      showToast(`Shell failed: ${(e as Error).message}`);
+      showToast(t('toast.shellFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, editingShellId, setShellDialogOpen, setShellFacesToRemove, setEditingShellId, showToast]);
 
@@ -4551,7 +4555,7 @@ export default function App() {
     )
     .map((f, idx) => ({
       id: f.id,
-      label: `${f.kind === 'extrude' ? 'Extrusion' : 'Revolve'}${idx + 1} (${f.id})`,
+      label: `${f.kind === 'extrude' ? t('panel.extrusion') : t('panel.revolveLabel')}${idx + 1} (${f.id})`,
     }));
 
   const onLinearPatternCommit = useCallback(async (v: LinearPatternDialogValue) => {
@@ -4579,7 +4583,7 @@ export default function App() {
       }));
       setLinearPatternDialogOpen(false);
     } catch (e) {
-      showToast(`Linear pattern failed: ${(e as Error).message}`);
+      showToast(t('toast.linearPatternFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, setLinearPatternDialogOpen, showToast]);
 
@@ -4609,7 +4613,7 @@ export default function App() {
       }));
       setMirrorDialogOpen(false);
     } catch (e) {
-      showToast(`Mirror failed: ${(e as Error).message}`);
+      showToast(t('toast.mirrorFailed', { message: (e as Error).message }));
     }
   }, [activePart, kernel, setMirrorDialogOpen, showToast]);
 
@@ -4694,21 +4698,22 @@ export default function App() {
           className="bg-red-900 text-white text-xs px-3 py-1 flex justify-between items-center"
           data-testid="kernel-offline-banner"
         >
-          <span>Kernel stopped — click to restart</span>
+          <span>{t('aria.kernelOfflineBanner')}</span>
           <button onClick={handleRestart} className="underline hover:no-underline">
-            Restart
+            {t('common.restart')}
           </button>
         </div>
       )}
       <FileOpenOverlay onCancel={handleCancelOpen} />
       <div className="grid flex-1 min-h-0" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
-        <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-appbar">
+        <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border flex items-center" id="region-appbar">
           <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
+          <div className="ml-auto px-3"><LanguageSwitcher /></div>
         </header>
-        <div role="navigation" aria-label="Ribbon" className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
+        <div role="navigation" aria-label={t('aria.ribbon')} className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
           <Ribbon partInfo={partInfoSnapshot} />
         </div>
-        <aside role="complementary" aria-label="Browser" className="bg-shell-panel border-r border-shell-border" id="region-browser">
+        <aside role="complementary" aria-label={t('aria.browser')} className="bg-shell-panel border-r border-shell-border" id="region-browser">
           {activeDocKind === 'drawing'
             ? <DrawingTreePane />
             : <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} />
@@ -4760,11 +4765,11 @@ export default function App() {
             );
           })()}
         </main>
-        <aside role="complementary" aria-label="Properties" className="bg-shell-panel border-l border-shell-border" id="region-properties">
+        <aside role="complementary" aria-label={t('aria.properties')} className="bg-shell-panel border-l border-shell-border" id="region-properties">
           <PropertiesPanel />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
-          <StatusBar message={kernelReady ? (statusMessage || 'Ready') : 'Loading CAD kernel…'} />
+          <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} />
         </footer>
       </div>
       <NumericInputOverlay
@@ -4934,7 +4939,7 @@ export default function App() {
         }}
         onConfirm={async (conflict) => {
           if (!kernel) {
-            setImportStatus({ kind: 'error', message: 'Kernel not ready' });
+            setImportStatus({ kind: 'error', message: t('toast.kernelNotReady') });
             return;
           }
           setImportStatus({ kind: 'scanning' });

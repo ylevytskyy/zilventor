@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { AddDrawingAnnotationCommand } from '../commands/AddDrawingAnnotationCommand';
 import type { DrawingAnnotation } from '@zilventor/shared';
@@ -23,6 +24,7 @@ type DialogState = {
 };
 
 export function AddLeaderTextDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const state = useAppStore((s) => (s as any).addLeaderTextDialogState as DialogState | null);
   const bus = useAppStore((s) => s.bus);
   const [text, setText] = React.useState('');
@@ -44,17 +46,17 @@ export function AddLeaderTextDialog(): JSX.Element | null {
 
   return (
     <div style={overlayStyle} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div style={panelStyle} role="dialog" aria-label="Leader Text"
+      <div style={panelStyle} role="dialog" aria-label={t('aria.leader_text')}
         onKeyDown={(e) => {
           if (e.key === 'Escape') close();
           if (e.key === 'Enter' && text.trim()) { void handleOk(); }
         }} tabIndex={-1}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Leader Text</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('dialog.leaderText.title')}</div>
         <div style={{ marginBottom: 10 }}>
-          <label htmlFor="lt-text" style={{ fontSize: 11 }}>Text</label>
+          <label htmlFor="lt-text" style={{ fontSize: 11 }}>{t('dialog.leaderText.text_label')}</label>
           <input
             id="lt-text"
-            aria-label="Text"
+            aria-label={t('aria.text_input')}
             type="text"
             autoFocus
             style={{
@@ -67,14 +69,14 @@ export function AddLeaderTextDialog(): JSX.Element | null {
           />
         </div>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button style={btnStyle} onClick={close}>Cancel</button>
+          <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
           <button
             style={okBtnStyle}
             disabled={!text.trim()}
             aria-disabled={!text.trim()}
             onClick={() => { void handleOk(); }}
           >
-            OK
+            {t('common.ok')}
           </button>
         </div>
       </div>

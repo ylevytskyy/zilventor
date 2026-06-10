@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChamferEdgeSpec, FilletSelectionMode } from '@zilventor/shared';
 
 export type ChamferDialogValue = {
@@ -97,6 +98,7 @@ export function ChamferDialog({
   onDistanceChange,
   validateExpression,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [distance, setDistance] = useState(initialDistance ?? '1');
 
   const exprError = validateExpression ? validateExpression(distance) : null;
@@ -132,14 +134,14 @@ export function ChamferDialog({
   return (
     <form
       role="dialog"
-      aria-label="Chamfer"
+      aria-label={t('aria.chamfer')}
       onSubmit={handleSubmit}
       style={panelStyle}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Chamfer</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.chamfer.title')}</div>
 
       <div style={{ marginBottom: 10 }}>
-        <span style={sectionLabelStyle}>Pick mode</span>
+        <span style={sectionLabelStyle}>{t('dialog.chamfer.pick_mode')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           {selectionModes.map((m) => (
             <button
@@ -156,12 +158,12 @@ export function ChamferDialog({
 
       <div style={{ marginBottom: 10 }}>
         <div style={{ ...rowStyle, marginBottom: 4 }}>
-          <span style={{ ...sectionLabelStyle, marginBottom: 0 }}>Edges ({edges.length})</span>
-          <button type="button" onClick={onAddEdges} style={btnStyle}>Add</button>
-          <button type="button" onClick={onClearEdges} style={btnStyle}>Clear</button>
+          <span style={{ ...sectionLabelStyle, marginBottom: 0 }}>{t('dialog.chamfer.edges_count', { count: edges.length })}</span>
+          <button type="button" onClick={onAddEdges} style={btnStyle}>{t('common.add')}</button>
+          <button type="button" onClick={onClearEdges} style={btnStyle}>{t('common.clear')}</button>
         </div>
         {edges.length === 0 ? (
-          <div style={{ color: '#888', fontStyle: 'italic' }}>No edges selected.</div>
+          <div style={{ color: '#888', fontStyle: 'italic' }}>{t('dialog.chamfer.no_edges')}</div>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: 120, overflowY: 'auto' }}>
             {edges.map((spec, i) => (
@@ -180,9 +182,9 @@ export function ChamferDialog({
       </div>
 
       <div style={rowStyle}>
-        <label style={{ minWidth: 60 }}>Distance</label>
+        <label style={{ minWidth: 60 }}>{t('dialog.chamfer.distance')}</label>
         <input
-          aria-label="Distance"
+          aria-label={t('aria.distance')}
           value={distance}
           onChange={(e) => handleDistanceChange(e.target.value)}
           style={inputStyle}
@@ -192,9 +194,9 @@ export function ChamferDialog({
       {previewError && <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{previewError}</div>}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
-        <button type="button" onClick={handleApply} disabled={!canCommit} style={btnStyle}>Apply</button>
-        <button type="submit" disabled={!canCommit} style={btnStyle}>OK</button>
+        <button type="button" onClick={onCancel} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="button" onClick={handleApply} disabled={!canCommit} style={btnStyle}>{t('common.apply')}</button>
+        <button type="submit" disabled={!canCommit} style={btnStyle}>{t('common.ok')}</button>
       </div>
     </form>
   );

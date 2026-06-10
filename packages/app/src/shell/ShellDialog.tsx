@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FaceName } from '@zilventor/shared';
 
 export type ShellDialogValue = {
@@ -83,6 +84,7 @@ export function ShellDialog({
   onThicknessChange,
   validateExpression,
 }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [thickness, setThickness] = useState(initialThickness ?? '-1');
 
   const exprError = validateExpression ? validateExpression(thickness) : null;
@@ -104,22 +106,22 @@ export function ShellDialog({
   return (
     <form
       role="dialog"
-      aria-label="Shell"
+      aria-label={t('dialog.shell.ariaLabel')}
       onSubmit={handleSubmit}
       style={panelStyle}
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Shell</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.shell.title')}</div>
 
       <div style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ ...sectionLabelStyle, marginBottom: 0, flex: 1 }}>
-            Faces to remove ({selectedFaces.length})
+            {t('dialog.shell.facesToRemove', { count: selectedFaces.length })}
           </span>
-          <button type="button" onClick={onPickFace} style={btnStyle}>Pick</button>
+          <button type="button" onClick={onPickFace} style={btnStyle}>{t('common.pick')}</button>
         </div>
         {availableFaces.length === 0 ? (
           <div style={{ color: '#888', fontStyle: 'italic' }}>
-            No body in the tree. Add an extrude / revolve first.
+            {t('dialog.shell.noBody')}
           </div>
         ) : (
           <ul
@@ -148,23 +150,23 @@ export function ShellDialog({
       </div>
 
       <div style={rowStyle}>
-        <label style={{ minWidth: 70 }}>Thickness</label>
+        <label style={{ minWidth: 70 }}>{t('dialog.shell.thickness')}</label>
         <input
-          aria-label="Thickness"
+          aria-label={t('dialog.shell.thicknessAria')}
           value={thickness}
           onChange={(e) => handleThicknessChange(e.target.value)}
           style={inputStyle}
         />
       </div>
       <div style={{ color: '#888', fontSize: 11, marginBottom: 8 }}>
-        Negative = hollow inward (cup). Positive = grow outward.
+        {t('dialog.shell.hint')}
       </div>
       {exprError && <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{exprError}</div>}
       {previewError && <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{previewError}</div>}
 
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
-        <button type="submit" disabled={!canCommit} style={btnStyle}>OK</button>
+        <button type="button" onClick={onCancel} style={btnStyle}>{t('common.cancel')}</button>
+        <button type="submit" disabled={!canCommit} style={btnStyle}>{t('common.ok')}</button>
       </div>
     </form>
   );

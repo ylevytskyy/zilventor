@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorkAxisFeature, WorkPlaneRef, WorkPointRef } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
@@ -15,14 +16,6 @@ export type WorkAxisDialogProps = {
 
 type Mode = WorkAxisFeature['source']['mode'];
 
-const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
-  { value: 'origin', label: 'Origin Axis' },
-  { value: 'twoPoints', label: 'Two Points' },
-  { value: 'twoPlanes', label: 'Two Planes (intersection)' },
-  { value: 'normalToPlaneThroughPoint', label: 'Normal to Plane Through Point' },
-  { value: 'cylindricalFace', label: 'Cylindrical Face' },
-  { value: 'edge', label: 'Edge' },
-];
 
 const panel: React.CSSProperties = {
   position: 'fixed', top: 80, right: 20, background: '#1a1a1a',
@@ -40,6 +33,15 @@ const planeRef = (text: string): WorkPlaneRef => ({ source: 'workPlane', feature
 const pointRef = (text: string): WorkPointRef => ({ source: 'workPoint', featureId: text.trim() || 'origin.O' });
 
 export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDialogProps): React.ReactElement {
+  const { t } = useTranslation();
+  const ALL_MODES: ReadonlyArray<{ value: Mode; label: string }> = [
+    { value: 'origin', label: t('dialog.workAxis.modeOrigin') },
+    { value: 'twoPoints', label: t('dialog.workAxis.modeTwoPoints') },
+    { value: 'twoPlanes', label: t('dialog.workAxis.modeTwoPlanes') },
+    { value: 'normalToPlaneThroughPoint', label: t('dialog.workAxis.modeNormalToPlane') },
+    { value: 'cylindricalFace', label: t('dialog.workAxis.modeCylindricalFace') },
+    { value: 'edge', label: t('dialog.workAxis.modeEdge') },
+  ];
   const [mode, setMode] = React.useState<Mode>(initialValues?.source.mode ?? 'origin');
   const [originAxis, setOriginAxis] = React.useState<'X' | 'Y' | 'Z'>(
     initialValues?.source.mode === 'origin' ? initialValues.source.axis : 'X'
@@ -112,10 +114,10 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
   }
 
   return (
-    <div style={panel} role="dialog" aria-label="Work Axis">
-      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>Work Axis</h3>
+    <div style={panel} role="dialog" aria-label={t('dialog.workAxis.ariaLabel')}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: 14 }}>{t('dialog.workAxis.title')}</h3>
       <div style={row}>
-        <label htmlFor="wa-mode" style={label}>Mode</label>
+        <label htmlFor="wa-mode" style={label}>{t('common.mode')}</label>
         <select id="wa-mode" aria-label="mode" value={mode} onChange={(e) => setMode(e.target.value as Mode)} style={input}>
           {ALL_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
@@ -123,8 +125,8 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
 
       {mode === 'origin' && (
         <div style={row}>
-          <label htmlFor="wa-origin" style={label}>Axis</label>
-          <select id="wa-origin" aria-label="origin axis" value={originAxis} onChange={(e) => setOriginAxis(e.target.value as 'X' | 'Y' | 'Z')} style={input}>
+          <label htmlFor="wa-origin" style={label}>{t('dialog.workAxis.axis')}</label>
+          <select id="wa-origin" aria-label={t('dialog.workAxis.originAxisAria')} value={originAxis} onChange={(e) => setOriginAxis(e.target.value as 'X' | 'Y' | 'Z')} style={input}>
             <option value="X">X</option>
             <option value="Y">Y</option>
             <option value="Z">Z</option>
@@ -134,44 +136,44 @@ export function WorkAxisDialog({ initialValues, onCommit, onCancel }: WorkAxisDi
 
       {(mode === 'twoPoints' || mode === 'normalToPlaneThroughPoint') && (
         <div style={row}>
-          <label style={label}>Point A</label>
-          <input aria-label="point A" value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick point A" style={pickBtn} onClick={() => requestPick('point', 'pointA', 'workPoint')}>Pick…</button>
+          <label style={label}>{t('common.pointA')}</label>
+          <input aria-label={t('common.pointAAria')} value={pointA} onChange={(e) => setPointA(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickPointA')} style={pickBtn} onClick={() => requestPick('point', 'pointA', 'workPoint')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
       {mode === 'twoPoints' && (
         <div style={row}>
-          <label style={label}>Point B</label>
-          <input aria-label="point B" value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick point B" style={pickBtn} onClick={() => requestPick('point', 'pointB', 'workPoint')}>Pick…</button>
+          <label style={label}>{t('common.pointB')}</label>
+          <input aria-label={t('common.pointBAria')} value={pointB} onChange={(e) => setPointB(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickPointB')} style={pickBtn} onClick={() => requestPick('point', 'pointB', 'workPoint')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
 
       {(mode === 'twoPlanes' || mode === 'normalToPlaneThroughPoint') && (
         <div style={row}>
-          <label style={label}>Plane</label>
-          <input aria-label="plane ref" value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick plane ref" style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>Pick…</button>
+          <label style={label}>{t('common.planeRef')}</label>
+          <input aria-label={t('common.planeRefAria')} value={planeA} onChange={(e) => setPlaneA(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickPlaneRef')} style={pickBtn} onClick={() => requestPick('plane', 'planeA', 'workPlane')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
       {mode === 'twoPlanes' && (
         <div style={row}>
-          <label style={label}>Plane B</label>
-          <input aria-label="plane B" value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
-          <button type="button" aria-label="Pick plane B" style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>Pick…</button>
+          <label style={label}>{t('common.planeB')}</label>
+          <input aria-label={t('common.planeBRefAria')} value={planeB} onChange={(e) => setPlaneB(e.target.value)} style={input} />
+          <button type="button" aria-label={t('common.pickPlaneB')} style={pickBtn} onClick={() => requestPick('plane', 'planeB', 'workPlane')}>{t('common.pick_ellipsis')}</button>
         </div>
       )}
 
       {mode === 'cylindricalFace' && (
-        <div style={row}><label style={label}>Face featureId</label><input aria-label="face featureId" value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('common.faceFeatureId')}</label><input aria-label={t('common.faceFeatureIdAria')} value={face} onChange={(e) => setFace(e.target.value)} style={input} /></div>
       )}
       {mode === 'edge' && (
-        <div style={row}><label style={label}>Edge featureId</label><input aria-label="edge featureId" value={edgeText} onChange={(e) => setEdgeText(e.target.value)} style={input} /></div>
+        <div style={row}><label style={label}>{t('common.edgeFeatureId')}</label><input aria-label={t('common.edgeFeatureIdAria')} value={edgeText} onChange={(e) => setEdgeText(e.target.value)} style={input} /></div>
       )}
 
       <div style={{ ...row, justifyContent: 'flex-end', marginTop: 12 }}>
-        <button style={btn} onClick={onCancel}>Cancel</button>
-        <button style={ok} onClick={handleOk}>OK</button>
+        <button style={btn} onClick={onCancel}>{t('common.cancel')}</button>
+        <button style={ok} onClick={handleOk}>{t('common.ok')}</button>
       </div>
     </div>
   );

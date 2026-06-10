@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { AddDrawingDimensionCommand } from '../commands/AddDrawingDimensionCommand';
 import type { DrawingDimension } from '@zilventor/shared';
@@ -26,6 +27,7 @@ const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', bo
 type DialogState = { sheetId: string; dim: DrawingDimension; computedValue: number };
 
 export function AddDimensionDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const state = useAppStore((s) => (s as any).addDimensionDialogState as DialogState | null);
   const bus = useAppStore((s) => s.bus);
   const [decimalPlaces, setDecimalPlaces] = React.useState('2');
@@ -43,10 +45,10 @@ export function AddDimensionDialog(): JSX.Element | null {
 
   return (
     <div style={overlayStyle} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div style={panelStyle} role="dialog" aria-label="Dimension"
+      <div style={panelStyle} role="dialog" aria-label={t('aria.dimension')}
         onKeyDown={(e) => { if (e.key === 'Escape') close(); }} tabIndex={-1}>
         <div style={{ fontWeight: 600, marginBottom: 12 }}>
-          {state.dim.kind === 'radial' ? 'Radial Dimension' : 'Diametric Dimension'}
+          {state.dim.kind === 'radial' ? t('dialog.addDimension.title_radial') : t('dialog.addDimension.title_diametric')}
         </div>
 
         <div style={{ marginBottom: 10, fontSize: 13, color: '#cce' }}>
@@ -54,10 +56,10 @@ export function AddDimensionDialog(): JSX.Element | null {
         </div>
 
         <div style={fieldRow}>
-          <label style={labelStyle} htmlFor="dim-dp">Decimal places</label>
+          <label style={labelStyle} htmlFor="dim-dp">{t('dialog.addDimension.decimal_places')}</label>
           <select
             id="dim-dp"
-            aria-label="Decimal places"
+            aria-label={t('dialog.addDimension.decimal_places')}
             style={inputStyle}
             value={decimalPlaces}
             onChange={(e) => setDecimalPlaces(e.target.value)}
@@ -70,8 +72,8 @@ export function AddDimensionDialog(): JSX.Element | null {
         </div>
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
-          <button style={btnStyle} onClick={close}>Cancel</button>
-          <button style={okBtnStyle} onClick={() => { void handleOk(); }}>OK</button>
+          <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

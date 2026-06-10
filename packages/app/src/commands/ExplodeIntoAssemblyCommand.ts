@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { AssemblyDocument, ComponentColor, ComponentInstance, ImportedFeature } from '@zilventor/shared';
 import { useAppStore, type ActiveDocument } from '../store/useAppStore';
+import i18n from '../i18n';
 import { buildImportedPartDocument } from '../import/buildImportedPartDocument';
 import { dedupeName } from '../import/dedupeName';
 import type { OpfsLike } from './ImportStepAsComponentCommand';
@@ -142,7 +143,7 @@ export class ExplodeIntoAssemblyCommand implements Command {
 
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: assembly });
     useAppStore.getState().setStatus(
-      `Exploded "${base}" into ${components.length} component${components.length !== 1 ? 's' : ''}`,
+      i18n.t('status.explode.done', { base, count: components.length }),
     );
   }
 

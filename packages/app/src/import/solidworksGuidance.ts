@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 /**
  * SolidWorks native files (.SLDPRT / .SLDASM) are proprietary OLE compound
  * documents wrapping Parasolid geometry. The OCCT WASM kernel cannot read them
@@ -12,7 +14,13 @@ export function isSolidWorksNativeFile(name: string): boolean {
 }
 
 /** User-facing message shown when a SolidWorks native file is opened. */
-export const SOLIDWORKS_GUIDANCE =
-  "SolidWorks files (.SLDPRT / .SLDASM) use a proprietary format and can't be opened directly. " +
-  'In SolidWorks: File → Save As → Save as type: STEP AP242 (*.step) → Save, ' +
-  'then open the .step file here.';
+export function getSolidWorksGuidance(): string {
+  return i18n.t('dialog.solidWorksGuidance');
+}
+
+/**
+ * @deprecated Use `getSolidWorksGuidance()` instead — the string is now
+ * translated at call time.  This re-export exists only until the `shell/tabs`
+ * agent migrates `FileTab.tsx`.
+ */
+export const SOLIDWORKS_GUIDANCE: string = getSolidWorksGuidance();

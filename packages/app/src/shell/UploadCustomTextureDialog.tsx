@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CustomTextureDef } from '@zilventor/shared';
 import { downscaleToJpeg, decodeImageFile } from '../textures/downscaleTexture';
 import type { DrawableSource } from '../textures/downscaleTexture';
@@ -86,6 +87,7 @@ export function UploadCustomTextureDialog({
   _decodeImageFile: decodeFn = decodeImageFile,
   _downscaleToJpeg: downscaleFn = downscaleToJpeg,
 }: UploadCustomTextureDialogProps): JSX.Element {
+  const { t } = useTranslation();
   const [name, setName] = React.useState('');
   const [albedoFile, setAlbedoFile] = React.useState<File | null>(null);
   const [normalFile, setNormalFile] = React.useState<File | null>(null);
@@ -134,15 +136,15 @@ export function UploadCustomTextureDialog({
   };
 
   return (
-    <div style={overlayStyle} role="dialog" aria-label="Upload custom texture" aria-modal="true">
+    <div style={overlayStyle} role="dialog" aria-label={t('dialog.uploadTexture.ariaLabel')} aria-modal="true">
       <div style={panelStyle}>
-        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Upload Custom Texture</div>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>{t('dialog.uploadTexture.title')}</div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-name" style={labelStyle}>Texture name</label>
+          <label htmlFor="uct-name" style={labelStyle}>{t('dialog.uploadTexture.textureName')}</label>
           <input
             id="uct-name"
-            aria-label="Texture name"
+            aria-label={t('dialog.uploadTexture.textureNameAria')}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -152,10 +154,10 @@ export function UploadCustomTextureDialog({
         </div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-albedo" style={labelStyle}>Albedo (required)</label>
+          <label htmlFor="uct-albedo" style={labelStyle}>{t('dialog.uploadTexture.albedo')}</label>
           <input
             id="uct-albedo"
-            aria-label="Albedo"
+            aria-label={t('dialog.uploadTexture.albedoAria')}
             type="file"
             accept="image/*"
             required
@@ -166,10 +168,10 @@ export function UploadCustomTextureDialog({
         </div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-normal" style={labelStyle}>Normal (optional)</label>
+          <label htmlFor="uct-normal" style={labelStyle}>{t('dialog.uploadTexture.normal')}</label>
           <input
             id="uct-normal"
-            aria-label="Normal"
+            aria-label={t('dialog.uploadTexture.normalAria')}
             type="file"
             accept="image/*"
             onChange={(e) => setNormalFile(e.target.files?.[0] ?? null)}
@@ -179,10 +181,10 @@ export function UploadCustomTextureDialog({
         </div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-roughness" style={labelStyle}>Roughness (optional)</label>
+          <label htmlFor="uct-roughness" style={labelStyle}>{t('dialog.uploadTexture.roughness')}</label>
           <input
             id="uct-roughness"
-            aria-label="Roughness"
+            aria-label={t('dialog.uploadTexture.roughnessAria')}
             type="file"
             accept="image/*"
             onChange={(e) => setRoughnessFile(e.target.files?.[0] ?? null)}
@@ -192,10 +194,10 @@ export function UploadCustomTextureDialog({
         </div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-width" style={labelStyle}>Physical width (mm)</label>
+          <label htmlFor="uct-width" style={labelStyle}>{t('dialog.uploadTexture.physicalWidth')}</label>
           <input
             id="uct-width"
-            aria-label="Physical width (mm)"
+            aria-label={t('dialog.uploadTexture.physicalWidthAria')}
             type="number"
             min="1"
             value={widthMm}
@@ -206,10 +208,10 @@ export function UploadCustomTextureDialog({
         </div>
 
         <div style={fieldRow}>
-          <label htmlFor="uct-height" style={labelStyle}>Physical height (mm)</label>
+          <label htmlFor="uct-height" style={labelStyle}>{t('dialog.uploadTexture.physicalHeight')}</label>
           <input
             id="uct-height"
-            aria-label="Physical height (mm)"
+            aria-label={t('dialog.uploadTexture.physicalHeightAria')}
             type="number"
             min="1"
             value={heightMm}
@@ -223,7 +225,7 @@ export function UploadCustomTextureDialog({
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button type="button" style={btnStyle} onClick={onCancel} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -231,7 +233,7 @@ export function UploadCustomTextureDialog({
             onClick={onAdd}
             disabled={!canAdd}
           >
-            Add texture
+            {t('dialog.uploadTexture.addTexture')}
           </button>
         </div>
       </div>

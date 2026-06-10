@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 import type { HardwareCategory } from '@zilventor/shared';
@@ -18,6 +19,7 @@ const btnStyle: React.CSSProperties = {
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
 
 export function HardwareDialog(): JSX.Element | null {
+  const { t } = useTranslation();
   const dialog = useAppStore((s) => s.hardwareDialog);
   const [category, setCategory] = React.useState<HardwareCategory>('hinges');
   const [selectedSkuId, setSelectedSkuId] = React.useState<string>('hinge-35mm-cup-full');
@@ -55,21 +57,21 @@ export function HardwareDialog(): JSX.Element | null {
   };
 
   return (
-    <div style={overlayStyle} onClick={dialog.onCancel} role="dialog" aria-label="Hardware">
+    <div style={overlayStyle} onClick={dialog.onCancel} role="dialog" aria-label={t('aria.hardware')}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Add Hardware</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('dialog.hardware.title')}</div>
 
         <div style={{ marginBottom: 8 }}>
-          <label style={{ fontSize: 11, marginRight: 6 }} id="hw-cat-label">Category</label>
+          <label style={{ fontSize: 11, marginRight: 6 }} id="hw-cat-label">{t('dialog.hardware.category')}</label>
           <select
             aria-labelledby="hw-cat-label"
-            aria-label="Category"
+            aria-label={t('dialog.hardware.category')}
             value={category}
             onChange={(e) => setCategory(e.target.value as HardwareCategory)}
             style={{ background: '#222', color: '#eee', border: '1px solid #444', fontSize: 11 }}
           >
-            <option value="hinges">Hinges</option>
-            <option value="shelfPins">Shelf Pins</option>
+            <option value="hinges">{t('dialog.hardware.hinges')}</option>
+            <option value="shelfPins">{t('dialog.hardware.shelf_pins')}</option>
           </select>
         </div>
 
@@ -96,25 +98,25 @@ export function HardwareDialog(): JSX.Element | null {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-          <span style={{ fontSize: 11 }}>Qty:</span>
+          <span style={{ fontSize: 11 }}>{t('dialog.hardware.qty')}</span>
           <button
             type="button"
-            aria-label="Decrement qty"
+            aria-label={t('aria.decrement_qty')}
             style={btnStyle}
             onClick={() => setQty((q) => Math.max(1, q - 1))}
           >−</button>
           <span style={{ minWidth: 24, textAlign: 'center' }}>{qty}</span>
           <button
             type="button"
-            aria-label="Increment qty"
+            aria-label={t('aria.increment_qty')}
             style={btnStyle}
             onClick={() => setQty((q) => Math.min(100, q + 1))}
           >+</button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-          <button type="button" style={btnStyle} onClick={dialog.onCancel} aria-label="Cancel">Cancel</button>
-          <button type="button" style={okBtnStyle} onClick={handleOk} aria-label="OK">OK</button>
+          <button type="button" style={btnStyle} onClick={dialog.onCancel} aria-label={t('common.cancel')}>{t('common.cancel')}</button>
+          <button type="button" style={okBtnStyle} onClick={handleOk} aria-label={t('common.ok')}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

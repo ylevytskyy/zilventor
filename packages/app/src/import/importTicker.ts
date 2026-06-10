@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 /**
  * Starts a live "Importing STEP…" status ticker.
  *
@@ -17,7 +19,7 @@ export function startImportTicker(
 ): () => void {
   const startMs = Date.now();
   if (isCurrent()) {
-    setStatus('Importing STEP… (this can take several minutes for large assemblies)');
+    setStatus(i18n.t('status.importingStep'));
   }
 
   const id = setInterval(() => {
@@ -29,7 +31,7 @@ export function startImportTicker(
     const mm = Math.floor(elapsed / 60);
     const ss = String(elapsed % 60).padStart(2, '0');
     const label = mm > 0 ? `${mm}:${ss}` : `${elapsed}s`;
-    setStatus(`Importing STEP… ${label} elapsed (large assemblies can take several minutes)`);
+    setStatus(i18n.t('status.importingStepElapsed', { elapsed: label }));
   }, 1000);
 
   let stopped = false;

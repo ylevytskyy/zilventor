@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CustomTextureDef, MaterialEntry } from '@zilventor/shared';
 import { BUILTIN_TEXTURE_DEFS } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
@@ -77,25 +78,25 @@ const errorStyle: React.CSSProperties = {
   borderRadius: 4,
 };
 
-function validateSheetStock(lStr: string, wStr: string): string | null {
+function validateSheetStock(lStr: string, wStr: string, t: (key: string) => string): string | null {
   const lEmpty = lStr.trim() === '';
   const wEmpty = wStr.trim() === '';
   if (lEmpty && wEmpty) return null;
-  if (lEmpty || wEmpty) return 'Set both Sheet L and Sheet W, or leave both empty.';
+  if (lEmpty || wEmpty) return t('dialog.material.sheetBothOrNone');
   const ln = Number(lStr), wn = Number(wStr);
-  if (!Number.isFinite(ln) || ln <= 0 || !Number.isFinite(wn) || wn <= 0) return 'Sheet dims must be positive numbers.';
+  if (!Number.isFinite(ln) || ln <= 0 || !Number.isFinite(wn) || wn <= 0) return t('dialog.material.sheetDimsPositive');
   return null;
 }
 
-function validateHatchPattern(angleStr: string, spacingStr: string): string | null {
+function validateHatchPattern(angleStr: string, spacingStr: string, t: (key: string) => string): string | null {
   const aEmpty = angleStr.trim() === '';
   const sEmpty = spacingStr.trim() === '';
   if (aEmpty && sEmpty) return null;
-  if (aEmpty || sEmpty) return 'Set both Hatch angle and Hatch spacing, or leave both empty.';
+  if (aEmpty || sEmpty) return t('dialog.material.hatchBothOrNone');
   const a = Number(angleStr), s = Number(spacingStr);
-  if (!Number.isFinite(a) || !Number.isFinite(s)) return 'Hatch angle/spacing must be numbers.';
-  if (a < 0 || a >= 180) return 'Hatch angle must be in [0, 180).';
-  if (s <= 0) return 'Hatch spacing must be > 0.';
+  if (!Number.isFinite(a) || !Number.isFinite(s)) return t('dialog.material.hatchNumbers');
+  if (a < 0 || a >= 180) return t('dialog.material.hatchAngleRange');
+  if (s <= 0) return t('dialog.material.hatchSpacingPositive');
   return null;
 }
 
@@ -110,6 +111,7 @@ export type MaterialRegistryEditorProps = {
 };
 
 export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {}): JSX.Element {
+  const { t } = useTranslation();
   const bus = useAppStore((s) => s.bus);
   const activePart = useAppStore((s) => s.activePart);
   const activeAssembly = useAppStore((s) => s.activeAssembly);
@@ -144,12 +146,12 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     setAddError(null);
     const name = addName.trim();
     if (!name) {
-      setAddError('Name is required');
+      setAddError(t('dialog.material.nameRequired'));
       return;
     }
     const thicknessNum = Number(addThickness);
     if (!Number.isFinite(thicknessNum) || thicknessNum <= 0) {
-      setAddError('Default thickness must be a positive number');
+      setAddError(t('dialog.material.thicknessPositive'));
       return;
     }
     try {
@@ -158,7 +160,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.startsWith('DUPLICATE_NAME')) {
-        setAddError(`A material named "${name}" already exists`);
+        setAddError(t('dialog.material.duplicateName', { name }));
       } else {
         setAddError(msg);
       }
@@ -169,20 +171,20 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     if (rowState.mode !== 'edit') return;
     const name = rowState.name.trim();
     if (!name) {
-      setRowState({ ...rowState, error: 'Name is required' });
+      setRowState({ ...rowState, error: t('dialog.material.nameRequired') });
       return;
     }
     const thicknessNum = Number(rowState.defaultThickness);
     if (!Number.isFinite(thicknessNum) || thicknessNum <= 0) {
-      setRowState({ ...rowState, error: 'Default thickness must be a positive number' });
+      setRowState({ ...rowState, error: t('dialog.material.thicknessPositive') });
       return;
     }
-    const sheetErr = validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm);
+    const sheetErr = validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm, t);
     if (sheetErr) {
       setRowState({ ...rowState, error: sheetErr });
       return;
     }
-    const hatchErr = validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm);
+    const hatchErr = validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm, t);
     if (hatchErr) {
       setRowState({ ...rowState, error: hatchErr });
       return;
@@ -213,7 +215,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.startsWith('DUPLICATE_NAME')) {
-        setRowState({ ...rowState, error: `A material named "${name}" already exists` });
+        setRowState({ ...rowState, error: t('dialog.material.duplicateName', { name }) });
       } else {
         setRowState({ ...rowState, error: msg });
       }
@@ -236,14 +238,14 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       <table style={tableStyle}>
         <thead>
           <tr>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Name</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Default Thickness (mm)</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Color</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet L (mm)</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Sheet W (mm)</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch angle (°)</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Hatch spacing (mm)</th>
-            <th style={{ ...cellStyle, textAlign: 'left' }}>Texture</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('common.name')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.thHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.colorHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.sheetLHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.sheetWHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.hatchAngleHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.hatchSpacingHeader')}</th>
+            <th style={{ ...cellStyle, textAlign: 'left' }}>{t('dialog.material.textureHeader')}</th>
             <th style={{ ...cellStyle, width: 120 }}></th>
           </tr>
         </thead>
@@ -258,7 +260,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                 <tr key={m.id} data-testid={`material-row-${m.id}`}>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit name"
+                      aria-label={t('dialog.material.editNameAriaLabel')}
                       type="text"
                       value={rowState.name}
                       onChange={(e) => setRowState({ ...rowState, name: e.target.value, error: null })}
@@ -267,7 +269,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit default thickness"
+                      aria-label={t('dialog.material.editThicknessAriaLabel')}
                       type="text"
                       value={rowState.defaultThickness}
                       onChange={(e) => setRowState({ ...rowState, defaultThickness: e.target.value, error: null })}
@@ -276,7 +278,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit color"
+                      aria-label={t('dialog.material.editColorAriaLabel')}
                       type="color"
                       value={rowState.color}
                       onChange={(e) => setRowState({ ...rowState, color: e.target.value })}
@@ -284,68 +286,68 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit sheet length"
+                      aria-label={t('dialog.material.editSheetLAriaLabel')}
                       type="text"
                       inputMode="numeric"
                       value={rowState.sheetLengthMm}
                       onChange={(e) => setRowState({
                         ...rowState, sheetLengthMm: e.target.value,
-                        error: validateSheetStock(e.target.value, rowState.sheetWidthMm)
-                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm),
+                        error: validateSheetStock(e.target.value, rowState.sheetWidthMm, t)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm, t),
                       })}
                       style={inputStyle}
                     />
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit sheet width"
+                      aria-label={t('dialog.material.editSheetWAriaLabel')}
                       type="text"
                       inputMode="numeric"
                       value={rowState.sheetWidthMm}
                       onChange={(e) => setRowState({
                         ...rowState, sheetWidthMm: e.target.value,
-                        error: validateSheetStock(rowState.sheetLengthMm, e.target.value)
-                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm),
+                        error: validateSheetStock(rowState.sheetLengthMm, e.target.value, t)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, rowState.hatchSpacingMm, t),
                       })}
                       style={inputStyle}
                     />
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit hatch angle"
+                      aria-label={t('dialog.material.editHatchAngleAriaLabel')}
                       type="text"
                       inputMode="numeric"
                       value={rowState.hatchAngleDeg}
                       onChange={(e) => setRowState({
                         ...rowState, hatchAngleDeg: e.target.value,
-                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm)
-                            ?? validateHatchPattern(e.target.value, rowState.hatchSpacingMm),
+                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm, t)
+                            ?? validateHatchPattern(e.target.value, rowState.hatchSpacingMm, t),
                       })}
                       style={inputStyle}
                     />
                   </td>
                   <td style={cellStyle}>
                     <input
-                      aria-label="Edit hatch spacing"
+                      aria-label={t('dialog.material.editHatchSpacingAriaLabel')}
                       type="text"
                       inputMode="numeric"
                       value={rowState.hatchSpacingMm}
                       onChange={(e) => setRowState({
                         ...rowState, hatchSpacingMm: e.target.value,
-                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm)
-                            ?? validateHatchPattern(rowState.hatchAngleDeg, e.target.value),
+                        error: validateSheetStock(rowState.sheetLengthMm, rowState.sheetWidthMm, t)
+                            ?? validateHatchPattern(rowState.hatchAngleDeg, e.target.value, t),
                       })}
                       style={inputStyle}
                     />
                   </td>
                   <td style={cellStyle}>
                     <select
-                      aria-label="Edit texture"
+                      aria-label={t('dialog.material.editTextureAriaLabel')}
                       value={rowState.textureId}
                       onChange={(e) => setRowState({ ...rowState, textureId: e.target.value })}
                       style={inputStyle}
                     >
-                      <option value="">— None —</option>
+                      <option value="">{t('dialog.material.noneTexture')}</option>
                       {BUILTIN_TEXTURE_DEFS.map((def) => (
                         <option key={def.id} value={def.id}>{def.name}</option>
                       ))}
@@ -356,8 +358,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                   </td>
                   <td style={cellStyle}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button type="button" style={okBtnStyle} onClick={onEditSubmit} disabled={rowState.error !== null}>Save</button>
-                      <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>Cancel</button>
+                      <button type="button" style={okBtnStyle} onClick={onEditSubmit} disabled={rowState.error !== null}>{t('common.save')}</button>
+                      <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>{t('common.cancel')}</button>
                     </div>
                     {rowState.error && <div role="alert" style={errorStyle}>{rowState.error}</div>}
                   </td>
@@ -370,9 +372,9 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                 <tr key={m.id} data-testid={`material-row-${m.id}`}>
                   <td colSpan={9} style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span>Delete "{m.name}"?</span>
-                      <button type="button" style={dangerBtnStyle} onClick={onDeleteConfirm}>Confirm delete</button>
-                      <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>Cancel</button>
+                      <span>{t('dialog.material.deleteConfirm', { name: m.name })}</span>
+                      <button type="button" style={dangerBtnStyle} onClick={onDeleteConfirm}>{t('dialog.material.confirmDelete')}</button>
+                      <button type="button" style={btnStyle} onClick={() => setRowState({ mode: 'idle' })}>{t('common.cancel')}</button>
                     </div>
                     {rowState.error && (
                       <div role="alert" style={errorStyle}>
@@ -395,7 +397,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                 <td style={cellStyle}>{m.defaultThickness}</td>
                 <td style={cellStyle}>
                   <span
-                    aria-label={`Color ${m.color}`}
+                    aria-label={t('dialog.material.colorAriaLabel', { color: m.color })}
                     style={{
                       display: 'inline-block',
                       width: 16,
@@ -418,7 +420,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                       <button
                         type="button"
                         style={btnStyle}
-                        aria-label={`Edit ${m.name}`}
+                        aria-label={t('dialog.material.editAriaLabel', { name: m.name })}
                         onClick={() => setRowState({
                           mode: 'edit',
                           id: m.id,
@@ -433,15 +435,15 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
                           error: null,
                         })}
                       >
-                        Edit
+                        {t('common.edit')}
                       </button>
                       <button
                         type="button"
                         style={dangerBtnStyle}
-                        aria-label={`Delete ${m.name}`}
+                        aria-label={t('dialog.material.deleteAriaLabel', { name: m.name })}
                         onClick={() => setRowState({ mode: 'confirmDelete', id: m.id, error: null })}
                       >
-                        Delete
+                        {t('common.delete')}
                       </button>
                     </div>
                   )}
@@ -452,7 +454,7 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
           {materials.length === 0 && (
             <tr>
               <td colSpan={9} style={{ ...cellStyle, color: '#888', fontStyle: 'italic' }}>
-                No materials defined.
+                {t('dialog.material.noMaterials')}
               </td>
             </tr>
           )}
@@ -462,11 +464,11 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
       <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {!addOpen && (
           <button type="button" style={btnStyle} onClick={() => setAddOpen(true)}>
-            + Add
+            {t('dialog.material.addBtn')}
           </button>
         )}
         <button type="button" style={btnStyle} onClick={() => setUploadOpen(true)}>
-          Upload custom texture…
+          {t('dialog.material.uploadTexture')}
         </button>
       </div>
 
@@ -484,9 +486,9 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
         {!addOpen ? null : (
           <div style={{ display: 'grid', gap: 4, padding: 6, border: '1px solid #333', borderRadius: 4 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ width: 80, fontSize: 11 }}>Name</span>
+              <span style={{ width: 80, fontSize: 11 }}>{t('dialog.material.newNameLabel')}</span>
               <input
-                aria-label="New material name"
+                aria-label={t('dialog.material.newNameAriaLabel')}
                 type="text"
                 value={addName}
                 onChange={(e) => { setAddName(e.target.value); setAddError(null); }}
@@ -494,9 +496,9 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
               />
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ width: 80, fontSize: 11 }}>Thickness</span>
+              <span style={{ width: 80, fontSize: 11 }}>{t('dialog.material.newThicknessLabel')}</span>
               <input
-                aria-label="New material default thickness"
+                aria-label={t('dialog.material.newThicknessAriaLabel')}
                 type="text"
                 value={addThickness}
                 onChange={(e) => { setAddThickness(e.target.value); setAddError(null); }}
@@ -504,9 +506,9 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
               />
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ width: 80, fontSize: 11 }}>Color</span>
+              <span style={{ width: 80, fontSize: 11 }}>{t('dialog.material.newColorLabel')}</span>
               <input
-                aria-label="New material color"
+                aria-label={t('dialog.material.newColorAriaLabel')}
                 type="color"
                 value={addColor}
                 onChange={(e) => setAddColor(e.target.value)}
@@ -514,8 +516,8 @@ export function MaterialRegistryEditor(_props: MaterialRegistryEditorProps = {})
             </div>
             {addError && <div role="alert" style={errorStyle}>{addError}</div>}
             <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: 4 }}>
-              <button type="button" style={btnStyle} onClick={resetAdd}>Cancel</button>
-              <button type="button" style={okBtnStyle} onClick={onAddSubmit}>Add</button>
+              <button type="button" style={btnStyle} onClick={resetAdd}>{t('common.cancel')}</button>
+              <button type="button" style={okBtnStyle} onClick={onAddSubmit}>{t('common.add')}</button>
             </div>
           </div>
         )}

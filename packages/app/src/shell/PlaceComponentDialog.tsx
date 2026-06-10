@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Tile = { partPath: string; name: string; thumbnail: string };
 
@@ -27,11 +28,12 @@ const btn: React.CSSProperties = {
 };
 
 export function PlaceComponentDialog({ tiles, onPlace, onCancel }: Props): JSX.Element {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <div role="dialog" aria-label="Place Component" style={panel}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Place Component</div>
+    <div role="dialog" aria-label={t('dialog.placeComponent.ariaLabel')} style={panel}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.placeComponent.title')}</div>
       <div style={grid}>
         {tiles.map((t) => (
           <div
@@ -49,13 +51,13 @@ export function PlaceComponentDialog({ tiles, onPlace, onCancel }: Props): JSX.E
         ))}
       </div>
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={btn}>Cancel</button>
+        <button onClick={onCancel} style={btn}>{t('common.cancel')}</button>
         <button
           onClick={() => selected && onPlace(selected)}
           disabled={!selected}
           style={btn}
         >
-          Place
+          {t('dialog.placeComponent.placeBtn')}
         </button>
       </div>
     </div>

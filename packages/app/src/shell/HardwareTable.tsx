@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive';
 
 interface Props {
@@ -6,16 +7,17 @@ interface Props {
 }
 
 export function HardwareTable({ rows }: Props): JSX.Element {
+  const { t } = useTranslation();
   if (rows.length === 0) {
-    return <div style={{ color: '#888', fontSize: 11, marginTop: 8 }}>No hardware</div>;
+    return <div style={{ color: '#888', fontSize: 11, marginTop: 8 }}>{t('common.no_hardware')}</div>;
   }
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4 }}>Hardware</div>
+      <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4 }}>{t('common.hardware')}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead>
           <tr>
-            {['SKU', 'Name', 'Category', 'Qty', 'Notes'].map((h) => (
+            {[t('table.hardware.sku'), t('table.hardware.name'), t('table.hardware.category'), t('table.hardware.qty'), t('table.hardware.notes')].map((h) => (
               <th key={h} style={{ textAlign: 'left', borderBottom: '1px solid #444', padding: '2px 4px', color: '#aaa' }}>{h}</th>
             ))}
           </tr>
