@@ -15,7 +15,9 @@ import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
 import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
+import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { useCutListResult } from '../useCutListResult';
+import { useBoringResult } from '../useBoringResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
@@ -24,6 +26,7 @@ export default function FurnitureTab() {
   const disabled = !activePart && !activeAssembly;
   const cabinetDisabled = !activeAssembly;
   const cutListResult = useCutListResult();
+  const boringResult = useBoringResult();
   const showBores = useAppStore((s) => s.showBores);
 
   const handlePanel = async () => {
@@ -154,6 +157,15 @@ export default function FurnitureTab() {
             aria-pressed={showBores}
             onClick={() => useAppStore.getState().setShowBores(!showBores)}>
             {showBores ? 'Hide Bores' : 'Show Bores'}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly}
+            aria-disabled={!activeAssembly}
+            onClick={() => void new ExportBoringCsvCommand({
+              result: boringResult,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.csv`,
+            }).apply()}>
+            Export CSV (Boring)
           </button>
         </RibbonPanel>
       </div>

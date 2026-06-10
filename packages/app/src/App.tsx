@@ -109,6 +109,7 @@ import { mergeAndPruneBom } from './storage/mergeBomItemNumbers';
 import { mergeAndPruneCutList } from './storage/mergeCutListItemNumbers';
 import { mergeAndPruneColorOverrides } from './assembly/colorOverrideMerge';
 import { aggregateCutListRecursive } from './assembly/walkers/aggregateCutListRecursive';
+import { aggregateBoresRecursive } from './assembly/walkers/aggregateBoresRecursive';
 import { aggregateBom } from '@zilventor/shared/src/bomRow';
 import { aggregateBomRecursive } from './assembly/walkers/aggregateBomRecursive';
 import { resolvePartInfo } from './shell/resolvePartInfo';
@@ -517,6 +518,30 @@ export default function App() {
         await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
         // Force re-render by updating the document identity (no-op content change).
         s.setActiveDocument({ kind: 'assembly', document: { ...a } });
+      };
+
+      // Boring-map E2E hook: return the aggregated bore result for the active assembly.
+      // Tasks 32/33 e2e slices call window.__zilventorBoringAggregate() to verify export bytes.
+      w.__zilventorBoringAggregate = () => {
+        const s = useAppStore.getState();
+        const asm = s.activeAssembly;
+        if (!asm) return { panels: [] };
+        const subAsmCacheAdapter = {
+          get: (p: string) => {
+            const d = s.subAssemblyDocs[p];
+            return d ? { kind: 'ok' as const, doc: d, partPath: p } : undefined;
+          },
+        };
+        const boresCache = new Map<string, BoreOp[]>();
+        for (const [k, v] of partBoresCacheRef.current.entries()) {
+          if (v && v.length > 0) boresCache.set(k, v);
+        }
+        return aggregateBoresRecursive(
+          asm,
+          subAsmCacheAdapter,
+          boresCache,
+          partInfoCacheRef.current,
+        );
       };
 
       w.__zilventorDetailViewMs = async (n = 100) => {
@@ -4518,7 +4543,7 @@ export default function App() {
   }, [panelSpecCacheRef]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, warmCache: warmCutListCache }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

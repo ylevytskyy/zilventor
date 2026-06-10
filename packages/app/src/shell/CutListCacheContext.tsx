@@ -1,11 +1,13 @@
 import { createContext, useContext } from 'react';
 import type { RefObject } from 'react';
 import type { PanelSpecCache } from './resolvePanelSpec';
-import type { PartInfo } from '@zilventor/shared';
+import type { BoreOp, PartInfo } from '@zilventor/shared';
 
 export type CutListCacheContextValue = {
   panelSpecCacheRef: RefObject<PanelSpecCache>;
   partInfoCacheRef: RefObject<Map<string, PartInfo>>;
+  /** Bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc. */
+  partBoresCacheRef: RefObject<Map<string, BoreOp[] | undefined>>;
   /** Warms the panelSpecCacheRef from OPFS for all leaf parts in the active assembly. */
   warmCache: () => Promise<void>;
 };
@@ -21,6 +23,7 @@ export function useCutListCacheContext(): CutListCacheContextValue {
     return {
       panelSpecCacheRef: { current: new Map() },
       partInfoCacheRef: { current: new Map() },
+      partBoresCacheRef: { current: new Map() },
       warmCache: NOOP_WARM,
     };
   }
