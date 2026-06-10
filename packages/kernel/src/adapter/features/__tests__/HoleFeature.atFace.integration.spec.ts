@@ -3,6 +3,7 @@ import { loadOcct } from '../../../occt/occtLoader';
 import { buildPanelBox } from '../../../occt/PanelOps';
 import { executeHoleFeature } from '../HoleFeature';
 import type { NamedShape } from '../../../occt/FaceNaming';
+import type { OcctShape } from '../../../occt/SolidOps';
 
 describe('executeHoleFeature — atFace (integration, real OCCT)', () => {
   let oc: any;
@@ -37,7 +38,7 @@ describe('executeHoleFeature — atFace (integration, real OCCT)', () => {
       faceNamesArr.push({ name: { featureId: 'panel', role, instance: 0 }, face });
     }
     map.delete();
-    const running: NamedShape = { shape: panel.shape, faceNames: faceNamesArr };
+    const running: NamedShape = { shape: panel.shape as unknown as OcctShape, faceNames: faceNamesArr };
 
     // face2DFrame('Front'): origin={x:-300,y:200,z:0}, uDir={x:0,y:0,z:1} (along thickness),
     // vDir={x:1,y:0,z:0} (along length). Physical center: u=T/2=9, v=L/2=300 → P={0,200,9}.
