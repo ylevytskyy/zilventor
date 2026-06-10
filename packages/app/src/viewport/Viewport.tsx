@@ -1,6 +1,6 @@
 import { useEffect, useRef, useImperativeHandle, useState, forwardRef } from 'react';
 import * as THREE from 'three';
-import { SceneManager, type WorkFeatureSpec, type ComponentLeaf, type PanelOverlaySpec } from './SceneManager';
+import { SceneManager, type WorkFeatureSpec, type ComponentLeaf, type PanelOverlaySpec, type MarkerOverlaySpec } from './SceneManager';
 import type { ComponentPath, MaterialEntry } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import ViewCube from './ViewCube';
@@ -43,6 +43,7 @@ export type ViewportRef = {
   setPartGeometry(partPath: string, geometry: THREE.BufferGeometry): void;
   setSelectedComponentPaths(paths: ComponentPath[]): void;
   setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void;
+  setBoreMarkers(specs: MarkerOverlaySpec[]): void;
   clearComponentMeshes(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   captureViewportPng(opts: { transparent: boolean }): Promise<Uint8Array>;
@@ -177,6 +178,10 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.setPanelOverlays(specs, materials);
       setGeometryHash(sceneRef.current.geometryHash());
+    },
+    setBoreMarkers: (specs) => {
+      if (!sceneRef.current) return;
+      sceneRef.current.setBoreMarkers(specs);
     },
     clearComponentMeshes: () => {
       if (!sceneRef.current) return;

@@ -60,7 +60,8 @@ import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
-import type { PanelOverlaySpec } from './viewport/SceneManager';
+import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
+import type { BoreOp } from '@zilventor/shared';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
@@ -2674,6 +2675,8 @@ export default function App() {
   // geometryCacheRef. Must be invalidated at the same sites as geometryCacheRef
   // so a material edit that changes textureId is not served stale.
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
+  // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
+  const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -2734,6 +2737,7 @@ export default function App() {
         assemblyPartIdCacheRef.current.delete(partPath);
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
+        partBoresCacheRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3750,6 +3754,8 @@ export default function App() {
               const partMat = panelFeat ? partDoc.materials.find((m) => m.id === panelFeat.materialId) : undefined;
               // Persist textureId so subsequent cache-hit renders still see it.
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
+              // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
+              partBoresCacheRef.current.set(partPath, partDoc.bores);
             }
             const m = res.value.mesh;
             geom = new THREE.BufferGeometry();
@@ -3839,6 +3845,48 @@ export default function App() {
     }
     vp.setPanelOverlays(specs, materials);
   }, [activePart, assembly, parameterValues]);
+
+  // Phase 5 — Bore marker sync. Builds MarkerOverlaySpec[] from all assembly leaf
+  // components whose part has bores, using the panelSpecCacheRef for panelDims and
+  // the same composedPoses world pose used by setComponentMeshes. Calls
+  // vp.setBoreMarkers() so SceneManager renders ring markers on the panel faces.
+  //
+  // Runs when: assembly changes, or componentPoses change (a constraint solve
+  // updates the poses). The panelSpecCacheRef and partBoresCacheRef are populated
+  // by the assembly mesh sync effect above (same dep list = same timing).
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || !assembly) {
+      vp?.setBoreMarkers([]);
+      return;
+    }
+    const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+    const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
+    const subAsmCacheAdapter = {
+      get: (p: string) => subAssemblyDocs[p]
+        ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
+        : undefined,
+    };
+    const leaves = visibleLeaves(assembly, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
+    const markerSpecs: MarkerOverlaySpec[] = [];
+    for (const leaf of leaves) {
+      const bores = partBoresCacheRef.current.get(leaf.partPath);
+      if (!bores || bores.length === 0) continue;
+      const spec = panelSpecCacheRef.current.get(leaf.partPath);
+      if (!spec) continue;
+      const worldPose = componentPoses.get(pathKey(leaf.componentPath)) ?? {
+        translation: { x: 0, y: 0, z: 0 },
+        quaternion: [0, 0, 0, 1] as [number, number, number, number],
+      };
+      markerSpecs.push({
+        key: pathKey(leaf.componentPath),
+        panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
+        worldPose,
+        bores,
+      });
+    }
+    vp.setBoreMarkers(markerSpecs);
+  }, [assembly, componentPoses]);
 
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
   // description) for each unique partPath referenced by the active assembly so
