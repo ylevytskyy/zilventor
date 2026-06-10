@@ -4675,6 +4675,16 @@ export default function App() {
     }
   }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef]);
 
+  // Register invalidatePartPaths into the store so bore commands can self-invalidate
+  // caches on both apply() AND revert() (fixing undo/redo visual staleness).
+  useEffect(() => {
+    const { setBoreCacheInvalidator } = useAppStore.getState();
+    // Wrap in a synchronous shim since the store callback is synchronous but
+    // invalidatePartPaths is async; fire-and-forget is acceptable here.
+    setBoreCacheInvalidator((paths: string[]) => { void invalidatePartPaths(paths); });
+    return () => { useAppStore.getState().setBoreCacheInvalidator(null); };
+  }, [invalidatePartPaths]);
+
   return (
     <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">

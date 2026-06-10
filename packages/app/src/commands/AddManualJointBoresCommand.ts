@@ -112,6 +112,9 @@ export class AddManualJointBoresCommand implements Command {
     const aIsPanelA = joint.panelA === a.input;
     await this.persist(aIsPanelA ? a : b, boresA);
     await this.persist(aIsPanelA ? b : a, boresB);
+    // Evict bore/geometry caches so undo/redo re-renders bore markers.
+    const affected = [this.opts.panelPathA, this.opts.panelPathB];
+    this.store.getState().boreCacheInvalidator?.(affected);
   }
 
   private async persist(
@@ -133,6 +136,7 @@ export class AddManualJointBoresCommand implements Command {
   }
 
   async revert(): Promise<void> {
+    const affectedPaths = [this.opts.panelPathA, this.opts.panelPathB];
     for (const [partPath, prior] of this.priorBores) {
       const project = await this.opts.opfs.read(partPath).then(unpackProject);
       const manifest = project.manifest as { document: Record<string, unknown> };
@@ -147,5 +151,7 @@ export class AddManualJointBoresCommand implements Command {
       }));
     }
     this.priorBores.clear();
+    // Evict bore/geometry caches after revert so undo re-renders bore markers.
+    this.store.getState().boreCacheInvalidator?.(affectedPaths);
   }
 }

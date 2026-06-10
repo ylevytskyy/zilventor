@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AddManualJointBoresCommand } from '../AddManualJointBoresCommand';
 import { useAppStore } from '../../store/useAppStore';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
@@ -120,5 +120,54 @@ describe('AddManualJointBoresCommand — revert', () => {
       const doc = (project.manifest as { document: Record<string, unknown> }).document;
       expect('bores' in doc).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CACHE INVALIDATOR: apply + revert must call the registered boreCacheInvalidator
+// ---------------------------------------------------------------------------
+describe('AddManualJointBoresCommand — boreCacheInvalidator', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('apply() calls boreCacheInvalidator with both panel paths', async () => {
+    const opfs = new MemOpfs();
+    await writePanel(opfs, 'L.zipt', 18, 720, 560);
+    await writePanel(opfs, 'B.zipt', 564, 560, 18);
+    seedTwoPanels(opfs);
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await new AddManualJointBoresCommand({
+      panelPathA: 'L.zipt', panelPathB: 'B.zipt', kind: 'confirmat', params: PARAMS, opfs,
+    }).apply();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const calledWith = spy.mock.calls[0]![0];
+    expect(calledWith.sort()).toEqual(['B.zipt', 'L.zipt'].sort());
+  });
+
+  it('revert() calls boreCacheInvalidator with both panel paths', async () => {
+    const opfs = new MemOpfs();
+    await writePanel(opfs, 'L.zipt', 18, 720, 560);
+    await writePanel(opfs, 'B.zipt', 564, 560, 18);
+    seedTwoPanels(opfs);
+
+    const cmd = new AddManualJointBoresCommand({
+      panelPathA: 'L.zipt', panelPathB: 'B.zipt', kind: 'confirmat', params: PARAMS, opfs,
+    });
+    await cmd.apply();
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await cmd.revert();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const calledWith = spy.mock.calls[0]![0];
+    expect(calledWith.sort()).toEqual(['B.zipt', 'L.zipt'].sort());
   });
 });

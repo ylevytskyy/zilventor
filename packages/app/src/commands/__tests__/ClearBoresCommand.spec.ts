@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClearBoresCommand } from '../ClearBoresCommand';
+import { useAppStore } from '../../store/useAppStore';
 import type { BoreOp } from '@zilventor/shared';
 
 const bore: BoreOp = {
@@ -29,5 +30,39 @@ describe('ClearBoresCommand', () => {
     const doc = makePanelDoc([]);
     const cmd = new ClearBoresCommand({ doc, partPath: 'panel.zipt', opfs: null });
     expect(() => { cmd.apply(); cmd.revert(); }).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CACHE INVALIDATOR: apply + revert must call the registered boreCacheInvalidator
+// ---------------------------------------------------------------------------
+describe('ClearBoresCommand — boreCacheInvalidator', () => {
+  beforeEach(() => {
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('apply() calls boreCacheInvalidator with the part path', async () => {
+    const doc = makePanelDoc([bore]);
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await new ClearBoresCommand({ doc, partPath: 'panel.zipt', opfs: null }).apply();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]![0]).toEqual(['panel.zipt']);
+  });
+
+  it('revert() calls boreCacheInvalidator with the part path', async () => {
+    const doc = makePanelDoc([bore]);
+    const cmd = new ClearBoresCommand({ doc, partPath: 'panel.zipt', opfs: null });
+    await cmd.apply();
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await cmd.revert();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]![0]).toEqual(['panel.zipt']);
   });
 });

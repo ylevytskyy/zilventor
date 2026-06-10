@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GenerateCarcassBoresCommand } from '../GenerateCarcassBoresCommand';
 import { useAppStore } from '../../store/useAppStore';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
@@ -292,6 +292,59 @@ describe('GenerateCarcassBoresCommand — revert', () => {
 // The test FAILS against the pre-fix code (0 bores — bug: role-less wrapper is skipped).
 // After the fix it PASSES, asserting bore coords identical to the flat-panel locking test.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// CACHE INVALIDATOR: apply + revert must call the registered boreCacheInvalidator
+// with the affected part paths so undo/redo evicts the stale bore-marker caches.
+// ---------------------------------------------------------------------------
+describe('GenerateCarcassBoresCommand — boreCacheInvalidator', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('apply() calls boreCacheInvalidator with affected part paths', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const calledWith = spy.mock.calls[0]![0];
+    expect(calledWith.sort()).toEqual(['B.zipt', 'L.zipt', 'R.zipt', 'T.zipt'].sort());
+  });
+
+  it('revert() calls boreCacheInvalidator with affected part paths', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await cmd.revert();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const calledWith = spy.mock.calls[0]![0];
+    expect(calledWith.sort()).toEqual(['B.zipt', 'L.zipt', 'R.zipt', 'T.zipt'].sort());
+  });
+
+  it('apply() is a no-op on invalidator when boreCacheInvalidator is null (no crash)', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+    // boreCacheInvalidator is null (default) — must not throw
+    await expect(new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply()).resolves.not.toThrow();
+  });
+});
+
 describe('GenerateCarcassBoresCommand — nested sub-assembly (REAL cabinet structure)', () => {
   beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
 

@@ -20,7 +20,6 @@ import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
-import { useCutListCacheContext } from '../CutListCacheContext';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
@@ -31,7 +30,6 @@ export default function FurnitureTab() {
   const cutListResult = useCutListResult();
   const boringResult = useBoringResult();
   const showBores = useAppStore((s) => s.showBores);
-  const { invalidatePartPaths } = useCutListCacheContext();
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -82,10 +80,9 @@ export default function FurnitureTab() {
           params: { endSetback: 60, maxSpacing: 250, minCount: 2, confirmat, minifix, dowel },
           opfs,
         });
+        // The command self-invalidates bore/geometry caches via boreCacheInvalidator
+        // (registered by App.tsx) so bore markers re-render on apply AND undo/redo.
         await useAppStore.getState().bus.execute(cmd);
-        // Evict geometry + bore caches for all written parts so the mesh-sync
-        // effect re-loads them from OPFS and bore markers render immediately.
-        await invalidatePartPaths(cmd.getAffectedPartPaths());
       },
       onCancel: () => useAppStore.getState().setBoringDialog(null),
     });

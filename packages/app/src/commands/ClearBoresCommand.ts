@@ -2,6 +2,7 @@ import type { Command } from './Command';
 import type { BoreOp } from '@zilventor/shared';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
+import { useAppStore } from '../store/useAppStore';
 
 type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8Array): Promise<void> };
 
@@ -27,6 +28,8 @@ export class ClearBoresCommand implements Command {
     delete this.opts.doc.bores;
     // Persist if opfs is available (null in unit tests).
     if (this.opts.opfs) await this.persist();
+    // Evict bore/geometry caches so undo/redo re-renders bore markers.
+    useAppStore.getState().boreCacheInvalidator?.([this.opts.partPath]);
   }
 
   async revert(): Promise<void> {
@@ -37,6 +40,8 @@ export class ClearBoresCommand implements Command {
       delete this.opts.doc.bores;
     }
     if (this.opts.opfs) await this.persist();
+    // Evict bore/geometry caches after revert so undo re-renders bore markers.
+    useAppStore.getState().boreCacheInvalidator?.([this.opts.partPath]);
   }
 
   private async persist(): Promise<void> {

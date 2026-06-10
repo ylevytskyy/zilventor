@@ -202,6 +202,11 @@ export class GenerateCarcassBoresCommand implements Command {
         await packProject({ manifest: repackedManifest, blobs: {} }),
       );
     }
+    // Evict bore/geometry caches so the caller (and undo/redo) re-renders bore markers.
+    const affectedPaths = [...this.priorBores.keys()];
+    if (affectedPaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(affectedPaths);
+    }
   }
 
   /** Returns the part paths that were written during the most recent apply(). */
@@ -210,6 +215,7 @@ export class GenerateCarcassBoresCommand implements Command {
   }
 
   async revert(): Promise<void> {
+    const affectedPaths = [...this.priorBores.keys()];
     for (const [partPath, prior] of this.priorBores) {
       const project = await this.opts.opfs.read(partPath).then(unpackProject);
       const manifest = project.manifest as { document: Record<string, unknown> };
@@ -227,5 +233,9 @@ export class GenerateCarcassBoresCommand implements Command {
       );
     }
     this.priorBores.clear();
+    // Evict bore/geometry caches after revert so undo re-renders bore markers.
+    if (affectedPaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(affectedPaths);
+    }
   }
 }

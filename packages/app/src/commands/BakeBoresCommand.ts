@@ -75,6 +75,8 @@ export class BakeBoresCommand implements Command {
 
     await this.persist(doc);
     await this.rebuild(doc);
+    // Evict bore/geometry caches so undo/redo re-renders bore markers.
+    this.store.getState().boreCacheInvalidator?.([this.opts.partPath]);
   }
 
   async revert(): Promise<void> {
@@ -82,6 +84,8 @@ export class BakeBoresCommand implements Command {
     await this.opts.opfs.write(this.opts.partPath, this.priorBytes);
     const project = await unpackProject(this.priorBytes);
     await this.rebuild((project.manifest as { document: PartDocument }).document);
+    // Evict bore/geometry caches after revert so undo re-renders bore markers.
+    this.store.getState().boreCacheInvalidator?.([this.opts.partPath]);
   }
 
   private async persist(doc: PartDocument): Promise<void> {
@@ -94,7 +98,6 @@ export class BakeBoresCommand implements Command {
   }
 
   private async rebuild(doc: PartDocument): Promise<void> {
-    void this.store;
     // Delete first (in case already registered), then re-register + execute.
     try { await this.opts.kernel.deletePart(doc.id); } catch { /* not registered yet */ }
     await this.opts.kernel.registerPart(doc);

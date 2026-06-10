@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BakeBoresCommand } from '../BakeBoresCommand';
+import { useAppStore } from '../../store/useAppStore';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { newPart } from '@zilventor/kernel/src/adapter/PartDocument';
@@ -72,5 +73,43 @@ describe('BakeBoresCommand', () => {
     const project = await unpackProject(opfs.files.get('side.zipt')!);
     const after = (project.manifest as { document: PartDocument }).document;
     expect(after.featureTree.some((f) => f.id.startsWith('bake:'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CACHE INVALIDATOR: apply + revert must call the registered boreCacheInvalidator
+// ---------------------------------------------------------------------------
+describe('BakeBoresCommand — boreCacheInvalidator', () => {
+  beforeEach(() => {
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('apply() calls boreCacheInvalidator with the part path', async () => {
+    let doc = newPart('side') as PartDocument;
+    doc = { ...doc, bores: [bore({ id: 'a' })] };
+    const opfs = makeOpfs({ 'side.zipt': await ziptBytes(doc) });
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await new BakeBoresCommand({ partPath: 'side.zipt', opfs, kernel: fakeKernel() }).apply();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]![0]).toEqual(['side.zipt']);
+  });
+
+  it('revert() calls boreCacheInvalidator with the part path', async () => {
+    let doc = newPart('side') as PartDocument;
+    doc = { ...doc, bores: [bore({ id: 'a' })] };
+    const opfs = makeOpfs({ 'side.zipt': await ziptBytes(doc) });
+    const cmd = new BakeBoresCommand({ partPath: 'side.zipt', opfs, kernel: fakeKernel() });
+    await cmd.apply();
+
+    const spy = vi.fn<(paths: string[]) => void>();
+    useAppStore.getState().setBoreCacheInvalidator(spy);
+
+    await cmd.revert();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]![0]).toEqual(['side.zipt']);
   });
 });

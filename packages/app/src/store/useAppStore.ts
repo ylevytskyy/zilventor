@@ -323,6 +323,14 @@ type AppState = {
   boringDialog: BoringDialogState | null;
   setBoringDialog: (s: BoringDialogState | null) => void;
 
+  /**
+   * Registered by App.tsx on mount; called by bore commands in apply() and revert()
+   * to evict geometry + bore caches so undo/redo re-renders bore markers correctly.
+   * Null in unit tests (no App mounted) — commands guard with `?.`.
+   */
+  boreCacheInvalidator: ((paths: string[]) => void) | null;
+  setBoreCacheInvalidator: (fn: ((paths: string[]) => void) | null) => void;
+
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: boolean;
   newDrawingSourcePath: string | null;
@@ -841,6 +849,8 @@ export const useAppStore = create<AppState>((set) => ({
   setNestDialog: (s) => set({ nestDialog: s }),
   boringDialog: null,
   setBoringDialog: (s) => set({ boringDialog: s }),
+  boreCacheInvalidator: null,
+  setBoreCacheInvalidator: (fn) => set({ boreCacheInvalidator: fn }),
 
   // Sub-project 6 Phase 8 — drawing dialog slots
   newDrawingDialogOpen: false,
