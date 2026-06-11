@@ -1,4 +1,13 @@
 {
+  "bom": {
+    "connector": {
+      "confirmat": "Confirmat 7×50",
+      "dowel": "Dowel Ø8",
+      "hinge": "Hinge Ø35 cup",
+      "minifix": "Minifix cam fitting",
+      "shelfPin": "Shelf pin Ø5"
+    }
+  },
   "aria": {
     "add_door_dialog": "Add Door dialog",
     "add_view": "Add View",
@@ -87,6 +96,7 @@
     "cycle": "cycle",
     "flexible": "Flexible",
     "generate": "Generate",
+    "connectors": "Connectors",
     "hardware": "Hardware",
     "import": "Import",
     "insert": "Insert",
@@ -94,6 +104,7 @@
     "mode": "Mode",
     "name": "Name",
     "new": "New",
+    "no_connectors": "No connectors",
     "no_hardware": "No hardware",
     "no_panels": "No panels",
     "none": "None",
@@ -942,6 +953,12 @@
       "total_m": "Total (m)",
       "total_mm": "Total (mm)",
       "width": "W"
+    },
+    "connector": {
+      "name": "Name",
+      "notes": "Notes",
+      "qty": "Qty",
+      "type": "Type"
     },
     "hardware": {
       "category": "Category",

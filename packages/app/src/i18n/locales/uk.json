@@ -1,4 +1,13 @@
 {
+  "bom": {
+    "connector": {
+      "confirmat": "Конфірмат 7×50",
+      "dowel": "Шкант Ø8",
+      "hinge": "Завіса Ø35",
+      "minifix": "Стяжка Minifix",
+      "shelfPin": "Полицетримач Ø5"
+    }
+  },
   "aria": {
     "add_door_dialog": "Діалог додавання дверей",
     "add_view": "Додати вид",
@@ -94,6 +103,8 @@
     "mode": "Режим",
     "name": "Назва",
     "new": "Новий",
+    "connectors": "Присадки",
+    "no_connectors": "Немає присадок",
     "no_hardware": "Немає фурнітури",
     "no_panels": "Немає панелей",
     "none": "Немає",
@@ -942,6 +953,12 @@
       "total_m": "Всього (м)",
       "total_mm": "Всього (мм)",
       "width": "Ш"
+    },
+    "connector": {
+      "name": "Назва",
+      "notes": "Примітки",
+      "qty": "Кіл.",
+      "type": "Тип"
     },
     "hardware": {
       "category": "Категорія",
