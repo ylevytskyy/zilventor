@@ -26,6 +26,7 @@ import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
+import { useConnectorBomResult } from '../useConnectorBomResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 
 export default function FurnitureTab() {
@@ -36,6 +37,7 @@ export default function FurnitureTab() {
   const cabinetDisabled = !activeAssembly;
   const cutListResult = useCutListResult();
   const boringResult = useBoringResult();
+  const connectorRows = useConnectorBomResult();
   const showBores = useAppStore((s) => s.showBores);
 
   const handlePanel = async () => {
@@ -259,6 +261,7 @@ export default function FurnitureTab() {
           <button type="button" className="text-xs hover:text-white"
             onClick={() => void new ExportCutListCsvCommand({
               result: cutListResult,
+              connectorRows,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
             }).apply()}>{t('ribbon.furniture.exportCsv')}</button>
         </RibbonPanel>
