@@ -55,6 +55,31 @@ export type PanelFaceRole = 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Righ
  *   Left:   u=+Z, v=+Y  → (+Z)×(+Y) = -X ✓  [(0,0,1)×(0,1,0) = (-1,0,0)]
  *   Right:  u=+Z, v=-Y  → (+Z)×(-Y) = +X ✓  [(0,0,1)×(0,-1,0) = (1,0,0)]
  */
+/**
+ * The u/v extents (mm) of a panel face, derived from panelDims by role —
+ * same role→dim mapping as face2DFrame.
+ *   Top/Bottom:  uDir=+X (length),    vDir=±Y (width)  → uLen=length,    vLen=width
+ *   Front/Back:  uDir=+Z (thickness), vDir=±X (length) → uLen=thickness, vLen=length
+ *   Left/Right:  uDir=+Z (thickness), vDir=±Y (width)  → uLen=thickness, vLen=width
+ */
+export function faceExtents(
+  panelDims: { length: number; width: number; thickness: number },
+  role: PanelFaceRole,
+): { uLen: number; vLen: number } {
+  const { length: L, width: W, thickness: T } = panelDims;
+  switch (role) {
+    case 'Top':
+    case 'Bottom':
+      return { uLen: L, vLen: W };
+    case 'Front':
+    case 'Back':
+      return { uLen: T, vLen: L };
+    case 'Left':
+    case 'Right':
+      return { uLen: T, vLen: W };
+  }
+}
+
 export function face2DFrame(
   panelDims: { length: number; width: number; thickness: number },
   faceName: PanelFaceRole,
