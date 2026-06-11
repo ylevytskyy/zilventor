@@ -91,4 +91,42 @@ export const BUILTIN_CATALOG: readonly CatalogEntry[] = [
       { name: 'tip', position: { x: 0, y: 0, z: 18 } },
     ],
   },
+  // ── Bar pulls (drawer handles) ──────────────────────────────────────────────
+  // cc = centre-to-centre; barLength = cc + 2 × END_ALLOWANCE (16mm)
+  {
+    id: 'bar-pull-96',
+    name: 'Bar Pull 96mm',
+    category: 'drawerHandles',
+    vendor: 'Generic',
+    notes: 'Bar pull; 96mm centre-to-centre; 128mm total length',
+    bboxMm: { l: 128, w: 30, h: 12 },
+    attachPoints: [
+      { name: 'screw-0', position: { x: -48, y: 0, z: 0 } },
+      { name: 'screw-1', position: { x:  48, y: 0, z: 0 } },
+    ],
+  },
+  {
+    id: 'bar-pull-128',
+    name: 'Bar Pull 128mm',
+    category: 'drawerHandles',
+    vendor: 'Generic',
+    notes: 'Bar pull; 128mm centre-to-centre; 160mm total length',
+    bboxMm: { l: 160, w: 30, h: 12 },
+    attachPoints: [
+      { name: 'screw-0', position: { x: -64, y: 0, z: 0 } },
+      { name: 'screw-1', position: { x:  64, y: 0, z: 0 } },
+    ],
+  },
+  {
+    id: 'bar-pull-160',
+    name: 'Bar Pull 160mm',
+    category: 'drawerHandles',
+    vendor: 'Generic',
+    notes: 'Bar pull; 160mm centre-to-centre; 192mm total length',
+    bboxMm: { l: 192, w: 30, h: 12 },
+    attachPoints: [
+      { name: 'screw-0', position: { x: -80, y: 0, z: 0 } },
+      { name: 'screw-1', position: { x:  80, y: 0, z: 0 } },
+    ],
+  },
 ];
