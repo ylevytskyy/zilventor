@@ -93,6 +93,14 @@ export type ComponentColor =
   | { kind: 'palette'; name: string }
   | { kind: 'hex'; hex: string };
 
+/** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
+export type DoorSpec = {
+  overlay: 'full' | 'half' | 'inset';
+  hingeSide: 'left' | 'right';                 // which vertical edge carries the cups
+  pair: 'single' | 'pairLeft' | 'pairRight';   // double-door membership
+  hingeCount: number;                          // resolved at creation (auto from height)
+};
+
 export type ComponentInstance = {
   id: string;
   partPath: string;
@@ -104,6 +112,8 @@ export type ComponentInstance = {
   flexible?: boolean;
   /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21. */
   role?: PanelRole;
+  /** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
+  doorSpec?: DoorSpec;
 };
 
 export type AssemblyDocument = {

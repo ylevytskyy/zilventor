@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { PartDocument, ComponentInstance, HolePlacement, ProjectFile } from '../types';
+import type { PartDocument, ComponentInstance, HolePlacement, ProjectFile, DoorSpec } from '../types';
 import type { BoreOp } from '../bore';
 import type { PanelRole } from '../cabinets/types';
 
@@ -70,5 +70,17 @@ describe('additive v21 type surface', () => {
   it('PanelRole accepts the new "door" arm', () => {
     const role: PanelRole = 'door';
     expect(role).toBe('door');
+  });
+
+  it('ComponentInstance accepts an optional doorSpec', () => {
+    const doorSpec: DoorSpec = {
+      overlay: 'full', hingeSide: 'left', pair: 'single', hingeCount: 2,
+    };
+    const inst: ComponentInstance = {
+      id: 'D1', partPath: 'door.zipt', position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, role: 'door', doorSpec,
+    };
+    expect(inst.doorSpec?.hingeCount).toBe(2);
+    expect(inst.doorSpec?.overlay).toBe('full');
   });
 });
