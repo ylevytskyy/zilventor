@@ -58,6 +58,7 @@
     "start_radius": "Start radius",
     "termination": "Termination",
     "text_input": "Text",
+    "circular_pattern": "Circular Pattern",
     "visible": "visible"
   },
   "browser": {
@@ -454,6 +455,21 @@
       "spacing1_error": "Spacing 1 must be a non-zero number.",
       "spacing2": "Spacing 2",
       "title": "Rectangular Pattern"
+    },
+    "circularPattern": {
+      "title": "Circular Pattern",
+      "source": "Source",
+      "source_component": "Source component",
+      "axis": "Axis",
+      "center": "Center",
+      "count": "Count (incl. source)",
+      "count_hint": "e.g. 4 = source + 3 copies",
+      "count_error": "Count must be an integer 2–200.",
+      "angle": "Total angle",
+      "angle_error": "Angle must be a number in (0, 360].",
+      "radius_error": "Source lies on the rotation axis — copies would overlap; move the center.",
+      "rotate": "Rotate instances",
+      "no_components": "(no components)"
     },
     "placeComponent": {
       "ariaLabel": "Place Component",
@@ -906,6 +922,7 @@
     "asm": {
       "bom": "BOM",
       "bomPanel": "BOM panel",
+      "circularPattern": "Circular Pattern",
       "component": "Component",
       "constraint": "Constraint",
       "deleteConstraint": "Delete Constraint",
