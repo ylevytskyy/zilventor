@@ -49,7 +49,7 @@ describe('KernelApi 3D export — real OCCT e2e round-trip', () => {
     expect(new TextDecoder().decode(bytes.slice(0, 13))).toBe('ISO-10303-21;');
 
     const oc = await loadOcct();
-    const r = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    const r = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     expect(r.solidCount).toBe(1); // cold-cache guard: empty export would be 0
     const [minX, minY, minZ, maxX, maxY, maxZ] = r.boundingBox;
     expect(maxX - minX).toBeCloseTo(10, 3); // mm proof — strict
@@ -101,7 +101,7 @@ describe('KernelApi 3D export — real OCCT e2e round-trip', () => {
     expect(txt).toContain('NEXT_ASSEMBLY_USAGE_OCCURRENCE');
 
     const oc = await loadOcct();
-    const r = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    const r = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     expect(r.solidCount).toBe(2); // BOTH instances present (assert FIRST per §C)
     const colors = r.solidColors.filter((c): c is string => !!c).map((c) => c.toLowerCase());
     expect(new Set(colors).size).toBe(2); // TWO DISTINCT colors survived (the trap's signature)
