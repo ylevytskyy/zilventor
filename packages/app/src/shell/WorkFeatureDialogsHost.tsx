@@ -7,6 +7,8 @@ import { CabinetDialog } from './CabinetDialog';
 import { HardwareDialog } from './HardwareDialog';
 import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
+import { AddDoorDialog } from './AddDoorDialog';
+import { ShelfPinDialog } from './ShelfPinDialog';
 
 export type WorkFeatureDialogsHostProps = {
   onWorkPlaneCommit: (c: WorkPlaneCommit) => void;
@@ -53,6 +55,8 @@ export function WorkFeatureDialogsHost({
       <HardwareDialog />
       <NestDialog />
       <BoringDialog />
+      <AddDoorDialog />
+      <ShelfPinDialog />
     </>
   );
 }

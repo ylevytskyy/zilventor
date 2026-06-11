@@ -8,7 +8,8 @@ export type PanelRole =
   | 'top'
   | 'back'
   | 'toekick'
-  | 'shelf';
+  | 'shelf'
+  | 'door';
 
 export interface BaseCabinetParams {
   readonly name: string;

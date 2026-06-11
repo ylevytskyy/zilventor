@@ -1,5 +1,6 @@
 {
   "aria": {
+    "add_door_dialog": "Діалог додавання дверей",
     "add_view": "Додати вид",
     "assembly_tab": "Вкладка збірки",
     "bom_tab": "Вкладка ВМ",
@@ -43,6 +44,7 @@
     "properties": "Властивості",
     "ribbon": "Стрічка",
     "setback": "Відступ",
+    "shelf_pin_dialog": "Діалог Система-32 (полицетримачі)",
     "sheetContextMenu": "Контекстне меню аркуша",
     "start_radius": "Початковий радіус",
     "termination": "Завершення",
@@ -148,6 +150,24 @@
       "decimal_places": "Знаки після коми",
       "title_diametric": "Діаметральний розмір",
       "title_radial": "Радіальний розмір"
+    },
+    "addDoor": {
+      "title": "Додати двері",
+      "count": "Кількість",
+      "countSingle": "Одинарні",
+      "countDouble": "Подвійні",
+      "hingeSide": "Сторона петель",
+      "hingeLeft": "Ліворуч",
+      "hingeRight": "Праворуч",
+      "overlay": "Накладка",
+      "overlayFull": "Повна",
+      "overlayHalf": "Напівнакладна",
+      "overlayInset": "Вкладна",
+      "thickness": "Товщина (мм)",
+      "reveal": "Зазор (мм)",
+      "clearance": "Зазор вкладної (мм)",
+      "centerReveal": "Центральний зазор (мм)",
+      "hingeCount": "Петлі (авто)"
     },
     "addView": {
       "back": "Ззаду",
@@ -461,6 +481,19 @@
       "thicknessAria": "Товщина",
       "title": "Оболонка"
     },
+    "shelfPin": {
+      "title": "Система-32 (полицетримачі)",
+      "pitch": "Крок (мм)",
+      "diameter": "Діаметр (мм)",
+      "depth": "Глибина (мм)",
+      "frontSetback": "Відступ спереду (мм)",
+      "backSetback": "Відступ ззаду (мм)",
+      "topMargin": "Відступ зверху (мм)",
+      "bottomMargin": "Відступ знизу (мм)",
+      "columns": "Колонки",
+      "columnsOne": "1 (передня)",
+      "columnsTwo": "2 (передня + задня)"
+    },
     "sketchRect": {
       "ariaLabel": "Діалог прямокутника",
       "title": "Прямокутник (дві кутові точки)"
@@ -693,6 +726,7 @@
       "steppedSection": "Ступінчастий переріз"
     },
     "furniture": {
+      "addDoor": "Двері",
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
@@ -713,7 +747,9 @@
       "nesting": "Розкладка",
       "panel": "Панель",
       "presadka": "Присадка",
-      "showBores": "Показати присадку"
+      "showBores": "Показати присадку",
+      "system32Auto": "Система-32",
+      "system32Manual": "Система-32 (вибір)"
     },
     "model": {
       "axis": "Вісь",

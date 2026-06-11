@@ -19,6 +19,11 @@ import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBores
 import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
+import { AddDoorCommand } from '../../commands/AddDoorCommand';
+import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
+import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
+import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
+import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
@@ -90,6 +95,120 @@ export default function FurnitureTab() {
     });
   };
 
+  /**
+   * Resolve a ComponentPath to its partPath by looking up in activeAssembly + subAssemblyDocs.
+   * For the присадка use-case the user clicks a top-level cabinet .ziasm or a side panel within it.
+   * Addendum §3: this is the resolvePartPath arg passed to beginOneComponentPick.
+   */
+  const resolvePartPath = (path: ComponentPath): string => {
+    const state = useAppStore.getState();
+    // Try top-level assembly first.
+    const topComp = state.activeAssembly?.components.find((c) => c.id === path[path.length - 1]);
+    if (topComp) return topComp.partPath;
+    // Try sub-assembly docs (cabinet's inner components).
+    for (const doc of Object.values(state.subAssemblyDocs)) {
+      const inner = doc.components.find((c) => c.id === path[path.length - 1]);
+      if (inner) return inner.partPath;
+    }
+    // Fallback: treat the leaf id as a direct path (should not happen in practice).
+    return String(path[path.length - 1]);
+  };
+
+  /**
+   * Addendum §3: calls viewport.beginOneComponentPick(resolvePartPath, onPick) with 2 args,
+   * stores the returned handle via setOneComponentPickHandle(handle).
+   * App.tsx's pointer handler reads oneComponentPickHandle and feeds .pick(clientX, clientY).
+   * Addendum §4: passes cabinetPath only — AddDoorCommand derives dims from the unpacked .ziasm.
+   */
+  const handleAddDoor = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setAddDoorDialog({
+        cabinetPath,
+        onSubmit: async (p) => {
+          const opfs = await Opfs.forNavigator();
+          // Addendum §4: pass cabinet as zeros — AddDoorCommand.apply() derives real dims.
+          await useAppStore.getState().bus.execute(
+            new AddDoorCommand({
+              cabinetPath,
+              params: {
+                cabinet: { width: 0, height: 0, depth: 0, Tc: 0, toekickHeight: 0 },
+                count: p.count,
+                overlay: p.overlay,
+                hingeSide: p.hingeSide,
+                thickness: p.thickness,
+                reveal: p.reveal,
+                clearance: p.clearance,
+                centerReveal: p.centerReveal,
+              },
+              opfs,
+              store: useAppStore,
+            }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setAddDoorDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
+  const handleSystem32Auto = () => {
+    useAppStore.getState().setShelfPinDialog({
+      mode: 'auto',
+      onSubmit: async (params) => {
+        const opfs = await Opfs.forNavigator();
+        await useAppStore.getState().bus.execute(
+          new GenerateShelfPinBoresCommand({ params, opfs, store: useAppStore }),
+        );
+      },
+      onCancel: () => useAppStore.getState().setShelfPinDialog(null),
+    });
+  };
+
+  /**
+   * Addendum §1: the default face comes from LEFT_SIDE_INNER_FACE / RIGHT_SIDE_INNER_FACE
+   * imported from prisadkaFaceConventions (Phase 0 output). NOT hardcoded literals.
+   */
+  const handleSystem32Manual = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (panelPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      // Derive the default face from the component's role (addendum §1).
+      const state = useAppStore.getState();
+      const allComponents = [
+        ...(state.activeAssembly?.components ?? []),
+        ...Object.values(state.subAssemblyDocs).flatMap((d) => d.components),
+      ];
+      const comp = allComponents.find((c) => c.partPath === panelPath);
+      // Map component role to the canonical inner broad face from the shared conventions module.
+      // RIGHT_SIDE_INNER_FACE / LEFT_SIDE_INNER_FACE are proven by Phase 0.
+      const defaultFace: 'Top' | 'Bottom' =
+        comp?.role === 'rightSide' ? RIGHT_SIDE_INNER_FACE : LEFT_SIDE_INNER_FACE;
+      useAppStore.getState().setShelfPinDialog({
+        mode: 'manual',
+        panelPath,
+        face: defaultFace,
+        onSubmit: async (params) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddManualShelfPinBoresCommand({
+              panelPath,
+              face: defaultFace,
+              params,
+              opfs,
+              store: useAppStore,
+            }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setShelfPinDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title={t('ribbon.furniture.create')}>
@@ -155,6 +274,36 @@ export default function FurnitureTab() {
             aria-label={t('ribbon.furniture.generatePresadku')}
           >
             {t('ribbon.furniture.generatePresadku')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddDoor(); }}
+            aria-label={t('ribbon.furniture.addDoor')}
+          >
+            {t('ribbon.furniture.addDoor')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleSystem32Auto(); }}
+            aria-label={t('ribbon.furniture.system32Auto')}
+          >
+            {t('ribbon.furniture.system32Auto')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleSystem32Manual(); }}
+            aria-label={t('ribbon.furniture.system32Manual')}
+          >
+            {t('ribbon.furniture.system32Manual')}
           </button>
           <button type="button" className="text-xs hover:text-white"
             aria-pressed={showBores}

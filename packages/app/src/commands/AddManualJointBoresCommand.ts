@@ -53,7 +53,7 @@ export class AddManualJointBoresCommand implements Command {
   constructor(private readonly opts: {
     panelPathA: string;
     panelPathB: string;
-    kind: BoreConnectorKind;
+    kind: keyof typeof GEN;
     params: BoringParams;
     opfs: OpfsRW;
     store?: typeof useAppStore;

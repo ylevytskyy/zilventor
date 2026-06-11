@@ -4,6 +4,7 @@ import { SceneManager, type WorkFeatureSpec, type ComponentLeaf, type PanelOverl
 import type { ComponentPath, MaterialEntry } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { createTwoComponentPicker } from './createTwoComponentPicker';
+import { createOneComponentPicker } from './createOneComponentPicker';
 import ViewCube from './ViewCube';
 
 /**
@@ -86,6 +87,21 @@ export type ViewportRef = {
   beginTwoComponentPick(
     resolvePartPath: (path: ComponentPath) => string,
     onComplete: (partPathA: string, partPathB: string) => void,
+  ): { pick: (clientX: number, clientY: number) => void; reset: () => void };
+  /**
+   * Manual присадка / Add Door: begin a SINGLE-component pick.
+   * Takes TWO args (resolvePartPath, onPick) mirroring beginTwoComponentPick(resolvePartPath, onComplete).
+   * Returns a handle with `pick(clientX, clientY)` (call on each canvas click) and `reset()`.
+   * Does NOT auto-fire — App.tsx owns the pointer wiring and feeds `.pick(clientX, clientY)`.
+   * On the first component hit, `onPick(partPath, path)` fires.
+   * No-TDD for the three.js raycast path — covered by §6/e2e (mirror of beginTwoComponentPick).
+   *
+   * Phase 8 call site: `const handle = viewport.beginOneComponentPick(resolvePartPath, onPick);`
+   * then `handle.pick(e.clientX, e.clientY)` in the App.tsx pointer handler.
+   */
+  beginOneComponentPick(
+    resolvePartPath: (path: ComponentPath) => string,
+    onPick: (partPath: string, path: ComponentPath) => void,
   ): { pick: (clientX: number, clientY: number) => void; reset: () => void };
   /**
    * T37 drag-along-free-DOFs stub.
@@ -359,6 +375,22 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     },
     beginTwoComponentPick: (resolvePartPath, onComplete) => {
       const picker = createTwoComponentPicker({ resolvePartPath, onComplete });
+      return {
+        pick: (clientX, clientY) => {
+          if (!sceneRef.current || !canvasRef.current) return;
+          const rect = canvasRef.current.getBoundingClientRect();
+          const ndc = new THREE.Vector2(
+            ((clientX - rect.left) / rect.width) * 2 - 1,
+            -(((clientY - rect.top) / rect.height) * 2 - 1),
+          );
+          const hit = sceneRef.current.raycastComponent(sceneRef.current.getCamera(), ndc);
+          if (hit) picker.pick(hit);
+        },
+        reset: () => picker.reset(),
+      };
+    },
+    beginOneComponentPick: (resolvePartPath, onPick) => {
+      const picker = createOneComponentPicker(resolvePartPath, onPick);
       return {
         pick: (clientX, clientY) => {
           if (!sceneRef.current || !canvasRef.current) return;

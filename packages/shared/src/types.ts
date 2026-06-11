@@ -93,6 +93,14 @@ export type ComponentColor =
   | { kind: 'palette'; name: string }
   | { kind: 'hex'; hex: string };
 
+/** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
+export type DoorSpec = {
+  overlay: 'full' | 'half' | 'inset';
+  hingeSide: 'left' | 'right';                 // which vertical edge carries the cups
+  pair: 'single' | 'pairLeft' | 'pairRight';   // double-door membership
+  hingeCount: number;                          // resolved at creation (auto from height)
+};
+
 export type ComponentInstance = {
   id: string;
   partPath: string;
@@ -104,6 +112,8 @@ export type ComponentInstance = {
   flexible?: boolean;
   /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21. */
   role?: PanelRole;
+  /** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
+  doorSpec?: DoorSpec;
 };
 
 export type AssemblyDocument = {
@@ -147,9 +157,9 @@ export type AssemblyConstraint =
 // Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
 // bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
-  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
+  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
 
 export type FaceName = {
   featureId: string;

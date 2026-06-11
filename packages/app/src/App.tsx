@@ -1963,6 +1963,17 @@ export default function App() {
       // movement past a small threshold treats subsequent moves as drag deltas
       // routed through dragAlongFreeDofs; pointerup commits to the store and
       // suppresses the synthetic click that follows.
+      // Slice-2 присадка: one-component pick (Add Door / manual система-32).
+      // Check before the drag-busy guard so a pending pick is always serviced.
+      if (ev.type === 'click' || ev.type === 'pointerdown') {
+        const pickHandle = useAppStore.getState().oneComponentPickHandle;
+        if (pickHandle) {
+          pickHandle.pick(ev.clientX, ev.clientY);
+          useAppStore.getState().setOneComponentPickHandle(null);
+          return;
+        }
+      }
+
       const assemblyState = useAppStore.getState();
       const dragBusy =
         sketchMode ||

@@ -3,9 +3,12 @@ import type { FaceName } from './types';
 export type BoreRole =
   | 'confirmat-face' | 'confirmat-edge'
   | 'minifix-cam' | 'minifix-bolt' | 'minifix-cross'
-  | 'dowel-face' | 'dowel-edge';
+  | 'dowel-face' | 'dowel-edge'
+  | 'shelfPin-system32'   // Ø5 grid hole on a side INNER (Top/Bottom) face
+  | 'hingeCup'            // Ø35 cup on a door INNER (Top/Bottom) face
+  | 'hingePlate';         // Ø5 plate-mount hole on a side INNER face
 
-export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel';
+export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' | 'hinge';
 
 /**
  * Hardware-boring op (присадка). One drill: a face, a panel-local (u,v) on that
