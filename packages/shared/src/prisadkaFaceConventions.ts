@@ -36,19 +36,22 @@ export const DOOR_CUP_FACE: BroadFace = 'Bottom';
  * Part-X (doorH/height) → world-Z (up), part-Y (doorW/width) → world-X (across),
  * part-Z (Td/thickness) → world-Y (out the front, toward the room).
  *
- * DERIVED by Phase-0 derivation; the quaternion below corresponds to a rotation that
- * achieves (part-X→world+Z, part-Z→world+Y). The exact translation offset is set per
- * cabinet instance by AddDoorCommand; this quaternion is the orientation.
+ * DERIVED by Phase-10 §6 browser pass (Shepperd's method on the rotation matrix whose
+ * columns are the world-frame images of each part basis vector):
+ *   R = [[0,1,0],[0,0,1],[1,0,0]]  (row-major, R[i][j] = row i col j)
+ *   col 0 (part+X → world): (0,0,1) = world+Z  (door height stands vertical)
+ *   col 1 (part+Y → world): (1,0,0) = world+X  (door width runs horizontal)
+ *   col 2 (part+Z → world): (0,1,0) = world+Y  (door thickness goes toward room)
  *
- * Rotation: -90° around world-X axis → part-X→world+Z, part-Y→world+Y, part-Z→world-Y.
- * Then 180° around world-Z → part-Y→world-X, part-Z→world+Y.
- * Net rotation quaternion: [sin(90°/2), 0, 0, cos(90°/2)] = [√2/2, 0, 0, √2/2]
- * (90° around world+X maps part-Z(0,0,1)→world-Y(0,-1,0): that's wrong direction).
+ * Shepperd branch (all diagonals 0, pick R[0][0]):
+ *   x = sqrt(1 + R[0][0] - R[1][1] - R[2][2]) / 2 = 0.5
+ *   y = (R[0][1] + R[1][0]) / (4x) = (1+0)/2 = 0.5
+ *   z = (R[0][2] + R[2][0]) / (4x) = (0+1)/2 = 0.5
+ *   w = (R[2][1] - R[1][2]) / (4x) = (0-1)/2 = -0.5
  *
- * Simplified: the door is stored with identity rotation in the spec (exact quaternion
- * finalized by the Phase-10 §6 browser pass). Phase-0 asserts the structure exists and
- * has length 4. The critical constant DOOR_CUP_FACE='Bottom' is fully derived by Phase-0.
+ * DOOR_CUP_FACE='Bottom' is correct: Bottom face outward normal = part-Z's (-Z direction)
+ * maps to world -Y (toward cabinet interior). Phase-10 §6 gate verified world-Z extent ≈ doorH.
  */
 export const DOOR_POSE: { quaternion: [number, number, number, number] } = {
-  quaternion: [0, 0, 0, 1], // placeholder: exact value finalized by Phase-10 §6 browser pass
+  quaternion: [0.5, 0.5, 0.5, -0.5], // FINALIZED by Phase-10 §6 browser pass
 };
