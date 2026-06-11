@@ -9,6 +9,7 @@ import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
 import { AddDoorDialog } from './AddDoorDialog';
 import { DrawerBankDialog } from './DrawerBankDialog';
+import { DrawerHandleDialog } from './DrawerHandleDialog';
 import { ShelfPinDialog } from './ShelfPinDialog';
 
 export type WorkFeatureDialogsHostProps = {
@@ -58,6 +59,7 @@ export function WorkFeatureDialogsHost({
       <BoringDialog />
       <AddDoorDialog />
       <DrawerBankDialog />
+      <DrawerHandleDialog />
       <ShelfPinDialog />
     </>
   );

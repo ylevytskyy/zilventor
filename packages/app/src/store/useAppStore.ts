@@ -109,6 +109,13 @@ export type AddDoorDialogState = {
   onCancel: () => void;
 };
 
+/** Slice-6 присадка: "Add Handles" dialog. cabinetPath is the picked cabinet `.ziasm`. */
+export type AddDrawerHandleDialogState = {
+  cabinetPath: string;
+  onSubmit: (cc: 96 | 128 | 160) => void;
+  onCancel: () => void;
+};
+
 /** Slice-4 присадка: "Add Drawers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddDrawerBankDialogState = {
   cabinetPath: string;
@@ -389,6 +396,8 @@ type AppState = {
   setAddDoorDialog: (s: AddDoorDialogState | null) => void;
   addDrawerBankDialog: AddDrawerBankDialogState | null;
   setAddDrawerBankDialog: (s: AddDrawerBankDialogState | null) => void;
+  addDrawerHandleDialog: AddDrawerHandleDialogState | null;
+  setAddDrawerHandleDialog: (s: AddDrawerHandleDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
@@ -938,6 +947,8 @@ export const useAppStore = create<AppState>((set) => ({
   setAddDoorDialog: (s) => set({ addDoorDialog: s }),
   addDrawerBankDialog: null,
   setAddDrawerBankDialog: (s) => set({ addDrawerBankDialog: s }),
+  addDrawerHandleDialog: null,
+  setAddDrawerHandleDialog: (s) => set({ addDrawerHandleDialog: s }),
   shelfPinDialog: null,
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
   oneComponentPickHandle: null,
