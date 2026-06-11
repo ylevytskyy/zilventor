@@ -76,3 +76,8 @@ export type { ConnectorMember } from './connectorCoupling';
 export { translateConnectorAlong } from './connectorCoupling';
 // rotate is already re-exported via `export * from './jointMath'` — no separate line needed.
 export { mergeBores } from './mergeBores';
+export * from './drawerConventions';
+export type { DrawerSlideCtx } from './drawerSlideMath';
+export { drawerSlideMath } from './drawerSlideMath';
+export type { DrawerBoxPanel, DrawerBoxResult, BoxSlot, BoxOpening } from './drawerBoxMath';
+export { drawerBoxMath } from './drawerBoxMath';
