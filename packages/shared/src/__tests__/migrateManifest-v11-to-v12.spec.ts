@@ -20,7 +20,7 @@ describe('migration v11→v12', () => {
     expect((result.document as { hardware?: unknown }).hardware).toEqual([]);
   });
 
-  it('v11 AssemblyDocument gains hardware with 7 built-in entries', () => {
+  it('v11 AssemblyDocument gains hardware with 10 built-in entries', () => {
     const manifest = {
       formatVersion: 11,
       kind: 'assembly',
@@ -34,7 +34,7 @@ describe('migration v11→v12', () => {
     const result = migrateManifest(manifest);
     expect(result.formatVersion).toBe(25);
     const hw = (result.document as { hardware?: unknown[] }).hardware;
-    expect(hw).toHaveLength(7);
+    expect(hw).toHaveLength(10);
     expect(hw!.map((e: unknown) => (e as { id: string }).id)).toEqual(
       BUILTIN_CATALOG.map((e) => e.id),
     );
@@ -72,9 +72,9 @@ describe('migration v11→v12', () => {
     };
     const result = migrateManifest(manifest);
     const hw = (result.document as { hardware?: unknown[] }).hardware;
-    // Should have all 7, not 1 + 7.
-    expect(hw).toHaveLength(7);
+    // Should have all 10, not 1 + 10.
+    expect(hw).toHaveLength(10);
     const ids = hw!.map((e: unknown) => (e as { id: string }).id);
-    expect(new Set(ids).size).toBe(7);
+    expect(new Set(ids).size).toBe(10);
   });
 });
