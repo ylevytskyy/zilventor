@@ -4,6 +4,7 @@ import {
   enumerateAutoJoints,
   generateConfirmat, generateMinifix, generateDowel,
   CURRENT_FORMAT_VERSION,
+  mergeBores,
 } from '@zilventor/shared';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -191,7 +192,13 @@ export class GenerateCarcassBoresCommand implements Command {
       const entry = docs.get(partPath)!;
       const existing = (entry.document.bores as BoreOp[] | undefined) ?? [];
       this.priorBores.set(partPath, existing);
-      entry.document.bores = [...existing, ...newBores];
+      const suppressed = (entry.document.suppressedConnectorIds as string[] | undefined);
+      const merged = mergeBores(newBores, existing, suppressed);
+      if (merged.length > 0) {
+        entry.document.bores = merged;
+      } else {
+        delete (entry.document as Record<string, unknown>).bores;
+      }
       const repackedManifest = {
         ...entry.manifest,
         formatVersion: CURRENT_FORMAT_VERSION,
