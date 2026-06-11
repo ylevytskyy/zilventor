@@ -44,8 +44,7 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { dedupeName } from '../import/dedupeName';
 import { useAppStore } from '../store/useAppStore';
 import { deriveCabinetDims } from './cabinetDims';
-import { buildDrawerBox, writeBoxSideBores, restoreBoxSideBores } from './buildDrawerBox';
-import type { BoxSidePriorBores } from './buildDrawerBox';
+import { buildDrawerBox, writeBoxSideBores } from './buildDrawerBox';
 import { drawerBankLayout } from '@zilventor/shared/src/drawerBankLayout';
 import { drawerFrontMath } from '@zilventor/shared/src/drawerFrontMath';
 import { drawerBoxMath } from '@zilventor/shared/src/drawerBoxMath';
@@ -87,9 +86,6 @@ interface DrawerArtifacts {
   boxPanelPartIds: string[];
   /** Box component pushed into the cabinet */
   boxComponent: ComponentInstance;
-
-  /** priorBores snapshot for this box's side panels (for restoreBoxSideBores) */
-  boxPriorBores: BoxSidePriorBores;
 }
 
 export class AddDrawerBankCommand implements Command {
@@ -263,11 +259,7 @@ export class AddDrawerBankCommand implements Command {
       const { cabinetBores, boxBores } = drawerSlideMath(slideCtx);
 
       // Write box-side bores into the box panel .zipt files
-      const { priorBores: boxPriorBores } = await writeBoxSideBores(
-        boxBytes,
-        boxBores,
-        opfs,
-      );
+      await writeBoxSideBores(boxBytes, boxBores, opfs);
 
       // Append cabinet-side bores to cabinet L/R side panels (snapshot priors once per path)
       await this.appendCabinetSideBores(cab, cabinetBores, opfs);
@@ -280,7 +272,6 @@ export class AddDrawerBankCommand implements Command {
         boxPanelPaths,
         boxPanelPartIds,
         boxComponent,
-        boxPriorBores,
       });
     }
 
