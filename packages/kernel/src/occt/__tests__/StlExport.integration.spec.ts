@@ -95,3 +95,50 @@ describe('exportStlBinary — Phase 1 (single part, identity pose)', () => {
     expect(bbox[5] - bbox[2]).toBeCloseTo(50, 3);
   }, 120_000);
 });
+
+describe('exportStlBinary — Phase 2 (posed multi-leaf assembly)', () => {
+  const IDENTITY_Q = [0, 0, 0, 1] as const;
+
+  it('translates each leaf by its world pose and concatenates — combined bbox spans both', () => {
+    const a = makeBox(oc, 10, 10, 10); // spans [0,10]^3 at origin
+    const b = makeBox(oc, 10, 10, 10); // same prototype, posed to [50..60] on X
+
+    const bytes = exportStlBinary(oc, [
+      { shape: a, pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: IDENTITY_Q } },
+      { shape: b, pose: { translation: { x: 50, y: 0, z: 0 }, quaternion: IDENTITY_Q } },
+    ]);
+
+    const { triCount, bbox } = parseBinaryStl(bytes);
+    // 2 boxes: OCCT may split faces, assert even and >= 24 (≥12 per box).
+    expect(triCount % 2).toBe(0);
+    expect(triCount).toBeGreaterThanOrEqual(24);
+    // Combined X span = from box A's min (0) to box B's max (50+10=60).
+    expect(bbox[0]).toBeCloseTo(0, 3);
+    expect(bbox[3]).toBeCloseTo(60, 3);
+    // Y/Z unchanged: still [0,10].
+    expect(bbox[1]).toBeCloseTo(0, 3);
+    expect(bbox[4]).toBeCloseTo(10, 3);
+    expect(bbox[2]).toBeCloseTo(0, 3);
+    expect(bbox[5]).toBeCloseTo(10, 3);
+  }, 120_000);
+
+  it('applies rotation: a 90° rotation about +Z maps a [0,20]×[0,10] footprint to [-10,0]×[0,20]', () => {
+    // Box 20(X) × 10(Y) × 5(Z). Rotate +90° about Z: (x,y) -> (-y, x).
+    // Footprint corners (0..20, 0..10) -> X in [-10,0], Y in [0,20].
+    const box = makeBox(oc, 20, 10, 5);
+    const halfAngle = (Math.PI / 2) / 2;
+    const qz = Math.sin(halfAngle);
+    const qw = Math.cos(halfAngle);
+    const bytes = exportStlBinary(oc, [
+      { shape: box, pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, qz, qw] } },
+    ]);
+    const { triCount, bbox } = parseBinaryStl(bytes);
+    expect(triCount % 2).toBe(0);
+    expect(triCount).toBeGreaterThanOrEqual(12);
+    expect(bbox[0]).toBeCloseTo(-10, 3); // minX
+    expect(bbox[3]).toBeCloseTo(0, 3);   // maxX
+    expect(bbox[1]).toBeCloseTo(0, 3);   // minY
+    expect(bbox[4]).toBeCloseTo(20, 3);  // maxY
+    expect(bbox[5] - bbox[2]).toBeCloseTo(5, 3); // Z span untouched
+  }, 120_000);
+});
