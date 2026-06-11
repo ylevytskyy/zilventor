@@ -59,8 +59,8 @@ describe('drawerSlideMath', () => {
       .filter((b) => b.face.role === 'Top')
       .map((b) => b.v)
       .sort((a, c) => a - c);
-    expect(vs[0]).toBeCloseTo(DRAWER_SLIDE_FRONT_SETBACK, 6);
-    expect(vs[1] - vs[0]).toBeCloseTo(SLIDE_GRID_PITCH, 6);
+    expect(vs[0]!).toBeCloseTo(DRAWER_SLIDE_FRONT_SETBACK, 6);
+    expect(vs[1]! - vs[0]!).toBeCloseTo(SLIDE_GRID_PITCH, 6);
   });
 
   it('one connectorId per (drawer, side); cabinet+box bores share it', () => {

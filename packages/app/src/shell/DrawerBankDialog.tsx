@@ -33,7 +33,7 @@ export interface DrawerBankDialogOpts {
 /**
  * canFitDrawers — degenerate guard per spec §14.3.
  * openW ≤ 57 → front/back panel width ≤ 0.
- * slotH ≤ 24 → box height bh ≤ 0 (BOX_VERT_CLEARANCE=12 both ends).
+ * slotH ≤ 24 → box height bh ≤ 0 (BOX_VERT_CLEARANCE: 12 both ends).
  */
 export function canFitDrawers(
   dims: { openW: number; openH: number },
