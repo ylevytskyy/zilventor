@@ -16,8 +16,8 @@ function makeViewportStub(opts: {
   componentHit: string[] | null;
 }) {
   return {
-    raycastBoreMarker: vi.fn(() => opts.boreHit),
-    raycastComponent: vi.fn(() => opts.componentHit),
+    raycastBoreMarker: vi.fn((_clientX: number, _clientY: number) => opts.boreHit),
+    raycastComponent: vi.fn((_clientX: number, _clientY: number) => opts.componentHit),
   };
 }
 

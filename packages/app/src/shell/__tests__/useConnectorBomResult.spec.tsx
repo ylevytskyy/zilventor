@@ -12,12 +12,20 @@ vi.mock('react-i18next', () => ({
 // Minimal store: activeAssembly with one component; no subAssemblies.
 vi.mock('../../store/useAppStore', () => {
   const asm: AssemblyDocument = {
-    formatVersion: 22,
-    kind: 'assembly',
+    id: 'asm1',
     name: 'Asm',
-    components: [{ id: 'c1', partPath: 'parts/side.zipt', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } }],
-    mates: [],
-    features: [],
+    units: 'mm',
+    parameters: {},
+    components: [{ id: 'c1', partPath: 'parts/side.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } }],
+    constraints: [],
+    groundedComponentPaths: [],
+    colors: {},
+    bomItemNumbers: {},
+    cutListItemNumbers: {},
+    colorOverrides: {},
+    properties: {},
+    materials: [],
+    hardware: [],
   };
   return {
     useAppStore: (sel: (s: { activeAssembly: AssemblyDocument | null; subAssemblyDocs: Record<string, AssemblyDocument> }) => unknown) =>
@@ -50,12 +58,12 @@ describe('useConnectorBomResult', () => {
     const { result } = renderHook(() => useConnectorBomResult());
     expect(result.current).toHaveLength(1);
     // t('[bom.connector.confirmat]') wraps the key in brackets per our mock
-    expect(result.current[0].name).toBe('[bom.connector.confirmat]');
+    expect(result.current[0]!.name).toBe('[bom.connector.confirmat]');
   });
 
   it('returns rows with kind, qty, notes preserved', () => {
     const { result } = renderHook(() => useConnectorBomResult());
-    const row = result.current[0];
+    const row = result.current[0]!;
     expect(row.kind).toBe('confirmat');
     expect(row.qty).toBe(4);
     expect(row.notes).toBe('Ø7 face + Ø5 edge');
@@ -63,6 +71,6 @@ describe('useConnectorBomResult', () => {
 
   it('rows do NOT contain nameKey (display layer has resolved name only)', () => {
     const { result } = renderHook(() => useConnectorBomResult());
-    expect((result.current[0] as { nameKey?: string }).nameKey).toBeUndefined();
+    expect((result.current[0]! as { nameKey?: string }).nameKey).toBeUndefined();
   });
 });
