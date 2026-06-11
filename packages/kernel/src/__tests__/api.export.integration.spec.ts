@@ -15,6 +15,7 @@ async function makeBoxPart(api: ReturnType<typeof createKernelApi>, name: string
 
 describe('KernelApi STEP export', () => {
   it('exportStepPart on an executed part round-trips a 10mm box (mm units, 1 solid)', async () => {
+
     const api = createKernelApi();
     await api.init();
     const partId = await makeBoxPart(api, 'Box', 10);
@@ -52,4 +53,58 @@ describe('KernelApi STEP export', () => {
     expect(res.solidCount).toBe(1); // cold-cache-empty bug → 0 → RED
     expect(res.boundingBox[3]! - res.boundingBox[0]!).toBeCloseTo(10, 3);
   }, 120_000);
+
+  // ---- Phase 4: assembly + color-loss-trap guard ----
+
+  it('exportStepAssembly: posed 2-component / 2-color assembly — BOTH colors survive + posed min-corner', async () => {
+    const api = createKernelApi();
+    await api.init();
+    // Two registered parts (both executed → namedShapeCache warm).
+    const redId = await makeBoxPart(api, 'Red', 10);
+    const grnId = await makeBoxPart(api, 'Green', 10);
+    await api.execute(redId);
+    await api.execute(grnId);
+
+    // Red at origin (identity); Green translated +50 along X. Different colors.
+    const leaves: ExportLeaf[] = [
+      { partId: redId, name: 'Red',   pose: { translation: { x: 0,  y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as const },  color: [1, 0, 0] as const },
+      { partId: grnId, name: 'Green', pose: { translation: { x: 50, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as const },  color: [0, 1, 0] as const },
+    ];
+    const bytes = await api.exportStepAssembly(leaves);
+
+    const oc = await loadOcct();
+    const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const res = readStep(oc, ab);
+
+    // (a) solidCount FIRST — a cold/empty export shows 0 → RED before colors.
+    expect(res.solidCount).toBe(2);
+    // (b) the color-loss-trap signature: BOTH distinct colors survive (the bug drops all but the first).
+    // sRGB-as-is, lowercase.
+    expect(res.solidColors.filter(Boolean).sort()).toEqual(['#00ff00', '#ff0000']);
+    // (c) pose lives in transform → posed bbox spans 0..60 (red 0..10, green 50..60).
+    expect(res.boundingBox[0]!).toBeCloseTo(0, 3);   // red min-corner X
+    expect(res.boundingBox[3]!).toBeCloseTo(60, 3);  // green max-corner X (50+10)
+  }, 180_000);
+
+  it('exportStepAssembly: 2 instances of ONE part → 2 posed components with distinct bboxes', async () => {
+    const api = createKernelApi();
+    await api.init();
+    const boxId = await makeBoxPart(api, 'Box', 10);
+    await api.execute(boxId);
+
+    // Same partId used twice (protoKey = partId).
+    const leaves: ExportLeaf[] = [
+      { partId: boxId, name: 'A', pose: { translation: { x: 0,  y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as const } },
+      { partId: boxId, name: 'B', pose: { translation: { x: 30, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as const } },
+    ];
+    const bytes = await api.exportStepAssembly(leaves);
+
+    const oc = await loadOcct();
+    const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const res = readStep(oc, ab);
+    // Two distinct posed instances of the same part.
+    expect(res.solidCount).toBe(2);
+    expect(res.boundingBox[0]!).toBeCloseTo(0, 3);
+    expect(res.boundingBox[3]!).toBeCloseTo(40, 3); // B at 30..40
+  }, 180_000);
 });
