@@ -300,6 +300,8 @@ type AppState = {
   mirrorComponentDialogOpen: boolean;
   setComponentPatternDialogOpen(v: boolean): void;
   setMirrorComponentDialogOpen(v: boolean): void;
+  circularPatternDialogOpen: boolean;
+  setCircularPatternDialogOpen(v: boolean): void;
 
   placeComponentDialogOpen: boolean;
   editComponentDialogOpen: boolean;
@@ -665,6 +667,8 @@ export const useAppStore = create<AppState>((set) => ({
   mirrorComponentDialogOpen: false,
   setComponentPatternDialogOpen: (v) => set({ componentPatternDialogOpen: v }),
   setMirrorComponentDialogOpen: (v) => set({ mirrorComponentDialogOpen: v }),
+  circularPatternDialogOpen: false,
+  setCircularPatternDialogOpen: (v) => set({ circularPatternDialogOpen: v }),
 
   placeComponentDialogOpen: false,
   editComponentDialogOpen: false,
