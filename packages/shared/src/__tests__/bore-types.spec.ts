@@ -44,4 +44,26 @@ describe('additive v21 type surface', () => {
     };
     expect(f.formatVersion).toBe(21);
   });
+
+  it('BoreOp accepts the new shelfPin-system32 / hinge roles + kinds', () => {
+    const pin: BoreOp = {
+      id: 'pin-col-front-0', face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 64, v: 37, diameter: 5, depth: 13, role: 'shelfPin-system32',
+      connectorId: 'pin-col-front', connectorKind: 'shelfPin',
+    };
+    const cup: BoreOp = {
+      id: 'hinge-0-cup', face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 100, v: 21, diameter: 35, depth: 12, role: 'hingeCup',
+      connectorId: 'hinge-0', connectorKind: 'hinge',
+    };
+    const plate: BoreOp = {
+      id: 'hinge-0-plate-0', face: { featureId: 'panel', role: 'Bottom', instance: 0 },
+      u: 100, v: 37, diameter: 5, depth: 13, role: 'hingePlate',
+      connectorId: 'hinge-0', connectorKind: 'hinge',
+    };
+    expect([pin.role, cup.role, plate.role]).toEqual([
+      'shelfPin-system32', 'hingeCup', 'hingePlate',
+    ]);
+    expect([pin.connectorKind, cup.connectorKind]).toEqual(['shelfPin', 'hinge']);
+  });
 });
