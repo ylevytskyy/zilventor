@@ -4,7 +4,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-fill)', () => {
   it('CURRENT_FORMAT_VERSION is 20', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(23);
+    expect(CURRENT_FORMAT_VERSION).toBe(24);
   });
 
   // ── Main structural cases ──────────────────────────────────────────────────
@@ -52,7 +52,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     const det = out.document.sheets[0]!.views.find(v => v.kind === 'detail')!;
     expect(det.regionParent!.kind).toBe('circle');
     expect(det.regionParent!.center.x).toBe(20);
@@ -102,7 +102,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     const details = out.document.sheets[0]!.views.filter(v => v.kind === 'detail');
     expect(details).toHaveLength(2);
     expect(details.every(d => d.regionParent?.kind === 'circle')).toBe(true);
@@ -154,7 +154,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     const base = out.document.sheets[0]!.views.find(v => v.kind === 'base')!;
     expect((base as Record<string, unknown>)['regionParent']).toBeUndefined();
     const proj = out.document.sheets[0]!.views.find(v => v.kind === 'projected')!;
@@ -206,7 +206,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     const det = out.document.sheets[0]!.views.find(v => v.kind === 'detail')!;
     expect(det.regionParent?.kind).toBe('circle');
     expect(det.regionParent?.radiusMm).toBe(8);
@@ -222,7 +222,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
       },
     };
     const out = migrateManifest(v19) as { formatVersion: number; document: { customTextures: unknown[] } };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     expect(out.document.customTextures).toEqual([]);
   });
 
@@ -238,7 +238,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
       },
     };
     const out = migrateManifest(v18) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     expect(out.kind).toBe('part');
   });
 
@@ -255,7 +255,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
       },
     };
     const out = migrateManifest(v18) as { formatVersion: number };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
   });
 
   // ── Immutability ─────────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@ describe('migrateManifest v18 → v19 (Drawing F2.1 — RegionParent kind back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(23);
+    expect(out.formatVersion).toBe(24);
     for (const sheet of out.document.sheets) {
       const det = sheet.views.find(v => v.kind === 'detail')!;
       expect(det.regionParent?.kind).toBe('circle');

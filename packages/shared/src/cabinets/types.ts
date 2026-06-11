@@ -9,7 +9,12 @@ export type PanelRole =
   | 'back'
   | 'toekick'
   | 'shelf'
-  | 'door';
+  | 'door'
+  | 'drawerFront'
+  | 'drawerBox-side'
+  | 'drawerBox-front'
+  | 'drawerBox-back'
+  | 'drawerBox-bottom';
 
 export interface BaseCabinetParams {
   readonly name: string;
