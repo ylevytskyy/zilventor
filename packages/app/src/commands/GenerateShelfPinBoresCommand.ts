@@ -5,6 +5,7 @@ import {
   CURRENT_FORMAT_VERSION,
   LEFT_SIDE_INNER_FACE,
   RIGHT_SIDE_INNER_FACE,
+  mergeBores,
 } from '@zilventor/shared';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -96,12 +97,18 @@ export class GenerateShelfPinBoresCommand implements Command {
 
     await processAssemblyDoc(asm);
 
-    // Persist: snapshot prior bores, append new bores[], repack each .zipt.
+    // Persist: snapshot prior bores, replace-with-merge, repack each .zipt.
     for (const [partPath, newBores] of accum) {
       const entry = docs.get(partPath)!;
       const existing = (entry.document.bores as BoreOp[] | undefined) ?? [];
       this.priorBores.set(partPath, existing);
-      entry.document.bores = [...existing, ...newBores];
+      const suppressed = (entry.document.suppressedConnectorIds as string[] | undefined);
+      const merged = mergeBores(newBores, existing, suppressed);
+      if (merged.length > 0) {
+        entry.document.bores = merged;
+      } else {
+        delete (entry.document as Record<string, unknown>).bores;
+      }
       const repackedManifest = {
         ...entry.manifest,
         formatVersion: CURRENT_FORMAT_VERSION,

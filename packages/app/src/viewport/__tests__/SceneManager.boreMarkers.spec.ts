@@ -33,6 +33,7 @@ const identityPose = {
 // One Top-face bore on a 600x400x18 panel at panel-local (u=100,v=50).
 const oneBoreSpec = (): MarkerOverlaySpec => ({
   key: 'p1#c1',
+  partPath: 'parts/panel.zipt',
   panelDims: { length: 600, width: 400, thickness: 18 },
   worldPose: identityPose,
   bores: [{

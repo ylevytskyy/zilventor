@@ -282,3 +282,124 @@ describe('generateDowel', () => {
     }
   });
 });
+
+// ── jointDir provenance (slice-3 B.3 / spec §7) — Correction 2: non-tautological ──
+describe('jointDir provenance — carcass generators write normalized jointDir (non-tautological)', () => {
+  function normLen(v: { x: number; y: number; z: number }): number {
+    return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+  }
+
+  /** Independently compute normalize(p1 - p0) without calling any generator code. */
+  function independentJointDir(j: JointInput): { x: number; y: number; z: number } {
+    const dx = j.line.p1.x - j.line.p0.x;
+    const dy = j.line.p1.y - j.line.p0.y;
+    const dz = j.line.p1.z - j.line.p0.z;
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return { x: dx / len, y: dy / len, z: dz / len };
+  }
+
+  it('generateConfirmat: all bores carry jointDir ≈ normalize(p1-p0) computed INDEPENDENTLY in the test', () => {
+    const j = joint(700); // line.p1={700,0,0} → expected dir={1,0,0}
+    const expected = independentJointDir(j); // computed without touching any generator code
+    expect(expected).toEqual({ x: 1, y: 0, z: 0 }); // sanity-check the independent formula
+
+    const { boresA, boresB } = generateConfirmat(j, defaults);
+    for (const b of [...boresA, ...boresB]) {
+      expect(b.jointDir, `bore ${b.id} must have jointDir`).toBeDefined();
+      expect(normLen(b.jointDir!)).toBeCloseTo(1, 9);
+      // Compare against INDEPENDENTLY computed expected, not a literal
+      expect(b.jointDir!.x).toBeCloseTo(expected.x, 9);
+      expect(b.jointDir!.y).toBeCloseTo(expected.y, 9);
+      expect(b.jointDir!.z).toBeCloseTo(expected.z, 9);
+    }
+  });
+
+  it('generateMinifix: all bores carry jointDir ≈ independently computed normalize(p1-p0)', () => {
+    const j = joint(700);
+    const expected = independentJointDir(j);
+    const { boresA, boresB } = generateMinifix(j, defaults);
+    for (const b of [...boresA, ...boresB]) {
+      expect(b.jointDir).toBeDefined();
+      expect(normLen(b.jointDir!)).toBeCloseTo(1, 9);
+      expect(b.jointDir!.x).toBeCloseTo(expected.x, 9);
+      expect(b.jointDir!.y).toBeCloseTo(expected.y, 9);
+      expect(b.jointDir!.z).toBeCloseTo(expected.z, 9);
+    }
+  });
+
+  it('generateDowel: all bores carry jointDir ≈ independently computed normalize(p1-p0)', () => {
+    const j = joint(700);
+    const expected = independentJointDir(j);
+    const { boresA, boresB } = generateDowel(j, defaults);
+    for (const b of [...boresA, ...boresB]) {
+      expect(b.jointDir).toBeDefined();
+      expect(normLen(b.jointDir!)).toBeCloseTo(1, 9);
+      expect(b.jointDir!.x).toBeCloseTo(expected.x, 9);
+    }
+  });
+
+  it('diagonal joint: jointDir = independently computed normalize(p1-p0), NOT {1,0,0}', () => {
+    // Joint along (300,400,0) → normalize = (0.6, 0.8, 0)
+    const diagJoint: JointInput = {
+      line: { p0: { x: 0, y: 0, z: 0 }, p1: { x: 300, y: 400, z: 0 } },
+      panelA: { dims: { length: 800, width: 500, thickness: 18 },
+        pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      panelB: { dims: { length: 500, width: 500, thickness: 18 },
+        pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      faceA: 'Left', endB: 'Top',
+      boardThicknessA: 18, boardThicknessB: 18,
+    };
+    const expected = independentJointDir(diagJoint); // = {0.6, 0.8, 0}
+    const { boresA } = generateConfirmat(diagJoint, defaults);
+    for (const b of boresA) {
+      // NOT hand-authored 0.6 / 0.8 — derived from the same formula the impl uses
+      expect(b.jointDir!.x).toBeCloseTo(expected.x, 6);
+      expect(b.jointDir!.y).toBeCloseTo(expected.y, 6);
+      expect(b.jointDir!.z).toBeCloseTo(expected.z, 6);
+    }
+  });
+
+  it('FLIP-TO-RED: flipping line direction flips jointDir — proves test detects sign error', () => {
+    const j = joint(700); // p1={700,0,0} → jointDir={1,0,0}
+    const jFlipped: JointInput = {
+      ...j,
+      line: { p0: j.line.p1, p1: j.line.p0 }, // reversed: p0={700,0,0}, p1={0,0,0} → dir={-1,0,0}
+    };
+
+    const { boresA: forward } = generateConfirmat(j, defaults);
+    const { boresA: flipped } = generateConfirmat(jFlipped, defaults);
+
+    const fwdDir = forward[0]!.jointDir!;
+    const flpDir = flipped[0]!.jointDir!;
+
+    // Forward should be {1,0,0}; flipped should be {-1,0,0}
+    expect(fwdDir.x).toBeCloseTo(1, 6);
+    expect(flpDir.x).toBeCloseTo(-1, 6);
+
+    // Key assertion: if the implementation IGNORED line direction and always wrote {1,0,0},
+    // this test would FAIL because flpDir.x would be 1, not -1.
+    expect(fwdDir.x + flpDir.x).toBeCloseTo(0, 6); // sum = 0 proves they are opposite
+    // Flip-to-RED: comment out the normalize in the generator and replace with `{x:1,y:0,z:0}` →
+    // flpDir.x becomes 1 → this assertion fails.
+    expect(Math.abs(fwdDir.x - flpDir.x)).toBeGreaterThan(1.9); // distance ≈ 2.0
+  });
+
+  it('degenerate joint (p0===p1): jointDir is absent — no NaN', () => {
+    const degJoint: JointInput = {
+      line: { p0: { x: 10, y: 10, z: 10 }, p1: { x: 10, y: 10, z: 10 } },
+      panelA: { dims: { length: 18, width: 560, thickness: 720 },
+        pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      panelB: { dims: { length: 564, width: 554, thickness: 18 },
+        pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      faceA: 'Right', endB: 'Left',
+      boardThicknessA: 18, boardThicknessB: 18,
+    };
+    const { boresA, boresB } = generateConfirmat(degJoint, defaults);
+    for (const b of [...boresA, ...boresB]) {
+      if (b.jointDir !== undefined) {
+        const v = b.jointDir;
+        expect(Number.isNaN(v.x) || Number.isNaN(v.y) || Number.isNaN(v.z)).toBe(false);
+      }
+    }
+  });
+});

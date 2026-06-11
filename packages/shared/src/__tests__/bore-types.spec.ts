@@ -84,3 +84,85 @@ describe('additive v21 type surface', () => {
     expect(inst.doorSpec?.overlay).toBe('full');
   });
 });
+
+describe('additive v23 PartDocument + ProjectFile', () => {
+  it('PartDocument accepts suppressedConnectorIds?: string[] — absent when not set', () => {
+    const doc: PartDocument = {
+      id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+      properties: {}, materials: [], hardware: [],
+    };
+    expect('suppressedConnectorIds' in doc).toBe(false);
+  });
+
+  it('PartDocument accepts suppressedConnectorIds with entries when set', () => {
+    const doc: PartDocument = {
+      id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+      properties: {}, materials: [], hardware: [],
+      suppressedConnectorIds: ['confirmat-0', 'pin-col-front'],
+    };
+    expect(doc.suppressedConnectorIds).toEqual(['confirmat-0', 'pin-col-front']);
+  });
+
+  it('ProjectFile formatVersion union includes 23 for part kind', () => {
+    const f: ProjectFile = {
+      formatVersion: 23, kind: 'part', createdAt: '', appVersion: '',
+      document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+        properties: {}, materials: [], hardware: [] },
+    };
+    expect(f.formatVersion).toBe(23);
+  });
+
+  it('ProjectFile formatVersion union includes 23 for assembly kind', () => {
+    const f: ProjectFile = {
+      formatVersion: 23, kind: 'assembly', createdAt: '', appVersion: '',
+      document: {
+        id: 'a', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+        properties: {}, materials: [], hardware: [],
+      },
+    };
+    expect(f.formatVersion).toBe(23);
+  });
+});
+
+describe('additive v23 BoreOp slice-3 fields', () => {
+  it('BoreOp accepts edited?: boolean — absent when not set (exactOptionalPropertyTypes)', () => {
+    const bore: BoreOp = {
+      id: 'b1', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+    };
+    // absent — key must not exist at all (not false, not undefined)
+    expect('edited' in bore).toBe(false);
+  });
+
+  it('BoreOp accepts edited: true when explicitly set', () => {
+    const bore: BoreOp = {
+      id: 'b2', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+      edited: true,
+    };
+    expect(bore.edited).toBe(true);
+  });
+
+  it('BoreOp accepts jointDir?: {x,y,z} — absent when not set (exactOptionalPropertyTypes)', () => {
+    const bore: BoreOp = {
+      id: 'b3', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+    };
+    expect('jointDir' in bore).toBe(false);
+  });
+
+  it('BoreOp accepts jointDir as a unit-ish Vec3 when set', () => {
+    const bore: BoreOp = {
+      id: 'b4', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+      jointDir: { x: 0, y: 0, z: 1 },
+    };
+    expect(bore.jointDir).toEqual({ x: 0, y: 0, z: 1 });
+  });
+});

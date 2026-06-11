@@ -53,6 +53,8 @@ export type MarkerOverlaySpec = {
   panelDims: { length: number; width: number; thickness: number };
   worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
   bores: BoreOp[];
+  /** OPFS path of the owning panel .zipt; used by bore-selection and Edit/Move/Delete commands. */
+  partPath: string;
 };
 
 
@@ -700,6 +702,7 @@ export class SceneManager {
         mesh.userData.kind = 'boreMarker';
         mesh.userData.boreId = bore.id;
         mesh.userData.markerKey = spec.key;
+        mesh.userData.partPath = spec.partPath;
         this.scene.add(mesh);
         this.boreMarkers.push(mesh);
       }
@@ -770,6 +773,28 @@ export class SceneManager {
     if (hits.length === 0) return null;
     const path = hits[0]!.object.userData.componentPath;
     return Array.isArray(path) ? (path as ComponentPath) : null;
+  }
+
+  /**
+   * Slice-3: Raycasts against bore markers only. Mirror of raycastComponent:
+   * takes the SAME camera+ndc args; NDC conversion lives in the Viewport wrapper.
+   * Reads boreId and partPath from mesh.userData (set during rebuildBoreMarkers).
+   * Returns null on miss or if userData is incomplete.
+   */
+  raycastBoreMarker(camera: THREE.Camera, ndc: THREE.Vector2): { boreId: string; partPath: string } | null {
+    if (this.boreMarkers.length === 0) return null;
+    for (const m of this.boreMarkers) {
+      m.updateMatrixWorld(true);
+    }
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(this.boreMarkers, false);
+    if (hits.length === 0) return null;
+    const obj = hits[0]!.object;
+    const boreId = obj.userData.boreId as string | undefined;
+    const partPath = obj.userData.partPath as string | undefined;
+    if (!boreId || !partPath) return null;
+    return { boreId, partPath };
   }
 
   setWorkFeatures(specs: Array<WorkFeatureSpec>): void {

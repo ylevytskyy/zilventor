@@ -1,5 +1,6 @@
 import type { CutListEdgeBandCell, CutListResult, CutListRow, EdgeBandTotal } from '@zilventor/shared/src/cutListRow';
 import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive';
+import type { ConnectorBomRow } from '../shell/ConnectorBomTable';
 
 function csvCell(s: string): string {
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -48,9 +49,19 @@ function hardwareRowLine(r: HardwareRow): string {
   ].join(',');
 }
 
+function connectorRowLine(r: ConnectorBomRow): string {
+  return [
+    r.kind,           // enum value — never contains commas; no csvCell needed
+    csvCell(r.name),  // user-visible string — may contain commas
+    String(r.qty),
+    csvCell(r.notes), // may contain commas/special chars
+  ].join(',');
+}
+
 export function buildCutListCsv(
   result: CutListResult,
   hardwareRows: HardwareRow[] = [],
+  connectorRows: ConnectorBomRow[] = [],
 ): string {
   const out: string[] = [];
   out.push('Item#,QTY,Material,L (mm),W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
@@ -62,6 +73,12 @@ export function buildCutListCsv(
   out.push('# Hardware');
   out.push('SKU,Name,Category,Qty,Notes');
   for (const r of hardwareRows) out.push(hardwareRowLine(r));
+  if (connectorRows.length > 0) {
+    out.push('');
+    out.push('# присадка / Connectors');
+    out.push('Type,Name,Qty,Notes');
+    for (const r of connectorRows) out.push(connectorRowLine(r));
+  }
   out.push('');
   out.push(
     `Excluded from cut list,${result.excluded.componentCount} components,${result.excluded.partCount} distinct parts`,

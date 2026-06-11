@@ -9,6 +9,8 @@ import type { SketchPickController } from '../model/SketchPickController';
 import { BomTable } from './BomTable';
 import { CutListTable } from './CutListTable';
 import { HardwareTable } from './HardwareTable';
+import { ConnectorBomTable } from './ConnectorBomTable';
+import { useConnectorBomResult } from './useConnectorBomResult';
 import { aggregateHardwareRecursive } from '../assembly/walkers/aggregateHardwareRecursive';
 import { buildHardwareCache } from '../assembly/walkers/buildHardwareCache';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
@@ -165,6 +167,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   const cutListTabActive = useAppStore((s) => s.cutListTabActive);
   const nestingTabActive = useAppStore((s) => s.nestingTabActive);
   const cutListResult = useCutListResult();
+  const connectorRows = useConnectorBomResult();
   const { warmCache } = useCutListCacheContext();
 
   // Warm the panel-spec cache whenever the Cut List tab becomes active so
@@ -244,9 +247,10 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
           result={cutListResult}
           onSelectRow={(ids) => useAppStore.getState().selectComponents(ids)}
           onEditItemNumber={(k, n) => void new SetCutListItemNumberCommand({ rowKey: k, n }).apply()}
-          onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, hardwareRows, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
+          onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, hardwareRows, connectorRows, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
         />
         <HardwareTable rows={hardwareRows} />
+        <ConnectorBomTable rows={connectorRows} />
       </div>
     );
   }

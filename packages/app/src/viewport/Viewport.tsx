@@ -60,6 +60,7 @@ export type ViewportRef = {
   worldToScreen3d(worldX: number, worldY: number, worldZ: number): { x: number; y: number };
   raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
   raycastComponent(clientX: number, clientY: number): ComponentPath | null;
+  raycastBoreMarker(clientX: number, clientY: number): { boreId: string; partPath: string } | null;
   raycastWorkFeature(clientX: number, clientY: number): string | null;
   setWorkFeatures(specs: WorkFeatureSpec[]): void;
   /**
@@ -297,6 +298,16 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
         -(((clientY - rect.top) / rect.height) * 2 - 1)
       );
       return sceneRef.current.raycastComponent(sceneRef.current.getCamera(), ndc);
+    },
+    raycastBoreMarker: (clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) return null;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1),
+      );
+      return sceneRef.current.raycastBoreMarker(sceneRef.current.getCamera(), ndc);
     },
     raycastWorkFeature: (clientX, clientY) => {
       if (!sceneRef.current || !canvasRef.current) return null;

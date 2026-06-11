@@ -22,7 +22,7 @@ export interface Joint {
 type AABB = { min: Vec3; max: Vec3 };
 
 /** Rotate a vector by a quaternion [x,y,z,w]. */
-function rotate(v: Vec3, q: [number, number, number, number]): Vec3 {
+export function rotate(v: Vec3, q: [number, number, number, number]): Vec3 {
   const [x, y, z, w] = q;
   // t = 2 * cross(q.xyz, v)
   const tx = 2 * (y * v.z - z * v.y);

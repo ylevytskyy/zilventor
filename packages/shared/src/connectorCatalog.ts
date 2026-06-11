@@ -1,6 +1,13 @@
 import type { BoreOp, BoreRole, BoreConnectorKind, PanelFaceRole } from './bore';
 import type { Vec3, FaceName } from './types';
 import type { Pose } from './jointMath';
+
+/** Normalize a Vec3 to a unit vector. Returns undefined if length < 1e-12 (degenerate). */
+function normalizeVec3(v: Vec3): Vec3 | undefined {
+  const len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+  if (len < 1e-12) return undefined;
+  return { x: v.x / len, y: v.y / len, z: v.z / len };
+}
 // NOTE: Pose is declared once in jointMath.ts. connectorCatalog imports it rather than
 // re-exporting, to avoid a duplicate export conflict in the barrel when both modules
 // are star-exported.
@@ -83,6 +90,7 @@ interface BoreSpec {
 function makeBores(
   j: JointInput, p: BoringParams, kind: BoreConnectorKind,
   side: 'A' | 'B', specs: (cid: string) => BoreSpec[],
+  jointDir?: Vec3,
 ): { bores: BoreOp[]; ids: string[] } {
   const dists = spacingDistances(jointLength(j), p);
   const bores: BoreOp[] = [];
@@ -104,13 +112,17 @@ function makeBores(
     const boreU = bSwapUV ? cross : dist;
     const boreV = bSwapUV ? dist : cross;
     for (const s of specs(cid)) {
-      bores.push({
+      const boreBase: BoreOp = {
         id: `${cid}-${side}-${bores.length}`,
         face: FACE_OF(j, side),
         u: boreU, v: boreV,
         diameter: s.diameter, depth: s.depth, role: s.role,
         connectorId: cid, connectorKind: kind,
-      });
+      };
+      if (jointDir !== undefined) {
+        boreBase.jointDir = jointDir;
+      }
+      bores.push(boreBase);
     }
   });
   return { bores, ids };
@@ -120,9 +132,11 @@ export function generateConfirmat(j: JointInput, p: BoringParams): { boresA: Bor
   // boardThicknessA is the REAL board thickness of panel A (the face-drilled side panel).
   // Falls back to dims.thickness for callers that supply unswapped dims.
   const tA = j.boardThicknessA ?? j.panelA.dims.thickness;
-  const a = makeBores(j, p, 'confirmat', 'A', () => [{ diameter: 7, depth: 'throughAll', role: 'confirmat-face' }]);
+  const rawDir = { x: j.line.p1.x - j.line.p0.x, y: j.line.p1.y - j.line.p0.y, z: j.line.p1.z - j.line.p0.z };
+  const jointDir = normalizeVec3(rawDir);
+  const a = makeBores(j, p, 'confirmat', 'A', () => [{ diameter: 7, depth: 'throughAll', role: 'confirmat-face' }], jointDir);
   // Confirmat screw length 50mm; depth into end-panel = screw length - A's real board thickness.
-  const b = makeBores(j, p, 'confirmat', 'B', () => [{ diameter: 5, depth: 50 - tA, role: 'confirmat-edge' }]);
+  const b = makeBores(j, p, 'confirmat', 'B', () => [{ diameter: 5, depth: 50 - tA, role: 'confirmat-edge' }], jointDir);
   return { boresA: a.bores, boresB: b.bores };
 }
 
@@ -162,11 +176,13 @@ export function generateMinifix(j: JointInput, p: BoringParams): { boresA: BoreO
   const boltDepth = Math.min(MINIFIX_BOLT_NOMINAL, tB - 1);
   // Cam depth is already 12.5mm — fits standard 18mm board. Clamp for thin stock.
   const camDepth = Math.min(MINIFIX_CAM_DEPTH, tA - 1);
+  const rawDir = { x: j.line.p1.x - j.line.p0.x, y: j.line.p1.y - j.line.p0.y, z: j.line.p1.z - j.line.p0.z };
+  const jointDir = normalizeVec3(rawDir);
   const a = makeBores(j, p, 'minifix', 'A', () => [
     { diameter: 15, depth: camDepth, role: 'minifix-cam' },
     { diameter: 8, depth: crossDepth, role: 'minifix-cross' },
-  ]);
-  const b = makeBores(j, p, 'minifix', 'B', () => [{ diameter: 8, depth: boltDepth, role: 'minifix-bolt' }]);
+  ], jointDir);
+  const b = makeBores(j, p, 'minifix', 'B', () => [{ diameter: 8, depth: boltDepth, role: 'minifix-bolt' }], jointDir);
   return { boresA: a.bores, boresB: b.bores };
 }
 
@@ -174,7 +190,9 @@ export function generateDowel(j: JointInput, p: BoringParams): { boresA: BoreOp[
   const tB = j.boardThicknessB ?? j.panelB.dims.thickness;
   // End bore clamped to fit within the real board thickness (for thin stock < 14mm).
   const endDepth = Math.min(DOWEL_END_NOMINAL, tB - 1);
-  const a = makeBores(j, p, 'dowel', 'A', () => [{ diameter: 8, depth: DOWEL_FACE_DEPTH, role: 'dowel-face' }]);
-  const b = makeBores(j, p, 'dowel', 'B', () => [{ diameter: 8, depth: endDepth, role: 'dowel-edge' }]);
+  const rawDir = { x: j.line.p1.x - j.line.p0.x, y: j.line.p1.y - j.line.p0.y, z: j.line.p1.z - j.line.p0.z };
+  const jointDir = normalizeVec3(rawDir);
+  const a = makeBores(j, p, 'dowel', 'A', () => [{ diameter: 8, depth: DOWEL_FACE_DEPTH, role: 'dowel-face' }], jointDir);
+  const b = makeBores(j, p, 'dowel', 'B', () => [{ diameter: 8, depth: endDepth, role: 'dowel-edge' }], jointDir);
   return { boresA: a.bores, boresB: b.bores };
 }

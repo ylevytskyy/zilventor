@@ -432,3 +432,83 @@ describe('GenerateCarcassBoresCommand — nested sub-assembly (REAL cabinet stru
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// SLICE-3: replace-with-merge (no duplicate append on re-run; edited preserved;
+// suppressed not resurrected).
+// ---------------------------------------------------------------------------
+describe('GenerateCarcassBoresCommand — mergeBores (slice-3)', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('re-running Generate does NOT append duplicates (replace semantics)', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+    const countAfterFirst = (await boresOf(opfs, 'L.zipt')).length;
+
+    // Run again (simulates user clicking Generate twice — old bug doubled bores).
+    const cmd2 = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd2.apply();
+    const countAfterSecond = (await boresOf(opfs, 'L.zipt')).length;
+
+    expect(countAfterSecond).toBe(countAfterFirst);
+  });
+
+  it('edited bore survives a re-run of Generate', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    // First generate.
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+
+    // Mark the first bore as edited (simulate EditBoreCommand).
+    const project = await unpackProject(await opfs.read('L.zipt'));
+    const manifest = project.manifest as { document: { bores?: BoreOp[] } };
+    const boreToEdit = manifest.document.bores![0]!;
+    boreToEdit.u = 999;
+    boreToEdit.edited = true;
+    const { packProject: pack } = await import('@zilventor/kernel/src/storage/ProjectPacker');
+    await opfs.write('L.zipt', await pack({ manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
+
+    // Second generate — mergeBores should preserve the edited bore.
+    const cmd2 = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd2.apply();
+
+    const boresAfter = await boresOf(opfs, 'L.zipt');
+    const preserved = boresAfter.find((b) => b.id === boreToEdit.id);
+    expect(preserved).toBeDefined();
+    expect(preserved!.u).toBe(999);
+    expect(preserved!.edited).toBe(true);
+  });
+
+  it('suppressed connectorId is not resurrected by re-Generate', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    // First generate.
+    const cmd = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd.apply();
+
+    // Suppress the first connectorId on L.zipt (simulate DeleteConnectorCommand).
+    const project = await unpackProject(await opfs.read('L.zipt'));
+    const manifest = project.manifest as { document: { bores?: BoreOp[]; suppressedConnectorIds?: string[] } };
+    const connId = manifest.document.bores![0]!.connectorId;
+    manifest.document.suppressedConnectorIds = [connId];
+    const { packProject: pack } = await import('@zilventor/kernel/src/storage/ProjectPacker');
+    await opfs.write('L.zipt', await pack({ manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
+
+    // Re-generate — suppressed connector must not come back.
+    const cmd2 = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
+    await cmd2.apply();
+
+    const boresAfter = await boresOf(opfs, 'L.zipt');
+    const resurrected = boresAfter.filter((b) => b.connectorId === connId);
+    expect(resurrected).toHaveLength(0);
+  });
+});

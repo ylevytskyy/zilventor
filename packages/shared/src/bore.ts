@@ -18,7 +18,7 @@ export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' |
  */
 export interface BoreOp {
   id: string;
-  face: FaceName;
+  face: FaceName;          // { featureId:'panel', role: PanelFaceRole, instance:0 }
   u: number;
   v: number;
   diameter: number;
@@ -26,6 +26,14 @@ export interface BoreOp {
   role: BoreRole;
   connectorId: string;
   connectorKind: BoreConnectorKind;
+  /** Set when a bore's geometry was manually changed; tells regeneration to preserve it.
+   *  Absent-not-false contract (exactOptionalPropertyTypes). */
+  edited?: boolean;
+  /** World-space UNIT direction of the joint line, set by generateConfirmat/Minifix/Dowel
+   *  as normalize(line.p1 − line.p0) from JointInput.line.
+   *  Absent on hinge/shelf-pin bores and on legacy carcass bores.
+   *  Absent-not-zero contract (exactOptionalPropertyTypes). */
+  jointDir?: { x: number; y: number; z: number };
 }
 
 type Vec3 = { x: number; y: number; z: number };

@@ -9,6 +9,7 @@ import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
 import FileOpenOverlay from './shell/FileOpenOverlay';
 import PropertiesPanel from './shell/PropertiesPanel';
+import { BorePropertiesPanel } from './shell/BorePropertiesPanel';
 import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
@@ -547,6 +548,42 @@ export default function App() {
           boresCache,
           partInfoCacheRef.current,
         );
+      };
+
+      // Connector BOM E2E hook: return aggregated connector BOM rows for the active assembly.
+      // G.5 e2e calls window.__zilventorConnectorBomAggregate() to verify BOM count after delete.
+      w.__zilventorConnectorBomAggregate = async () => {
+        const { aggregateConnectorBomRecursive } = await import(
+          './assembly/walkers/aggregateConnectorBomRecursive'
+        );
+        const { CONNECTOR_BOM_CATALOG } = await import('@zilventor/shared');
+        const s = useAppStore.getState();
+        const asm = s.activeAssembly;
+        if (!asm) return [];
+        const subAsmCacheAdapter = {
+          get: (p: string) => {
+            const d = s.subAssemblyDocs[p];
+            return d ? { kind: 'ok' as const, doc: d, partPath: p } : undefined;
+          },
+        };
+        const boresCache = new Map<string, BoreOp[]>();
+        for (const [k, v] of partBoresCacheRef.current.entries()) {
+          if (v && v.length > 0) boresCache.set(k, v);
+        }
+        const rows = aggregateConnectorBomRecursive(
+          asm,
+          subAsmCacheAdapter,
+          boresCache,
+          partInfoCacheRef.current,
+        );
+        // Resolve i18n names via English fallback for the probe (avoids i18n bootstrap dep)
+        return rows.map((r) => ({
+          kind: r.kind,
+          nameKey: r.nameKey,
+          qty: r.qty,
+          notes: r.notes,
+          name: CONNECTOR_BOM_CATALOG[r.kind]?.nameEn ?? r.kind,
+        }));
       };
 
       w.__zilventorDetailViewMs = async (n = 100) => {
@@ -2056,10 +2093,20 @@ export default function App() {
       }
 
       if (ev.type === 'click') {
-        if (suppressNextClickRef.current) {
+        // Guard: suppress clicks that follow a completed drag OR that are
+        // explicitly suppressed (e.g. after pointer-up on a drag).
+        if (componentDragRef.current || suppressNextClickRef.current) {
           suppressNextClickRef.current = false;
           return;
         }
+        // Slice-3: bore markers take priority over component selection.
+        const boreHit = viewportRef.current.raycastBoreMarker(ev.clientX, ev.clientY);
+        if (boreHit) {
+          useAppStore.getState().setSelectedBore(boreHit.boreId, boreHit.partPath);
+          return;
+        }
+        // Miss on bore markers — clear any prior bore selection.
+        useAppStore.getState().setSelectedBore(null, null);
         const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
         // T29: store the full path; selectComponentPaths replaces selection.
         if (hit) {
@@ -2744,6 +2791,9 @@ export default function App() {
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
+  // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
+  // Holds the full {bores?, suppressedConnectorIds?} object so commands can mutate in place.
+  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[] }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -2810,6 +2860,7 @@ export default function App() {
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
+        loadedPartDocsRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3881,6 +3932,8 @@ export default function App() {
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
               // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
               partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
+              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[] });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
               // hand so bore markers render without requiring the Cut List tab to be visited.
               // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so
@@ -4022,6 +4075,7 @@ export default function App() {
       };
       markerSpecs.push({
         key: pathKey(leaf.componentPath),
+        partPath: leaf.partPath,
         panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
         worldPose,
         bores,
@@ -4678,6 +4732,7 @@ export default function App() {
       geometryCacheRef.current.delete(partPath);
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
+      loadedPartDocsRef.current.delete(partPath);
       if (stalePartId && kernelClient) {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
       }
@@ -4778,6 +4833,52 @@ export default function App() {
         </main>
         <aside role="complementary" aria-label={t('aria.properties')} className="bg-shell-panel border-l border-shell-border" id="region-properties">
           <PropertiesPanel />
+          <BorePropertiesPanel
+            getLiveBores={(partPath) => partBoresCacheRef.current.get(partPath)}
+            getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
+            getConnectorDocs={() => {
+              // Build one entry per partPath that has a live doc, panel spec, and world pose.
+              // NOTE: uses one representative componentPose per partPath (first match wins).
+              // Multi-instance limitation: if the same part appears at multiple positions,
+              // only the first pose is used for MoveConnectorCommand math — acceptable for v1.
+              if (!assembly) return [];
+              const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+              const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
+              const subAsmCacheAdapter = {
+                get: (p: string) => subAssemblyDocs[p]
+                  ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
+                  : undefined,
+              };
+              const leaves = visibleLeaves(assembly, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
+              const result: Array<{
+                partPath: string;
+                doc: { bores?: import('@zilventor/shared').BoreOp[]; suppressedConnectorIds?: string[] };
+                panelDims: { length: number; width: number; thickness: number };
+                worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+              }> = [];
+              const seenPartPaths = new Set<string>();
+              for (const leaf of leaves) {
+                if (seenPartPaths.has(leaf.partPath)) continue;
+                const doc = loadedPartDocsRef.current.get(leaf.partPath);
+                if (!doc) continue;
+                const spec = panelSpecCacheRef.current.get(leaf.partPath);
+                if (!spec) continue;
+                const worldPose = componentPoses.get(pathKey(leaf.componentPath)) ?? {
+                  translation: { x: 0, y: 0, z: 0 },
+                  quaternion: [0, 0, 0, 1] as [number, number, number, number],
+                };
+                result.push({
+                  partPath: leaf.partPath,
+                  doc,
+                  panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
+                  worldPose,
+                });
+                seenPartPaths.add(leaf.partPath);
+              }
+              return result;
+            }}
+            opfs={opfsRef.current}
+          />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
           <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} />
