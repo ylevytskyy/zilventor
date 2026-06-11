@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 22 as const;
+export const CURRENT_FORMAT_VERSION = 23 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -325,6 +325,13 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 22 };
   },
+
+  // v22 → v23: additive — BoreOp.edited?, BoreOp.jointDir?, PartDocument.suppressedConnectorIds?
+  // are all optional; absent === unset at runtime. No structural transformation needed.
+  22: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 23 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -333,7 +340,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
      m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18 ||
      m.formatVersion === 19 || m.formatVersion === 20 || m.formatVersion === 21 ||
-     m.formatVersion === 22) &&
+     m.formatVersion === 22 || m.formatVersion === 23) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;

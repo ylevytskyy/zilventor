@@ -3,11 +3,11 @@ import { CURRENT_FORMAT_VERSION, migrateManifest, type AnyManifest } from '../fi
 
 describe('fileFormat', () => {
   it('exports a locked current version', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
   });
 
   it('returns the manifest unchanged when already current', () => {
-    const m = { formatVersion: 22, kind: 'part' as const, document: { properties: {}, materials: [] } };
+    const m = { formatVersion: 23, kind: 'part' as const, document: { properties: {}, materials: [] } };
     expect(migrateManifest(m)).toEqual(m);
   });
 
@@ -21,7 +21,7 @@ describe('fileFormat', () => {
       },
     };
     const out = migrateManifest(v10);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     expect((out.document as { cutListItemNumbers: unknown }).cutListItemNumbers).toEqual({});
   });
 
@@ -37,7 +37,7 @@ describe('fileFormat', () => {
 
 describe('fileFormat v1 → v2', () => {
   it('exports version 7 as current', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
   });
 
   it('migrates a v1 manifest (rectangle without id) to v2 with synthesized id', () => {
@@ -55,7 +55,7 @@ describe('fileFormat v1 → v2', () => {
       }
     } as unknown as AnyManifest;
     const m = migrateManifest(v1);
-    expect(m.formatVersion).toBe(22);
+    expect(m.formatVersion).toBe(23);
     const doc = m.document as { featureTree: Array<{ primitives: Array<{ id: string }> }> };
     const sketch = doc.featureTree.find((f) => (f as { id?: string }).id === 's1') as { primitives: Array<{ id: string }> };
     expect(sketch.primitives[0]!.id).toBe('s1-p0');
@@ -128,7 +128,7 @@ describe('fileFormat migrations', () => {
     };
     const out = migrateManifest(input);
     expect(out.formatVersion).toBe(CURRENT_FORMAT_VERSION);
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
   });
 
   it('v2 → v3 seeds constraints on sketches that have none', () => {
@@ -206,8 +206,8 @@ describe('fileFormat v3 → v4 migration', () => {
       }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(out.formatVersion).toBe(23);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
     const params = (out.document as { parameters: Record<string, unknown> }).parameters;
     expect(params.d0).toEqual({ name: 'd0', expression: '50', value: 50, unit: 'mm' });
   });
@@ -218,7 +218,7 @@ describe('fileFormat v3 → v4 migration', () => {
       document: { featureTree: [] }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     const doc = out.document as { parameters?: Record<string, unknown> };
     expect(doc.parameters).toEqual({});
   });
@@ -237,8 +237,8 @@ describe('fileFormat v4 → v5 migration', () => {
       }
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(out.formatVersion).toBe(23);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
     const tree = (out.document as { featureTree: Array<{ kind: string; operation?: string }> }).featureTree;
     const ex = tree.find((f) => f.kind === 'extrude')!;
     expect(ex.operation).toBe('new');
@@ -265,7 +265,7 @@ describe('fileFormat v4 → v5 migration', () => {
   it('empty tree migrates without change', () => {
     const input: AnyManifest = { formatVersion: 4, document: { featureTree: [] } };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
   });
 });
 
@@ -282,7 +282,7 @@ describe('fileFormat v5 → v6 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     const tree = (out.document as { featureTree: Array<{ kind: string; id?: string }> }).featureTree;
     const userFeatures = tree.filter((f) => !(typeof f.id === 'string' && f.id.startsWith('origin.')));
     expect(userFeatures).toHaveLength(2);
@@ -301,7 +301,7 @@ describe('fileFormat v5 → v6 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
   });
 });
 
@@ -317,8 +317,8 @@ describe('fileFormat v6 → v7 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
-    expect(CURRENT_FORMAT_VERSION).toBe(22);
+    expect(out.formatVersion).toBe(23);
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
   });
 
   it('v6 with mixed features survives migration', () => {
@@ -332,7 +332,7 @@ describe('fileFormat v6 → v7 migration', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
   });
 });
 
@@ -346,7 +346,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     expect((out as any).kind).toBe('part');
   });
 
@@ -359,7 +359,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     expect((out as any).kind).toBe('assembly');
   });
 
@@ -373,7 +373,7 @@ describe('ProjectFile kind discriminator', () => {
       },
     };
     const out = migrateManifest(input);
-    expect(out.formatVersion).toBe(22);
+    expect(out.formatVersion).toBe(23);
     expect((out as any).kind).toBe('part');
   });
 });
@@ -435,9 +435,9 @@ describe('migrateManifest origin features', () => {
     expect((out.document as Record<string, unknown>).featureTree).toBeUndefined();
   });
 
-  it('part manifest without document is left structurally unchanged', () => {
+  it('part manifest without document migrates to current version', () => {
     const m = { formatVersion: 22, kind: 'part' as const };
-    expect(migrateManifest(m)).toEqual(m);
+    expect(migrateManifest(m).formatVersion).toBe(23);
   });
 });
 
@@ -620,6 +620,82 @@ describe('backfillDrawingF5 — immutability', () => {
     input.document.sheets[0].dimensionGroups = [{ id: 'grp1', kind: 'baseline', viewId: 'v1', dimIds: [], baseOffsetMm: 5, spacingMm: 5 }];
     const output = migrateManifest(input) as any;
     expect(output.document.sheets[0].dimensionGroups).toHaveLength(1);
+  });
+});
+
+describe('fileFormat v22 → v23', () => {
+  it('CURRENT_FORMAT_VERSION is now 23', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe(23);
+  });
+
+  it('a v22 part manifest migrates to v23 without adding edited/jointDir/suppressedConnectorIds', () => {
+    const v22: AnyManifest = {
+      formatVersion: 22,
+      kind: 'part',
+      document: {
+        id: 'p1', name: 'Panel', units: 'mm', parameters: {},
+        featureTree: [], properties: {}, materials: [], hardware: [],
+        bores: [
+          {
+            id: 'c0-face', face: { featureId: 'panel', role: 'Left', instance: 0 },
+            u: 32, v: 100, diameter: 7, depth: 12,
+            role: 'confirmat-face', connectorId: 'confirmat-0', connectorKind: 'confirmat',
+          },
+        ],
+      },
+    };
+    const out = migrateManifest(v22);
+    expect(out.formatVersion).toBe(23);
+    const doc = out.document as {
+      bores?: Array<Record<string, unknown>>;
+      suppressedConnectorIds?: unknown;
+    };
+    // suppressedConnectorIds must be absent (not reified as [] or null)
+    expect('suppressedConnectorIds' in doc).toBe(false);
+    // bores must be unchanged
+    expect(doc.bores).toHaveLength(1);
+    const bore = doc.bores![0]!;
+    // edited must be absent (not false)
+    expect('edited' in bore).toBe(false);
+    // jointDir must be absent (not undefined / null / {x:0,y:0,z:0})
+    expect('jointDir' in bore).toBe(false);
+  });
+
+  it('a v22 assembly manifest migrates to v23 unchanged (no suppressedConnectorIds injected)', () => {
+    const v22: AnyManifest = {
+      formatVersion: 22,
+      kind: 'assembly',
+      document: {
+        id: 'a1', name: 'Cab', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+        properties: {}, materials: [], hardware: [],
+      },
+    };
+    const out = migrateManifest(v22);
+    expect(out.formatVersion).toBe(23);
+    const doc = out.document as Record<string, unknown>;
+    expect('suppressedConnectorIds' in doc).toBe(false);
+  });
+
+  it('a v23 manifest passes through migrateManifest unchanged', () => {
+    const v23: AnyManifest = {
+      formatVersion: 23,
+      kind: 'part',
+      document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [] },
+    };
+    const out = migrateManifest(v23);
+    expect(out.formatVersion).toBe(23);
+  });
+
+  it('a v23 manifest does NOT throw in normalizeKind (formatVersion recognised)', () => {
+    const v23: AnyManifest = {
+      formatVersion: 23,
+      // kind deliberately absent to trigger normalizeKind
+      document: { properties: {}, materials: [] },
+    };
+    expect(() => migrateManifest(v23)).not.toThrow();
+    expect(migrateManifest(v23).formatVersion).toBe(23);
   });
 });
 
