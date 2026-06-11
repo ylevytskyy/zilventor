@@ -5,11 +5,18 @@
       "dowel": "Dowel Ø8",
       "hinge": "Hinge Ø35 cup",
       "minifix": "Minifix cam fitting",
-      "shelfPin": "Shelf pin Ø5"
+      "shelfPin": "Shelf pin Ø5",
+      "drawerSlide": "Drawer slide Ø5"
+    },
+    "boringRole": {
+      "drawerSlide-cabinet": "Drawer slide (cabinet side)",
+      "drawerSlide-box": "Drawer slide (box side)"
     }
   },
   "aria": {
     "add_door_dialog": "Add Door dialog",
+    "add_drawers_dialog": "Add Drawers dialog",
+    "add_drawers": "Add Drawers",
     "add_view": "Add View",
     "assembly_tab": "Assembly tab",
     "bom_tab": "BOM tab",
@@ -168,6 +175,19 @@
       "decimal_places": "Decimal places",
       "title_diametric": "Diametric Dimension",
       "title_radial": "Radial Dimension"
+    },
+    "drawerBank": {
+      "title": "Add Drawer Bank",
+      "count": "Count",
+      "overlay": "Overlay",
+      "overlayFull": "Full",
+      "overlayHalf": "Half",
+      "overlayInset": "Inset",
+      "thickness": "Thickness (mm)",
+      "error": {
+        "invalidCount": "Count must be between 2 and 10",
+        "tooSmall": "Cabinet opening is too small to fit drawers"
+      }
     },
     "addDoor": {
       "title": "Add Door",
@@ -762,6 +782,7 @@
     },
     "furniture": {
       "addDoor": "Add Door",
+      "addDrawers": "Add Drawers",
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",

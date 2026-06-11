@@ -5,11 +5,18 @@
       "dowel": "Шкант Ø8",
       "hinge": "Завіса Ø35",
       "minifix": "Стяжка Minifix",
-      "shelfPin": "Полицетримач Ø5"
+      "shelfPin": "Полицетримач Ø5",
+      "drawerSlide": "Напрямна ящика Ø5"
+    },
+    "boringRole": {
+      "drawerSlide-cabinet": "Напрямна шухляди (сторона корпусу)",
+      "drawerSlide-box": "Напрямна шухляди (сторона ящика)"
     }
   },
   "aria": {
     "add_door_dialog": "Діалог додавання дверей",
+    "add_drawers_dialog": "Діалог додавання шухляд",
+    "add_drawers": "Додати шухляди",
     "add_view": "Додати вид",
     "assembly_tab": "Вкладка збірки",
     "bom_tab": "Вкладка ВМ",
@@ -168,6 +175,19 @@
       "decimal_places": "Знаки після коми",
       "title_diametric": "Діаметральний розмір",
       "title_radial": "Радіальний розмір"
+    },
+    "drawerBank": {
+      "title": "Додати секцію шухляд",
+      "count": "Кількість",
+      "overlay": "Накладка",
+      "overlayFull": "Повна",
+      "overlayHalf": "Напівнакладна",
+      "overlayInset": "Вкладна",
+      "thickness": "Товщина (мм)",
+      "error": {
+        "invalidCount": "Кількість має бути від 2 до 10",
+        "tooSmall": "Отвір корпусу надто малий для шухляд"
+      }
     },
     "addDoor": {
       "title": "Додати двері",
@@ -762,6 +782,7 @@
     },
     "furniture": {
       "addDoor": "Двері",
+      "addDrawers": "Шухляди",
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
