@@ -794,3 +794,90 @@ git commit -m "test(slice5): OCCT centroid-move bake proves bore u/v reaches geo
 - **Spec coverage:** §9.A→Tasks A/C + G-notes; §9.B→Tasks E/F/G; §9.C→Tasks H/I + tsc gate; §9.D→Task D + G. §3 units A/B/C/F/G all have tasks. ✓
 - **Type consistency:** `signedDragDeltaAlongAxis`, `boreGizmoAxis`, `clampDeltaToFaceExtents`, `setBoreGizmo`, `setBoreDragActive`, `boreGizmoVisible` used consistently across tasks. `MemberOpts`/`ConnectorMember` distinction flagged in G-notes (map if needed).
 - **Known binding risks (for plan-verify to confirm against real APIs):** (1) `face2DFrame` returning extents vs adding `faceExtents`; (2) `collectConnectorMembers` output shape vs `MoveConnectorCommand` opts; (3) `raycastBoreMarker` exposure on `ViewportRef`; (4) marker live-move via `matrix` (autoUpdate=false); (5) `worldToScreen3d` existence; (6) Vec3/Quat/`rotate`/`dot`/`sub` export locations in shared.
+
+---
+
+## Plan Corrections v2 — AUTHORITATIVE (post 2-lens plan-verify)
+
+The 2-lens plan-verify (math-by-hand conf 88 · scaffolding-vs-real-APIs conf 82) ran against the real code. **These corrections override the task bodies above where they conflict.** Apply ALL of them. Each is code-grounded (file:line).
+
+### PC1 — Shared imports (BLOCKER). `connectorCoupling` does NOT re-export these.
+- `Vec3`: `import type { Vec3 } from './types'` (`types.ts:201`).
+- `rotate`: `import { rotate } from './jointMath'` (`jointMath.ts:25`). **Quaternions are a 4-tuple `[number,number,number,number]`, NOT a `Quat` object — there is no `Quat` type in shared.**
+- `dot` is **private** in `connectorCoupling.ts:14`; `sub` does **not exist**. Define them locally in each new file:
+```ts
+const dot = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
+const sub = (a: Vec3, b: Vec3): Vec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+```
+
+### PC2 — `boreGizmoAxis` signature (BLOCKER). Quat param is a tuple.
+```ts
+export function boreGizmoAxis(bore: BoreOp, panelWorldQuat: [number, number, number, number]): Vec3 | null
+```
+Test identity quaternion = `[0, 0, 0, 1]` (NOT `{x,y,z,w}`). `rotate({x:1,y:0,z:0}, [0,0,0,1])` → `{x:1,y:0,z:0}`.
+
+### PC3 — `closestAxisParam` formula is CORRECT — do NOT change it.
+`(b·eD − dA)/denom` returns the **axis-line** parameter (closest axis point), which is geometrically correct (pointer at world x=5 → axis param +5). The math verifier's "negated" note was a t/s line-label swap; all Task A expected values (5, 0, −5, 4) are right. Leave the implementation as written in Task A Step 3.
+
+### PC4 — Near-parallel guard returns `null`, not `0` (math F4). Prevents marker snap-back + `lastDelta` corruption.
+`signedDragDeltaAlongAxis` returns `number | null`; **return `null`** (not 0) when `|axis·rayNow.dir| > GIZMO_AXIS_VIEW_PARALLEL_THRESHOLD`. Update Task A:
+- Signature: `): number | null`.
+- Guard line: `if (Math.abs(dot(axis, rayNow.dir)) > GIZMO_AXIS_VIEW_PARALLEL_THRESHOLD) return null;`
+- Test "near-parallel" case: `expect(d).toBeNull();` (replace `toBe(0)`).
+- Task G move branch: `const raw = signedDragDeltaAlongAxis(...); if (raw === null) return;` (skip the whole frame — preserves marker position AND `lastDelta`; do NOT clamp/move/commit on a null frame).
+
+### PC5 — `ConnectorMember.worldPose` shape (BLOCKER). It is `{ translation, quaternion }`, NOT `{ position }`.
+`ConnectorMember` (`connectorCoupling.ts:5-12`): `{ bore, panelDims, worldPose: { translation: Vec3; quaternion: [number,number,number,number] } }`. Fix the Task C and Task D test fixtures: use `worldPose: { translation: {x:0,y:0,z:0}, quaternion: [0,0,0,1] }` (NOT `position`/object-quat). `panelDims` is `{ length, width, thickness }` (matches).
+
+### PC6 — `collectConnectorMembers` location + return type (FIX). No mapping needed.
+It lives at `packages/app/src/shell/collectConnectorMembers.ts` (NOT `commands/`) and returns `ConnectorMemberFull[]`, which is **structurally identical to `MoveConnectorCommand`'s `MemberOpts`** (`MoveConnectorCommand.ts:9-15`: `{ bore, partPath, doc, panelDims, worldPose }`). Pass its output straight into `MoveConnectorCommand({ members, ... })` — drop the Task G "map if needed" note.
+
+### PC7 — Add `faceExtents` to `bore.ts` (FIX). `face2DFrame` (`bore.ts:58`) returns only `{origin,uDir,vDir}`.
+Add a sibling exporting the face's u/v lengths from `panelDims` by role (same role→dim mapping `face2DFrame` uses):
+```ts
+export function faceExtents(panelDims: PanelDims, role: PanelFaceRole): { uLen: number; vLen: number }
+```
+Top-face `uDir = {x:1,y:0,z:0}` confirmed (`bore.ts:66`) — Task C test `worldDir={x:1,y:0,z:0}` is valid. `PanelFaceRole` = `'Top'|'Bottom'|'Front'|'Back'|'Left'|'Right'`.
+
+### PC8 — Marker live-move (BLOCKER). `position.set(...)` is IGNORED (`matrixAutoUpdate=false`, `SceneManager.ts:701`).
+In Task G Step 4, replace `d.markerMesh.position.set(...)` with:
+```ts
+d.markerMesh.matrix.setPosition(d.pivot.x + off.x, d.pivot.y + off.y, d.pivot.z + off.z);
+```
+
+### PC9 — No `clientToNdc` on SceneManager (FIX). Build the pointer world-ray in the Viewport layer.
+`sm.clientToNdc` does not exist. Add a method to `ViewportRef`/`Viewport.tsx` (it owns the canvas + camera) that returns the world ray:
+```ts
+// Viewport.tsx — mirror raycastBoreMarker's NDC math (~:302) then setFromCamera
+pointerWorldRay(clientX: number, clientY: number): { origin: Vec3; dir: Vec3 } {
+  const rect = canvasRef.current!.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  const rc = new THREE.Raycaster(); rc.setFromCamera(ndc, sm.getCamera());
+  return { origin: { ...rc.ray.origin }, dir: { ...rc.ray.direction } };
+}
+```
+Task G `pointerRayFrom` becomes `viewportRef.current!.pointerWorldRay(ev.clientX, ev.clientY)`.
+
+### PC10 — `getConnectorDocs` is a JSX prop closure, NOT callable from `handleViewportPointer` (FIX).
+Extract the docs-building logic into an App-scope `useCallback` `buildConnectorDocs()` and use it BOTH for the `BorePropertiesPanel` `getConnectorDocs` prop AND the drag handler. `opfs` in the handler = `opfsRef.current` (`App.tsx:1089`).
+
+### PC11 — `OrbitControls` type import in App.tsx (FIX).
+Add `import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'` (match the exact specifier `SceneManager.ts` uses).
+
+### PC12 — `setBoreDragActive` flush calls `rebuildBoreMarkers()` with NO args (FIX).
+`rebuildBoreMarkers()` reads `this.boreOverlaySpecs` (`SceneManager.ts:633`) — it takes no arguments. Remove the `lastMarkerSpecs` field/param from Task F; the flush is just `this.rebuildBoreMarkers();`.
+
+### PC13 — Add SceneManager accessors for the handler/e2e (FIX). These do NOT exist yet.
+- `boreWorldPos(boreId, partPath): Vec3` — find the marker in `boreMarkerList()` (`:649`) by `userData.boreId`+`partPath`, `mesh.updateMatrixWorld(true)`, read `matrixWorld` translation (`elements[12..14]`). (§9.A: world pos valid after updateMatrixWorld.)
+- `findBoreMarkerMesh(boreId, partPath): THREE.Mesh | null` — same lookup, returns the mesh (for live-move).
+- `firstDraggableBore(): { boreId, partPath } | null` — e2e helper: first marker whose bore has a non-null `boreGizmoAxis`.
+
+### PC14 — e2e file location + probes (FIX).
+- **File path:** `tests/e2e/drag-gizmo.spec.ts` (repo-root Playwright dir), NOT `packages/app/e2e/`.
+- **Exist:** `__zilventorStore` (`App.tsx:410`), `__zilventorWorldToScreen3d` (`:416`), `__zilventorGetOpfs` (`:423`).
+- **Add (dev-only `__zilventor*` hooks, gated like the others):** `__zilventorSeedCabinetWithBores` (reuse the slice-4 cabinet+bores seed), `__zilventorReadBoreUV(boreId, partPath)` (read live/OPFS u,v), and a bus probe — read the undo-stack top command's `name` (or add `bus.lastExecutedName()`).
+
+### PC15 — Command name string (FIX). `MoveConnectorCommand.name = 'MoveConnector'` (`MoveConnectorCommand.ts:42`).
+The e2e assertion must be `expect(after.lastCmd).toBe('MoveConnector')` (NOT `'MoveConnectorCommand'`).
+
+### PC16 — `MoveConnectorCommand` already conforms to the bus (CONFIRMED, from spec §9.D). No command changes; Task D is purely the panel re-route + the bus round-trip guard test.
