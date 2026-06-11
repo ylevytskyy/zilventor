@@ -512,3 +512,79 @@ describe('GenerateCarcassBoresCommand — mergeBores (slice-3)', () => {
     expect(resurrected).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SLICE-6 BLOCKER: hardware parts (role='drawerHandle', partPath='hardware/*.zipt')
+// must NOT cause GenerateCarcassBoresCommand to throw NO_PANEL_FEATURE.
+//
+// Regression: the pre-fix guard `if (!c.role) continue` passes drawerHandle components
+// (they have a role) into panelDimsFromDoc, which throws because hardware .zipt files
+// have no panel feature — only a hardware feature.
+// ---------------------------------------------------------------------------
+describe('GenerateCarcassBoresCommand — hardware parts (slice-6 blocker)', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  /**
+   * Build a minimal hardware .zipt (no panel feature — only a hardware feature stub).
+   * This is what AddDrawerHandlesCommand/buildPullPart writes into hardware/<skuId>.zipt.
+   */
+  async function makeHardwareZipt(id: string): Promise<Uint8Array> {
+    const doc: Record<string, unknown> = {
+      id,
+      name: id,
+      units: 'mm',
+      parameters: {},
+      featureTree: [{ kind: 'hardware', id: 'hw', skuId: id, quantity: 1 }],
+      bores: [],
+      properties: {},
+      materials: [],
+      hardware: [],
+    };
+    return packProject({
+      manifest: { formatVersion: CURRENT_FORMAT_VERSION, kind: 'part' as const, document: doc },
+      blobs: {},
+    });
+  }
+
+  it('BLOCKER: apply() must NOT throw when cabinet has a drawerHandle hardware component', async () => {
+    const opfs = new MemOpfs();
+    // Write the four panel .zipt files.
+    await writeCabinetPanels(opfs);
+    // Write a hardware .zipt (no panel feature).
+    const hwPath = 'hardware/bar-pull-128.zipt';
+    await opfs.write(hwPath, await makeHardwareZipt('bar-pull-128'));
+
+    // Cabinet assembly includes the four panels + one drawerHandle component.
+    const doc: AssemblyDocument = {
+      id: 'A1', name: 'Cab', units: 'mm', parameters: {}, properties: {},
+      components: [
+        instance('C1', 'L.zipt', 'leftSide',  { x: 0,      y: 0, z: 0 }),
+        instance('C2', 'R.zipt', 'rightSide', { x: W - Tc, y: 0, z: 0 }),
+        instance('C3', 'B.zipt', 'bottom',    { x: Tc,     y: Tb, z: 0 }),
+        instance('C4', 'T.zipt', 'top',       { x: Tc,     y: Tb, z: H - Tc }),
+        // drawerHandle component pointing to a hardware .zipt (no panel feature):
+        {
+          id: 'HW1',
+          partPath: hwPath,
+          position: { x: 100, y: 0, z: 200 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+          role: 'drawerHandle' as const,
+        },
+      ],
+      constraints: [], groundedComponentPaths: [['C1']], colors: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
+
+    // Must NOT throw NO_PANEL_FEATURE.
+    await expect(new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply()).resolves.not.toThrow();
+
+    // Panel bores must still be generated correctly (hardware component is skipped, not ignored entirely).
+    expect((await boresOf(opfs, 'L.zipt')).length).toBeGreaterThan(0);
+    expect((await boresOf(opfs, 'B.zipt')).length).toBeGreaterThan(0);
+    // Hardware part must receive zero bores.
+    expect((await boresOf(opfs, hwPath)).length).toBe(0);
+  });
+});
