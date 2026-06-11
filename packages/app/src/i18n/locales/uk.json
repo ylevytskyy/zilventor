@@ -147,9 +147,15 @@
     "restart": "Перезапустити",
     "save": "Зберегти",
     "source": "Джерело",
+    "bore_properties": "Властивості отвору",
     "suppress": "Заблокувати",
     "type": "Тип",
     "unsuppress": "Розблокувати"
+  },
+  "bore": {
+    "along_joint": "Вздовж стику",
+    "height": "Висота",
+    "regenerate_to_enable_move": "Регенеруйте присадку для переміщення"
   },
   "dialog": {
     "addBreak": {

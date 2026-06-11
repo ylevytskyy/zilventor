@@ -147,9 +147,15 @@
     "restart": "Restart",
     "save": "Save",
     "source": "Source",
+    "bore_properties": "Bore properties",
     "suppress": "Suppress",
     "type": "Type",
     "unsuppress": "Unsuppress"
+  },
+  "bore": {
+    "along_joint": "Along joint",
+    "height": "Height",
+    "regenerate_to_enable_move": "Regenerate bores to enable move"
   },
   "dialog": {
     "addBreak": {
