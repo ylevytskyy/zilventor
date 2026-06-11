@@ -50,6 +50,7 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
   const { t } = useTranslation();
   const selectedBoreId = useAppStore((s) => s.selectedBoreId);
   const selectedBorePartPath = useAppStore((s) => s.selectedBorePartPath);
+  const bus = useAppStore((s) => s.bus);
 
   // Resolve the live bore reference on every render — NOT cached.
   const bore = selectedBoreId && selectedBorePartPath
@@ -131,12 +132,12 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
     const docs = getConnectorDocs();
     const members = collectConnectorMembers(bore!.connectorId, docs);
     if (members.length === 0) { setJointDelta('0'); return; }
-    void new MoveConnectorCommand({
+    void bus.execute(new MoveConnectorCommand({
       members,
       worldDir: bore!.jointDir,
       delta,
       opfs: opfs ?? null,
-    }).apply();
+    }));
     setJointDelta('0');
   }
 
@@ -149,12 +150,12 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
     if (!cupMember) { setHingeDelta('0'); return; }
     // World u-direction of the cup panel = rotate local {x:1,y:0,z:0} by the cup panel's quaternion
     const worldDir = rotate({ x: 1, y: 0, z: 0 }, cupMember.worldPose.quaternion);
-    void new MoveConnectorCommand({
+    void bus.execute(new MoveConnectorCommand({
       members,
       worldDir,
       delta,
       opfs: opfs ?? null,
-    }).apply();
+    }));
     setHingeDelta('0');
   }
 

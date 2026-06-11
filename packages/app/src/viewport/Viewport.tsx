@@ -61,6 +61,11 @@ export type ViewportRef = {
   raycastBody(clientX: number, clientY: number): { triangleIndex: number } | null;
   raycastComponent(clientX: number, clientY: number): ComponentPath | null;
   raycastBoreMarker(clientX: number, clientY: number): { boreId: string; partPath: string } | null;
+  /**
+   * Build a world-space pointer ray from client coordinates.
+   * Mirrors the NDC math used by raycastBoreMarker and setFromCamera (PC9).
+   */
+  pointerWorldRay(clientX: number, clientY: number): { origin: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } };
   raycastWorkFeature(clientX: number, clientY: number): string | null;
   setWorkFeatures(specs: WorkFeatureSpec[]): void;
   /**
@@ -129,7 +134,9 @@ export type ViewportRef = {
 };
 
 type Props = {
-  onPointer?: (event: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => void;
+  onPointer?: (event:
+    | { type: 'click' | 'move' | 'pointerdown' | 'pointerup' | 'pointercancel'; clientX: number; clientY: number; pointerId: number; button: number }
+  ) => void;
 };
 
 const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
@@ -309,6 +316,23 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       );
       return sceneRef.current.raycastBoreMarker(sceneRef.current.getCamera(), ndc);
     },
+    pointerWorldRay: (clientX, clientY) => {
+      if (!sceneRef.current || !canvasRef.current) {
+        return { origin: { x: 0, y: 0, z: 0 }, dir: { x: 0, y: 0, z: -1 } };
+      }
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1),
+      );
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(ndc, sceneRef.current.getCamera());
+      return {
+        origin: { x: rc.ray.origin.x, y: rc.ray.origin.y, z: rc.ray.origin.z },
+        dir: { x: rc.ray.direction.x, y: rc.ray.direction.y, z: rc.ray.direction.z },
+      };
+    },
     raycastWorkFeature: (clientX, clientY) => {
       if (!sceneRef.current || !canvasRef.current) return null;
       const canvas = canvasRef.current;
@@ -470,10 +494,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       <canvas
         ref={canvasRef}
         className="block w-full h-full"
-        onPointerDown={(e) => props.onPointer?.({ type: 'pointerdown', clientX: e.clientX, clientY: e.clientY })}
-        onPointerMove={(e) => props.onPointer?.({ type: 'move', clientX: e.clientX, clientY: e.clientY })}
-        onPointerUp={(e) => props.onPointer?.({ type: 'pointerup', clientX: e.clientX, clientY: e.clientY })}
-        onClick={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY })}
+        onPointerDown={(e) => props.onPointer?.({ type: 'pointerdown', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
+        onPointerMove={(e) => props.onPointer?.({ type: 'move', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
+        onPointerUp={(e) => props.onPointer?.({ type: 'pointerup', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
+        onPointerCancel={(e) => props.onPointer?.({ type: 'pointercancel', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
+        onClick={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY, pointerId: 0, button: e.button })}
       />
       <ViewCube />
     </div>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeCameraFrame } from './frameView';
-import { pathKey, findTextureDef, face2DFrame, type BoreOp, type BoreConnectorKind, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { pathKey, findTextureDef, face2DFrame, boreGizmoAxis, type BoreOp, type BoreConnectorKind, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
 import type { CustomTextureRegistry } from '../textures/customTextureRegistry';
@@ -58,6 +58,46 @@ export type MarkerOverlaySpec = {
 };
 
 
+// ---------------------------------------------------------------------------
+// Slice-5 drag-gizmo helpers (module-private)
+// ---------------------------------------------------------------------------
+
+/** Build a double-arrow axis handle: thin cylinder shaft + two cone caps.
+ *  Color 0xffaa00, depthTest:false so it renders on top. */
+function buildAxisHandle(pos: Vec3, axis: Vec3): THREE.Object3D {
+  const len = 24;
+  const r = 1.2;
+  const group = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00, depthTest: false });
+  const up = new THREE.Vector3(0, 1, 0);
+  const dir = new THREE.Vector3(axis.x, axis.y, axis.z).normalize();
+  // Shaft
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12), mat);
+  shaft.quaternion.setFromUnitVectors(up, dir);
+  group.add(shaft);
+  // Two cone caps
+  for (const s of [1, -1] as const) {
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 2.2, len * 0.25, 12), mat);
+    cap.quaternion.setFromUnitVectors(up, dir.clone().multiplyScalar(s));
+    cap.position.copy(dir.clone().multiplyScalar(s * len * 0.5));
+    group.add(cap);
+  }
+  group.position.set(pos.x, pos.y, pos.z);
+  group.renderOrder = 999;
+  return group;
+}
+
+/** Traverse and dispose geometry + material on every Mesh in an Object3D tree. */
+function disposeObject(o: THREE.Object3D): void {
+  o.traverse((child) => {
+    const m = child as THREE.Mesh;
+    m.geometry?.dispose?.();
+    (m.material as THREE.Material | undefined)?.dispose?.();
+  });
+}
+
+// ---------------------------------------------------------------------------
+
 export class SceneManager {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
@@ -108,6 +148,9 @@ export class SceneManager {
   private boreMarkers: THREE.Mesh[] = [];
   private boreOverlaySpecs: MarkerOverlaySpec[] = [];
   private showBores = true;
+  private boreGizmo: THREE.Object3D | null = null;
+  private boreDragActive = false;
+  private pendingMarkerRebuild = false;
   private storeUnsubscribers: Array<() => void> = [];
   private customTextureRegistry: CustomTextureRegistry | null = null;
   private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
@@ -655,6 +698,109 @@ export class SceneManager {
     return this.boreOverlaySpecs;
   }
 
+  /** Slice-5: set or clear the drag-active flag.  On deactivation, flushes any
+   *  deferred rebuildBoreMarkers call (deferred so mid-drag cache-invalidations
+   *  don't dispose the dragged marker mesh). */
+  setBoreDragActive(active: boolean): void {
+    this.boreDragActive = active;
+    if (!active && this.pendingMarkerRebuild) {
+      this.pendingMarkerRebuild = false;
+      this.rebuildBoreMarkers();
+    }
+  }
+
+  /** Slice-5: show (or clear with null) the double-arrow drag handle at a world
+   *  position along a world axis. Clears and disposes any previous gizmo first. */
+  setBoreGizmo(spec: { worldPos: Vec3; worldAxis: Vec3 } | null): void {
+    if (this.boreGizmo) {
+      this.scene.remove(this.boreGizmo);
+      disposeObject(this.boreGizmo);
+      this.boreGizmo = null;
+    }
+    if (!spec) return;
+    this.boreGizmo = buildAxisHandle(spec.worldPos, spec.worldAxis);
+    this.scene.add(this.boreGizmo);
+  }
+
+  /** Slice-5: probe for e2e (headless renders black, so pixel checks don't work). */
+  boreGizmoVisible(): boolean {
+    return this.boreGizmo !== null;
+  }
+
+  /** Slice-5: find a bore marker mesh by boreId + partPath (for live-move during drag). */
+  findBoreMarkerMesh(boreId: string, partPath: string): THREE.Mesh | null {
+    for (const m of this.boreMarkers) {
+      if (m.userData.boreId === boreId && m.userData.partPath === partPath) {
+        return m;
+      }
+    }
+    return null;
+  }
+
+  /** Slice-5: return the world translation of a bore marker mesh, or null if not found.
+   *  Calls updateMatrixWorld(true) so the result is valid even when matrixAutoUpdate=false. */
+  boreWorldPos(boreId: string, partPath: string): Vec3 | null {
+    const mesh = this.findBoreMarkerMesh(boreId, partPath);
+    if (!mesh) return null;
+    mesh.updateMatrixWorld(true);
+    const e = mesh.matrixWorld.elements;
+    return { x: e[12]!, y: e[13]!, z: e[14]! };
+  }
+
+  /** Slice-5 e2e probe: world point ON the ring face (not the center hole) for a given bore.
+   *  Returns a point offset by the ring midpoint radius along the mesh local X axis (uDir of
+   *  the face plane). Clicking/raycasting this point hits the ring triangles, not the hollow
+   *  center. Returns null if the marker mesh is not found. */
+  boreMarkerHitPoint(boreId: string, partPath: string): Vec3 | null {
+    const mesh = this.findBoreMarkerMesh(boreId, partPath);
+    if (!mesh) return null;
+    mesh.updateMatrixWorld(true);
+    const e = mesh.matrixWorld.elements;
+    let outerR = 2.5; // default for Ø5
+    outer: for (const spec of this.boreOverlaySpecs) {
+      if (spec.partPath !== partPath) continue;
+      for (const bore of spec.bores) {
+        if (bore.id !== boreId) continue;
+        outerR = bore.diameter / 2;
+        break outer;
+      }
+    }
+    const midR = outerR * 0.8; // between inner (0.6*outer) and outer (1.0*outer)
+    const localX = new THREE.Vector3(e[0]!, e[1]!, e[2]!).normalize();
+    return {
+      x: e[12]! + localX.x * midR,
+      y: e[13]! + localX.y * midR,
+      z: e[14]! + localX.z * midR,
+    };
+  }
+
+  /** Slice-5: e2e helper — first bore whose axis is non-null (i.e. draggable via gizmo).
+   *  Iterates boreOverlaySpecs; uses boreGizmoAxis to test each bore. */
+  firstDraggableBore(): { boreId: string; partPath: string } | null {
+    for (const spec of this.boreOverlaySpecs) {
+      for (const bore of spec.bores) {
+        const axis = boreGizmoAxis(bore, spec.worldPose.quaternion);
+        if (axis !== null) {
+          return { boreId: bore.id, partPath: spec.partPath };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Slice-5: return the world drag axis for a bore, or null if not draggable.
+   *  Centralises axis derivation so App.tsx never handles quaternions directly. */
+  boreDragAxis(boreId: string, partPath: string): Vec3 | null {
+    for (const spec of this.boreOverlaySpecs) {
+      if (spec.partPath !== partPath) continue;
+      for (const bore of spec.bores) {
+        if (bore.id !== boreId) continue;
+        return boreGizmoAxis(bore, spec.worldPose.quaternion);
+      }
+    }
+    return null;
+  }
+
   /**
    * Phase 5: drop existing bore markers; if showBores, build one RingGeometry
    * disc per bore. The ring sits in the face plane at face2DFrame(u,v), then the
@@ -662,6 +808,7 @@ export class SceneManager {
    * rebuildEdgeBandOverlays' clear-then-rebuild shape.
    */
   rebuildBoreMarkers(): void {
+    if (this.boreDragActive) { this.pendingMarkerRebuild = true; return; }
     for (const marker of this.boreMarkers) {
       this.scene.remove(marker);
       marker.geometry.dispose();

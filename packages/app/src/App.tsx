@@ -66,6 +66,10 @@ import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
 import type { BoreOp } from '@zilventor/shared';
+import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
+import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
+import { collectConnectorMembers } from './shell/collectConnectorMembers';
 import { ImportFromInventorCommand } from './commands/ImportFromInventorCommand';
 import { makeFakeInputDir } from './import/buildFakeImportEnv';
 import type { WorkPlaneCommit } from './shell/WorkPlaneDialog';
@@ -224,6 +228,27 @@ export default function App() {
   // Set by pointerup when a drag actually happened so the synthetic click that
   // browsers fire afterwards does not deselect the just-dragged component.
   const suppressNextClickRef = useRef(false);
+  // Slice-5: OrbitControls ref populated after SM init; disabled during bore drag.
+  const orbitControlsRef = useRef<OrbitControls | null>(null);
+  // Slice-5: active bore drag state. null when no bore drag is in flight.
+  const boreDragRef = useRef<null | {
+    boreId: string;
+    partPath: string;
+    pointerId: number;
+    worldAxis: { x: number; y: number; z: number };
+    pivot: { x: number; y: number; z: number };
+    rayStart: { origin: { x: number; y: number; z: number }; dir: { x: number; y: number; z: number } };
+    members: Array<{
+      bore: BoreOp;
+      partPath: string;
+      doc: { bores?: BoreOp[] };
+      panelDims: { length: number; width: number; thickness: number };
+      worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+    }>;
+    markerMesh: THREE.Mesh | null;
+    startUV: { u: number; v: number };
+    lastDelta?: number;
+  }>(null);
   const [availableFaceNames, setAvailableFaceNames] = useState<FaceName[]>([]);
 
   const [numericVisible, setNumericVisible] = useState(false);
@@ -380,6 +405,9 @@ export default function App() {
   // Per-slice subscriptions (avoid subscribing to the full store).
   const activeDocKind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
   const activePart = useAppStore((s) => s.activePart);
+  // Slice-5: reactive bore selection for gizmo-on-select effect.
+  const selectedBoreId = useAppStore((s) => s.selectedBoreId);
+  const selectedBorePartPath = useAppStore((s) => s.selectedBorePartPath);
   const kernel = useAppStore((s) => s.kernel);
   const statusMessage = useAppStore((s) => s.statusMessage);
   const kernelReady = useAppStore((s) => s.kernelReady);
@@ -1082,6 +1110,79 @@ export default function App() {
         const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      // ── Slice-5 drag-gizmo e2e probes ────────────────────────────────────────
+      // __zilventorSeedCabinetWithBores(): build a cabinet + carcass присадки into
+      // the active assembly so bore markers render and draggable bores exist.
+      w.__zilventorSeedCabinetWithBores = async () => {
+        const { CreateCabinetCommand } = await import('./commands/CreateCabinetCommand');
+        const { GenerateCarcassBoresCommand } = await import('./commands/GenerateCarcassBoresCommand');
+        const { Opfs: OpfsClass } = await import('@zilventor/kernel/src/storage/Opfs');
+        const store = useAppStore.getState();
+        const opfs = await OpfsClass.forNavigator();
+
+        // Bootstrap an empty assembly document so CreateCabinetCommand can find activeAssembly.
+        const carcassMat = { id: 'seed-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' };
+        const backMat   = { id: 'seed-hb-6',     name: 'Hardboard 6mm', defaultThickness: 6, color: '#8b6f47' };
+        store.setActiveDocument({
+          kind: 'assembly',
+          document: {
+            id: 'drag-gizmo-seed-asm',
+            name: 'DragGizmo Project',
+            units: 'mm' as const,
+            parameters: {},
+            properties: {},
+            components: [],
+            constraints: [],
+            groundedComponentPaths: [],
+            colors: {},
+            bomItemNumbers: {},
+            cutListItemNumbers: {},
+            colorOverrides: {},
+            materials: [carcassMat, backMat],
+            hardware: [],
+          },
+        });
+
+        // Create the cabinet
+        await store.bus.execute(new CreateCabinetCommand({
+          template: 'baseCabinet',
+          params: {
+            name: 'DragGizmo Cabinet',
+            width: 600,
+            depth: 560,
+            height: 720,
+            toekickHeight: 100,
+            toekickSetback: 50,
+            shelfCount: 0,
+            carcassMaterialId: 'seed-birch-18',
+            backMaterialId: 'seed-hb-6',
+            bandMaterialId: null,
+          },
+          opfs,
+        }));
+
+        // Generate carcass bores (confirmat only — gives jointDir on bores)
+        await store.bus.execute(new GenerateCarcassBoresCommand({
+          params: {
+            endSetback: 60,
+            maxSpacing: 250,
+            minCount: 2,
+            confirmat: true,
+            minifix: false,
+            dowel: false,
+          },
+          opfs,
+        }));
+      };
+
+      // __zilventorReadBoreUV(boreId, partPath): return {u, v} from the live
+      // partBoresCacheRef (populated by the bore-marker effect after assembly load).
+      w.__zilventorReadBoreUV = (boreId: string, partPath: string): { u: number; v: number } | null => {
+        const bores = partBoresCacheRef.current.get(partPath);
+        const bore = bores?.find((b) => b.id === boreId);
+        return bore ? { u: bore.u, v: bore.v } : null;
+      };
     }
   }, []);
 
@@ -1210,6 +1311,8 @@ export default function App() {
       }
       attachedSm = sm;
       sm.setCustomTextureRegistry(globalCustomTextureRegistry);
+      // Slice-5: capture OrbitControls ref for bore drag handler.
+      orbitControlsRef.current = sm.getControls();
 
       sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi());
 
@@ -1991,7 +2094,52 @@ export default function App() {
     if (!unmountedRef.current) useAppStore.getState().setStatus(t('status.openCancelled'));
   }, [handleRestart]);
 
-  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
+  // Slice-5 (PC10): extracted connector-docs builder, shared by BorePropertiesPanel prop
+  // and the bore drag handler so both work from the same live data.
+  // Reads assembly and componentPoses imperatively from the store to avoid
+  // closure-ordering issues (both are declared later in the component body).
+  const buildConnectorDocs = useCallback(() => {
+    const storeState = useAppStore.getState();
+    const asm = storeState.activeAssembly;
+    if (!asm) return [];
+    const poses = storeState.componentPoses;
+    const subAssemblyDocs = storeState.subAssemblyDocs;
+    const subAssemblyInnerPoses = storeState.subAssemblyInnerPoses;
+    const subAsmCacheAdapter = {
+      get: (p: string) => subAssemblyDocs[p]
+        ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
+        : undefined,
+    };
+    const leaves = visibleLeaves(asm, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
+    const result: Array<{
+      partPath: string;
+      doc: { bores?: BoreOp[]; suppressedConnectorIds?: string[] };
+      panelDims: { length: number; width: number; thickness: number };
+      worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+    }> = [];
+    const seenPartPaths = new Set<string>();
+    for (const leaf of leaves) {
+      if (seenPartPaths.has(leaf.partPath)) continue;
+      const doc = loadedPartDocsRef.current.get(leaf.partPath);
+      if (!doc) continue;
+      const spec = panelSpecCacheRef.current.get(leaf.partPath);
+      if (!spec) continue;
+      const worldPose = poses.get(pathKey(leaf.componentPath)) ?? {
+        translation: { x: 0, y: 0, z: 0 },
+        quaternion: [0, 0, 0, 1] as [number, number, number, number],
+      };
+      result.push({
+        partPath: leaf.partPath,
+        doc,
+        panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
+        worldPose,
+      });
+      seenPartPaths.add(leaf.partPath);
+    }
+    return result;
+  }, []);
+
+  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup' | 'pointercancel'; clientX: number; clientY: number; pointerId: number; button: number }) => {
     if (!viewportRef.current) return;
     const docKind = useAppStore.getState().activeDocument?.kind;
     if (docKind === 'drawing') return;   // drawing uses DrawingCanvas, not Viewport
@@ -2009,6 +2157,108 @@ export default function App() {
           useAppStore.getState().setOneComponentPickHandle(null);
           return;
         }
+      }
+
+      // Slice-5: bore drag — BEFORE dragBusy guard so it is never blocked by
+      // the component-picker flow. Handles pointerdown (start), move, up, cancel.
+      // pointerdown: if a bore marker is hit and it has a drag axis, begin drag.
+      if (ev.type === 'pointerdown') {
+        const sm = viewportRef.current.getSceneManager();
+        const hit = sm ? viewportRef.current.raycastBoreMarker(ev.clientX, ev.clientY) : null;
+        if (sm && hit) {
+          const axis = sm.boreDragAxis(hit.boreId, hit.partPath);
+          if (axis) {
+            const bores = partBoresCacheRef.current.get(hit.partPath);
+            const bore = bores?.find((b) => b.id === hit.boreId);
+            if (bore) {
+              const docs = buildConnectorDocs();
+              const members = collectConnectorMembers(bore.connectorId, docs);
+              const pivot = sm.boreWorldPos(hit.boreId, hit.partPath);
+              if (pivot) {
+                if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
+                // Release any latched pointer capture from OrbitControls so it
+                // doesn't steal subsequent pointer events during the drag.
+                try {
+                  const el = sm.getControls().domElement;
+                  if (el instanceof HTMLElement) el.releasePointerCapture(ev.pointerId);
+                } catch { /* ignore if no capture was latched */ }
+                sm.setBoreDragActive(true);
+                sm.setBoreGizmo({ worldPos: pivot, worldAxis: axis });
+                boreDragRef.current = {
+                  boreId: hit.boreId,
+                  partPath: hit.partPath,
+                  pointerId: ev.pointerId,
+                  worldAxis: axis,
+                  pivot,
+                  rayStart: viewportRef.current.pointerWorldRay(ev.clientX, ev.clientY),
+                  members,
+                  markerMesh: sm.findBoreMarkerMesh(hit.boreId, hit.partPath),
+                  startUV: { u: bore.u, v: bore.v },
+                };
+                return; // consume — do not fall through to component drag
+              }
+            }
+          }
+        }
+      }
+
+      // Slice-5: bore drag move — update marker + gizmo live; no command yet.
+      if (ev.type === 'move' && boreDragRef.current) {
+        const sm = viewportRef.current.getSceneManager();
+        if (sm) {
+          const d = boreDragRef.current;
+          const raw = signedDragDeltaAlongAxis(
+            d.worldAxis, d.pivot,
+            d.rayStart,
+            viewportRef.current.pointerWorldRay(ev.clientX, ev.clientY),
+          );
+          // PC4: null = near-parallel frame — skip to preserve marker pos + lastDelta.
+          if (raw !== null) {
+            const delta = clampDeltaToFaceExtents(d.members, d.worldAxis, raw);
+            const off = { x: d.worldAxis.x * delta, y: d.worldAxis.y * delta, z: d.worldAxis.z * delta };
+            // PC8: matrixAutoUpdate=false on bore markers — must use matrix.setPosition.
+            if (d.markerMesh) {
+              d.markerMesh.matrix.setPosition(
+                d.pivot.x + off.x,
+                d.pivot.y + off.y,
+                d.pivot.z + off.z,
+              );
+            }
+            sm.setBoreGizmo({
+              worldPos: { x: d.pivot.x + off.x, y: d.pivot.y + off.y, z: d.pivot.z + off.z },
+              worldAxis: d.worldAxis,
+            });
+            d.lastDelta = delta;
+          }
+        }
+        return;
+      }
+
+      // Slice-5: bore drag end — re-enable controls, commit one bus.execute, clean up.
+      if ((ev.type === 'pointerup' || ev.type === 'pointercancel') && boreDragRef.current) {
+        const sm = viewportRef.current.getSceneManager();
+        const d = boreDragRef.current;
+        // Always re-enable OrbitControls on every exit path (up AND cancel).
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
+        if (ev.type === 'pointerup' && d.lastDelta !== undefined && Math.abs(d.lastDelta) > 1e-6) {
+          void useAppStore.getState().bus.execute(
+            new MoveConnectorCommand({
+              members: d.members,
+              worldDir: d.worldAxis,
+              delta: d.lastDelta,
+              opfs: opfsRef.current,
+            }),
+          );
+          // Suppress the synthetic click that browsers fire after pointerup so it
+          // doesn't re-select or clear the bore we just dragged.
+          suppressNextClickRef.current = true;
+        }
+        if (sm) {
+          sm.setBoreGizmo(null);
+          sm.setBoreDragActive(false); // flushes any deferred marker rebuild
+        }
+        boreDragRef.current = null;
+        return;
       }
 
       const assemblyState = useAppStore.getState();
@@ -4090,6 +4340,25 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, componentPoses, geometryReadyTick]);
 
+  // Slice-5: show the drag handle when a bore is selected (so the user can
+  // see the axis before starting a drag). Clear it on deselect. Does not fight
+  // the drag handler's own gizmo updates because boreDragRef.current is set
+  // during active drags and this effect only runs on selection changes.
+  useEffect(() => {
+    if (boreDragRef.current) return; // drag handler owns the gizmo during drag
+    const sm = viewportRef.current?.getSceneManager();
+    if (!sm) return;
+    if (selectedBoreId && selectedBorePartPath) {
+      const axis = sm.boreDragAxis(selectedBoreId, selectedBorePartPath);
+      const worldPos = sm.boreWorldPos(selectedBoreId, selectedBorePartPath);
+      if (axis && worldPos) {
+        sm.setBoreGizmo({ worldPos, worldAxis: axis });
+        return;
+      }
+    }
+    sm.setBoreGizmo(null);
+  }, [selectedBoreId, selectedBorePartPath]);
+
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
   // description) for each unique partPath referenced by the active assembly so
   // BomTable / autosave merge can show human names + Inventor metadata.
@@ -4836,47 +5105,7 @@ export default function App() {
           <BorePropertiesPanel
             getLiveBores={(partPath) => partBoresCacheRef.current.get(partPath)}
             getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
-            getConnectorDocs={() => {
-              // Build one entry per partPath that has a live doc, panel spec, and world pose.
-              // NOTE: uses one representative componentPose per partPath (first match wins).
-              // Multi-instance limitation: if the same part appears at multiple positions,
-              // only the first pose is used for MoveConnectorCommand math — acceptable for v1.
-              if (!assembly) return [];
-              const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
-              const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
-              const subAsmCacheAdapter = {
-                get: (p: string) => subAssemblyDocs[p]
-                  ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
-                  : undefined,
-              };
-              const leaves = visibleLeaves(assembly, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
-              const result: Array<{
-                partPath: string;
-                doc: { bores?: import('@zilventor/shared').BoreOp[]; suppressedConnectorIds?: string[] };
-                panelDims: { length: number; width: number; thickness: number };
-                worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
-              }> = [];
-              const seenPartPaths = new Set<string>();
-              for (const leaf of leaves) {
-                if (seenPartPaths.has(leaf.partPath)) continue;
-                const doc = loadedPartDocsRef.current.get(leaf.partPath);
-                if (!doc) continue;
-                const spec = panelSpecCacheRef.current.get(leaf.partPath);
-                if (!spec) continue;
-                const worldPose = componentPoses.get(pathKey(leaf.componentPath)) ?? {
-                  translation: { x: 0, y: 0, z: 0 },
-                  quaternion: [0, 0, 0, 1] as [number, number, number, number],
-                };
-                result.push({
-                  partPath: leaf.partPath,
-                  doc,
-                  panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
-                  worldPose,
-                });
-                seenPartPaths.add(leaf.partPath);
-              }
-              return result;
-            }}
+            getConnectorDocs={buildConnectorDocs}
             opfs={opfsRef.current}
           />
         </aside>
