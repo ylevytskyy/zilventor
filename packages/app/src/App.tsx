@@ -9,6 +9,7 @@ import BrowserPane from './shell/BrowserPane';
 import StatusBar from './shell/StatusBar';
 import FileOpenOverlay from './shell/FileOpenOverlay';
 import PropertiesPanel from './shell/PropertiesPanel';
+import { BorePropertiesPanel } from './shell/BorePropertiesPanel';
 import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
@@ -2754,6 +2755,9 @@ export default function App() {
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
+  // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
+  // Holds the full {bores?, suppressedConnectorIds?} object so commands can mutate in place.
+  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[] }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -2820,6 +2824,7 @@ export default function App() {
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
+        loadedPartDocsRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
           try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -3891,6 +3896,8 @@ export default function App() {
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
               // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
               partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
+              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[] });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
               // hand so bore markers render without requiring the Cut List tab to be visited.
               // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so
@@ -4689,6 +4696,7 @@ export default function App() {
       geometryCacheRef.current.delete(partPath);
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
+      loadedPartDocsRef.current.delete(partPath);
       if (stalePartId && kernelClient) {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
       }
@@ -4789,6 +4797,11 @@ export default function App() {
         </main>
         <aside role="complementary" aria-label={t('aria.properties')} className="bg-shell-panel border-l border-shell-border" id="region-properties">
           <PropertiesPanel />
+          <BorePropertiesPanel
+            getLiveBores={(partPath) => partBoresCacheRef.current.get(partPath)}
+            getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
+            opfs={opfsRef.current}
+          />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
           <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} />

@@ -86,7 +86,7 @@ export class MoveConnectorCommand implements Command {
           snap.bore.u = snap.priorU;
           snap.bore.v = snap.priorV;
           if (!snap.hadEdited) {
-            delete (snap.bore as Record<string, unknown>).edited;
+            delete (snap.bore as unknown as Record<string, unknown>).edited;
           } else {
             snap.bore.edited = snap.priorEdited;
           }
@@ -110,7 +110,7 @@ export class MoveConnectorCommand implements Command {
       snap.bore.u = snap.priorU;
       snap.bore.v = snap.priorV;
       if (!snap.hadEdited) {
-        delete (snap.bore as Record<string, unknown>).edited;
+        delete (snap.bore as unknown as Record<string, unknown>).edited;
       } else {
         snap.bore.edited = snap.priorEdited;
       }

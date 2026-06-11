@@ -50,7 +50,7 @@ describe('DeleteConnectorCommand — mode:connector', () => {
     const b1 = makeBore('b1', 'c0');
     const b2 = makeBore('b2', 'c0');
     const b3 = makeBore('b3', 'c1');
-    const doc = { bores: [b1, b2, b3], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2, b3], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2, b3]);
 
@@ -69,7 +69,7 @@ describe('DeleteConnectorCommand — mode:connector', () => {
   it('persists removal to opfs (bores key reflects deleted bores)', async () => {
     const b1 = makeBore('b1', 'c0');
     const b2 = makeBore('b2', 'c1');
-    const doc = { bores: [b1, b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2]);
 
@@ -90,7 +90,7 @@ describe('DeleteConnectorCommand — mode:connector', () => {
   it('revert restores prior bores[] and removes suppressedConnectorId if it was absent before', async () => {
     const b1 = makeBore('b1', 'c0');
     const b2 = makeBore('b2', 'c1');
-    const doc = { bores: [b1, b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2]);
 
@@ -129,7 +129,7 @@ describe('DeleteConnectorCommand — mode:connector', () => {
 
   it('absent-not-empty: does NOT write suppressedConnectorIds:[] after revert (deletes key)', async () => {
     const b1 = makeBore('b1', 'c0');
-    const doc = { bores: [b1], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1]);
 
@@ -150,7 +150,7 @@ describe('DeleteConnectorCommand — mode:bore', () => {
   it('removes only the single bore by id', async () => {
     const b1 = makeBore('shelf-pin-0', 'pin-col-front');
     const b2 = makeBore('shelf-pin-1', 'pin-col-front');
-    const doc = { bores: [b1, b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2]);
 
@@ -169,7 +169,7 @@ describe('DeleteConnectorCommand — mode:bore', () => {
   it('revert restores the single deleted bore', async () => {
     const b1 = makeBore('shelf-pin-0', 'pin-col-front');
     const b2 = makeBore('shelf-pin-1', 'pin-col-front');
-    const doc = { bores: [b1, b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2]);
 
@@ -189,7 +189,7 @@ describe('DeleteConnectorCommand — mode:bore', () => {
   it('mode:bore revert: persisted file has bore restored and suppressedConnectorIds absent', async () => {
     const b1 = makeBore('shelf-pin-0', 'pin-col-front');
     const b2 = makeBore('shelf-pin-1', 'pin-col-front');
-    const doc = { bores: [b1, b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1, b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1, b2]);
 
@@ -213,8 +213,8 @@ describe('DeleteConnectorCommand — cross-doc atomicity', () => {
   it('ATOMIC: rolls back first doc write when second write throws, invalidator NOT called', async () => {
     const b1 = makeBore('b1', 'c0');
     const b2 = makeBore('b2', 'c0');
-    const docA = { bores: [b1], suppressedConnectorIds: undefined as string[] | undefined };
-    const docB = { bores: [b2], suppressedConnectorIds: undefined as string[] | undefined };
+    const docA = { bores: [b1], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
+    const docB = { bores: [b2], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
 
     let writeCount = 0;
     const backing = new MemOpfs();
@@ -256,7 +256,7 @@ describe('DeleteConnectorCommand — cross-doc atomicity', () => {
 
   it('calls boreCacheInvalidator with all affected partPaths on successful apply', async () => {
     const b1 = makeBore('b1', 'c0');
-    const doc = { bores: [b1], suppressedConnectorIds: undefined as string[] | undefined };
+    const doc = { bores: [b1], } as { bores: BoreOp[]; suppressedConnectorIds?: string[] };
     const opfs = new MemOpfs();
     await writePanel(opfs, 'p.zipt', [b1]);
 

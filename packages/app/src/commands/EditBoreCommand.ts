@@ -49,7 +49,7 @@ export class EditBoreCommand implements Command {
     Object.assign(bore, fields);
     if (!hadEdited) {
       // edited key was absent before — restore absent state
-      delete (bore as Record<string, unknown>).edited;
+      delete (bore as unknown as Record<string, unknown>).edited;
     } else {
       bore.edited = priorEdited;
     }

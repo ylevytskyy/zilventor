@@ -473,7 +473,7 @@ describe('GenerateCarcassBoresCommand — mergeBores (slice-3)', () => {
     boreToEdit.u = 999;
     boreToEdit.edited = true;
     const { packProject: pack } = await import('@zilventor/kernel/src/storage/ProjectPacker');
-    await opfs.write('L.zipt', await pack({ manifest: { ...project.manifest, formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
+    await opfs.write('L.zipt', await pack({ manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
 
     // Second generate — mergeBores should preserve the edited bore.
     const cmd2 = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
@@ -501,7 +501,7 @@ describe('GenerateCarcassBoresCommand — mergeBores (slice-3)', () => {
     const connId = manifest.document.bores![0]!.connectorId;
     manifest.document.suppressedConnectorIds = [connId];
     const { packProject: pack } = await import('@zilventor/kernel/src/storage/ProjectPacker');
-    await opfs.write('L.zipt', await pack({ manifest: { ...project.manifest, formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
+    await opfs.write('L.zipt', await pack({ manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION } as never, blobs: {} }));
 
     // Re-generate — suppressed connector must not come back.
     const cmd2 = new GenerateCarcassBoresCommand({ params: PARAMS, opfs });
