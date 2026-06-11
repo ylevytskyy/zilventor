@@ -85,6 +85,47 @@ describe('additive v21 type surface', () => {
   });
 });
 
+describe('additive v23 PartDocument + ProjectFile', () => {
+  it('PartDocument accepts suppressedConnectorIds?: string[] — absent when not set', () => {
+    const doc: PartDocument = {
+      id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+      properties: {}, materials: [], hardware: [],
+    };
+    expect('suppressedConnectorIds' in doc).toBe(false);
+  });
+
+  it('PartDocument accepts suppressedConnectorIds with entries when set', () => {
+    const doc: PartDocument = {
+      id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+      properties: {}, materials: [], hardware: [],
+      suppressedConnectorIds: ['confirmat-0', 'pin-col-front'],
+    };
+    expect(doc.suppressedConnectorIds).toEqual(['confirmat-0', 'pin-col-front']);
+  });
+
+  it('ProjectFile formatVersion union includes 23 for part kind', () => {
+    const f: ProjectFile = {
+      formatVersion: 23, kind: 'part', createdAt: '', appVersion: '',
+      document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
+        properties: {}, materials: [], hardware: [] },
+    };
+    expect(f.formatVersion).toBe(23);
+  });
+
+  it('ProjectFile formatVersion union includes 23 for assembly kind', () => {
+    const f: ProjectFile = {
+      formatVersion: 23, kind: 'assembly', createdAt: '', appVersion: '',
+      document: {
+        id: 'a', name: 'A', units: 'mm', parameters: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+        properties: {}, materials: [], hardware: [],
+      },
+    };
+    expect(f.formatVersion).toBe(23);
+  });
+});
+
 describe('additive v23 BoreOp slice-3 fields', () => {
   it('BoreOp accepts edited?: boolean — absent when not set (exactOptionalPropertyTypes)', () => {
     const bore: BoreOp = {
