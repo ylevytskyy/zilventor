@@ -16,6 +16,8 @@ export * from './cabinets';
 export * from './bore';
 export * from './prisadkaFaceConventions';
 export * from './shelfPinGrid';
+export * from './doorMath';
+export * from './hingeMath';
 export * from './connectorCatalog';
 export * from './jointMath';
 export type {
