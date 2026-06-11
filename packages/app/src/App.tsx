@@ -4022,6 +4022,7 @@ export default function App() {
       };
       markerSpecs.push({
         key: pathKey(leaf.componentPath),
+        partPath: leaf.partPath,
         panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
         worldPose,
         bores,

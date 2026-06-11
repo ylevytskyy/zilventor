@@ -53,6 +53,8 @@ export type MarkerOverlaySpec = {
   panelDims: { length: number; width: number; thickness: number };
   worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
   bores: BoreOp[];
+  /** OPFS path of the owning panel .zipt; used by bore-selection and Edit/Move/Delete commands. */
+  partPath: string;
 };
 
 
@@ -700,6 +702,7 @@ export class SceneManager {
         mesh.userData.kind = 'boreMarker';
         mesh.userData.boreId = bore.id;
         mesh.userData.markerKey = spec.key;
+        mesh.userData.partPath = spec.partPath;
         this.scene.add(mesh);
         this.boreMarkers.push(mesh);
       }
