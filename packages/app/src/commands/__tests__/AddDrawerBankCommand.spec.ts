@@ -322,10 +322,22 @@ describe('AddDrawerBankCommand — revert (H2)', () => {
     );
     expect(drawerComps.length).toBe(6); // 3 fronts + 3 boxes
 
-    // Each box .ziasm and front .zipt exist
+    // Collect all box panel .zipt paths by unpacking each box .ziasm
+    const allBlobPaths: string[] = [];
     for (const c of drawerComps) {
       expect(await opfs.exists(c.partPath)).toBe(true);
+      allBlobPaths.push(c.partPath);
+
+      // For box .ziasm: unpack and collect the nested panel .zipt paths too
+      if (c.role === 'drawerBox') {
+        const boxAsm = await unpackAssembly(await opfs.read(c.partPath));
+        for (const panel of boxAsm.components) {
+          expect(await opfs.exists(panel.partPath), `box panel ${panel.partPath} must exist before revert`).toBe(true);
+          allBlobPaths.push(panel.partPath);
+        }
+      }
     }
+
     // Cabinet side panels have slide bores after apply
     expect((await boresOf(opfs, 'L.zipt')).filter((b) => b.role === 'drawerSlide-cabinet').length).toBeGreaterThan(0);
 
@@ -337,9 +349,9 @@ describe('AddDrawerBankCommand — revert (H2)', () => {
     expect(afterRevertCab.components.length).toBe(baselineComponentCount);
     expect(afterRevertCab.components.filter((c) => c.role === 'drawerFront' || c.role === 'drawerBox')).toHaveLength(0);
 
-    // All written blobs deleted (C-9)
-    for (const c of drawerComps) {
-      expect(await opfs.exists(c.partPath), `blob ${c.partPath} must be deleted after revert`).toBe(false);
+    // ALL written blobs deleted — fronts, box .ziasms, AND box panel .zipt files (C-9, no OPFS leak)
+    for (const p of allBlobPaths) {
+      expect(await opfs.exists(p), `blob ${p} must be deleted after revert`).toBe(false);
     }
 
     // Cabinet-side bores restored to baseline (no drawerSlide-cabinet bores)
