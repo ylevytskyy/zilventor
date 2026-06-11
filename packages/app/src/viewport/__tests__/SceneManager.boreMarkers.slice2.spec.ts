@@ -62,6 +62,7 @@ function hingeCupBore(i: number): BoreOp {
 function spec(bores: BoreOp[]): MarkerOverlaySpec {
   return {
     key: 'parts/side.zipt#0',
+    partPath: 'parts/side.zipt',
     panelDims: { length: 720, width: 560, thickness: 16 },
     worldPose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] },
     bores,
