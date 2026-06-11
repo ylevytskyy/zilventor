@@ -1,5 +1,6 @@
 {
   "aria": {
+    "add_door_dialog": "Add Door dialog",
     "add_view": "Add View",
     "assembly_tab": "Assembly tab",
     "bom_tab": "BOM tab",
@@ -43,6 +44,7 @@
     "properties": "Properties",
     "ribbon": "Ribbon",
     "setback": "Setback",
+    "shelf_pin_dialog": "Система-32 shelf-pin dialog",
     "sheetContextMenu": "Sheet context menu",
     "start_radius": "Start radius",
     "termination": "Termination",
@@ -148,6 +150,24 @@
       "decimal_places": "Decimal places",
       "title_diametric": "Diametric Dimension",
       "title_radial": "Radial Dimension"
+    },
+    "addDoor": {
+      "title": "Add Door",
+      "count": "Count",
+      "countSingle": "Single",
+      "countDouble": "Double",
+      "hingeSide": "Hinge side",
+      "hingeLeft": "Left",
+      "hingeRight": "Right",
+      "overlay": "Overlay",
+      "overlayFull": "Full",
+      "overlayHalf": "Half",
+      "overlayInset": "Inset",
+      "thickness": "Thickness (mm)",
+      "reveal": "Reveal (mm)",
+      "clearance": "Clearance (mm)",
+      "centerReveal": "Center reveal (mm)",
+      "hingeCount": "Hinges (auto)"
     },
     "addView": {
       "back": "Back",
@@ -461,6 +481,19 @@
       "thicknessAria": "Thickness",
       "title": "Shell"
     },
+    "shelfPin": {
+      "title": "Система-32 (shelf pins)",
+      "pitch": "Pitch (mm)",
+      "diameter": "Diameter (mm)",
+      "depth": "Depth (mm)",
+      "frontSetback": "Front setback (mm)",
+      "backSetback": "Back setback (mm)",
+      "topMargin": "Top margin (mm)",
+      "bottomMargin": "Bottom margin (mm)",
+      "columns": "Columns",
+      "columnsOne": "1 (front)",
+      "columnsTwo": "2 (front + back)"
+    },
     "sketchRect": {
       "ariaLabel": "Rectangle dialog",
       "title": "Rectangle (two corner points)"
@@ -693,6 +726,7 @@
       "steppedSection": "Stepped Section"
     },
     "furniture": {
+      "addDoor": "Add Door",
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",
@@ -713,7 +747,9 @@
       "nesting": "Nesting",
       "panel": "Panel",
       "presadka": "Присадка",
-      "showBores": "Show Bores"
+      "showBores": "Show Bores",
+      "system32Auto": "Система-32",
+      "system32Manual": "Система-32 (pick)"
     },
     "model": {
       "axis": "Axis",
