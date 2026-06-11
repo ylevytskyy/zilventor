@@ -77,6 +77,9 @@ export { translateConnectorAlong } from './connectorCoupling';
 // rotate is already re-exported via `export * from './jointMath'` — no separate line needed.
 export { mergeBores } from './mergeBores';
 export { boreGizmoAxis } from './boreGizmoAxis';
+export { signedDragDeltaAlongAxis, GIZMO_AXIS_VIEW_PARALLEL_THRESHOLD } from './dragProjection';
+export type { PointerRay } from './dragProjection';
+export { clampDeltaToFaceExtents } from './clampDelta';
 export * from './drawerConventions';
 export type { DrawerSlideCtx } from './drawerSlideMath';
 export { drawerSlideMath } from './drawerSlideMath';

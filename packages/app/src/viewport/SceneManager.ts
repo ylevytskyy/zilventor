@@ -761,6 +761,19 @@ export class SceneManager {
     return null;
   }
 
+  /** Slice-5: return the world drag axis for a bore, or null if not draggable.
+   *  Centralises axis derivation so App.tsx never handles quaternions directly. */
+  boreDragAxis(boreId: string, partPath: string): Vec3 | null {
+    for (const spec of this.boreOverlaySpecs) {
+      if (spec.partPath !== partPath) continue;
+      for (const bore of spec.bores) {
+        if (bore.id !== boreId) continue;
+        return boreGizmoAxis(bore, spec.worldPose.quaternion);
+      }
+    }
+    return null;
+  }
+
   /**
    * Phase 5: drop existing bore markers; if showBores, build one RingGeometry
    * disc per bore. The ring sits in the face plane at face2DFrame(u,v), then the
