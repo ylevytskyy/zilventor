@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 21 as const;
+export const CURRENT_FORMAT_VERSION = 22 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -318,6 +318,13 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 21 };
   },
+
+  // v21 → v22: additive — ComponentInstance.doorSpec is optional; absent === unset
+  // at runtime. No structural transformation. (Присадка slice 2 — doors)
+  21: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 22 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -325,7 +332,8 @@ function normalizeKind(m: AnyManifest): AnyManifest {
     (m.formatVersion === 10 || m.formatVersion === 11 || m.formatVersion === 12 ||
      m.formatVersion === 13 || m.formatVersion === 14 || m.formatVersion === 15 ||
      m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18 ||
-     m.formatVersion === 19 || m.formatVersion === 20 || m.formatVersion === 21) &&
+     m.formatVersion === 19 || m.formatVersion === 20 || m.formatVersion === 21 ||
+     m.formatVersion === 22) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
