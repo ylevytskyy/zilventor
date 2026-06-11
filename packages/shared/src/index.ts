@@ -70,3 +70,8 @@ export type { TextureDef } from './texture-def';
 export { BUILTIN_TEXTURE_DEFS, findTextureDef } from './texture-def';
 export type { CustomTextureDef } from './custom-texture-def';
 export { isCustomTextureDef } from './custom-texture-def';
+export type { ConnectorBomEntry } from './connectorBomCatalog';
+export { CONNECTOR_BOM_CATALOG } from './connectorBomCatalog';
+export type { ConnectorMember } from './connectorCoupling';
+export { translateConnectorAlong } from './connectorCoupling';
+// rotate is already re-exported via `export * from './jointMath'` — no separate line needed.
