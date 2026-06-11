@@ -297,6 +297,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           components={activeAssembly.components.map((c) => ({
             id: c.id,
             label: c.partPath.replace(/\.zipt$|\.ziasm$/, ''),
+            position: c.pose?.translation ?? c.position,
           }))}
           onCancel={() => useAppStore.getState().setCircularPatternDialogOpen(false)}
           onCommit={async (v) => {

@@ -14,6 +14,7 @@ export type CircularPatternDialogValue = {
 type ComponentSummary = {
   id: string;
   label: string;
+  position?: { x: number; y: number; z: number };
 };
 
 type Props = {
@@ -75,7 +76,22 @@ export function CircularPatternDialog({ components, onCommit, onCancel }: Props)
   const cz = parseFloat(centerZ);
   const centerNumeric = Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cz);
 
-  const canCommit = sourceComponentId !== '' && countValid && angleValid && centerNumeric;
+  // Degenerate guard (spec §10.4): if the source lies on the rotation axis (perpendicular distance
+  // from the axis line through center < 0.1 mm), every copy overlaps the source — block submit.
+  const srcPos = components.find((c) => c.id === sourceComponentId)?.position;
+  const onAxis =
+    centerNumeric && srcPos
+      ? (() => {
+          const dx = srcPos.x - cx;
+          const dy = srcPos.y - cy;
+          const dz = srcPos.z - cz;
+          const along = axis === 'x' ? dx : axis === 'y' ? dy : dz;
+          const perpSq = dx * dx + dy * dy + dz * dz - along * along;
+          return Math.sqrt(Math.max(0, perpSq)) < 0.1;
+        })()
+      : false;
+
+  const canCommit = sourceComponentId !== '' && countValid && angleValid && centerNumeric && !onAxis;
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
@@ -198,6 +214,9 @@ export function CircularPatternDialog({ components, onCommit, onCancel }: Props)
       </div>
       {!angleValid && (
         <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.circularPattern.angle_error')}</div>
+      )}
+      {onAxis && (
+        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>{t('dialog.circularPattern.radius_error')}</div>
       )}
 
       <div style={rowStyle}>

@@ -34,4 +34,19 @@ describe('CircularPatternDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^OK$/i }));
     expect(onCommit).not.toHaveBeenCalled();
   });
+  it('blocks submit when the source lies on the rotation axis (degenerate radius)', () => {
+    const onCommit = vi.fn();
+    // source at origin, axis z (default), center origin (default) → perp distance 0 → copies overlap
+    const onAxisComps = [{ id: 'src-1', label: 'leg', position: { x: 0, y: 0, z: 0 } }];
+    render(<CircularPatternDialog components={onAxisComps} onCommit={onCommit} onCancel={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /^OK$/i }));
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+  it('allows submit when source is off the axis (non-degenerate radius)', () => {
+    const onCommit = vi.fn();
+    const offAxisComps = [{ id: 'src-1', label: 'leg', position: { x: 50, y: 0, z: 0 } }];
+    render(<CircularPatternDialog components={offAxisComps} onCommit={onCommit} onCancel={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /^OK$/i }));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
 });

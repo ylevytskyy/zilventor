@@ -467,6 +467,7 @@
       "count_error": "Count must be an integer 2–200.",
       "angle": "Total angle",
       "angle_error": "Angle must be a number in (0, 360].",
+      "radius_error": "Source lies on the rotation axis — copies would overlap; move the center.",
       "rotate": "Rotate instances",
       "no_components": "(no components)"
     },
