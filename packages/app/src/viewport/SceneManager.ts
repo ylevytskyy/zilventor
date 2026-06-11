@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeCameraFrame } from './frameView';
-import { pathKey, findTextureDef, face2DFrame, type BoreOp, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
+import { pathKey, findTextureDef, face2DFrame, type BoreOp, type BoreConnectorKind, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
 import type { CustomTextureRegistry } from '../textures/customTextureRegistry';
@@ -109,11 +109,13 @@ export class SceneManager {
   private storeUnsubscribers: Array<() => void> = [];
   private customTextureRegistry: CustomTextureRegistry | null = null;
   private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
-  static readonly BORE_COLORS: Record<'confirmat' | 'minifix' | 'dowel', string> = {
+  static readonly BORE_COLORS = {
     confirmat: '#2e7dd1',
     minifix: '#d14f2e',
     dowel: '#2eb872',
-  };
+    shelfPin: '#b8a32e',   // amber
+    hinge: '#8c2eb8',      // violet
+  } satisfies Record<BoreConnectorKind, string>;
 
 
   constructor(canvas: HTMLCanvasElement) {
