@@ -1,4 +1,4 @@
-export type HardwareCategory = 'hinges' | 'shelfPins';
+export type HardwareCategory = 'hinges' | 'shelfPins' | 'drawerHandles';
 
 export type HardwareRegistry = readonly HardwareEntry[];
 

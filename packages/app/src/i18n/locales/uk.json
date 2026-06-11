@@ -6,7 +6,8 @@
       "hinge": "Завіса Ø35",
       "minifix": "Стяжка Minifix",
       "shelfPin": "Полицетримач Ø5",
-      "drawerSlide": "Напрямна ящика Ø5"
+      "drawerSlide": "Напрямна ящика Ø5",
+      "handleScrew": "Гвинт ручки"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Напрямна шухляди (сторона корпусу)",

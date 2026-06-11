@@ -6,7 +6,8 @@
       "hinge": "Hinge Ø35 cup",
       "minifix": "Minifix cam fitting",
       "shelfPin": "Shelf pin Ø5",
-      "drawerSlide": "Drawer slide Ø5"
+      "drawerSlide": "Drawer slide Ø5",
+      "handleScrew": "Handle screw"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Drawer slide (cabinet side)",

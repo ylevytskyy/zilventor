@@ -18,5 +18,6 @@ export const CONNECTOR_BOM_CATALOG: Record<BoreConnectorKind, ConnectorBomEntry>
   dowel:       { kind: 'dowel',       nameKey: 'bom.connector.dowel',       nameEn: 'Dowel Ø8',            nameUk: 'Шкант Ø8',          notes: '2 bores'             },
   shelfPin:    { kind: 'shelfPin',    nameKey: 'bom.connector.shelfPin',    nameEn: 'Shelf pin Ø5',        nameUk: 'Полицетримач Ø5',   notes: 'система-32'          },
   hinge:       { kind: 'hinge',       nameKey: 'bom.connector.hinge',       nameEn: 'Hinge Ø35 cup',       nameUk: 'Завіса Ø35',        notes: '+ 2 plate screws'    },
-  drawerSlide: { kind: 'drawerSlide', nameKey: 'bom.connector.drawerSlide', nameEn: 'Drawer slide Ø5',     nameUk: 'Напрямна ящика Ø5', notes: 'система-32 Ø5 blind' },
+  drawerSlide:  { kind: 'drawerSlide',  nameKey: 'bom.connector.drawerSlide',  nameEn: 'Drawer slide Ø5',  nameUk: 'Напрямна ящика Ø5', notes: 'система-32 Ø5 blind' },
+  handleScrew:  { kind: 'handleScrew',  nameKey: 'bom.connector.handleScrew',  nameEn: 'Handle screw',     nameUk: 'Гвинт ручки',       notes: 'Ø5 face mount'       },
 };
