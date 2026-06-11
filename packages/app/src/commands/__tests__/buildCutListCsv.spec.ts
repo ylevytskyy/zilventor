@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCutListCsv } from '../buildCutListCsv';
 import type { CutListResult } from '@zilventor/shared/src/cutListRow';
 import type { HardwareRow } from '../../assembly/walkers/aggregateHardwareRecursive';
+import type { ConnectorBomRow } from '../../shell/ConnectorBomTable';
 
 const empty: CutListResult = { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } };
 
@@ -125,5 +126,42 @@ describe('buildCutListCsv — hardware section', () => {
     const hwSection = csv.slice(hwIdx, nextBlank === -1 ? undefined : nextBlank);
     const lines = hwSection.split('\n').filter((l) => l.trim());
     expect(lines).toHaveLength(2); // "# Hardware" + column header
+  });
+});
+
+const connectorRows: ConnectorBomRow[] = [
+  { kind: 'confirmat', name: 'Confirmat 7×50', qty: 4, notes: 'Ø7 face + Ø5 edge' },
+  { kind: 'shelfPin',  name: 'Shelf pin Ø5',   qty: 16, notes: 'система-32' },
+];
+
+describe('buildCutListCsv — присадка / Connectors section', () => {
+  it('emits "# присадка / Connectors" section header when connectorRows provided', () => {
+    const csv = buildCutListCsv(emptyResult, [], connectorRows);
+    expect(csv).toContain('# присадка / Connectors');
+  });
+
+  it('emits connector column header: Type,Name,Qty,Notes', () => {
+    const csv = buildCutListCsv(emptyResult, [], connectorRows);
+    expect(csv).toContain('Type,Name,Qty,Notes');
+  });
+
+  it('emits connector data rows with correct fields (plain r.kind, no csvCell wrapping)', () => {
+    const csv = buildCutListCsv(emptyResult, [], connectorRows);
+    expect(csv).toContain('confirmat,Confirmat 7×50,4,Ø7 face + Ø5 edge');
+    expect(csv).toContain('shelfPin,Shelf pin Ø5,16,система-32');
+  });
+
+  it('does not emit connector section when connectorRows is empty (default)', () => {
+    const csv = buildCutListCsv(emptyResult, []);
+    expect(csv).not.toContain('# присадка / Connectors');
+    expect(csv).not.toContain('Type,Name,Qty,Notes');
+  });
+
+  it('CSV-escapes names containing commas', () => {
+    const rows: ConnectorBomRow[] = [
+      { kind: 'confirmat', name: 'Confirmat, 7×50', qty: 1, notes: '' },
+    ];
+    const csv = buildCutListCsv(emptyResult, [], rows);
+    expect(csv).toContain('"Confirmat, 7×50"');
   });
 });
