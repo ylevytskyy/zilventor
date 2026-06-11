@@ -306,6 +306,12 @@ type AppState = {
   editingComponentId: string | null;
   editComponentInitialValues: ComponentInstance | null;
   selectedComponentPaths: ComponentPath[];
+  /** Slice-3: currently selected bore id (null = nothing selected). */
+  selectedBoreId: string | null;
+  /** Slice-3: OPFS path of the part owning the selected bore (null = nothing selected). */
+  selectedBorePartPath: string | null;
+  /** Slice-3: select a bore; clears component selection (mutual exclusion). */
+  setSelectedBore(boreId: string | null, partPath: string | null): void;
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   cutListTabActive: boolean;
@@ -665,6 +671,8 @@ export const useAppStore = create<AppState>((set) => ({
   editingComponentId: null,
   editComponentInitialValues: null,
   selectedComponentPaths: [],
+  selectedBoreId: null,
+  selectedBorePartPath: null,
   componentDiagnostics: [],
   bomTabActive: false,
   cutListTabActive: false,
@@ -684,7 +692,16 @@ export const useAppStore = create<AppState>((set) => ({
     if (next.has(key)) next.delete(key); else next.add(key);
     return { expandedSubAsmPaths: next };
   }),
-  selectComponentPaths: (paths) => set({ selectedComponentPaths: [...paths] }),
+  setSelectedBore: (boreId, partPath) => set({
+    selectedBoreId: boreId,
+    selectedBorePartPath: partPath,
+    selectedComponentPaths: [],
+  }),
+  selectComponentPaths: (paths) => set({
+    selectedComponentPaths: [...paths],
+    selectedBoreId: null,
+    selectedBorePartPath: null,
+  }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
