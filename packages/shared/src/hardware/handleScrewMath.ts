@@ -49,7 +49,7 @@ const BORE_FACE: FaceName = { featureId: 'panel', role: 'Top', instance: 0 };
  * a unique prefix per front (e.g. incorporating the componentId) to ensure
  * uniqueness in an assembly with multiple drawers.
  *
- * `connectorId` is shared between both bores (they form one fastener pair).
+ * Each bore gets a DISTINCT `connectorId` (§13.4) so the BOM counts 2 screws per pull.
  */
 export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
   const { frontHeight, frontWidth, cc, idPrefix = 'hdl' } = input;
