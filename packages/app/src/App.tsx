@@ -550,6 +550,42 @@ export default function App() {
         );
       };
 
+      // Connector BOM E2E hook: return aggregated connector BOM rows for the active assembly.
+      // G.5 e2e calls window.__zilventorConnectorBomAggregate() to verify BOM count after delete.
+      w.__zilventorConnectorBomAggregate = async () => {
+        const { aggregateConnectorBomRecursive } = await import(
+          './assembly/walkers/aggregateConnectorBomRecursive'
+        );
+        const { CONNECTOR_BOM_CATALOG } = await import('@zilventor/shared');
+        const s = useAppStore.getState();
+        const asm = s.activeAssembly;
+        if (!asm) return [];
+        const subAsmCacheAdapter = {
+          get: (p: string) => {
+            const d = s.subAssemblyDocs[p];
+            return d ? { kind: 'ok' as const, doc: d, partPath: p } : undefined;
+          },
+        };
+        const boresCache = new Map<string, BoreOp[]>();
+        for (const [k, v] of partBoresCacheRef.current.entries()) {
+          if (v && v.length > 0) boresCache.set(k, v);
+        }
+        const rows = aggregateConnectorBomRecursive(
+          asm,
+          subAsmCacheAdapter,
+          boresCache,
+          partInfoCacheRef.current,
+        );
+        // Resolve i18n names via English fallback for the probe (avoids i18n bootstrap dep)
+        return rows.map((r) => ({
+          kind: r.kind,
+          nameKey: r.nameKey,
+          qty: r.qty,
+          notes: r.notes,
+          name: CONNECTOR_BOM_CATALOG[r.kind]?.nameEn ?? r.kind,
+        }));
+      };
+
       w.__zilventorDetailViewMs = async (n = 100) => {
         const { projectDetailView } = await import('@zilventor/shared/src/drawing/projectDetailView');
         type Edge2D = import('@zilventor/shared').Edge2D;
