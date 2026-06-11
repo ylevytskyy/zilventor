@@ -21,6 +21,19 @@ import {
 } from './section/cutBySectionPlane';
 import { transformShapeByPose, mirrorShape } from './occt/TransformOps';
 import type { FaceTag } from '@zilventor/shared/src/drawing/projectSectionView';
+import { exportStepDoc, IDENTITY_POSE, type KernelExportLeaf, type ExportPose } from './occt/StepExport';
+import { exportStlBinary, type StlExportLeaf } from './occt/StlExport';
+
+// Re-export pose + leaf types so the app and commands can import them from '@zilventor/kernel/src/api'.
+export type { ExportPose, StlExportLeaf };
+
+/** App→kernel assembly leaf. color is pre-resolved to 0–1 RGB app-side. */
+export type ExportLeaf = {
+  partId: string;
+  name: string;
+  pose: ExportPose;
+  color?: readonly [number, number, number];
+};
 
 /**
  * Result of a successful `execute` / `previewFeature` call. The mesh is the
@@ -186,6 +199,14 @@ export type KernelApi = {
     components: readonly { partId: string; pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] } }[],
     planes: readonly Plane[], arrowDirection: -1 | 1,
   ): Promise<CutSectionResult>;
+  /** Export a single registered part as a 1-leaf XCAF STEP doc (identity pose, no color). */
+  exportStepPart(partId: string): Promise<Uint8Array>;
+  /** Export an assembly: un-posed prototype per distinct partId, posed component per leaf. */
+  exportStepAssembly(leaves: readonly ExportLeaf[], opts?: { name?: string }): Promise<Uint8Array>;
+  /** Export a single part as binary STL (re-executes if cache is cold). */
+  exportStlPart(partId: string, opts?: { binary?: boolean }): Promise<Uint8Array>;
+  /** Export an assembly as binary STL (re-executes leaves if cache is cold). */
+  exportStlAssembly(leaves: readonly ExportLeaf[], opts?: { binary?: boolean }): Promise<Uint8Array>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -230,6 +251,25 @@ export function createKernelApi(): KernelApi {
   }
   function lookupImportedShape(bodyRef: string): OcctShape | undefined {
     return importedShapeCache.get(bodyRef);
+  }
+
+  /**
+   * Ensure namedShapeCache has a warm entry for `partId`. If the cache is cold
+   * (e.g., after `loadFromBytes` which populates `parts` but NOT the cache),
+   * re-executes the feature tree and warms the cache. Lifted verbatim from the
+   * extractAssemblyRef / mirrorPart cold-cache pattern (api.ts:519-528 / :467-474).
+   */
+  async function warmShapeForExport(partId: string): Promise<import('./occt/FaceNaming').NamedShape> {
+    let ns = namedShapeCache.get(partId);
+    if (!ns) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`export: leaf part ${partId} not loaded`);
+      const r = await executeTree(occt!, p, lookupImportedShape);
+      if (!r.ok) throw new Error(`export: execute failed for ${partId}: ${r.error.message}`);
+      updateNamedShapeCache(partId, r.value.namedShape, r.value.workFeatures ?? []);
+      ns = r.value.namedShape;
+    }
+    return ns;
   }
 
   return {
@@ -529,6 +569,55 @@ export function createKernelApi(): KernelApi {
       const ex = realExtractorBundle(occt);
       const wfMap = new Map<string, import('@zilventor/shared').WorkFeatureValue>((wfs ?? []).map((w) => [w.featureId, w]));
       return resolveRef(ref, ns, wfMap, ex);
+    },
+
+    // --- STEP export (Phase 3/4) ---
+    // Cold-cache fallback: namedShapeCache is NOT warmed by loadFromBytes,
+    // so every export re-executes when cold (pattern lifted from
+    // extractAssemblyRef:519-528 / mirrorPart:467-474). Throws on unknown part.
+    async exportStepPart(partId) {
+      if (!occt) throw new Error('kernel not initialized');
+      const ns = await warmShapeForExport(partId);
+      const p = parts.get(partId)!;
+      const leaf: KernelExportLeaf = { shape: ns.shape, protoKey: partId, name: p.name, pose: IDENTITY_POSE };
+      return exportStepDoc(occt, [leaf]);
+    },
+
+    async exportStepAssembly(leaves, _opts) {
+      if (!occt) throw new Error('kernel not initialized');
+      if (leaves.length === 0) throw new Error('exportStepAssembly: no leaves');
+      const kernelLeaves: KernelExportLeaf[] = [];
+      for (const leaf of leaves) {
+        const ns = await warmShapeForExport(leaf.partId);
+        kernelLeaves.push({
+          shape: ns.shape,
+          protoKey: leaf.partId,
+          name: leaf.name,
+          pose: leaf.pose,
+          ...(leaf.color ? { color: leaf.color } : {}),
+        });
+      }
+      return exportStepDoc(occt, kernelLeaves);
+    },
+
+    // --- STL export (Phase 1/2) ---
+    // STL methods honor opts?.binary (true/absent → binary; ASCII is a non-goal).
+    async exportStlPart(partId, opts) {
+      if (!occt) throw new Error('kernel not initialized');
+      const ns = await warmShapeForExport(partId);
+      const stlLeaf: StlExportLeaf = { shape: ns.shape, pose: IDENTITY_POSE };
+      return exportStlBinary(occt, [stlLeaf], { binary: opts?.binary !== false });
+    },
+
+    async exportStlAssembly(leaves, opts) {
+      if (!occt) throw new Error('kernel not initialized');
+      if (leaves.length === 0) throw new Error('exportStlAssembly: no leaves');
+      const stlLeaves: StlExportLeaf[] = [];
+      for (const leaf of leaves) {
+        const ns = await warmShapeForExport(leaf.partId);
+        stlLeaves.push({ shape: ns.shape, pose: leaf.pose });
+      }
+      return exportStlBinary(occt, stlLeaves, { binary: opts?.binary !== false });
     },
 
     async importStep({ stepBytes, partName: _partName }) {
