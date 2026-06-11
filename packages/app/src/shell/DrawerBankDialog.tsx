@@ -69,7 +69,7 @@ export function DrawerBankDialog(): JSX.Element | null {
   const count = parseInt(countStr, 10);
   const countValid = Number.isInteger(count) && count >= 2 && count <= 10;
 
-  const handleOk = (): void => {
+  const handleOk = async (): Promise<void> => {
     if (!countValid) {
       setError(t('dialog.drawerBank.error.invalidCount'));
       return;
@@ -81,12 +81,21 @@ export function DrawerBankDialog(): JSX.Element | null {
       return;
     }
     setError(null);
-    dialog.onSubmit({
-      count,
-      overlay,
-      thickness: Number(thicknessStr),
-    });
-    setDialog(null);
+    try {
+      await dialog.onSubmit({
+        count,
+        overlay,
+        thickness: Number(thicknessStr),
+      });
+      setDialog(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // If the message is an i18n key (e.g. "drawerBank.error.tooSmall"), translate it.
+      // Otherwise display the raw message.
+      const translated = t(msg, { defaultValue: msg });
+      setError(translated);
+      // Dialog stays open — do NOT call setDialog(null)
+    }
   };
 
   const handleCancel = (): void => {
@@ -159,7 +168,7 @@ export function DrawerBankDialog(): JSX.Element | null {
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
-          <button style={okBtnStyle} onClick={handleOk} disabled={!countValid}>{t('common.ok')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }} disabled={!countValid}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

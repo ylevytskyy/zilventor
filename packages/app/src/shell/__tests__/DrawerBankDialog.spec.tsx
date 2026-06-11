@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DrawerBankDialog } from '../DrawerBankDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
@@ -55,8 +55,8 @@ describe('DrawerBankDialog — structural', () => {
     expect((screen.getByLabelText('Thickness (mm)') as HTMLInputElement).value).toBe('18');
   });
 
-  it('OK submits the chosen params (count=3, overlay=full, thickness=18) and closes', () => {
-    const onSubmit = vi.fn();
+  it('OK submits the chosen params (count=3, overlay=full, thickness=18) and closes', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
       onSubmit,
@@ -72,7 +72,27 @@ describe('DrawerBankDialog — structural', () => {
       overlay: 'full',
       thickness: 18,
     });
-    expect(useAppStore.getState().addDrawerBankDialog).toBeNull();
+    await waitFor(() => {
+      expect(useAppStore.getState().addDrawerBankDialog).toBeNull();
+    });
+  });
+
+  it('onSubmit rejection keeps dialog open and shows error message', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('drawerBank.error.tooSmall'));
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    fireEvent.change(screen.getByLabelText('Count'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    // Dialog must stay open (store entry still set)
+    await waitFor(() => {
+      expect(useAppStore.getState().addDrawerBankDialog).not.toBeNull();
+    });
+    // Error alert must be visible
+    expect(screen.getByRole('alert')).toBeTruthy();
   });
 
   it('invalid count (1) blocks commit and shows error', () => {
