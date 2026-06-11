@@ -116,6 +116,29 @@ function axisVec(axis: PatternAxis): Vec3 {
        :                { x: 0, y: 0, z: 1 };
 }
 
+/** Axis-angle → unit quaternion [x,y,z,w]. `axis` need not be normalized. */
+export function axisAngleToQuat(axis: Vec3, angleRad: number): [number, number, number, number] {
+  const len = Math.hypot(axis.x, axis.y, axis.z) || 1;
+  const half = angleRad / 2;
+  const s = Math.sin(half) / len;
+  return [axis.x * s, axis.y * s, axis.z * s, Math.cos(half)];
+}
+
+/** Hamilton product a·b (both [x,y,z,w]). Corresponds to matrix product R(a)·R(b). */
+export function quatMul(
+  a: [number, number, number, number],
+  b: [number, number, number, number],
+): [number, number, number, number] {
+  const [ax, ay, az, aw] = a;
+  const [bx, by, bz, bw] = b;
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
 /**
  * Returns count1*count2 - 1 poses (origin cell excluded).
  * Each pose = sourcePose.translation + i*spacing1*axis(dir1) + j*spacing2*axis(dir2).

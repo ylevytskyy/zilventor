@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { computeRectGridPoses, computeMirroredPose, quatToMat3 } from '../poseHelpers';
+import { computeRectGridPoses, computeMirroredPose, quatToMat3, axisAngleToQuat, quatMul } from '../poseHelpers';
 import type { PatternAxis } from '@zilventor/shared';
 import type { Pose } from '../poseHelpers';
 
@@ -191,5 +191,39 @@ describe('computeMirroredPose', () => {
     expect(mwX).toBeCloseTo(expectedX, 6);
     expect(mwY).toBeCloseTo(expectedY, 6);
     expect(mwZ).toBeCloseTo(expectedZ, 6);
+  });
+});
+
+describe('axisAngleToQuat', () => {
+  it('+90° about +z → [0,0,√2/2,√2/2] (hand-authored)', () => {
+    const q = axisAngleToQuat({ x: 0, y: 0, z: 1 }, Math.PI / 2);
+    const s = Math.SQRT2 / 2;
+    expect(q[0]).toBeCloseTo(0, 9);
+    expect(q[1]).toBeCloseTo(0, 9);
+    expect(q[2]).toBeCloseTo(s, 9);
+    expect(q[3]).toBeCloseTo(s, 9);
+  });
+  it('rotated vector: +90° about +z maps [1,0,0] → [0,1,0]', () => {
+    const m = quatToMat3(axisAngleToQuat({ x: 0, y: 0, z: 1 }, Math.PI / 2));
+    expect(m[0]).toBeCloseTo(0, 9);
+    expect(m[3]).toBeCloseTo(1, 9);
+    expect(m[6]).toBeCloseTo(0, 9);
+  });
+});
+describe('quatMul', () => {
+  it('Hamilton product i·j = k: [1,0,0,0]·[0,1,0,0] → [0,0,1,0]', () => {
+    const r = quatMul([1, 0, 0, 0], [0, 1, 0, 0]);
+    expect(r[0]).toBeCloseTo(0, 12);
+    expect(r[1]).toBeCloseTo(0, 12);
+    expect(r[2]).toBeCloseTo(1, 12);
+    expect(r[3]).toBeCloseTo(0, 12);
+  });
+  it('right identity: q·[0,0,0,1] === q', () => {
+    const q: [number, number, number, number] = [0.1, 0.2, 0.3, 0.9];
+    const r = quatMul(q, [0, 0, 0, 1]);
+    expect(r[0]).toBeCloseTo(0.1, 12);
+    expect(r[1]).toBeCloseTo(0.2, 12);
+    expect(r[2]).toBeCloseTo(0.3, 12);
+    expect(r[3]).toBeCloseTo(0.9, 12);
   });
 });
