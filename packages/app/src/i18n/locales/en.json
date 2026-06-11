@@ -6,7 +6,8 @@
       "hinge": "Hinge Ø35 cup",
       "minifix": "Minifix cam fitting",
       "shelfPin": "Shelf pin Ø5",
-      "drawerSlide": "Drawer slide Ø5"
+      "drawerSlide": "Drawer slide Ø5",
+      "handleScrew": "Handle screw"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Drawer slide (cabinet side)",
@@ -17,6 +18,8 @@
     "add_door_dialog": "Add Door dialog",
     "add_drawers_dialog": "Add Drawers dialog",
     "add_drawers": "Add Drawers",
+    "add_handles_dialog": "Add Handles dialog",
+    "add_handles": "Add Handles",
     "add_view": "Add View",
     "assembly_tab": "Assembly tab",
     "bom_tab": "BOM tab",
@@ -188,6 +191,13 @@
         "invalidCount": "Count must be between 2 and 10",
         "tooSmall": "Cabinet opening is too small to fit drawers"
       }
+    },
+    "drawerHandle": {
+      "title": "Add Drawer Handles",
+      "cc": "Center-to-center",
+      "cc96": "96 mm",
+      "cc128": "128 mm",
+      "cc160": "160 mm"
     },
     "addDoor": {
       "title": "Add Door",
@@ -783,6 +793,7 @@
     "furniture": {
       "addDoor": "Add Door",
       "addDrawers": "Add Drawers",
+      "addHandles": "Add Handles",
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",

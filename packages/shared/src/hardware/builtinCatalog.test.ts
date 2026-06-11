@@ -2,20 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { BUILTIN_CATALOG } from './builtinCatalog';
 
 describe('BUILTIN_CATALOG', () => {
-  it('has exactly 7 entries', () => {
-    expect(BUILTIN_CATALOG).toHaveLength(7);
+  it('has exactly 10 entries', () => {
+    expect(BUILTIN_CATALOG).toHaveLength(10);
   });
 
   it('all ids are unique', () => {
     const ids = BUILTIN_CATALOG.map((e) => e.id);
-    expect(new Set(ids).size).toBe(7);
+    expect(new Set(ids).size).toBe(10);
   });
 
-  it('has 4 hinge entries and 3 shelf-pin entries', () => {
+  it('has 4 hinge entries, 3 shelf-pin entries, and 3 bar-pull entries', () => {
     const hinges = BUILTIN_CATALOG.filter((e) => e.category === 'hinges');
     const pins   = BUILTIN_CATALOG.filter((e) => e.category === 'shelfPins');
+    const pulls  = BUILTIN_CATALOG.filter((e) => e.category === 'drawerHandles');
     expect(hinges).toHaveLength(4);
     expect(pins).toHaveLength(3);
+    expect(pulls).toHaveLength(3);
   });
 
   it('every entry has a non-empty name and non-empty notes', () => {

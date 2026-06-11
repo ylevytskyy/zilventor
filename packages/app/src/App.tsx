@@ -1183,6 +1183,16 @@ export default function App() {
         const bore = bores?.find((b) => b.id === boreId);
         return bore ? { u: bore.u, v: bore.v } : null;
       };
+
+      // Slice-6: __zilventorHardwarePartCount() — count of rendered scene meshes
+      // for hardware parts (partPath.startsWith('hardware/')).
+      // Mirrors boreMarkerCount() but for pull/handle components.
+      w.__zilventorHardwarePartCount = (): number => {
+        const store = useAppStore.getState();
+        const vp = store.viewport as { getSceneManager?(): unknown } | null;
+        const sm = vp?.getSceneManager?.() as { hardwarePartCount(): number } | null;
+        return sm?.hardwarePartCount?.() ?? 0;
+      };
     }
   }, []);
 

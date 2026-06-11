@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { CONNECTOR_BOM_CATALOG, type ConnectorBomEntry } from '../connectorBomCatalog';
 import type { BoreConnectorKind } from '../bore';
 
-const ALL_KINDS: BoreConnectorKind[] = ['confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge'];
+const ALL_KINDS = [
+  'confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge', 'drawerSlide', 'handleScrew',
+] as const satisfies readonly BoreConnectorKind[];
 
 describe('CONNECTOR_BOM_CATALOG — catalog completeness and shape', () => {
   it('contains an entry for every BoreConnectorKind', () => {

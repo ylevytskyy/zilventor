@@ -122,7 +122,7 @@ export type ComponentInstance = {
   color?: ComponentColor;
   flexible?: boolean;
   /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21. */
-  role?: PanelRole | 'drawerFront' | 'drawerBox';
+  role?: PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle';
   /** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
   doorSpec?: DoorSpec;
   /** Drawer bank spec; present only on role:'drawerFront'|'drawerBox' components. Additive v24. */

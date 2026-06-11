@@ -8,7 +8,7 @@ describe('SceneManager.BORE_COLORS — exhaustive over BoreConnectorKind', () =>
   // If BORE_COLORS lacks a member's entry, the runtime assertion below fails.
   // No SceneManager instance is needed — BORE_COLORS is a static field.
   const ALL_KINDS = [
-    'confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge', 'drawerSlide',
+    'confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge', 'drawerSlide', 'handleScrew',
   ] as const satisfies readonly BoreConnectorKind[];
 
   it('has a non-empty color string for every connector kind (no SceneManager instance needed)', () => {

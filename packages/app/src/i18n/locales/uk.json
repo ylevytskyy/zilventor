@@ -6,7 +6,8 @@
       "hinge": "Завіса Ø35",
       "minifix": "Стяжка Minifix",
       "shelfPin": "Полицетримач Ø5",
-      "drawerSlide": "Напрямна ящика Ø5"
+      "drawerSlide": "Напрямна ящика Ø5",
+      "handleScrew": "Гвинт ручки"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Напрямна шухляди (сторона корпусу)",
@@ -17,6 +18,8 @@
     "add_door_dialog": "Діалог додавання дверей",
     "add_drawers_dialog": "Діалог додавання шухляд",
     "add_drawers": "Додати шухляди",
+    "add_handles_dialog": "Діалог додавання ручок",
+    "add_handles": "Додати ручки",
     "add_view": "Додати вид",
     "assembly_tab": "Вкладка збірки",
     "bom_tab": "Вкладка ВМ",
@@ -188,6 +191,13 @@
         "invalidCount": "Кількість має бути від 2 до 10",
         "tooSmall": "Отвір корпусу надто малий для шухляд"
       }
+    },
+    "drawerHandle": {
+      "title": "Додати ручки",
+      "cc": "Між центрами",
+      "cc96": "96 мм",
+      "cc128": "128 мм",
+      "cc160": "160 мм"
     },
     "addDoor": {
       "title": "Додати двері",
@@ -783,6 +793,7 @@
     "furniture": {
       "addDoor": "Двері",
       "addDrawers": "Шухляди",
+      "addHandles": "Ручки",
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",

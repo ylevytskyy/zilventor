@@ -875,6 +875,23 @@ export async function executeTree(
           featureId: feature.id
         });
       }
+    } else if (feature.kind === 'hardware') {
+      // §13.1-B1: build a fully-centered box via the two-corner form.
+      // BRepPrimAPI_MakeBox_4(p1, p2) spans [p1, p2] — no corner-at-origin offset.
+      // MUST NOT use makeBox() (uses BRepPrimAPI_MakeBox_2, corner at origin — wrong centering).
+      const { l, w, h } = feature.bboxMm;
+      const p1 = new oc.gp_Pnt_3(-l / 2, -w / 2, -h / 2);
+      const p2 = new oc.gp_Pnt_3( l / 2,  w / 2,  h / 2);
+      const rawBoxShape = new oc.BRepPrimAPI_MakeBox_4(p1, p2).Shape();
+      p1.delete();
+      p2.delete();
+      if (finalSolid) {
+        disposeShape(finalSolid.shape);
+      }
+      finalSolid = {
+        shape: { __brand: 'OcctShape' as const, handle: rawBoxShape } as OcctShape,
+        faceNames: [],
+      };
     }
   }
 

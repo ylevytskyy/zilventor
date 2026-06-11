@@ -8,9 +8,10 @@ export type BoreRole =
   | 'hingeCup'            // Ø35 cup on a door INNER (Top/Bottom) face
   | 'hingePlate'          // Ø5 plate-mount hole on a side INNER face
   | 'drawerSlide-cabinet' // Ø5 Система-32 slide hole on a cabinet inner side
-  | 'drawerSlide-box';    // Ø5 Система-32 slide hole on a drawer box side panel
+  | 'drawerSlide-box'    // Ø5 Система-32 slide hole on a drawer box side panel
+  | 'handleScrew-face';  // Ø5 mounting hole on drawer front outward face
 
-export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' | 'hinge' | 'drawerSlide';
+export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' | 'hinge' | 'drawerSlide' | 'handleScrew';
 
 /**
  * Hardware-boring op (присадка). One drill: a face, a panel-local (u,v) on that

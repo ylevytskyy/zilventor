@@ -96,6 +96,7 @@ export class GenerateCarcassBoresCommand implements Command {
         }
 
         if (!c.role) continue; // role-less non-sub-asm component → skip (not a cabinet panel)
+        if (c.partPath.startsWith('hardware/')) continue; // hardware part (drawerHandle etc.) → no panel feature, skip
 
         // Load panel manifest once.
         if (!docs.has(c.partPath)) {

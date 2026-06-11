@@ -160,7 +160,8 @@ export class SceneManager {
     dowel:       '#2eb872',
     shelfPin:    '#b8a32e',   // amber
     hinge:       '#8c2eb8',   // violet
-    drawerSlide: '#7d2ed1',   // purple
+    drawerSlide:  '#7d2ed1',   // purple
+    handleScrew:  '#2ec8c8',   // teal
   } satisfies Record<BoreConnectorKind, string>;
 
 
@@ -509,10 +510,13 @@ export class SceneManager {
         mesh.matrixAutoUpdate = false;
         // T28: store the path on the mesh so pickers / overlays can match by path
         mesh.userData.componentPath = [...leaf.componentPath];
+        // Slice-6: store partPath for hardware-part counting
+        mesh.userData.partPath = leaf.partPath;
         this.scene.add(mesh);
         this.componentMeshes.set(key, mesh);
       } else {
         mesh.userData.componentPath = [...leaf.componentPath];
+        mesh.userData.partPath = leaf.partPath;
       }
       mesh.geometry = geom;
       const m = new THREE.Matrix4();
@@ -686,6 +690,16 @@ export class SceneManager {
   /** Phase 5: test/debug accessor — count of attached bore markers. */
   boreMarkerCount(): number {
     return this.boreMarkers.length;
+  }
+
+  /** Slice-6: test/debug accessor — count of rendered scene meshes for hardware parts (partPath starts with 'hardware/'). */
+  hardwarePartCount(): number {
+    let count = 0;
+    for (const mesh of this.componentMeshes.values()) {
+      const partPath = mesh.userData.partPath as string | undefined;
+      if (partPath && partPath.startsWith('hardware/')) count++;
+    }
+    return count;
   }
 
   /** Phase 5: test/debug accessor — read-only handle to the marker meshes. */

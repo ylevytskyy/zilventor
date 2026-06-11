@@ -21,6 +21,7 @@ import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
+import { AddDrawerHandlesCommand } from '../../commands/AddDrawerHandlesCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
@@ -190,6 +191,35 @@ export default function FurnitureTab() {
     useAppStore.getState().setOneComponentPickHandle(handle);
   };
 
+  /**
+   * Slice-6: "Add Handles" button — mirrors the Add Drawers flow (PC-8).
+   * Picks a cabinet via beginOneComponentPick, then sets addDrawerHandleDialog with
+   * cabinetPath, onSubmit (sources opfs same way as Add Drawers), and onCancel.
+   */
+  const handleAddHandles = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setAddDrawerHandleDialog({
+        cabinetPath,
+        onSubmit: async (cc) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddDrawerHandlesCommand({
+              cabinetPath,
+              cc,
+              opfs,
+              store: useAppStore,
+            }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setAddDrawerHandleDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
   const handleSystem32Auto = () => {
     useAppStore.getState().setShelfPinDialog({
       mode: 'auto',
@@ -331,6 +361,16 @@ export default function FurnitureTab() {
             aria-label={t('aria.add_drawers')}
           >
             {t('ribbon.furniture.addDrawers')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddHandles(); }}
+            aria-label={t('aria.add_handles', 'Add Handles')}
+          >
+            {t('ribbon.furniture.addHandles', 'Add Handles')}
           </button>
           <button
             type="button"
