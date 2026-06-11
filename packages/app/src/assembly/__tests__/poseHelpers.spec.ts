@@ -261,3 +261,35 @@ describe('computeCircularPoses — translation', () => {
     for (const p of poses) expect(p.translation.z).toBeCloseTo(5, 6);
   });
 });
+
+describe('computeCircularPoses — orientation', () => {
+  const srcQuat = ((): [number, number, number, number] => {
+    const s = Math.SQRT2 / 2;
+    return [s, 0, 0, s];
+  })();
+  const src: Pose = { translation: { x: 2, y: 0, z: 0 }, quaternion: srcQuat };
+  it('rotateInstances=true: composed orientation = R(z,θ)·R_source (world pre-multiply)', () => {
+    const poses = computeCircularPoses(src, 'z', { x: 0, y: 0, z: 0 }, 4, 360, true);
+    const p = { x: 1, y: 1, z: 0 };
+    const Rsrc = quatToMat3(srcQuat);
+    const apply = (m: number[], v: { x: number; y: number; z: number }) => ({
+      x: m[0]! * v.x + m[1]! * v.y + m[2]! * v.z,
+      y: m[3]! * v.x + m[4]! * v.y + m[5]! * v.z,
+      z: m[6]! * v.x + m[7]! * v.y + m[8]! * v.z,
+    });
+    poses.forEach((pose, idx) => {
+      const theta = (idx + 1) * (Math.PI / 2);
+      const Rz = quatToMat3(axisAngleToQuat({ x: 0, y: 0, z: 1 }, theta));
+      const expected = apply(Rz, apply(Rsrc, p));
+      const actual = apply(quatToMat3(pose.quaternion), p);
+      expect(actual.x).toBeCloseTo(expected.x, 6);
+      expect(actual.y).toBeCloseTo(expected.y, 6);
+      expect(actual.z).toBeCloseTo(expected.z, 6);
+    });
+  });
+  it('rotateInstances=false: every instance quaternion === sourceQuat AND positions still moved', () => {
+    const poses = computeCircularPoses(src, 'z', { x: 0, y: 0, z: 0 }, 4, 360, false);
+    for (const pose of poses) expect(pose.quaternion).toEqual(srcQuat);
+    expect(poses[0]!.translation.x).not.toBeCloseTo(2, 3);
+  });
+});
