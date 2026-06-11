@@ -747,6 +747,33 @@ export class SceneManager {
     return { x: e[12]!, y: e[13]!, z: e[14]! };
   }
 
+  /** Slice-5 e2e probe: world point ON the ring face (not the center hole) for a given bore.
+   *  Returns a point offset by the ring midpoint radius along the mesh local X axis (uDir of
+   *  the face plane). Clicking/raycasting this point hits the ring triangles, not the hollow
+   *  center. Returns null if the marker mesh is not found. */
+  boreMarkerHitPoint(boreId: string, partPath: string): Vec3 | null {
+    const mesh = this.findBoreMarkerMesh(boreId, partPath);
+    if (!mesh) return null;
+    mesh.updateMatrixWorld(true);
+    const e = mesh.matrixWorld.elements;
+    let outerR = 2.5; // default for Ø5
+    outer: for (const spec of this.boreOverlaySpecs) {
+      if (spec.partPath !== partPath) continue;
+      for (const bore of spec.bores) {
+        if (bore.id !== boreId) continue;
+        outerR = bore.diameter / 2;
+        break outer;
+      }
+    }
+    const midR = outerR * 0.8; // between inner (0.6*outer) and outer (1.0*outer)
+    const localX = new THREE.Vector3(e[0]!, e[1]!, e[2]!).normalize();
+    return {
+      x: e[12]! + localX.x * midR,
+      y: e[13]! + localX.y * midR,
+      z: e[14]! + localX.z * midR,
+    };
+  }
+
   /** Slice-5: e2e helper — first bore whose axis is non-null (i.e. draggable via gizmo).
    *  Iterates boreOverlaySpecs; uses boreGizmoAxis to test each bore. */
   firstDraggableBore(): { boreId: string; partPath: string } | null {

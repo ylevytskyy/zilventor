@@ -1110,6 +1110,79 @@ export default function App() {
         const p95ms = samples[Math.floor(samples.length * 0.95)] ?? 0;
         return { p95ms };
       };
+
+      // ── Slice-5 drag-gizmo e2e probes ────────────────────────────────────────
+      // __zilventorSeedCabinetWithBores(): build a cabinet + carcass присадки into
+      // the active assembly so bore markers render and draggable bores exist.
+      w.__zilventorSeedCabinetWithBores = async () => {
+        const { CreateCabinetCommand } = await import('./commands/CreateCabinetCommand');
+        const { GenerateCarcassBoresCommand } = await import('./commands/GenerateCarcassBoresCommand');
+        const { Opfs: OpfsClass } = await import('@zilventor/kernel/src/storage/Opfs');
+        const store = useAppStore.getState();
+        const opfs = await OpfsClass.forNavigator();
+
+        // Bootstrap an empty assembly document so CreateCabinetCommand can find activeAssembly.
+        const carcassMat = { id: 'seed-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' };
+        const backMat   = { id: 'seed-hb-6',     name: 'Hardboard 6mm', defaultThickness: 6, color: '#8b6f47' };
+        store.setActiveDocument({
+          kind: 'assembly',
+          document: {
+            id: 'drag-gizmo-seed-asm',
+            name: 'DragGizmo Project',
+            units: 'mm' as const,
+            parameters: {},
+            properties: {},
+            components: [],
+            constraints: [],
+            groundedComponentPaths: [],
+            colors: {},
+            bomItemNumbers: {},
+            cutListItemNumbers: {},
+            colorOverrides: {},
+            materials: [carcassMat, backMat],
+            hardware: [],
+          },
+        });
+
+        // Create the cabinet
+        await store.bus.execute(new CreateCabinetCommand({
+          template: 'baseCabinet',
+          params: {
+            name: 'DragGizmo Cabinet',
+            width: 600,
+            depth: 560,
+            height: 720,
+            toekickHeight: 100,
+            toekickSetback: 50,
+            shelfCount: 0,
+            carcassMaterialId: 'seed-birch-18',
+            backMaterialId: 'seed-hb-6',
+            bandMaterialId: null,
+          },
+          opfs,
+        }));
+
+        // Generate carcass bores (confirmat only — gives jointDir on bores)
+        await store.bus.execute(new GenerateCarcassBoresCommand({
+          params: {
+            endSetback: 60,
+            maxSpacing: 250,
+            minCount: 2,
+            confirmat: true,
+            minifix: false,
+            dowel: false,
+          },
+          opfs,
+        }));
+      };
+
+      // __zilventorReadBoreUV(boreId, partPath): return {u, v} from the live
+      // partBoresCacheRef (populated by the bore-marker effect after assembly load).
+      w.__zilventorReadBoreUV = (boreId: string, partPath: string): { u: number; v: number } | null => {
+        const bores = partBoresCacheRef.current.get(partPath);
+        const bore = bores?.find((b) => b.id === boreId);
+        return bore ? { u: bore.u, v: bore.v } : null;
+      };
     }
   }, []);
 
