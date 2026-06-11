@@ -73,7 +73,11 @@ export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
   const vCenter = frontWidth / 2;
   const halfCc = cc / 2;
 
-  const connectorId = `${idPrefix}-conn`;
+  // §13.4 / PC-1: DISTINCT connectorId per bore so BOM counts 2 screws per pull (2N total).
+  // Format: `${idPrefix}-screw-0` / `${idPrefix}-screw-1`.
+  // The caller MUST supply a unique `idPrefix` per front to avoid cross-front id collisions.
+  const connectorId0 = `${idPrefix}-screw-0`;
+  const connectorId1 = `${idPrefix}-screw-1`;
 
   const bore0: BoreOp = {
     id: `${idPrefix}-s0`,
@@ -83,7 +87,7 @@ export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
     diameter: BORE_DIAMETER,
     depth: 'throughAll',
     role: 'handleScrew-face',
-    connectorId,
+    connectorId: connectorId0,
     connectorKind: 'handleScrew',
   };
 
@@ -95,7 +99,7 @@ export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
     diameter: BORE_DIAMETER,
     depth: 'throughAll',
     role: 'handleScrew-face',
-    connectorId,
+    connectorId: connectorId1,
     connectorKind: 'handleScrew',
   };
 

@@ -50,9 +50,13 @@ describe('handleBoreUV', () => {
     expect(typeof b0.connectorId).toBe('string');
     expect(typeof b1.connectorId).toBe('string');
 
-    // The two bores are DISTINCT (different ids) but share the same connectorId (one fastener pair)
+    // §13.4 / PC-1: The two bores are DISTINCT ids AND DISTINCT connectorIds
+    // (BOM counts 2 screws per pull = 2N, so connectorIds must differ for deduplication).
     expect(b0.id).not.toBe(b1.id);
-    expect(b0.connectorId).toBe(b1.connectorId);
+    expect(b0.connectorId).not.toBe(b1.connectorId);
+    // Both connectorIds must be non-empty strings
+    expect(b0.connectorId.length).toBeGreaterThan(0);
+    expect(b1.connectorId.length).toBeGreaterThan(0);
   });
 
   it('returns two bores for cc=128 on a 600×300 front', () => {
