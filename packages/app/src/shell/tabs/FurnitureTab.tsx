@@ -20,6 +20,7 @@ import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
+import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
@@ -156,6 +157,39 @@ export default function FurnitureTab() {
     useAppStore.getState().setOneComponentPickHandle(handle);
   };
 
+  /**
+   * Slice-4: "Add Drawers" button — follows the door callback-object pattern (§14.8).
+   * Picks a cabinet via beginOneComponentPick, then sets addDrawerBankDialog with the
+   * cabinetPath and onSubmit/onCancel callbacks.
+   */
+  const handleAddDrawers = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setAddDrawerBankDialog({
+        cabinetPath,
+        onSubmit: async (p) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddDrawerBankCommand({
+              cabinetPath,
+              params: {
+                count: p.count,
+                overlay: p.overlay,
+                thickness: p.thickness,
+              },
+              opfs,
+              store: useAppStore,
+            }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setAddDrawerBankDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
   const handleSystem32Auto = () => {
     useAppStore.getState().setShelfPinDialog({
       mode: 'auto',
@@ -287,6 +321,16 @@ export default function FurnitureTab() {
             aria-label={t('ribbon.furniture.addDoor')}
           >
             {t('ribbon.furniture.addDoor')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddDrawers(); }}
+            aria-label={t('aria.add_drawers')}
+          >
+            {t('ribbon.furniture.addDrawers')}
           </button>
           <button
             type="button"

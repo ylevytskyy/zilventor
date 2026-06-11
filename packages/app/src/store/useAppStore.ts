@@ -109,6 +109,19 @@ export type AddDoorDialogState = {
   onCancel: () => void;
 };
 
+/** Slice-4 присадка: "Add Drawers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
+export type AddDrawerBankDialogState = {
+  cabinetPath: string;
+  /** Optional dims — used by the dialog's degenerate guard if provided. */
+  dims?: { openW: number; openH: number };
+  onSubmit: (params: {
+    count: number;
+    overlay: 'full' | 'half' | 'inset';
+    thickness: number;
+  }) => void;
+  onCancel: () => void;
+};
+
 /**
  * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
  * assembly's side panels; `manual` targets one picked panel + chosen broad face.
@@ -374,6 +387,8 @@ type AppState = {
   setBoringDialog: (s: BoringDialogState | null) => void;
   addDoorDialog: AddDoorDialogState | null;
   setAddDoorDialog: (s: AddDoorDialogState | null) => void;
+  addDrawerBankDialog: AddDrawerBankDialogState | null;
+  setAddDrawerBankDialog: (s: AddDrawerBankDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
@@ -921,6 +936,8 @@ export const useAppStore = create<AppState>((set) => ({
   setBoringDialog: (s) => set({ boringDialog: s }),
   addDoorDialog: null,
   setAddDoorDialog: (s) => set({ addDoorDialog: s }),
+  addDrawerBankDialog: null,
+  setAddDrawerBankDialog: (s) => set({ addDrawerBankDialog: s }),
   shelfPinDialog: null,
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
   oneComponentPickHandle: null,

@@ -112,11 +112,12 @@ export class SceneManager {
   private customTextureRegistry: CustomTextureRegistry | null = null;
   private static readonly EDGE_BAND_FALLBACK_COLOR = '#cfa84b';
   static readonly BORE_COLORS = {
-    confirmat: '#2e7dd1',
-    minifix: '#d14f2e',
-    dowel: '#2eb872',
-    shelfPin: '#b8a32e',   // amber
-    hinge: '#8c2eb8',      // violet
+    confirmat:   '#2e7dd1',
+    minifix:     '#d14f2e',
+    dowel:       '#2eb872',
+    shelfPin:    '#b8a32e',   // amber
+    hinge:       '#8c2eb8',   // violet
+    drawerSlide: '#7d2ed1',   // purple
   } satisfies Record<BoreConnectorKind, string>;
 
 
