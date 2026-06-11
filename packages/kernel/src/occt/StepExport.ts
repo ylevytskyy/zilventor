@@ -14,13 +14,14 @@ export const IDENTITY_POSE: ExportPose = {
 
 /**
  * Kernel-internal export leaf — the shape is already resolved to an UN-POSED
- * prototype handle (from namedShapeCache). `protoKey` is available for external
- * logic but the XCAF writer uses a flat AddShape per leaf (copy=true transform),
- * which is the correct approach for STEP color-round-trip compatibility with the
- * shipped readStep (label-level flat extraction). See design note below.
+ * prototype handle (from namedShapeCache). `protoKey` groups leaves by their
+ * part id so a single XCAF prototype label is created once per distinct part;
+ * each leaf then becomes a component reference (AddComponent_1) with a
+ * TopLoc_Location carrying the world pose. This is the TRUE STRUCTURED approach.
  */
 export type KernelExportLeaf = {
   shape: OcctShape;
+  /** Dedup key — equals the kernel partId. One AddShape per distinct protoKey. */
   protoKey: string;
   name: string;
   pose: ExportPose;
@@ -50,32 +51,28 @@ function trsfFromPose(oc: OcctInstance, pose: ExportPose): unknown {
 }
 
 /**
- * Check if a pose is identity (no rotation, no translation).
- */
-function isIdentityPose(pose: ExportPose): boolean {
-  const { x, y, z } = pose.translation;
-  const [qx, qy, qz, qw] = pose.quaternion;
-  return x === 0 && y === 0 && z === 0 && qx === 0 && qy === 0 && qz === 0 && qw === 1;
-}
-
-/**
- * Build a XCAF document from `leaves` and write it to STEP bytes via
- * STEPCAFControl_Writer.
+ * Build a TRUE STRUCTURED XCAF assembly document from `leaves` and write it
+ * to STEP bytes via STEPCAFControl_Writer.
  *
- * **Design note — FLAT (not assembly) approach:**
- * For each leaf, this creates a DEEP-COPY transformed shape (BRepBuilderAPI_Transform_2
- * with copy=true) positioned at the world pose, then calls AddShape for each resulting
- * shape. A deep-copy transform produces a shape with NO TopoDS location wrapper (all
- * vertex coordinates are at the absolute world position), so XCAF treats each as a
- * standalone shape — the color on its label is preserved in the STEP file and can be
- * read back by the shipped readStep's label-level GetColor_4 lookup.
+ * **Design — STRUCTURED XCAF assembly:**
+ * 1. One prototype label per distinct `protoKey` (AddShape once, UN-POSED shape).
+ *    Name + color are set on the prototype label.
+ * 2. One assembly root label (shapeTool.NewShape()).
+ * 3. Per leaf: AddComponent_1(asmRoot, protoLabel, TopLoc_Location_2(trsf)) — the
+ *    world pose lives ONLY in the TopLoc_Location, never baked into the shape.
+ *    Per-instance name + color are also set on the returned component label.
+ * 4. shapeTool.UpdateAssemblies() — required for the STEP writer to serialize the
+ *    assembly structure correctly (without this, NAUOs are not emitted).
  *
- * The assembly XCAF approach (NewShape + AddComponent_1) requires readStep to traverse
- * component labels for colors rather than the free-shape labels — a larger change to
- * pre-existing code. The flat approach avoids this and is compatible with readStep as
- * shipped. The color-loss trap (from stepColor.helper.ts) refers specifically to
- * BRepBuilderAPI_Transform with copy=false (shallow copy with location) — copy=true
- * avoids it.
+ * This produces a STEP file with NEXT_ASSEMBLY_USAGE_OCCURRENCE entries — the
+ * AP214/AP242 marker of true assembly hierarchy. The flat baked approach did not
+ * produce these. Instancing: two leaves sharing the same protoKey yield two NAUOs
+ * pointing to one prototype → the STEP file is smaller and semantically correct.
+ *
+ * Colors are set on BOTH prototype labels AND component labels. On the component
+ * label, per-instance overrides are applied. This dual placement allows both
+ * structured-assembly XCAF readers (component-label color) and simpler readers
+ * (proto-label color fallback) to find the colors.
  *
  * sRGB color type matches the shipped reader (StepIO.ts:211-215).
  * Pure OCCT — no parts/cache access. Caller resolves leaf.shape + leaf.pose.
@@ -103,6 +100,9 @@ export function exportStepDoc(oc: OcctInstance, leaves: readonly KernelExportLea
   const shapeTool = (oc as {
     XCAFDoc_DocumentTool: { ShapeTool(l: unknown): { get(): {
       AddShape(s: unknown, makeAssembly: boolean, makePrepare: boolean): unknown;
+      NewShape(): unknown;
+      AddComponent_1(assembly: unknown, comp: unknown, loc: unknown): unknown;
+      UpdateAssemblies(): void;
     } } };
   }).XCAFDoc_DocumentTool.ShapeTool(main).get();
 
@@ -121,48 +121,79 @@ export function exportStepDoc(oc: OcctInstance, leaves: readonly KernelExportLea
   const SURF = (oc as { XCAFDoc_ColorType: { XCAFDoc_ColorSurf: unknown } }).XCAFDoc_ColorType.XCAFDoc_ColorSurf;
   const NameSet = (oc as { TDataStd_Name: { Set_1(l: unknown, s: unknown): unknown } }).TDataStd_Name;
 
-  // BRepBuilderAPI_Transform_2(shape, trsf, copy=true) — deep copy with baked vertices,
-  // no TopoDS location wrapper. This is the key to avoiding the color-loss trap:
-  // a shape with a location wrapper is treated as a "reference" by XCAF, not standalone.
-  const TransformCtor = (oc as {
-    BRepBuilderAPI_Transform_2: new (s: unknown, t: unknown, copy: unknown) => {
-      Shape(): unknown;
-      delete(): void;
-    }
-  }).BRepBuilderAPI_Transform_2;
+  // TopLoc_Location_2(trsf: gp_Trsf) — wraps a gp_Trsf in a TopoDS location.
+  // This is what AddComponent_1 uses to position the component in the assembly.
+  // d.ts line 97292-97294: constructor(T: gp_Trsf).
+  const TopLocCtor = (oc as { TopLoc_Location_2: new (t: unknown) => unknown }).TopLoc_Location_2;
 
-  // Add each leaf as a FLAT, STANDALONE shape (deep-copy-transformed to world position).
-  // This is the same pattern as stepColor.helper.ts which creates shapes at absolute
-  // positions and adds them flat — compatible with readStep's label-level color extraction.
+  // --- Step 1: Build one prototype label per distinct protoKey ---
+  // proto label = un-posed shape (the raw namedShape.shape.handle from the cache).
+  // Name + color are set here; per-instance overrides go on the component label.
+  const protoLabels = new Map<string, unknown>(); // protoKey → TDF_Label
+
   for (const leaf of leaves) {
-    // For identity pose: use the shape as-is (no transform needed, avoids a no-op copy).
-    let worldShape: unknown;
-    let ownedTransform: { delete(): void } | null = null;
+    if (protoLabels.has(leaf.protoKey)) continue; // de-dup: only one AddShape per part
 
-    if (isIdentityPose(leaf.pose)) {
-      worldShape = leaf.shape.handle;
-    } else {
-      const trsf = trsfFromPose(oc, leaf.pose);
-      const xform = new TransformCtor(leaf.shape.handle, trsf, true as never);
-      worldShape = xform.Shape();
-      ownedTransform = xform;
-      (trsf as { delete?(): void }).delete?.();
-    }
-
-    const label = shapeTool.AddShape(worldShape, false, true);
-    // TCollection_ExtendedString_2(name, true) — isMultiByte=true, both args required.
-    NameSet.Set_1(label, new TExtStr2(leaf.name, true));
+    const protoLabel = shapeTool.AddShape(leaf.shape.handle, false, true);
+    // Use the component name as the prototype name (first occurrence wins for de-dup).
+    NameSet.Set_1(protoLabel, new TExtStr2(leaf.name, true));
 
     if (leaf.color) {
       const [r, g, b] = leaf.color;
       const qcol = new QColor(r, g, b, QTOC);
-      colorTool.SetColor_2(label, qcol, SURF);
+      colorTool.SetColor_2(protoLabel, qcol, SURF);
     }
 
-    ownedTransform?.delete();
+    protoLabels.set(leaf.protoKey, protoLabel);
   }
 
-  // Write via STEPCAFControl_Writer (helper :64-77) — Transfer_1 takes the HANDLE + 4 args.
+  // --- Step 2: Assembly root label ---
+  // NewShape() creates an empty TDF_Label that will become the assembly root.
+  // The STEP writer marks it as an assembly (PRODUCT_DEFINITION) containing
+  // N component references (NEXT_ASSEMBLY_USAGE_OCCURRENCE).
+  const asmLabel = shapeTool.NewShape();
+  NameSet.Set_1(asmLabel, new TExtStr2('Assembly', true));
+
+  // --- Step 3: One component per leaf — pose in TopLoc_Location, NOT baked ---
+  for (const leaf of leaves) {
+    const protoLabel = protoLabels.get(leaf.protoKey)!;
+
+    // Build gp_Trsf from pose quaternion + translation (same math as TransformOps.ts:49-67,
+    // but we do NOT call BRepBuilderAPI_Transform — that would bake the pose into a deep
+    // copy and lose the shared-prototype relationship).
+    const trsf = trsfFromPose(oc, leaf.pose);
+
+    // Wrap the trsf in a TopLoc_Location — this is what XCAF / STEP uses for instance pose.
+    const loc = new TopLocCtor(trsf);
+
+    // AddComponent_1(assembly, proto, loc) → returns the component label.
+    const compLabel = shapeTool.AddComponent_1(asmLabel, protoLabel, loc);
+
+    // Per-instance name on the component label (overrides the proto name for this instance).
+    NameSet.Set_1(compLabel, new TExtStr2(leaf.name, true));
+
+    // Per-instance color on the component label. Setting on both proto AND component
+    // ensures round-trip readers that look at either level find the color.
+    if (leaf.color) {
+      const [r, g, b] = leaf.color;
+      const qcol = new QColor(r, g, b, QTOC);
+      colorTool.SetColor_2(compLabel, qcol, SURF);
+    }
+
+    // Clean up OCCT objects we own.
+    (trsf as { delete?(): void }).delete?.();
+    // TopLoc_Location value object — release if OCCT exposes delete.
+    (loc as { delete?(): void }).delete?.();
+  }
+
+  // --- Step 4: UpdateAssemblies — CRITICAL ---
+  // Without this call, STEPCAFControl_Writer does NOT emit NEXT_ASSEMBLY_USAGE_OCCURRENCE
+  // entries for the components. The assembly structure is only serialized correctly
+  // after UpdateAssemblies finalizes the internal XCAF shape compound.
+  shapeTool.UpdateAssemblies();
+
+  // --- Step 5: Write via STEPCAFControl_Writer (helper :64-77) ---
+  // Transfer_1 takes the HANDLE docH + 4 args.
   const writer = new (oc as { STEPCAFControl_Writer_1: new () => {
     SetColorMode(v: boolean): void;
     SetNameMode(v: boolean): void;

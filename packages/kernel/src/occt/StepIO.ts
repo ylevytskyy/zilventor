@@ -105,14 +105,50 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
       XCAFDoc_ShapeTool: { GetShape_2(label: unknown): unknown }
     }).XCAFDoc_ShapeTool.GetShape_2.bind((oc as { XCAFDoc_ShapeTool: unknown }).XCAFDoc_ShapeTool);
 
+    // XCAFDoc_ShapeTool.IsAssembly + GetComponents are static methods (d.ts:13855,13881)
+    const IsAssemblyStatic = (oc as {
+      XCAFDoc_ShapeTool: { IsAssembly(l: unknown): boolean }
+    }).XCAFDoc_ShapeTool.IsAssembly.bind((oc as { XCAFDoc_ShapeTool: unknown }).XCAFDoc_ShapeTool);
+
+    const GetComponentsStatic = (oc as {
+      XCAFDoc_ShapeTool: { GetComponents(l: unknown, labels: unknown, getsubchilds: boolean): boolean }
+    }).XCAFDoc_ShapeTool.GetComponents.bind((oc as { XCAFDoc_ShapeTool: unknown }).XCAFDoc_ShapeTool);
+
+    const TDF_LabelSeqCtor = (oc as { TDF_LabelSequence_1: new () => { Length(): number; Value(i: number): unknown; delete?(): void } }).TDF_LabelSequence_1;
+
+    /** Extract surface or generic color from a label. Returns null if none found. */
+    function extractLabelColor(label: unknown): string | null {
+      const colSurf = new QColorCtor();
+      try {
+        const gotSurf = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorSurf, colSurf);
+        if (gotSurf) return quantityColorToHex(colSurf);
+      } finally {
+        colSurf.delete?.();
+      }
+      const colGen = new QColorCtor();
+      try {
+        const gotGen = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorGen, colGen);
+        if (gotGen) return quantityColorToHex(colGen);
+      } finally {
+        colGen.delete?.();
+      }
+      return null;
+    }
+
     // OneShape equivalent: assemble all free shapes into one compound so the
     // downstream geometry path is unchanged vs STEPControl_Reader.OneShape().
     // At the same time, extract per-free-shape color from labels and map it to
     // the solid sub-shapes via TopExp enumeration order.
     //
-    // Strategy: for each free label (N roots), call GetColor_4 at label level
-    // (more reliable than shape-based lookup after compound assembly), then
-    // enumerate solids inside that label's shape to build the per-solid map.
+    // Strategy (two-tier):
+    //  1. FLAT STEP: each free label is a standalone shape with its own color.
+    //     → GetColor_4(label) works directly; enumerate solids in that shape.
+    //  2. STRUCTURED XCAF assembly: the free label is an assembly root with no
+    //     direct color. Colors are on COMPONENT labels (children of the root).
+    //     → If IsAssembly(label) is true, traverse GetComponents and extract
+    //       per-component colors; enumerate solids in each component's shape.
+    //
+    // Both cases produce the same labelSolidColors[] in TopExp_Explorer order.
     const builder = new (oc as { BRep_Builder: new () => { MakeCompound(c: unknown): void; Add(c: unknown, s: unknown): void; delete(): void } }).BRep_Builder();
     const comp = new (oc as { TopoDS_Compound: new () => unknown }).TopoDS_Compound();
     builder.MakeCompound(comp);
@@ -124,7 +160,7 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
     // in the order that TopExp_Explorer_2 visits them on each free shape.
     const labelSolidColors: (string | null)[] = [];
 
-    const roots = new (oc as { TDF_LabelSequence_1: new () => { Length(): number; Value(i: number): unknown } }).TDF_LabelSequence_1();
+    const roots = new TDF_LabelSeqCtor();
     shapeTool.GetFreeShapes(roots);
 
     if (roots.Length() === 0) {
@@ -138,35 +174,46 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
         const freeShape = GetShapeStatic(label);
         builder.Add(comp, freeShape);
 
-        // Extract color for this label (surface or gen)
-        const colSurf = new QColorCtor();
-        let labelColor: string | null = null;
-        try {
-          const gotSurf = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorSurf, colSurf);
-          if (gotSurf) {
-            labelColor = quantityColorToHex(colSurf);
-          } else {
-            const colGen = new QColorCtor();
-            try {
-              const gotGen = colorTool.GetColor_4(label, ColorType.XCAFDoc_ColorGen, colGen);
-              if (gotGen) labelColor = quantityColorToHex(colGen);
-            } finally {
-              colGen.delete?.();
-            }
-          }
-        } finally {
-          colSurf.delete?.();
-        }
+        if (IsAssemblyStatic(label)) {
+          // STRUCTURED assembly path: colors are on COMPONENT labels, not the root.
+          // Traverse direct components (getsubchilds=false) to get per-instance colors,
+          // then count solids in each component's shape.
+          const compSeq = new TDF_LabelSeqCtor();
+          try {
+            GetComponentsStatic(label, compSeq, false);
+            for (let ci = 1; ci <= compSeq.Length(); ci++) {
+              const compLabel = compSeq.Value(ci);
+              const compColor = extractLabelColor(compLabel);
+              const compShape = GetShapeStatic(compLabel);
 
-        // Count solids inside this free shape and assign the label color to each
-        const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
-        try {
-          while (solidExpL.More()) {
-            labelSolidColors.push(labelColor);
-            solidExpL.Next();
+              // Count solids within this component's posed shape.
+              const solidExpC = new ExplorerCtor2(compShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
+              try {
+                while (solidExpC.More()) {
+                  labelSolidColors.push(compColor);
+                  solidExpC.Next();
+                }
+              } finally {
+                solidExpC.delete?.();
+              }
+            }
+          } finally {
+            (compSeq as { delete?(): void }).delete?.();
           }
-        } finally {
-          solidExpL.delete?.();
+        } else {
+          // FLAT path: color is directly on the free label.
+          const labelColor = extractLabelColor(label);
+
+          // Count solids inside this free shape and assign the label color to each
+          const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
+          try {
+            while (solidExpL.More()) {
+              labelSolidColors.push(labelColor);
+              solidExpL.Next();
+            }
+          } finally {
+            solidExpL.delete?.();
+          }
         }
       }
     } finally {
