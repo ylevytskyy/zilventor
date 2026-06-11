@@ -22,6 +22,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 export function DrawerHandleDialog(): JSX.Element | null {
   const { t } = useTranslation();
@@ -29,19 +30,28 @@ export function DrawerHandleDialog(): JSX.Element | null {
   const setDialog = useAppStore((s) => s.setAddDrawerHandleDialog);
 
   const [cc, setCc] = React.useState<96 | 128 | 160>(96);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Reset default each time the dialog opens.
   React.useEffect(() => {
     if (dialog) {
       setCc(96);
+      setError(null);
     }
   }, [dialog]);
 
   if (!dialog) return null;
 
-  const handleApply = (): void => {
-    dialog.onSubmit(cc);
-    setDialog(null);
+  const handleApply = async (): Promise<void> => {
+    try {
+      await dialog.onSubmit(cc);
+      setDialog(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const translated = t(msg, { defaultValue: msg });
+      setError(translated);
+      // Dialog stays open — do NOT call setDialog(null)
+    }
   };
 
   const handleCancel = (): void => {
@@ -78,9 +88,13 @@ export function DrawerHandleDialog(): JSX.Element | null {
           </select>
         </div>
 
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
+
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel', 'Cancel')}</button>
-          <button style={okBtnStyle} onClick={handleApply}>{t('common.apply', 'Apply')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleApply(); }}>{t('common.apply', 'Apply')}</button>
         </div>
       </div>
     </div>

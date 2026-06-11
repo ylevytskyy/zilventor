@@ -86,6 +86,23 @@ describe('DrawerHandleDialog — structural', () => {
       expect(useAppStore.getState().addDrawerHandleDialog).toBeNull();
     });
   });
+
+  it('onSubmit rejection keeps dialog open and shows error message', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('handle screws won\'t fit'));
+    useAppStore.getState().setAddDrawerHandleDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<DrawerHandleDialog />);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    // Dialog must stay open (store entry still set)
+    await waitFor(() => {
+      expect(useAppStore.getState().addDrawerHandleDialog).not.toBeNull();
+    });
+    // Error alert must be visible
+    expect(screen.getByRole('alert')).toBeTruthy();
+  });
 });
 
 describe('DrawerHandleDialog — §13.3-T6 dialog→command bus.execute assertion', () => {

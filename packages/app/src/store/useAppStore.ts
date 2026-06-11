@@ -112,7 +112,7 @@ export type AddDoorDialogState = {
 /** Slice-6 присадка: "Add Handles" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddDrawerHandleDialogState = {
   cabinetPath: string;
-  onSubmit: (cc: 96 | 128 | 160) => void;
+  onSubmit: (cc: 96 | 128 | 160) => void | Promise<void>;
   onCancel: () => void;
 };
 
