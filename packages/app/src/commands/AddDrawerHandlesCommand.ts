@@ -214,6 +214,14 @@ export class AddDrawerHandlesCommand implements Command {
 
     // 7. Reload cabinet in store
     await this.reloadCabinet(cabinetPath, cab);
+
+    // 8. Invalidate bore cache for modified fronts so bore-marker effect re-runs
+    //    and __zilventorBoringAggregate sees the new handleScrew bores (mirrors
+    //    AddDrawerBankCommand.revert() boreCacheInvalidator pattern).
+    const modifiedFrontPaths = [...this.prevFrontBytes.keys()];
+    if (modifiedFrontPaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(modifiedFrontPaths);
+    }
   }
 
   // ─── revert ─────────────────────────────────────────────────────────────────
@@ -231,6 +239,13 @@ export class AddDrawerHandlesCommand implements Command {
       await opfs.write(cabinetPath, this.prevCabBytes);
       const cab = await unpackAssembly(this.prevCabBytes);
       await this.reloadCabinet(cabinetPath, cab);
+    }
+
+    // Invalidate bore cache for restored fronts so bore-marker effect sees
+    // the removal of handleScrew bores (mirrors apply() pattern).
+    const restoredFrontPaths = [...this.prevFrontBytes.keys()];
+    if (restoredFrontPaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(restoredFrontPaths);
     }
   }
 
