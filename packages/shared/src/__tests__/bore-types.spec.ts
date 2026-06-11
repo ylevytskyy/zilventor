@@ -66,4 +66,9 @@ describe('additive v21 type surface', () => {
     ]);
     expect([pin.connectorKind, cup.connectorKind]).toEqual(['shelfPin', 'hinge']);
   });
+
+  it('PanelRole accepts the new "door" arm', () => {
+    const role: PanelRole = 'door';
+    expect(role).toBe('door');
+  });
 });
