@@ -1,6 +1,6 @@
 # присадка slice 4 — Drawer banks (front + nested box + side-mount Ø5 slide boring)
 
-Status: DRAFT (brainstorm-approved 2026-06-11)
+Status: VERIFIED v2 (brainstorm-approved 2026-06-11; **§14 Corrections v2 is AUTHORITATIVE and overrides any conflicting earlier text** — post 4-lens adversarial verify)
 Track: Tier-1 "Inventor 2012 parity for furniture" — 11th feature.
 Predecessors: присадка slice 1 carcass boring `bdfe322`, slice 2 doors+hinge-cup+система-32 `a57b1f7`, slice 3 live-edit+hardware-BOM `d4e17b8`. Door pipeline = `AddDoorCommand` + `doorMath`/`hingeMath` + `prisadkaFaceConventions.ts`.
 
@@ -139,3 +139,59 @@ Handles/pulls; specific slide-brand catalog SKUs (generic Ø5 grid only); bottom
 ## 13. Out of scope / non-goals
 
 No kernel geometry beyond reusing the slice-1 `atFace` bake. No new package deps. No change to the door pipeline (clone-of-pattern, not refactor). Desktop-Chromium / OPFS+disk storage only (no cloud/mobile).
+
+## 14. Corrections v2 — AUTHORITATIVE (post 4-lens adversarial verify, 2026-06-11)
+
+This section OVERRIDES conflicting earlier text. Each item cites the verifier finding it resolves.
+
+### 14.1 Geometry — drawer-front sizing (overrides §5 "reuse door overlay" — geom BLOCKER #1)
+Per-slot reuse of the door reveal formula makes adjacent full/half-overlay fronts **overlap by 2·reveal** on shared boundaries. Correct model (in `drawerConventions.ts`): add `DRAWER_FRONT_GAP = 3` (mm, between adjacent fronts). Front sizing is on the OUTER face, not the inner slot:
+- `overhang = overlay==='full' ? Tc : overlay==='half' ? Tc/2 : 0` (covers carcass panel edge).
+- Slots tile the inner opening: `slotBottomZ_i = openBottomZ + i·slotH`, `slotTopZ_i = openBottomZ + (i+1)·slotH`, `slotH = openH/N`.
+- **Full/half overlay** front i vertical extents:
+  - `bottomZ_i = slotBottomZ_i + (i==0 ? −overhang : +GAP/2)`
+  - `topZ_i    = slotTopZ_i    + (i==N-1 ? +overhang : −GAP/2)`
+  - `frontH_i = topZ_i − bottomZ_i`, centered at `(topZ_i+bottomZ_i)/2`. Width = `openW + 2·overhang` (single column, no horizontal neighbor).
+  - Guarantees: interior boundary has exactly `GAP` between neighbors (no collision); end fronts overhang by `overhang`. **Tested invariant: for every adjacent pair, `bottomZ_{i+1} − topZ_i == GAP` (>0).**
+- **Inset** front i: `bottomZ_i = slotBottomZ_i + c`, `topZ_i = slotTopZ_i − c`, width `= openW − 2c` (`c` = inset clearance from door constants). No collision by construction.
+- This is **new code** `drawerFrontMath(slotIndex, N, opening, overlay, params)` — NOT a call to `doorMath` (see 14.5).
+
+### 14.2 Geometry — box side-panel axis (overrides §5 box panel dims — geom BLOCKER #2)
+A panel's broad-face u-axis = part-X = `length`. Cabinet side panels use `length=H` (height) so `u`=height. The box side panels MUST therefore be declared **`{length: bh, width: bd, thickness: 16}`** (height as `length`, depth as `width`) — NOT `bd × bh`. Otherwise the box-side slide `u` encodes DEPTH while the cabinet-side `u` encodes HEIGHT and the rails never align. §5 text "`bd × bh × 16`" for the two side panels is corrected to "`bh × bd × 16`". Box front/back and bottom panel formulas unchanged.
+
+### 14.3 Geometry — degenerate guards (overrides §8 thresholds — geom #3/#4)
+Front/back panel width `= bw − 2·16 = openW − 57`. Guard must block `openW ≤ 57` (not just `≤ 25`) and `slotH ≤ 24` (strict — `bh` must be strictly positive; `buildPanelBox` throws on 0). Dialog blocks with `drawerBank.error.tooSmall`. Also block `N < 1`.
+
+### 14.4 Slide world-Z alignment is the load-bearing oracle (strengthens §6/§10.4/§11.4 — FG BLOCKER #2)
+Define ONE independent target `slideWorldZ_i = openBottomZ + i·slotH + BOX_VERT_CLEARANCE + bh/2`. `drawerSlideMath` must place BOTH the cabinet-side row and the box-side row so each bore's resolved WORLD-Z equals `slideWorldZ_i`. Test asserts each row's world-Z against this **third constant** computed from first principles — never cabinet-row vs box-row against each other (that passes a symmetric bug).
+
+### 14.5 Reuse premises that DON'T hold — new code required (reuse HIGH/MEDIUM)
+- `deriveCabinetDims` is **module-private** in `AddDoorCommand.ts:63`. Resolution: extract it to a shared/app helper module and `export` it; both door and drawer commands import it. (No body change.)
+- `doorMath` is **hardwired to full cabinet height H + count single/double** — it CANNOT size a sub-height slot. Resolution: `drawerFrontMath` (14.1) is new code that imports the reveal/clearance/overlay CONSTANTS from `doorMath`'s constants but computes its own sizing.
+- `shelfPinGrid` / `columnPositions` are **not exported** and shaped for full-height sweeps. Resolution: `drawerSlideMath` is new code (already planned); drop the "reuses shelfPinGrid" claim — it reuses the 32 mm grid CONSTANT and the Ø5 + face-frame conventions only.
+- `writePlateBores` clones cleanly for **cabinet-side** bores, but **box-side** bores live inside the nested box `.ziasm`: writing them requires unpack box → locate the side-panel `.zipt` inside → patch bores → repack box → opfs.write. This is **new nested-container traversal code** and is the single biggest hidden risk — it gets its own early plan chunk + test BEFORE the rest of boring is built.
+
+### 14.6 Schema exhaustiveness compile-guards (overrides §7 — schema/reuse BLOCKER)
+Adding `'drawerSlide'` to `BoreConnectorKind` breaks compile at every `satisfies Record<BoreConnectorKind, …>` / `Record<BoreConnectorKind, …>` site until updated. The schema TDD slice MUST update, in the same commit: (a) `BORE_COLORS` in `packages/app/src/scene/SceneManager.ts`, (b) `CONNECTOR_BOM_CATALOG` in `connectorBomCatalog.ts` (add a `drawerSlide` entry with `nameKey: 'bom.connector.drawerSlide'`), (c) both exhaustiveness spec-test arrays (`ALL_KINDS` etc.), (d) the `connectorCatalog` bake/geometry entry. `BoreRole` additions hit no exhaustive switch (`face2DFrame` switches over face roles, not bore roles) — safe. Migration `v23→v24` is identity pass-through (no validator rejects unknown enum values).
+
+### 14.7 Kernel registration + unique partPaths + revert cleanup (schema SHOULD-FIX)
+- Newly written drawer panel `.zipt`s and box `.ziasm`s must be `registerPart`-ed with the kernel (and features executed) before the boring map / bake can see their bores — mirror `AddDoorCommand`'s `KernelPartApi` `registerPart`/`deletePart` usage.
+- `subAssemblyDocs` is keyed by `partPath`; per-slot box and front paths MUST be unique (`dedupeName` per slot, not per bank) or a second slot silently overwrites the first.
+- `revert` must `opfs.delete` ALL N box `.ziasm` + N front `.zipt` blobs AND restore prior cabinet-side bores from the snapshot (best-effort delete per existing pattern; test asserts each blob absent — FG SHOULD-FIX #6).
+
+### 14.8 UI wiring — commit to the door pattern (overrides §8 — reuse LOW)
+"Add Door" lives in **FurnitureTab** using `beginOneComponentPick` → `setAddDrawerBankDialog({cabinetPath, onSubmit, onCancel})` (callback-object on the store), NOT an AssemblyTab boolean flag. Slice 4 follows the **door pattern**: "Add Drawers" button in FurnitureTab next to "Add Door"; cabinet chosen via `beginOneComponentPick`; `DrawerBankDialog` driven by the callback-object. (The §8 `drawerBankDialogOpen` boolean is dropped.)
+
+### 14.9 Box-pose oracle origin convention (strengthens §11.3 — FG BLOCKER #1)
+Pin the box-local origin = **box front-bottom-left corner**; the `drawerBox` component `position` = that corner's world coordinate. The pose oracle computes each box panel's expected world centroid by raw arithmetic from this origin (two separate `quatToMat3` applications, never the producer helper) and runs against a **cabinet rotated 15° about world-Z** so axis-parallel sign bugs surface.
+
+### 14.10 Test-plan strengthenings (override §11 where stricter)
+- §11.2 bank-division: test `N=3, openH=500` (non-divisible) — assert `slots[1].bottom==slots[0].top`, … `slots[N-1].top≈openH` within 1e-6 (N=1 is tautological).
+- §11.8 bake guard: feed the **producer's actual emitted `BoreOp[]`** (extracted from the written panels via `boresOf`) into `bakeHoles`, not hand-authored u/v.
+- §11.9 dialog test: after `fireEvent` commit, assert `bus.execute` was called with an **`AddDrawerBankCommand` instance** carrying the right opts (proves dialog→command path, not a stub).
+- §11.11 e2e: in addition to OPFS-unpacking a box `.ziasm` (assert 5 panels + box-side bores), assert `aggregateBoresRecursive(cabinet)` **returns bores with `role:'drawerSlide-box'`** (proves recursion reaches the nested level).
+- §11.10 + new: assert `ConnectorBomTable` renders the `drawerSlide` group with a localized label, and uk.json has `bom.connector.drawerSlide` (parity).
+- §11.1 git-grep gate: grep for the bare numeric literals (`32`, `37`, `12`, `12.5`, `16`) outside `drawerConventions.ts`, not only re-declared identifiers.
+
+### 14.11 Scope (reuse MEDIUM) — stays ONE slice, ordered
+Box-model (front + 5-panel nested box) goes green BEFORE slide boring is added. The box-side nested-`.ziasm` bore-write (14.5) is the load-bearing seam → its own early chunk with a focused test. No decomposition into separate shipped slices.
