@@ -58,6 +58,7 @@
     "start_radius": "Початковий радіус",
     "termination": "Завершення",
     "text_input": "Текст",
+    "circular_pattern": "Круговий масив",
     "visible": "видимий"
   },
   "browser": {
@@ -454,6 +455,20 @@
       "spacing1_error": "Крок 1 має бути ненульовим числом.",
       "spacing2": "Крок 2",
       "title": "Прямокутний масив"
+    },
+    "circularPattern": {
+      "title": "Круговий масив",
+      "source": "Джерело",
+      "source_component": "Компонент-джерело",
+      "axis": "Вісь",
+      "center": "Центр",
+      "count": "Кількість (з джерелом)",
+      "count_hint": "напр. 4 = джерело + 3 копії",
+      "count_error": "Кількість має бути цілим 2–200.",
+      "angle": "Загальний кут",
+      "angle_error": "Кут має бути в діапазоні (0, 360].",
+      "rotate": "Обертати екземпляри",
+      "no_components": "(немає компонентів)"
     },
     "placeComponent": {
       "ariaLabel": "Розмістити компонент",
@@ -911,6 +926,7 @@
       "deleteConstraint": "Видалити залежність",
       "editConstraint": "Редагувати залежність",
       "insertFromStep": "Вставити зі STEP…",
+      "circularPattern": "Круговий масив",
       "mirror": "Дзеркало",
       "pattern": "Масив",
       "place": "Розмістити",

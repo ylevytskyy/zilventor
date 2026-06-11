@@ -14,8 +14,10 @@ import type { PartInfo } from '@zilventor/shared';
 import { pickFile } from '../fsaFallback';
 import { ComponentPatternDialog } from '../ComponentPatternDialog';
 import { MirrorComponentDialog } from '../MirrorComponentDialog';
+import { CircularPatternDialog } from '../CircularPatternDialog';
 import { CreateComponentPatternCommand } from '../../commands/CreateComponentPatternCommand';
 import { MirrorComponentCommand } from '../../commands/MirrorComponentCommand';
+import { CreateCircularPatternCommand } from '../../commands/CreateCircularPatternCommand';
 
 const btn: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
@@ -37,6 +39,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
   const isSuppressed = selectedConstraint?.suppressed ?? false;
   const componentPatternDialogOpen = useAppStore((s) => s.componentPatternDialogOpen);
   const mirrorComponentDialogOpen = useAppStore((s) => s.mirrorComponentDialogOpen);
+  const circularPatternDialogOpen = useAppStore((s) => s.circularPatternDialogOpen);
 
   const handleInsertFromStep = async () => {
     const { kernel, bus } = useAppStore.getState();
@@ -137,6 +140,14 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           style={btn}
         >
           {t('tab.asm.mirror')}
+        </button>
+        <button
+          aria-label={t('tab.asm.circularPattern')}
+          disabled={!hasAssembly}
+          onClick={() => useAppStore.getState().setCircularPatternDialogOpen(true)}
+          style={btn}
+        >
+          {t('tab.asm.circularPattern')}
         </button>
       </div>
       <div style={{ marginRight: 12 }}>
@@ -276,6 +287,25 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
               plane: v.plane,
               kernel,
               opfs,
+            });
+            await bus.execute(cmd);
+          }}
+        />
+      )}
+      {circularPatternDialogOpen && activeAssembly && (
+        <CircularPatternDialog
+          components={activeAssembly.components.map((c) => ({
+            id: c.id,
+            label: c.partPath.replace(/\.zipt$|\.ziasm$/, ''),
+          }))}
+          onCancel={() => useAppStore.getState().setCircularPatternDialogOpen(false)}
+          onCommit={async (v) => {
+            useAppStore.getState().setCircularPatternDialogOpen(false);
+            const { bus } = useAppStore.getState();
+            const cmd = new CreateCircularPatternCommand({
+              sourceInstanceId: v.sourceComponentId,
+              axis: v.axis, center: v.center,
+              count: v.count, totalAngleDeg: v.totalAngleDeg, rotateInstances: v.rotateInstances,
             });
             await bus.execute(cmd);
           }}
