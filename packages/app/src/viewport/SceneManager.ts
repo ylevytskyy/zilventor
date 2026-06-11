@@ -775,6 +775,28 @@ export class SceneManager {
     return Array.isArray(path) ? (path as ComponentPath) : null;
   }
 
+  /**
+   * Slice-3: Raycasts against bore markers only. Mirror of raycastComponent:
+   * takes the SAME camera+ndc args; NDC conversion lives in the Viewport wrapper.
+   * Reads boreId and partPath from mesh.userData (set during rebuildBoreMarkers).
+   * Returns null on miss or if userData is incomplete.
+   */
+  raycastBoreMarker(camera: THREE.Camera, ndc: THREE.Vector2): { boreId: string; partPath: string } | null {
+    if (this.boreMarkers.length === 0) return null;
+    for (const m of this.boreMarkers) {
+      m.updateMatrixWorld(true);
+    }
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(this.boreMarkers, false);
+    if (hits.length === 0) return null;
+    const obj = hits[0]!.object;
+    const boreId = obj.userData.boreId as string | undefined;
+    const partPath = obj.userData.partPath as string | undefined;
+    if (!boreId || !partPath) return null;
+    return { boreId, partPath };
+  }
+
   setWorkFeatures(specs: Array<WorkFeatureSpec>): void {
     const incoming = new Set(specs.map((s) => s.featureId));
     for (const [id, node] of this.workFeatureNodes) {
