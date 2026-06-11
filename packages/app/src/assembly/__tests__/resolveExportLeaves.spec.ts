@@ -187,4 +187,56 @@ describe('resolveExportLeaves', () => {
     expect(leaves[0]!.pose.translation.x).toBeCloseTo(10);
     expect(leaves[0]!.pose.translation.z).toBeCloseTo(50);
   });
+
+  it('throws on an unresolved sub-assembly (placeholder) leaf — never silently dropped', async () => {
+    const assembly = asmDoc({
+      components: [
+        // A .ziasm child with no cache entry → visibleLeaves emits a placeholder.
+        { id: 's', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    const bridge = makeBridge({ bytesByPath: {}, idByPath: {}, nameByPath: {} });
+    await expect(
+      resolveExportLeaves({
+        assembly,
+        kernel: bridge.kernel,
+        opfs: bridge.opfs,
+        subAsmCache: { get: (_p: string) => undefined },
+        componentPoses: new Map(),
+        partInfoCache: new Map() as PartInfoCache,
+        resolvePartInfo: bridge.resolvePartInfo,
+      }),
+    ).rejects.toThrow(/unresolved sub-assembly leaf sub\.ziasm/);
+  });
+
+  it('recomputes world poses via flatten+composed when componentPoses is empty', async () => {
+    const partBytes = new Uint8Array([9, 9]);
+    const assembly = asmDoc({
+      components: [
+        { id: 'a', partPath: 'p.zipt', position: { x: 7, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'b', partPath: 'p.zipt', position: { x: 0, y: 13, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    const bridge = makeBridge({
+      bytesByPath: { 'p.zipt': partBytes },
+      idByPath: { 'p.zipt': 'uuid-p' },
+      nameByPath: { 'p.zipt': 'Part P' },
+    });
+    const leaves = await resolveExportLeaves({
+      assembly,
+      kernel: bridge.kernel,
+      opfs: bridge.opfs,
+      subAsmCache: { get: (_p: string) => undefined },
+      componentPoses: new Map(), // empty → forces the flatten+composed fallback (App.tsx:3856-3863)
+      partInfoCache: new Map() as PartInfoCache,
+      resolvePartInfo: bridge.resolvePartInfo,
+    });
+    expect(leaves).toHaveLength(2);
+    // poses come from initialPose (declared position) via composedPoses
+    expect(leaves[0]!.pose.translation).toEqual({ x: 7, y: 0, z: 0 });
+    expect(leaves[1]!.pose.translation).toEqual({ x: 0, y: 13, z: 0 });
+    // no color provided → color key omitted
+    expect(leaves[0]!.color).toBeUndefined();
+    expect('color' in leaves[0]!).toBe(false);
+  });
 });
