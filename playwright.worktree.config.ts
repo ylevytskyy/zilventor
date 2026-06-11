@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   timeout: 120_000,
   webServer: {
-    command: 'pnpm --filter @zilventor/app dev',
+    command: 'cd packages/app && npx vite --port 5182',
     port: 5182,
     reuseExistingServer: true,
     timeout: 120_000,

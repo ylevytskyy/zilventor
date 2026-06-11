@@ -63,14 +63,9 @@ async function readSuppressedFromOpfs(
 
 test.describe('CHUNK G.5 — connector edit/move/delete/BOM e2e (§6 probes, no screenshots)', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the app. The worktree dev server runs on a free port (5174) to avoid
-    // collision with the main checkout (5173). Uses page.goto with absolute URL so the
-    // playwright.config.ts baseURL (5173) is not used here.
-    // NOTE: Start the worktree dev server first:
-    //   cd /Users/lion/Documents/Projects/mine/zilventor/.claude/worktrees/prisadka-slice3
-    //   PORT=5174 pnpm --filter @zilventor/app dev
+    // Navigate to the app. Uses the playwright.worktree.config.ts baseURL (port 5182).
     page.setDefaultTimeout(120_000);
-    await page.goto('http://localhost:5174');
+    await page.goto('/');
     await waitForKernelReady(page);
   });
 
