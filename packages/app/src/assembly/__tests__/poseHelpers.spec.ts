@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { computeRectGridPoses, computeMirroredPose, quatToMat3, axisAngleToQuat, quatMul } from '../poseHelpers';
+import { computeRectGridPoses, computeMirroredPose, quatToMat3, axisAngleToQuat, quatMul, computeCircularPoses } from '../poseHelpers';
 import type { PatternAxis } from '@zilventor/shared';
 import type { Pose } from '../poseHelpers';
 
@@ -225,5 +225,39 @@ describe('quatMul', () => {
     expect(r[1]).toBeCloseTo(0.2, 12);
     expect(r[2]).toBeCloseTo(0.3, 12);
     expect(r[3]).toBeCloseTo(0.9, 12);
+  });
+});
+
+describe('computeCircularPoses — translation', () => {
+  const srcAt = (x: number, y: number, z: number): Pose => ({
+    translation: { x, y, z },
+    quaternion: [0, 0, 0, 1],
+  });
+  it('full circle count=4 about +z at origin → 3 instances on radius-2 circle at 90/180/270°', () => {
+    const poses = computeCircularPoses(srcAt(2, 0, 0), 'z', { x: 0, y: 0, z: 0 }, 4, 360, false);
+    expect(poses).toHaveLength(3);
+    for (const p of poses) expect(Math.hypot(p.translation.x, p.translation.y)).toBeCloseTo(2, 6);
+    expect(Math.atan2(poses[0]!.translation.y, poses[0]!.translation.x)).toBeCloseTo(Math.PI / 2, 6);
+    expect(Math.atan2(poses[1]!.translation.y, poses[1]!.translation.x)).toBeCloseTo(Math.PI, 6);
+    expect(Math.atan2(poses[2]!.translation.y, poses[2]!.translation.x)).toBeCloseTo(-Math.PI / 2, 6);
+  });
+  it('partial arc count=5 angle=180 → endpoints included: 45/90/135/180°', () => {
+    const poses = computeCircularPoses(srcAt(2, 0, 0), 'z', { x: 0, y: 0, z: 0 }, 5, 180, false);
+    expect(poses).toHaveLength(4);
+    const ang = (i: number) => Math.atan2(poses[i]!.translation.y, poses[i]!.translation.x);
+    expect(ang(0)).toBeCloseTo(Math.PI / 4, 6);
+    expect(ang(1)).toBeCloseTo(Math.PI / 2, 6);
+    expect(ang(2)).toBeCloseTo((3 * Math.PI) / 4, 6);
+    expect(ang(3)).toBeCloseTo(Math.PI, 6);
+  });
+  it('off-center: orbits the center point, not the origin', () => {
+    const poses = computeCircularPoses(srcAt(3, 0, 0), 'z', { x: 1, y: 0, z: 0 }, 4, 360, false);
+    for (const p of poses) expect(Math.hypot(p.translation.x - 1, p.translation.y)).toBeCloseTo(2, 6);
+    expect(poses[0]!.translation.x).toBeCloseTo(1, 6);
+    expect(poses[0]!.translation.y).toBeCloseTo(2, 6);
+  });
+  it('axial height preserved: source z=5, axis z → all instances keep z≈5', () => {
+    const poses = computeCircularPoses(srcAt(2, 0, 5), 'z', { x: 0, y: 0, z: 0 }, 4, 360, false);
+    for (const p of poses) expect(p.translation.z).toBeCloseTo(5, 6);
   });
 });

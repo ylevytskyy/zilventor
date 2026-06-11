@@ -139,6 +139,51 @@ export function quatMul(
   ];
 }
 
+/** Rotate vector v about an axis by angleRad (active rotation), via the quat→mat3 path. */
+function rotateVecAboutAxis(v: Vec3, axis: Vec3, angleRad: number): Vec3 {
+  const m = quatToMat3(axisAngleToQuat(axis, angleRad));
+  return {
+    x: m[0]! * v.x + m[1]! * v.y + m[2]! * v.z,
+    y: m[3]! * v.x + m[4]! * v.y + m[5]! * v.z,
+    z: m[6]! * v.x + m[7]! * v.y + m[8]! * v.z,
+  };
+}
+
+/**
+ * Returns count-1 poses (source EXCLUDED), evenly spaced around `center` about world `axis`.
+ * Full circle (totalAngleDeg >= 360): step = 2π/count. Partial: step = rad/(count-1) — endpoints included.
+ */
+export function computeCircularPoses(
+  sourcePose: Pose,
+  axis: PatternAxis,
+  center: Vec3,
+  count: number,
+  totalAngleDeg: number,
+  rotateInstances: boolean,
+): Pose[] {
+  const ax = axisVec(axis);
+  const full = totalAngleDeg >= 360;
+  const stepRad = full ? (2 * Math.PI) / count : (totalAngleDeg * Math.PI) / 180 / (count - 1);
+  const r = {
+    x: sourcePose.translation.x - center.x,
+    y: sourcePose.translation.y - center.y,
+    z: sourcePose.translation.z - center.z,
+  };
+  const poses: Pose[] = [];
+  for (let i = 1; i < count; i++) {
+    const theta = i * stepRad;
+    const rr = rotateVecAboutAxis(r, ax, theta);
+    const quaternion = rotateInstances
+      ? quatMul(axisAngleToQuat(ax, theta), sourcePose.quaternion)
+      : ([...sourcePose.quaternion] as [number, number, number, number]);
+    poses.push({
+      translation: { x: center.x + rr.x, y: center.y + rr.y, z: center.z + rr.z },
+      quaternion,
+    });
+  }
+  return poses;
+}
+
 /**
  * Returns count1*count2 - 1 poses (origin cell excluded).
  * Each pose = sourcePose.translation + i*spacing1*axis(dir1) + j*spacing2*axis(dir2).
