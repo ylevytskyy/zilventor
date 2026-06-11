@@ -4836,6 +4836,47 @@ export default function App() {
           <BorePropertiesPanel
             getLiveBores={(partPath) => partBoresCacheRef.current.get(partPath)}
             getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
+            getConnectorDocs={() => {
+              // Build one entry per partPath that has a live doc, panel spec, and world pose.
+              // NOTE: uses one representative componentPose per partPath (first match wins).
+              // Multi-instance limitation: if the same part appears at multiple positions,
+              // only the first pose is used for MoveConnectorCommand math — acceptable for v1.
+              if (!assembly) return [];
+              const subAssemblyDocs = useAppStore.getState().subAssemblyDocs;
+              const subAssemblyInnerPoses = useAppStore.getState().subAssemblyInnerPoses;
+              const subAsmCacheAdapter = {
+                get: (p: string) => subAssemblyDocs[p]
+                  ? ({ kind: 'ok' as const, doc: subAssemblyDocs[p]!, partPath: p, ...(subAssemblyInnerPoses[p] ? { innerStaticPoses: subAssemblyInnerPoses[p] } : {}) })
+                  : undefined,
+              };
+              const leaves = visibleLeaves(assembly, subAsmCacheAdapter).filter((l) => l.kind === 'leaf');
+              const result: Array<{
+                partPath: string;
+                doc: { bores?: import('@zilventor/shared').BoreOp[]; suppressedConnectorIds?: string[] };
+                panelDims: { length: number; width: number; thickness: number };
+                worldPose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] };
+              }> = [];
+              const seenPartPaths = new Set<string>();
+              for (const leaf of leaves) {
+                if (seenPartPaths.has(leaf.partPath)) continue;
+                const doc = loadedPartDocsRef.current.get(leaf.partPath);
+                if (!doc) continue;
+                const spec = panelSpecCacheRef.current.get(leaf.partPath);
+                if (!spec) continue;
+                const worldPose = componentPoses.get(pathKey(leaf.componentPath)) ?? {
+                  translation: { x: 0, y: 0, z: 0 },
+                  quaternion: [0, 0, 0, 1] as [number, number, number, number],
+                };
+                result.push({
+                  partPath: leaf.partPath,
+                  doc,
+                  panelDims: { length: spec.length, width: spec.width, thickness: spec.thickness },
+                  worldPose,
+                });
+                seenPartPaths.add(leaf.partPath);
+              }
+              return result;
+            }}
             opfs={opfsRef.current}
           />
         </aside>
