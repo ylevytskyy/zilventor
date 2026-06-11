@@ -46,3 +46,52 @@ export function columnPositions(start: number, end: number, pitch: number): numb
   for (let i = 0; i < count; i++) out.push(first + i * pitch);
   return out;
 }
+
+/**
+ * система-32 shelf-pin grid for ONE side panel, authored against its UNSWAPPED
+ * native dims {length:H, width:D, thickness:Tc} on the broad inner face
+ * (`innerFace` = 'Top' z=Tc or 'Bottom' z=0; pinned per-side by Phase 0).
+ *
+ * Layout (CONTRACT §D, Convention 2): on the broad face, u=+X spans 0..H
+ * (height), v=∓Y spans 0..D (depth). Each column is a fixed v (depth setback):
+ *   - front column at v = frontSetback
+ *   - back  column at v = width − backSetback   (= D − backSetback)
+ * Holes step in u from bottomMargin..(length − topMargin) at `pitch`, centered.
+ * All bores are BLIND (`depth`, never 'throughAll'); Ø`diameter`.
+ */
+export function shelfPinGrid(
+  dims: { length: number; width: number; thickness: number },
+  innerFace: 'Top' | 'Bottom',
+  params: ShelfPinParams,
+): BoreOp[] {
+  const face: PanelFaceRole = innerFace;
+  const uPositions = columnPositions(
+    params.bottomMargin,
+    dims.length - params.topMargin,
+    params.pitch,
+  );
+  const cols: Array<{ id: 'pin-col-front' | 'pin-col-back'; v: number }> = [
+    { id: 'pin-col-front', v: params.frontSetback },
+  ];
+  if (params.columns >= 2) {
+    cols.push({ id: 'pin-col-back', v: dims.width - params.backSetback });
+  }
+
+  const bores: BoreOp[] = [];
+  for (const col of cols) {
+    uPositions.forEach((u, i) => {
+      bores.push({
+        id: `${col.id}-${i}`,
+        face: { featureId: 'panel', role: face, instance: 0 },
+        u,
+        v: col.v,
+        diameter: params.diameter,
+        depth: params.depth, // blind number, never 'throughAll'
+        role: 'shelfPin-system32',
+        connectorId: col.id,
+        connectorKind: 'shelfPin',
+      });
+    });
+  }
+  return bores;
+}

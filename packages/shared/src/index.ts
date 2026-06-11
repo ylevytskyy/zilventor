@@ -15,6 +15,7 @@ export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
 export * from './bore';
 export * from './prisadkaFaceConventions';
+export * from './shelfPinGrid';
 export * from './connectorCatalog';
 export * from './jointMath';
 export type {
