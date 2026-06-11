@@ -14,7 +14,7 @@ function member(u: number, uLen: number): ConnectorMember {
       v: 200,
       diameter: 5,
       depth: 12,
-      role: 'carcass-a',
+      role: 'confirmat-face',
       connectorId: 'c',
       connectorKind: 'confirmat',
       jointDir: { x: 1, y: 0, z: 0 },
