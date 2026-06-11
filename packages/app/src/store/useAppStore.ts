@@ -94,6 +94,48 @@ export type BoringDialogState = {
   onCancel: () => void;
 };
 
+/** Slice-2 присадка: "Add Door" dialog. cabinetPath is the picked cabinet `.ziasm`. */
+export type AddDoorDialogState = {
+  cabinetPath: string;
+  onSubmit: (params: {
+    count: 'single' | 'double';
+    overlay: 'full' | 'half' | 'inset';
+    hingeSide: 'left' | 'right';
+    thickness: number;
+    reveal: number;
+    clearance: number;
+    centerReveal: number;
+  }) => void;
+  onCancel: () => void;
+};
+
+/**
+ * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
+ * assembly's side panels; `manual` targets one picked panel + chosen broad face.
+ */
+export type ShelfPinDialogState = {
+  mode: 'auto' | 'manual';
+  panelPath?: string;           // present only for mode:'manual' (the picked panel .zipt)
+  face?: 'Top' | 'Bottom';      // present only for mode:'manual'
+  onSubmit: (params: {
+    pitch: number;
+    diameter: number;
+    depth: number;
+    frontSetback: number;
+    backSetback: number;
+    topMargin: number;
+    bottomMargin: number;
+    columns: 1 | 2;
+  }) => void;
+  onCancel: () => void;
+};
+
+/** Handle returned by Viewport.beginOneComponentPick. App.tsx holds it and feeds .pick() on canvas click. */
+export type OneComponentPickHandle = {
+  pick: (clientX: number, clientY: number) => void;
+  reset: () => void;
+};
+
 // Sub-project 6 Phase 8 — drawing dialogs
 export type AddViewDialogKind = 'base' | 'projected' | 'iso';
 
@@ -322,6 +364,13 @@ type AppState = {
   setNestDialog: (s: NestDialogState | null) => void;
   boringDialog: BoringDialogState | null;
   setBoringDialog: (s: BoringDialogState | null) => void;
+  addDoorDialog: AddDoorDialogState | null;
+  setAddDoorDialog: (s: AddDoorDialogState | null) => void;
+  shelfPinDialog: ShelfPinDialogState | null;
+  setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
+  /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
+  oneComponentPickHandle: OneComponentPickHandle | null;
+  setOneComponentPickHandle: (h: OneComponentPickHandle | null) => void;
 
   /**
    * Registered by App.tsx on mount; called by bore commands in apply() and revert()
@@ -849,6 +898,12 @@ export const useAppStore = create<AppState>((set) => ({
   setNestDialog: (s) => set({ nestDialog: s }),
   boringDialog: null,
   setBoringDialog: (s) => set({ boringDialog: s }),
+  addDoorDialog: null,
+  setAddDoorDialog: (s) => set({ addDoorDialog: s }),
+  shelfPinDialog: null,
+  setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
+  oneComponentPickHandle: null,
+  setOneComponentPickHandle: (h) => set({ oneComponentPickHandle: h }),
   boreCacheInvalidator: null,
   setBoreCacheInvalidator: (fn) => set({ boreCacheInvalidator: fn }),
 
