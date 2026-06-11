@@ -2056,10 +2056,20 @@ export default function App() {
       }
 
       if (ev.type === 'click') {
-        if (suppressNextClickRef.current) {
+        // Guard: suppress clicks that follow a completed drag OR that are
+        // explicitly suppressed (e.g. after pointer-up on a drag).
+        if (componentDragRef.current || suppressNextClickRef.current) {
           suppressNextClickRef.current = false;
           return;
         }
+        // Slice-3: bore markers take priority over component selection.
+        const boreHit = viewportRef.current.raycastBoreMarker(ev.clientX, ev.clientY);
+        if (boreHit) {
+          useAppStore.getState().setSelectedBore(boreHit.boreId, boreHit.partPath);
+          return;
+        }
+        // Miss on bore markers — clear any prior bore selection.
+        useAppStore.getState().setSelectedBore(null, null);
         const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
         // T29: store the full path; selectComponentPaths replaces selection.
         if (hit) {
