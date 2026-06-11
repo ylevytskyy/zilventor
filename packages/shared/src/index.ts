@@ -75,3 +75,4 @@ export { CONNECTOR_BOM_CATALOG } from './connectorBomCatalog';
 export type { ConnectorMember } from './connectorCoupling';
 export { translateConnectorAlong } from './connectorCoupling';
 // rotate is already re-exported via `export * from './jointMath'` — no separate line needed.
+export { mergeBores } from './mergeBores';
