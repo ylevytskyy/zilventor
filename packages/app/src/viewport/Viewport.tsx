@@ -498,7 +498,7 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
         onPointerMove={(e) => props.onPointer?.({ type: 'move', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
         onPointerUp={(e) => props.onPointer?.({ type: 'pointerup', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
         onPointerCancel={(e) => props.onPointer?.({ type: 'pointercancel', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
-        onClick={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, button: e.button })}
+        onClick={(e) => props.onPointer?.({ type: 'click', clientX: e.clientX, clientY: e.clientY, pointerId: 0, button: e.button })}
       />
       <ViewCube />
     </div>
