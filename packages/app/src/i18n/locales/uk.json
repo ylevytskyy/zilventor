@@ -592,6 +592,8 @@
   "menu": {
     "file": {
       "exportImage": "Експорт зображення",
+      "exportStep": "Експорт STEP",
+      "exportStl": "Експорт STL",
       "importFromInventor": "Імпорт з Inventor",
       "newAssembly": "Нова збірка",
       "newPart": "Нова деталь",

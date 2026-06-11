@@ -38,6 +38,38 @@ export default function FileTab() {
     }
   };
 
+  const handleExportStep = async () => {
+    const { kernel, activeDocument, activePart, componentPoses, subAssemblyDocs, subAssemblyInnerPoses } = useAppStore.getState();
+    if (!kernel || !activeDocument || activeDocument.kind === 'drawing') return;
+    try {
+      const { ExportStepCommand } = await import('../../commands/ExportStepCommand');
+      const opfs = await Opfs.forNavigator();
+      await new ExportStepCommand({
+        kernel, activeDocument, activePart, opfs, componentPoses, partInfoCache: new Map(),
+        subAssemblyDocs, subAssemblyInnerPoses,
+      }).apply();
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      setErrorDialog(`Export failed: ${(e as Error).message}`);
+    }
+  };
+
+  const handleExportStl = async () => {
+    const { kernel, activeDocument, activePart, componentPoses, subAssemblyDocs, subAssemblyInnerPoses } = useAppStore.getState();
+    if (!kernel || !activeDocument || activeDocument.kind === 'drawing') return;
+    try {
+      const { ExportStlCommand } = await import('../../commands/ExportStlCommand');
+      const opfs = await Opfs.forNavigator();
+      await new ExportStlCommand({
+        kernel, activeDocument, activePart, opfs, componentPoses, partInfoCache: new Map(),
+        subAssemblyDocs, subAssemblyInnerPoses,
+      }).apply();
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+      setErrorDialog(`Export failed: ${(e as Error).message}`);
+    }
+  };
+
   const handleNewPart = async () => {
     const { kernel, bus, setActivePart } = useAppStore.getState();
     if (!kernel) return;
@@ -275,6 +307,20 @@ export default function FileTab() {
         onClick={() => handleExportImage(transparentBg)}
       >
         {t('menu.file.exportImage')}
+      </button>
+      <button
+        className="hover:text-white disabled:text-neutral-500"
+        disabled={!activeDoc || activeDoc.kind === 'drawing'}
+        onClick={handleExportStep}
+      >
+        {t('menu.file.exportStep')}
+      </button>
+      <button
+        className="hover:text-white disabled:text-neutral-500"
+        disabled={!activeDoc || activeDoc.kind === 'drawing'}
+        onClick={handleExportStl}
+      >
+        {t('menu.file.exportStl')}
       </button>
       <button
         className="hover:text-white disabled:text-neutral-500"
