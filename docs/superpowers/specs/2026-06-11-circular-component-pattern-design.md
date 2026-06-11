@@ -186,3 +186,52 @@ the review is the human-equivalent backstop.
 - §6: real-browser probe (`__zilventorAssemblyPoses`) — instances at correct circular poses.
 - tsc: 0 new errors (full-package).
 - No kernel integration (no new OCCT geometry — flagged intentionally).
+
+## 10. Spec corrections v2 — AUTHORITATIVE (post 4-lens adversarial verify)
+
+Core math, compose order, and angle-step convention verified CORRECT (no blockers). The following
+corrections are binding on the plan/implementation. They OVERRIDE any conflicting earlier text.
+
+### 10.1 Test oracles must be independent (anti-tautology) — load-bearing
+- **Slice C oracle:** compute the expected rotated point as
+  `quatToMat3(axisAngleToQuat(axisUnit, θᵢ)) · ( quatToMat3(sourceQuat) · p )` — TWO separate matrix
+  applications. **Do NOT call `quatMul` in the oracle** (a `quatMul` sign bug would otherwise pass in both
+  actual and expected). This mirrors the existing `poseHelpers.spec.ts` mirror round-trip convention.
+- **Slice C test point `p`** must NOT be parallel to the circle axis NOR the source rotation axis
+  (e.g. with axis z + source-rot about x, use `p = [1,1,0]`), else pre/post-multiply are indistinguishable.
+- **Slice A `axisAngleToQuat`** expected value `[0,0,√2/2,√2/2]` is HAND-AUTHORED (not derived from the fn);
+  assert the rotated vector `[1,0,0]→[0,1,0]` too.
+- **Slice A `quatMul`** hand-test must use a NON-degenerate, non-commuting pair, e.g. `quatMul([1,0,0,0],
+  [0,1,0,0]) === [0,0,1,0]` (i·j=k). The identity test alone is degenerate (zero cross term).
+
+### 10.2 Slice D must thread `center` + `rotateInstances` (command-level) — load-bearing
+The command could hardcode `center:{0,0,0}` / `rotateInstances:true` and still pass default-only tests. ADD:
+- A command test with `center:{1,0,0}`, source at `{3,0,0}` → assert created instances orbit `{1,0,0}` (not origin).
+- A command test with `rotateInstances:false` → assert every created instance quaternion `=== sourceQuat`.
+
+### 10.3 Codebase-fit corrections (confirmed against real code)
+- **No `Quat` type in `@zilventor/shared`.** Use the bare tuple `[number, number, number, number]` for
+  `axisAngleToQuat`/`quatMul` signatures (do NOT import the kernel-internal `Quat`).
+- **`axisVec` is file-private** in `poseHelpers.ts` — `computeCircularPoses` lives in the SAME file; tests
+  must not import `axisVec` directly.
+- **ComponentInstance fields:** the new instances MUST set `rotation: { rx: 0, ry: 0, rz: 0 }` explicitly
+  (NOT `undefined`), `visible: true`, `position` mirrored from `pose.translation`, `partPath`+`color` from
+  source — copy the exact struct from `CreateComponentPatternCommand.ts` (~line 52–66).
+- **New store flag** `circularPatternDialogOpen` + `setCircularPatternDialogOpen` go in
+  `packages/app/src/store/useAppStore.ts` alongside `componentPatternDialogOpen`/`mirrorComponentDialogOpen`.
+- **i18n parity gate:** `packages/app/src/i18n/parity.test.ts` enforces strict en≡uk key-set equality →
+  every new key (e.g. `dialog.circularPattern.*`, the AssemblyTab button label) MUST be added to BOTH
+  `en.json` and `uk.json` in the SAME change or the build fails. (uk values: provisional; lead reviews — flag in handoff.)
+
+### 10.4 Dialog/validation corrections
+- **Count label** reads **"Count (incl. source)"** with helper text (e.g. "4 = source + 3 copies") — avoids
+  the total-vs-new foot-gun. Input `step={1}`; validation asserts `Number.isInteger(count)` and `2 ≤ count ≤ 200`.
+- **Degenerate radius guard:** if `|sourcePos − center|` (component ⟂ axis) `< ε` (0.1 mm), block submit with
+  a message ("Source lies on the rotation axis — all copies would overlap; move the center"). Add to §5.2 validation.
+- Axis default Z; angle default 360; rotate-instances default checked (unchanged).
+
+### 10.5 e2e (Slice F) scope — accepted as-is
+Probe-path command e2e + Slice E (DOM-interaction dialog test using `fireEvent.change`/`userEvent`, NOT prop
+injection) + the FINAL whole-branch UI review together cover the slice-3 stubbed-UI class. A button-click
+Playwright path is OPTIONAL (rect pattern shipped without one); add only if cheap. Slice E MUST drive real
+`<input>` elements and assert the dispatched command opts match what the form held.
