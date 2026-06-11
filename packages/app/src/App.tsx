@@ -1991,7 +1991,7 @@ export default function App() {
     if (!unmountedRef.current) useAppStore.getState().setStatus(t('status.openCancelled'));
   }, [handleRestart]);
 
-  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup'; clientX: number; clientY: number }) => {
+  const handleViewportPointer = useCallback((ev: { type: 'click' | 'move' | 'pointerdown' | 'pointerup' | 'pointercancel'; clientX: number; clientY: number; pointerId: number; button: number }) => {
     if (!viewportRef.current) return;
     const docKind = useAppStore.getState().activeDocument?.kind;
     if (docKind === 'drawing') return;   // drawing uses DrawingCanvas, not Viewport
