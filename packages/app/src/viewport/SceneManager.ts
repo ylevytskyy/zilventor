@@ -123,6 +123,9 @@ export class SceneManager {
   private selectionOverlayMaterial: THREE.LineBasicMaterial | null = null;
   // T29: selection overlays keyed by ComponentPathKey
   private selectionOverlays: Map<ComponentPathKey, THREE.LineSegments> = new Map();
+  // SC-17: clash highlight overlays (red LineSegments, same pattern as selection overlays).
+  private clashOverlays: Map<ComponentPathKey, THREE.LineSegments> = new Map();
+  private clashOverlayMaterial: THREE.LineBasicMaterial | null = null;
   private partGeometryHash: number = 2166136261;
   private workFeatureNodes = new Map<string, THREE.Object3D>();
   private workFeatureMaterials = {
@@ -582,6 +585,47 @@ export class SceneManager {
 
   hasSelectionOverlay(key: ComponentPathKey): boolean {
     return this.selectionOverlays.has(key);
+  }
+
+  /**
+   * SC-17: Set the clash highlight overlays. Approach (b) — red LineSegments child,
+   * same pattern as setSelectedComponentPaths (orange overlay). Composes cleanly:
+   * both are children of the same mesh; different material colors.
+   * Clears previous overlays before applying new ones (SC-13(d): no stale red).
+   */
+  setClashHighlight(pathKeys: string[]): void {
+    if (!this.clashOverlayMaterial) {
+      this.clashOverlayMaterial = new THREE.LineBasicMaterial({ color: 0xff2222 });
+    }
+    const wantedKeys = new Set(pathKeys);
+    // Remove overlays for keys no longer wanted.
+    for (const [key, overlay] of this.clashOverlays) {
+      if (wantedKeys.has(key)) continue;
+      overlay.parent?.remove(overlay);
+      overlay.geometry.dispose();
+      this.clashOverlays.delete(key);
+    }
+    // Add overlays for new keys.
+    for (const key of wantedKeys) {
+      if (this.clashOverlays.has(key)) continue;
+      const mesh = this.componentMeshes.get(key);
+      if (!mesh) continue;
+      const edges = new THREE.EdgesGeometry(mesh.geometry);
+      const overlay = new THREE.LineSegments(edges, this.clashOverlayMaterial);
+      overlay.userData.clashOverlay = true;
+      mesh.add(overlay);
+      this.clashOverlays.set(key, overlay);
+    }
+  }
+
+  /** Returns the keys of currently-attached clash highlight overlays. */
+  clashHighlightPathKeys(): string[] {
+    return Array.from(this.clashOverlays.keys());
+  }
+
+  /** Clears all clash highlights (call on re-run or panel close). */
+  clearClashHighlight(): void {
+    this.setClashHighlight([]);
   }
 
   clearComponentMeshes(): void {
