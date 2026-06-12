@@ -473,6 +473,13 @@ type AppState = {
   requestWorkFeaturePick: (req: WorkFeaturePickRequest) => void;
   setWorkFeaturePickResult: (result: WorkFeaturePickResultPayload) => void;
   clearWorkFeaturePick: () => void;
+  // Interference / Clash Check slice (SC-16)
+  clashRows: import('@zilventor/shared').ClashReportRow[] | null;
+  clashRan: boolean;
+  /** ComponentPathKeys of the currently highlighted clash pair (for SceneManager). */
+  clashHighlightKeys: string[];
+  setClashResult(rows: import('@zilventor/shared').ClashReportRow[] | null): void;
+  setClashHighlightKeys(keys: string[]): void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -1218,6 +1225,11 @@ export const useAppStore = create<AppState>((set) => ({
   requestWorkFeaturePick: (req) => set({ pendingWorkFeaturePick: req, workFeaturePickResult: null }),
   setWorkFeaturePickResult: (result) => set({ pendingWorkFeaturePick: null, workFeaturePickResult: result }),
   clearWorkFeaturePick: () => set({ pendingWorkFeaturePick: null, workFeaturePickResult: null }),
+  clashRows: null,
+  clashRan: false,
+  clashHighlightKeys: [],
+  setClashResult: (rows) => set({ clashRows: rows, clashRan: rows !== null }),
+  setClashHighlightKeys: (keys) => set({ clashHighlightKeys: [...keys] }),
   addPrimitiveToActiveSketch: (sketchId, p) => set((state) => {
     const part = state.activePart;
     if (!part) return state;

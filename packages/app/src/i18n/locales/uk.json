@@ -1023,6 +1023,22 @@
       "sku": "Арт."
     }
   },
+  "clash": {
+    "button": "Перевірка перетинів",
+    "dialog_title": "Перевірка перетинів",
+    "clearance_label": "Мінімальний зазор (мм)",
+    "run": "Виконати",
+    "cancel": "Скасувати",
+    "panel_title": "Результати перевірки",
+    "kind_interference": "Перетин",
+    "kind_clearance": "Зазор",
+    "volume_label": "Об'єм (мм³)",
+    "distance_label": "Зазор (мм)",
+    "part_a": "Деталь A",
+    "part_b": "Деталь B",
+    "no_results": "Перетинів не знайдено.",
+    "never_run": "Запустіть перевірку перетинів для отримання результатів."
+  },
   "toast": {
     "chamferFailed": "Помилка фаски: {{message}}",
     "filletFailed": "Помилка спряження: {{message}}",

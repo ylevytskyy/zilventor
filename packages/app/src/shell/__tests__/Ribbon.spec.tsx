@@ -18,10 +18,10 @@ describe('Ribbon', () => {
     expect(screen.getByRole('button', { name: /Panel/i })).toBeTruthy();
   });
 
-  it('switching to Inspect references sub-project 3', () => {
+  it('switching to Inspect shows the Interference Check button', () => {
     render(<Ribbon />);
     fireEvent.click(screen.getByRole('tab', { name: 'Inspect' }));
-    expect(screen.getByText(/sub-project 3/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Interference Check/i })).toBeTruthy();
   });
 
   it('switching to Drawing references sub-project 6', () => {

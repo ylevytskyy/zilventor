@@ -1193,6 +1193,14 @@ export default function App() {
         const sm = vp?.getSceneManager?.() as { hardwarePartCount(): number } | null;
         return sm?.hardwarePartCount?.() ?? 0;
       };
+
+      // Interference/Clash Check probes (SC-17)
+      w.__zilventorClashCount = (): number => {
+        return useAppStore.getState().clashRows?.length ?? 0;
+      };
+      w.__zilventorClashResults = (): unknown[] => {
+        return useAppStore.getState().clashRows ?? [];
+      };
     }
   }, []);
 

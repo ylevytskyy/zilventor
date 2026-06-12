@@ -106,6 +106,8 @@ export async function resolveExportLeaves(args: {
   }
 
   // 5. Build one ExportLeaf per visible instance (prototype de-dup is a kernel concern).
+  // PC-1: populate componentPath so checkInterference (Task 3) can read partId, pose,
+  // name, AND componentPath from the same array — one walk, no zip.
   return leaves.map((l) => {
     const pose = composedMap.get(pathKey(l.componentPath)) ?? IDENTITY_POSE;
     const color = effectiveColorToRgb(l.effectiveColor, assembly.colors);
@@ -113,6 +115,7 @@ export async function resolveExportLeaves(args: {
       partId: partIdByPath.get(l.partPath)!,
       name: nameByPath.get(l.partPath)!,
       pose: { translation: { ...pose.translation }, quaternion: [...pose.quaternion] as ExportPose['quaternion'] },
+      componentPath: l.componentPath,
       ...(color !== undefined ? { color } : {}),
     };
   });

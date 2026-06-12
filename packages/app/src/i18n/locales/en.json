@@ -1023,6 +1023,22 @@
       "sku": "SKU"
     }
   },
+  "clash": {
+    "button": "Interference Check",
+    "dialog_title": "Interference Check",
+    "clearance_label": "Minimum clearance (mm)",
+    "run": "Run",
+    "cancel": "Cancel",
+    "panel_title": "Clash Results",
+    "kind_interference": "Interference",
+    "kind_clearance": "Clearance",
+    "volume_label": "Volume (mm³)",
+    "distance_label": "Gap (mm)",
+    "part_a": "Part A",
+    "part_b": "Part B",
+    "no_results": "No interferences found.",
+    "never_run": "Run Interference Check to see results."
+  },
   "toast": {
     "chamferFailed": "Chamfer failed: {{message}}",
     "filletFailed": "Fillet failed: {{message}}",
