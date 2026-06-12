@@ -48,7 +48,7 @@
 
 **Phase B — Data-safety & crash resilience:**
 - [x] B1 — Surface autosave/OPFS/quota failures (StatusBar indicator + `beforeunload` guard) ✅ `8e7fc7dd` (caught: drawing-save stuck-saving bug)
-- [ ] B2 — Browser feature-detection splash (OPFS + secure context; allow Chrome/Edge/Firefox)
+- [x] B2 — Browser feature-detection splash (OPFS + secure context + workers; allow Chrome/Edge/Firefox) ✅ `dcd6c42`
 - [ ] B3 — Root React `ErrorBoundary` with recovery
 - [ ] B4 — Show kernel-init failure instead of "Loading CAD kernel…" forever
 - [ ] B5 — `try/catch` the 7 dialogs that fire commands via unawaited/sync `onSubmit`
