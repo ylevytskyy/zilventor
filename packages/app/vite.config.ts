@@ -75,6 +75,11 @@ export default defineConfig({
     exclude: ['opencascade.js', 'opencascade.js/dist/node.js']
   },
   // Treat the wasm file as a static asset so `?url` imports resolve.
-  assetsInclude: ['**/*.wasm'],
+  // Also include /occt/*.js: Vite's import-analysis rejects dynamic import()
+  // of public-dir JS files (Chromium bypasses this check; Firefox does not).
+  // Listing /occt/*.js here makes assetsInclude() return true for the specifier,
+  // which suppresses the "Cannot import non-asset file" error at line 64431 of
+  // vite:import-analysis, letting the browser fetch it directly at runtime.
+  assetsInclude: ['**/*.wasm', '**/occt/*.js'],
   build: { target: 'es2022' }
 });

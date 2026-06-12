@@ -10,6 +10,8 @@
     "test:unit": "pnpm -r test:unit",
     "test:integration": "pnpm -r test:integration",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:built": "playwright test --project=built-artifact",
     "test:perf": "playwright test --project=perf",
     "build": "pnpm -r build"
   },

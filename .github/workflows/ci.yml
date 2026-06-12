@@ -1,11 +1,10 @@
 name: ci
 
 on:
-  # CI auto-triggers temporarily disabled on request (2026-06-05).
-  # Re-enable by uncommenting the push/pull_request triggers below.
+  push:
+    branches: [master, main]
+  pull_request:
   workflow_dispatch:
-  # push:
-  # pull_request:
 
 jobs:
   build:
@@ -23,9 +22,16 @@ jobs:
       - run: pnpm -r test:unit
       - run: pnpm --filter @zilventor/kernel test:integration
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium firefox
       - run: pnpm test:e2e
+      - name: Firefox smoke e2e
+        run: pnpm test:e2e:firefox
       - run: pnpm -r build
+      - name: Built-artifact e2e (kernel works in production build)
+        run: |
+          pnpm --filter @zilventor/app preview --port 5193 &
+          npx wait-on http://localhost:5193 --timeout 60000 || sleep 10
+          pnpm test:e2e:built
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
