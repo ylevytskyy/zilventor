@@ -137,10 +137,13 @@ export type SpawnKernelOptions = {
 /**
  * Spawn the kernel Web Worker, wrap it via Comlink, and call init().
  *
- * NOTE FOR PRODUCTION: this uses `new Worker(new URL(...), { type: 'module' })`
- * which Vite will transform at build time. The path must resolve to the
- * kernel's worker.ts. We also reserve a `terminate` fn to kill the worker
- * cleanly on unmount.
+ * NOTE FOR PRODUCTION: the worker is spawned via a Vite `?worker` import
+ * (`import KernelWorkerCtor from '@zilventor/kernel/src/worker?worker'`).
+ * Vite bundles the worker as a real, separate ES-module chunk and emits all
+ * its transitive dependencies (OCCT glue + .wasm references).  The old
+ * `new Worker(new URL('../../../kernel/src/worker.ts'))` form was inlined as a
+ * `data:video/mp2t` URL in production builds, causing a SyntaxError at
+ * runtime — the `?worker` import eliminates that class of bug.
  */
 export async function spawnKernel(
   opts?: SpawnKernelOptions

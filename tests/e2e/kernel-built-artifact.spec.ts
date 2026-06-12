@@ -5,10 +5,13 @@
  * worker — i.e., the OCCT glue and WASM load correctly and the kernel can
  * produce a real solid (non-placeholder geometry).
  *
- * This spec targets the BUILT artifact served by `vite preview`, NOT the dev
- * server. The dev server hides the bug this was designed to catch (the old
- * `new Worker(new URL(…))` form inlines the TypeScript as a `data:video/mp2t`
- * URL in production builds, causing a SyntaxError at runtime).
+ * This spec MUST be run against a pre-started `vite preview` serving the built
+ * dist/ on port 5193 (the default port this spec targets). It targets the BUILT
+ * artifact, NOT the dev server — the dev server hides the bug this was designed
+ * to catch (the old `new Worker(new URL(…))` form inlines the TypeScript as a
+ * `data:video/mp2t` URL in production builds, causing a SyntaxError at
+ * runtime). CI wiring (a dedicated Playwright `built-artifact` project that
+ * starts the preview server automatically) is handled in Task A5.
  *
  * Prerequisite: `pnpm --filter @zilventor/app build` must have run first.
  * The CI step that runs this spec should be:
@@ -21,6 +24,15 @@
 import { test, expect } from '@playwright/test';
 
 test('kernel initialises and produces real geometry in the built app', async ({ page }) => {
+  // Register the console listener BEFORE navigation so we catch any errors
+  // that fire during worker initialisation (e.g. the data:video/mp2t
+  // SyntaxError fires before "Ready" appears — registering after goto would
+  // miss it entirely).
+  const consoleErrors: string[] = [];
+  page.on('console', msg => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+
   // Navigate to the built app served by vite preview on port 5193.
   await page.goto('http://localhost:5193/');
 
@@ -30,15 +42,12 @@ test('kernel initialises and produces real geometry in the built app', async ({ 
   await expect(page.getByText('Ready')).toBeVisible({ timeout: 120_000 });
 
   // 2. Confirm no SyntaxError from a data: URL worker inlining.
-  //    We capture console errors and check after the kernel-ready gate.
-  const consoleErrors: string[] = [];
-  page.on('console', msg => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
-  });
-  // Re-check after a short settle — any deferred errors should appear by now.
-  await page.waitForTimeout(1000);
-  const dataUrlErrors = consoleErrors.filter(e => e.includes('data:video/mp2t') || e.includes('SyntaxError'));
-  expect(dataUrlErrors, `Unexpected data: URL / SyntaxError in console: ${dataUrlErrors.join('; ')}`).toHaveLength(0);
+  //    The listener was registered before goto so it captured any errors
+  //    that fired during worker init (before "Ready" appeared).
+  expect(
+    consoleErrors.filter(t => /SyntaxError|data:video\/mp2t/.test(t)),
+    `Unexpected data: URL / SyntaxError in console: ${consoleErrors.join('; ')}`
+  ).toEqual([]);
 
   // 3. Create a part and extrude it → proves the kernel ran OCCT, not a stub.
   await page.getByRole('tab', { name: 'Model' }).click();

@@ -36,9 +36,14 @@ function findOcctDist() {
   } catch {
     throw new Error(`Cannot read pnpm store at ${pnpmStore}`);
   }
-  const match = entries.find(e => e.startsWith('opencascade.js@'));
-  if (!match) throw new Error(`opencascade.js not found in ${pnpmStore}`);
-  return join(pnpmStore, match, 'node_modules', 'opencascade.js', 'dist');
+  const matches = entries.filter(e => e.startsWith('opencascade.js@'));
+  if (matches.length === 0) throw new Error(`opencascade.js not found in ${pnpmStore}`);
+  if (matches.length > 1) {
+    throw new Error(
+      `Multiple opencascade.js versions in pnpm store: ${matches.join(', ')} — bump may have left a stale entry`
+    );
+  }
+  return join(pnpmStore, matches[0], 'node_modules', 'opencascade.js', 'dist');
 }
 
 const srcDir = findOcctDist();

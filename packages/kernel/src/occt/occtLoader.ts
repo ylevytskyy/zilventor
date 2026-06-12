@@ -50,7 +50,6 @@ async function loadImpl(): Promise<OcctInstance> {
   // @ts-ignore — /occt/opencascade.full.js is a public static asset served at
   // runtime; TypeScript has no type declarations for it. The `@vite-ignore`
   // prevents Rollup from trying to statically resolve or bundle this path.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   const mainModJs = (await import(/* @vite-ignore */ '/occt/opencascade.full.js')) as unknown as { default: EmscriptenFactory };
   const mainJS = mainModJs.default;
   return new mainJS({
