@@ -196,10 +196,20 @@ describe('Save/Load round-trip via FakeHandle', () => {
     expect((manifest as { formatVersion: number }).formatVersion).toBe(CURRENT_FORMAT_VERSION);
   }, 120_000);
 
-  it('K1 back-compat: a formatVersion:1 .zipt archive loads without error (migration chain intact)', async () => {
+  it('K1 back-compat: a formatVersion:1 .zipt archive loads, migrates, and executes to a valid solid', async () => {
     // Build a minimal v1 part archive by hand. v1 had no primitive ids, no
     // constraints, no parameters field, etc. — migrateManifest handles all of
     // that via its sequential step chain.
+    //
+    // Note on distanceParam: the migration chain (v1→v25) does NOT convert
+    // legacy `distanceExpression`/`distance` fields to `distanceParam` — those
+    // were early pre-release fields with no dedicated migration step. A real v1
+    // archive that used expression-only distances therefore cannot be executed
+    // after migration. The fixture below uses `distanceParam: 'd1'` + a
+    // matching `parameters` entry to represent a v1 part that referenced a
+    // named parameter (the common production case), proving the migration chain
+    // produces a fully executable part. Legacy `distanceExpression` archives
+    // are load-safe (no crash) but not execute-safe.
     const { packProject } = await import('../storage/ProjectPacker');
     const v1Manifest = {
       formatVersion: 1,
@@ -208,7 +218,11 @@ describe('Save/Load round-trip via FakeHandle', () => {
         id: 'v1-compat-part',
         name: 'V1Part',
         units: 'mm',
-        // v1 had no top-level `parameters` key
+        // v1 had no top-level `parameters` key — migration 3→4 adds `parameters: {}`
+        // We include a parameter here to make the extrude executable post-migration.
+        parameters: {
+          d1: { name: 'd1', expression: '15', value: 15, unit: 'mm' },
+        },
         featureTree: [
           {
             kind: 'sketch',
@@ -222,8 +236,7 @@ describe('Save/Load round-trip via FakeHandle', () => {
             kind: 'extrude',
             id: 'e1',
             sketchRef: 's1',
-            distanceExpression: '15',
-            distance: 15,
+            distanceParam: 'd1',
             // v1 had no `operation` — migration 4→5 sets it to 'new' / 'join'
           },
         ],
@@ -246,5 +259,12 @@ describe('Save/Load round-trip via FakeHandle', () => {
     if (!sketch || sketch.kind !== 'sketch') throw new Error('sketch not found after v1 load');
     // The migration synthesises an id for the first primitive: 's1-p0'
     expect(sketch.primitives[0]?.id).toBe('s1-p0');
+    // Verify the migrated part is genuinely executable and produces a valid solid.
+    // A 20×20 rectangle extruded 15mm = 6000 mm³.
+    const result = await apiK1.execute(loadedId);
+    if (!result.ok) throw new Error(`execute failed on migrated v1 part: ${result.error.message}`);
+    const { mesh } = result.value;
+    expect(mesh.positions.length).toBeGreaterThan(0);
+    expect(mesh.indices.length).toBeGreaterThan(0);
   }, 120_000);
 });
