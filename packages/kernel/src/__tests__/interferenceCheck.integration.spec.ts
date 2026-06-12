@@ -6,6 +6,9 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createKernelApi } from '../api';
+import { loadOcct } from '../occt/occtLoader';
+import { makeBox, type OcctShape } from '../occt/SolidOps';
+import { transformShapeByPose } from '../occt/TransformOps';
 
 function posedLeaf(partId: string, tx: number, ty: number, tz: number) {
   return {
@@ -116,6 +119,102 @@ describe('checkInterference: real OCCT', () => {
 
     // Assert neither interference nor clearance (butt joints must not false-flag)
     expect(pairs).toHaveLength(0);
+  }, 120_000);
+
+  /**
+   * SC-10 diagnostic: raw BRepAlgoAPI_Common volume for exactly coincident-face boxes.
+   *
+   * Directly computes (without going through checkInterference) the Common of:
+   *   Box A: 50×50×50 at origin [0,50]×[0,50]×[0,50]
+   *   Box B: 50×50×50 posed at TX=50 → [50,100]×[0,50]×[0,50]
+   * Their faces are exactly coincident at X=50.
+   *
+   * Logs: "SC-10 touching-face Common volume: <n> mm³" or "no solid (degenerate)".
+   * Interpretation rule (baked into assertion):
+   *   < 0.5 mm³ or no solid → VOLUME_THRESHOLD_MM3=1.0 is safe (≥2× margin)
+   *   ≥ 0.5 mm³           → threshold is marginal; controller must decide
+   */
+  it('SC-10 diagnostic: raw Common volume for touching faces (grounds VOLUME_THRESHOLD_MM3)', async () => {
+    // loadOcct() is a cached singleton — already warm from api.init() above.
+    const oc = await loadOcct() as any;
+
+    // Build two 50×50×50 boxes via the same SolidOps.makeBox helper the kernel uses.
+    const shapeA: OcctShape = makeBox(oc, 50, 50, 50);
+    // Pose Box B at TX=+50 so its face at X=0 aligns with Box A's face at X=50.
+    const shapeB: OcctShape = transformShapeByPose(oc, makeBox(oc, 50, 50, 50), {
+      translation: { x: 50, y: 0, z: 0 },
+      quaternion: [0, 0, 0, 1],
+    });
+
+    // SC-1 pattern: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).
+    const rangeCtor = new oc.Message_ProgressRange_1();
+    const rangeBuild = new oc.Message_ProgressRange_1();
+    const common = new oc.BRepAlgoAPI_Common_3(
+      shapeA.handle as never,
+      shapeB.handle as never,
+      rangeCtor,
+    );
+    common.Build(rangeBuild);
+    rangeCtor.delete?.();
+    rangeBuild.delete?.();
+
+    let rawVolume: number | null = null;
+    let hasSolid = false;
+
+    if (!common.HasErrors()) {
+      const commonShape = common.Shape();
+
+      // SC-3 pattern: check for SOLID via TopExp_Explorer.
+      const explorer = new oc.TopExp_Explorer_2(
+        commonShape as never,
+        oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+        oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+      );
+      hasSolid = explorer.More();
+      explorer.delete?.();
+
+      if (hasSolid) {
+        // Measure volume via BRepGProp.VolumeProperties_1 (SC-3 pattern).
+        const props = new oc.GProp_GProps_1();
+        try {
+          oc.BRepGProp.VolumeProperties_1(commonShape as never, props, true, false, false);
+          rawVolume = props.Mass() as number;
+        } finally {
+          props.delete?.();
+        }
+      }
+
+      (commonShape as { delete?: () => void }).delete?.();
+    }
+
+    common.delete?.();
+    (shapeA.handle as { delete?: () => void }).delete?.();
+    (shapeB.handle as { delete?: () => void }).delete?.();
+
+    // ── Authoritative SC-10 log ──────────────────────────────────────────────
+    if (!hasSolid || rawVolume === null) {
+      console.log('SC-10 touching-face Common volume: no solid (degenerate)');
+    } else {
+      console.log(`SC-10 touching-face Common volume: ${rawVolume} mm³`);
+    }
+
+    // Interpretation: if a solid exists with vol ≥ 0.5 mm³ the threshold is marginal.
+    if (hasSolid && rawVolume !== null && rawVolume >= 0.5) {
+      // Threshold is marginal — controller must decide whether to raise VOLUME_THRESHOLD_MM3.
+      console.warn(
+        `SC-10 WARNING: raw touching-face volume ${rawVolume} mm³ ≥ 0.5 — VOLUME_THRESHOLD_MM3=1.0 is marginal!`,
+      );
+    }
+
+    // The touching-face pair must STILL not be flagged by checkInterference.
+    // (This is the same geometry; re-run to assert classification is correct.)
+    const idC2 = await makeCubePart(api, 'boxC50diag', 50);
+    const idD2 = await makeCubePart(api, 'boxD50diag', 50);
+    const diagPairs = await api.checkInterference(
+      [posedLeaf(idC2, 0, 0, 0), posedLeaf(idD2, 50, 0, 0)],
+      { volumeThreshold: 1.0, clearanceThreshold: 1.0 },
+    );
+    expect(diagPairs).toHaveLength(0);
   }, 120_000);
 
   /**
