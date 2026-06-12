@@ -1,0 +1,5 @@
+Panel,Length,Width,Thickness,Tag,Face,X,Y,Ø,Depth,Type
+Side Panel,720,560,18,b1,Top,37,96,5,34,confirmat
+Side Panel,720,560,18,b2,Top,37,192,5,34,confirmat
+Side Panel,720,560,18,b3,Top,37,288,8,THROUGH,confirmat
+Back,,,,b4,Top,50,100,5,12,confirmat
