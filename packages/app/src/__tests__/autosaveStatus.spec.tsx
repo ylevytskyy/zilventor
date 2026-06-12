@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import App from '../App';
 import { useAppStore } from '../store/useAppStore';
-import type { AssemblyDocument } from '@zilventor/shared';
+import type { AssemblyDocument, DrawingDocument } from '@zilventor/shared';
 
 // ── kernel / worker mocks (same as App.spec.tsx) ────────────────────────────
 
@@ -68,6 +68,13 @@ class MockResizeObserver {
 (global as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
   MockResizeObserver;
 
+// ── DrawingPacker mock — packDrawing returns a stub byte array ───────────────
+
+vi.mock('../storage/DrawingPacker', () => ({
+  packDrawing: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
+  unpackDrawing: vi.fn(),
+}));
+
 // ── Opfs mock — default succeeds; individual tests override write ────────────
 
 // We keep a mutable ref so tests can override write() per-case.
@@ -119,6 +126,20 @@ function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
     hardware: [],
     ...overrides,
   } as unknown as AssemblyDocument;
+}
+
+/** Minimal DrawingDocument for seeding the drawing autosave path. */
+function makeDrawingDoc(overrides: Partial<DrawingDocument> = {}): DrawingDocument {
+  return {
+    id: 'D1',
+    name: 'TestDrawing',
+    units: 'mm',
+    source: { partPath: 'parts/test.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [],
+    activeSheetId: '',
+    ...overrides,
+  } as DrawingDocument;
 }
 
 // Advance the 500 ms autosave debounce and flush all async microtasks.
@@ -229,6 +250,27 @@ describe('autosave status indicator', () => {
     const indicator = document.querySelector('[data-testid="save-state-indicator"]');
     expect(indicator).toBeTruthy();
     expect(indicator?.textContent).toMatch(/Saved/i);
+  });
+
+  it('sets saveState to "saved" after a successful drawing autosave', async () => {
+    // Arrange: drawing write succeeds (default opfsWriteImpl is a no-op success).
+    render(<App />);
+
+    // Seed a drawing document — this triggers the autosave debounce.
+    const drawing = makeDrawingDoc();
+    act(() => {
+      useAppStore.setState({
+        activeDocument: { kind: 'drawing', document: drawing },
+      } as any);
+    });
+
+    // Advance past the 500 ms debounce and flush all async work.
+    await triggerAutosave();
+
+    // The drawing autosave path must transition saveState to 'saved', not leave
+    // it stuck at 'saving'. This is the regression test for the bug where the
+    // drawing branch returned early without calling setSaveState('saved').
+    expect(useAppStore.getState().saveState).toBe('saved');
   });
 });
 

@@ -60,7 +60,7 @@ export function StatusBar({ message, modified = false, selection, saveState }: P
       {modified && <span style={{ color: '#facc15' }}>● {t('status.modified')}</span>}
       {saveState === 'error' && (
         <span data-testid="save-state-indicator" style={{ color: '#f87171' }}>
-          ✕ Not saved
+          ✕ {t('status.saveError')}
         </span>
       )}
       {saveState === 'saving' && (

@@ -949,7 +949,8 @@
     "saveFailed": "Не збережено — {{message}}",
     "saveQuotaFull": "Не збережено — сховище переповнено",
     "saving": "Збереження…",
-    "saved": "Збережено"
+    "saved": "Збережено",
+    "saveError": "Не збережено"
   },
   "stub": {
     "comingIn": "{{what}} — з'явиться у підпроекті {{subProject}}."

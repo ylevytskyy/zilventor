@@ -949,7 +949,8 @@
     "saveFailed": "Not saved — {{message}}",
     "saveQuotaFull": "Not saved — storage full",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "saveError": "Not saved"
   },
   "stub": {
     "comingIn": "{{what}} — coming in sub-project {{subProject}}."

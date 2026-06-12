@@ -4461,6 +4461,7 @@ export default function App() {
           if (doc.kind === 'drawing') {
             await autosaveDrawing({ doc: doc.document, opfs, packDrawing });
             autosaveStatsRef.current.writeCount += 1;
+            useAppStore.getState().setSaveState('saved');
             return;
           }
           if (doc.kind === 'assembly') {
