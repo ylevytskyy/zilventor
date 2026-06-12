@@ -537,3 +537,49 @@ describe('SceneManager — edge-band overlay (T29)', () => {
   });
 });
 
+describe('SceneManager — disposeAllPartGeometries', () => {
+  let mgr: SceneManager;
+
+  beforeEach(() => {
+    vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
+      OrbitControls: class {
+        enableDamping = false; dampingFactor = 0;
+        update() {} dispose() {}
+      },
+    }));
+    mgr = new SceneManager(document.createElement('canvas'));
+  });
+
+  it('clears the part-geometry map after calling disposeAllPartGeometries()', () => {
+    const g1 = new THREE.BufferGeometry();
+    const g2 = new THREE.BufferGeometry();
+    mgr.setPartGeometry('parts/a.zipt', g1);
+    mgr.setPartGeometry('parts/b.zipt', g2);
+
+    mgr.disposeAllPartGeometries();
+
+    // The cache must be empty so the next mesh-sync rebuilds from OPFS.
+    expect(mgr.partGeometryCount()).toBe(0);
+  });
+
+  it('calls dispose() on each cached BufferGeometry', () => {
+    const g1 = new THREE.BufferGeometry();
+    const g2 = new THREE.BufferGeometry();
+    const spy1 = vi.spyOn(g1, 'dispose');
+    const spy2 = vi.spyOn(g2, 'dispose');
+    mgr.setPartGeometry('parts/a.zipt', g1);
+    mgr.setPartGeometry('parts/b.zipt', g2);
+
+    mgr.disposeAllPartGeometries();
+
+    expect(spy1).toHaveBeenCalledOnce();
+    expect(spy2).toHaveBeenCalledOnce();
+  });
+
+  it('is a no-op when the cache is already empty', () => {
+    // Should not throw.
+    expect(() => mgr.disposeAllPartGeometries()).not.toThrow();
+    expect(mgr.partGeometryCount()).toBe(0);
+  });
+});
+

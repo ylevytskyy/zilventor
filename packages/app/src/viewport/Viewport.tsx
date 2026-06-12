@@ -47,6 +47,8 @@ export type ViewportRef = {
   setPanelOverlays(specs: PanelOverlaySpec[], materials: ReadonlyArray<MaterialEntry>): void;
   setBoreMarkers(specs: MarkerOverlaySpec[]): void;
   clearComponentMeshes(): void;
+  /** Dispose all cached BufferGeometries and clear the part-geometry cache. Call on project switch. */
+  disposeAllPartGeometries(): void;
   captureThumbnail(w: number, h: number): Promise<Uint8Array>;
   captureViewportPng(opts: { transparent: boolean }): Promise<Uint8Array>;
   captureThumbnailScaled(size: number): Promise<Uint8Array>;
@@ -222,6 +224,9 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
       if (!sceneRef.current) return;
       sceneRef.current.clearComponentMeshes();
       setGeometryHash(sceneRef.current.geometryHash());
+    },
+    disposeAllPartGeometries: () => {
+      sceneRef.current?.disposeAllPartGeometries();
     },
     captureThumbnail: async (w, h) => {
       if (!sceneRef.current) throw new Error('viewport not ready');
