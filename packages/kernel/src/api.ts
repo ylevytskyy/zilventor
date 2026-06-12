@@ -33,6 +33,12 @@ export type ExportLeaf = {
   name: string;
   pose: ExportPose;
   color?: readonly [number, number, number];
+  /**
+   * PC-1: Populated by resolveExportLeaves so checkInterference (Task 3) can
+   * read partId, pose, name, AND componentPath from the same array — no zip needed.
+   * ComponentPath = ReadonlyArray<string> from @zilventor/shared/componentPath.
+   */
+  componentPath?: import('@zilventor/shared').ComponentPath;
 };
 
 /**
@@ -207,6 +213,18 @@ export type KernelApi = {
   exportStlPart(partId: string, opts?: { binary?: boolean }): Promise<Uint8Array>;
   /** Export an assembly as binary STL (re-executes leaves if cache is cold). */
   exportStlAssembly(leaves: readonly ExportLeaf[], opts?: { binary?: boolean }): Promise<Uint8Array>;
+  /**
+   * SC-1/SC-2/SC-3/SC-4/SC-5: AABB broad-phase + Common/Distance narrow-phase
+   * interference/clearance check for a flat list of posed leaves.
+   * Returns only pairs with real penetration (volume > volumeThreshold) or
+   * near-misses (0 < dist ≤ clearanceThreshold). Touching faces fall through
+   * both filters and produce no result — the volume threshold is load-bearing for this.
+   * Per-pair try/catch: degenerate pairs are skipped and logged, run continues.
+   */
+  checkInterference(
+    leaves: ReadonlyArray<{ partId: string; pose: { translation: { x: number; y: number; z: number }; quaternion: readonly [number, number, number, number] } }>,
+    opts: { volumeThreshold: number; clearanceThreshold: number },
+  ): Promise<import('@zilventor/shared').ClashPair[]>;
 };
 
 export function createKernelApi(): KernelApi {
@@ -857,6 +875,142 @@ export function createKernelApi(): KernelApi {
       const projectorInput: ProjectorInput = { triangles, edges: [], bbox: mesh.boundingBox };
       const faceTags = serializeFaceTags(r.faceTags);
       return { ok: true, projectorInput, faceTags };
+    },
+
+    async checkInterference(leaves, opts) {
+      if (!occt) throw new Error('kernel not initialized');
+      if (leaves.length < 2) return [];
+
+      const oc = occt as any;
+
+      // Step 1: Warm all shapes and compute world-posed copies + AABBs.
+      type ShapeEntry = {
+        posedShape: OcctShape;
+        aabb: [number, number, number, number, number, number]; // xmin,ymin,zmin,xmax,ymax,zmax
+      };
+      const entries: (ShapeEntry | null)[] = [];
+
+      for (const leaf of leaves) {
+        try {
+          const ns = await warmShapeForExport(leaf.partId);
+          const posedShape = transformShapeByPose(occt!, ns.shape, leaf.pose);
+          // computeBoundingBox returns [xmin,ymin,zmin,xmax,ymax,zmax] directly.
+          const aabb = computeBoundingBox(occt!, posedShape);
+          entries.push({ posedShape, aabb });
+        } catch (e) {
+          console.warn(`checkInterference: skipping leaf ${leaf.partId}: ${(e as Error).message}`);
+          entries.push(null);
+        }
+      }
+
+      // Helper: AABBs overlap when each axis overlaps (expanded by clearanceThreshold).
+      function aabbsOverlap(
+        a: [number,number,number,number,number,number],
+        b: [number,number,number,number,number,number],
+        expand: number,
+      ): boolean {
+        return (
+          a[0] - expand <= b[3] && a[3] + expand >= b[0] &&
+          a[1] - expand <= b[4] && a[4] + expand >= b[1] &&
+          a[2] - expand <= b[5] && a[5] + expand >= b[2]
+        );
+      }
+
+      // Helper: volume of a shape via BRepGProp.VolumeProperties_1 (SC-3).
+      function shapeVol(handle: unknown): number {
+        const props = new oc.GProp_GProps_1();
+        try {
+          oc.BRepGProp.VolumeProperties_1(handle, props, true, false, false);
+          return props.Mass();
+        } finally {
+          props.delete?.();
+        }
+      }
+
+      const results: import('@zilventor/shared').ClashPair[] = [];
+
+      for (let i = 0; i < entries.length; i++) {
+        const ei = entries[i];
+        if (!ei) continue;
+        for (let j = i + 1; j < entries.length; j++) {
+          const ej = entries[j];
+          if (!ej) continue;
+
+          // Broad-phase: skip if AABBs don't overlap even with expansion.
+          if (!aabbsOverlap(ei.aabb, ej.aabb, opts.clearanceThreshold)) continue;
+
+          try {
+            // SC-1: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).
+            const rangeCtor = new oc.Message_ProgressRange_1();
+            const rangeBuild = new oc.Message_ProgressRange_1();
+            const common = new oc.BRepAlgoAPI_Common_3(
+              ei.posedShape.handle as never,
+              ej.posedShape.handle as never,
+              rangeCtor,
+            );
+            common.Build(rangeBuild);
+            rangeCtor.delete?.();
+            rangeBuild.delete?.();
+
+            let isInterference = false;
+            // SC-3: guard HasErrors before volume check.
+            if (!common.HasErrors()) {
+              const commonShape = common.Shape();
+              // SC-3: check for solid via TopExp_Explorer (mirroring BooleanOps.ts).
+              const explorer = new oc.TopExp_Explorer_2(
+                commonShape as never,
+                oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+                oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+              );
+              const hasSolid = explorer.More();
+              explorer.delete?.();
+
+              if (hasSolid) {
+                const vol = shapeVol(commonShape);
+                if (vol > opts.volumeThreshold) {
+                  isInterference = true;
+                  results.push({ aIndex: i, bIndex: j, kind: 'interference', volume: vol });
+                }
+              }
+              (commonShape as { delete?: () => void }).delete?.();
+            }
+            common.delete?.();
+
+            // Only check clearance if NOT interference (SC-13a precedence).
+            if (!isInterference) {
+              // SC-2: BRepExtrema_DistShapeShape — _1() + LoadS1/LoadS2 + Perform + IsDone (PC-3).
+              const distRange = new oc.Message_ProgressRange_1();
+              const extrema = new oc.BRepExtrema_DistShapeShape_1();
+              extrema.LoadS1(ei.posedShape.handle as never);
+              extrema.LoadS2(ej.posedShape.handle as never);
+              extrema.Perform(distRange);
+              distRange.delete?.();
+              // PC-3: guard IsDone() before Value() — failed Perform returns garbage, not throw.
+              if (!extrema.IsDone()) {
+                extrema.delete();
+                continue;
+              }
+              const dist: number = extrema.Value();
+              extrema.delete?.();
+              // Value() returns 0 for touching/overlapping; only report strictly positive.
+              if (dist > 0 && dist <= opts.clearanceThreshold) {
+                results.push({ aIndex: i, bIndex: j, kind: 'clearance', distance: dist });
+              }
+            }
+          } catch (e) {
+            console.warn(`checkInterference: pair (${i},${j}) threw, skipping: ${(e as Error).message}`);
+          }
+        }
+      }
+
+      // SC-5: dispose all posed copies after processing all pairs.
+      for (const entry of entries) {
+        if (entry) {
+          (entry.posedShape.handle as { delete?: () => void }).delete?.();
+        }
+      }
+
+      return results;
     },
   };
 }
