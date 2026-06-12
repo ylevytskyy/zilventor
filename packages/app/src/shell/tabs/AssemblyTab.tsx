@@ -255,7 +255,7 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
             const cmd = new CreateComponentPatternCommand({
               sourceInstanceId: v.sourceComponentId,
               dir1: v.dir1, count1: v.count1, spacing1: v.spacing1,
-              dir2: v.dir2, count2: v.count2, spacing2: v.spacing2,
+              ...(v.dir2 !== undefined ? { dir2: v.dir2, count2: v.count2, spacing2: v.spacing2 } : {}),
             });
             await bus.execute(cmd);
           }}

@@ -17,6 +17,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 type DialogState = {
   sheetId: string;
@@ -28,9 +29,10 @@ export function AddLeaderTextDialog(): JSX.Element | null {
   const state = useAppStore((s) => (s as any).addLeaderTextDialogState as DialogState | null);
   const bus = useAppStore((s) => s.bus);
   const [text, setText] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (state) setText('');
+    if (state) { setText(''); setError(null); }
   }, [state]);
 
   if (!state) return null;
@@ -40,8 +42,14 @@ export function AddLeaderTextDialog(): JSX.Element | null {
   const handleOk = async (): Promise<void> => {
     if (!text.trim()) return;
     const ann: DrawingAnnotation = { ...state.ann, text: text.trim() };
-    await bus.execute(new AddDrawingAnnotationCommand({ sheetId: state.sheetId, ann }));
-    close();
+    setError(null);
+    try {
+      await bus.execute(new AddDrawingAnnotationCommand({ sheetId: state.sheetId, ann }));
+      close();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   return (
@@ -68,6 +76,10 @@ export function AddLeaderTextDialog(): JSX.Element | null {
             onChange={(e) => setText(e.target.value)}
           />
         </div>
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
+
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
           <button

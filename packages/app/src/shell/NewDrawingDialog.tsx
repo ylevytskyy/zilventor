@@ -23,6 +23,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 type SizeOption = 'A0' | 'A1' | 'A2' | 'A3' | 'A4' | 'custom';
 
@@ -38,6 +39,7 @@ export function NewDrawingDialog(): JSX.Element | null {
   const [orientation, setOrientation] = React.useState<'landscape' | 'portrait'>('landscape');
   const [widthStr, setWidthStr] = React.useState('420');
   const [heightStr, setHeightStr] = React.useState('297');
+  const [error, setError] = React.useState<string | null>(null);
 
   if (!open) return null;
 
@@ -59,13 +61,19 @@ export function NewDrawingDialog(): JSX.Element | null {
     const currentPath = s.newDrawingSourcePath;
     const currentKind = s.newDrawingSourceKind;
     if (!currentPath || !currentKind) return;
-    await bus.execute(new CreateDrawingCommand({
-      sourcePath: currentPath,
-      sourceKind: currentKind,
-      sheetSize: buildSheetSize(),
-      orientation,
-    }));
-    close();
+    setError(null);
+    try {
+      await bus.execute(new CreateDrawingCommand({
+        sourcePath: currentPath,
+        sourceKind: currentKind,
+        sheetSize: buildSheetSize(),
+        orientation,
+      }));
+      close();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   return (
@@ -179,6 +187,10 @@ export function NewDrawingDialog(): JSX.Element | null {
             {t('dialog.newDrawing.portrait')}
           </label>
         </div>
+
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>

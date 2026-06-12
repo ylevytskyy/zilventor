@@ -15,6 +15,7 @@ function makeImportStepResult(brepBlobId = 'whole-blob', solidCount = 1) {
     boundingBox: [0, 0, 0, 10, 10, 10] as BB,
     faceCount: 0,
     solidCount,
+    solidColors: Array.from({ length: solidCount }, () => null) as (string | null)[],
   });
 }
 

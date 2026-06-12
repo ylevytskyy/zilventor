@@ -8,9 +8,14 @@ type Props = {
   message?: string;
   modified?: boolean;
   selection?: string;
+  saveState?: 'saved' | 'saving' | 'error';
+  /** True when the kernel failed to initialise; shows the failure message + Retry button. */
+  kernelFailed?: boolean;
+  /** Called when the user clicks the Retry button after a kernel-init failure. */
+  onRetryKernel?: () => void;
 };
 
-export function StatusBar({ message, modified = false, selection }: Props) {
+export function StatusBar({ message, modified = false, selection, saveState, kernelFailed = false, onRetryKernel }: Props) {
   const { t } = useTranslation();
   const statusMessage = useAppStore((s) => s.statusMessage);
   const sketchDof = useAppStore((s) => s.sketchDof);
@@ -55,8 +60,32 @@ export function StatusBar({ message, modified = false, selection }: Props) {
   return (
     <div style={{ display: 'flex', gap: 16, padding: '4px 12px' }}>
       <span>{displayMessage}</span>
+      {kernelFailed && onRetryKernel && (
+        <button
+          data-testid="retry-kernel"
+          onClick={onRetryKernel}
+          style={{ cursor: 'pointer', color: '#fbbf24', background: 'none', border: '1px solid #fbbf24', borderRadius: 3, padding: '0 6px', fontSize: 'inherit' }}
+        >
+          {t('status.retryKernel')}
+        </button>
+      )}
       {selection && <span>{selection}</span>}
       {modified && <span style={{ color: '#facc15' }}>● {t('status.modified')}</span>}
+      {saveState === 'error' && (
+        <span data-testid="save-state-indicator" style={{ color: '#f87171' }}>
+          ✕ {t('status.saveError')}
+        </span>
+      )}
+      {saveState === 'saving' && (
+        <span data-testid="save-state-indicator" style={{ color: '#fbbf24' }}>
+          ⟳ {t('status.saving')}
+        </span>
+      )}
+      {saveState === 'saved' && (
+        <span data-testid="save-state-indicator" style={{ color: '#4ade80' }}>
+          ✓ {t('status.saved')}
+        </span>
+      )}
       {sketchDof && <DofSegment dof={sketchDof} />}
       {hasConstraints && <AssemblyDofSegment diagnostics={solverDiagnostics} />}
       {activeAssembly && (

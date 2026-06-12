@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CabinetDialog } from '../CabinetDialog';
 import { useAppStore } from '../../store/useAppStore';
 import type { AssemblyDocument, MaterialEntry } from '@zilventor/shared';
@@ -50,9 +50,9 @@ describe('CabinetDialog — structural', () => {
     expect(screen.getByRole('button', { name: 'OK' })).toBeTruthy();
   });
 
-  it('OK calls onSubmit with the current params and clears the dialog state', () => {
+  it('OK calls onSubmit with the current params and clears the dialog state', async () => {
     seedAsm();
-    const onSubmit = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     useAppStore.getState().setCabinetDialog({
       template: 'baseCabinet',
       onSubmit,
@@ -69,7 +69,10 @@ describe('CabinetDialog — structural', () => {
       backMaterialId: 'm-hb-6',
       bandMaterialId: null,
     });
-    expect(useAppStore.getState().cabinetDialog).toBeNull();
+    // handleOk is now async — wait for the promise microtask to settle before checking state
+    await waitFor(() => {
+      expect(useAppStore.getState().cabinetDialog).toBeNull();
+    });
   });
 });
 
@@ -136,5 +139,47 @@ describe('CabinetDialog — empty registry', () => {
     render(<CabinetDialog />);
     expect(screen.getByText(/No materials yet/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'OK' })).toHaveAttribute('aria-disabled', 'true');
+  });
+});
+
+describe('CabinetDialog — async onSubmit error handling', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setCabinetDialog(null);
+  });
+
+  it('onSubmit rejection keeps dialog open and shows an error alert', async () => {
+    seedAsm();
+    const onSubmit = vi.fn().mockRejectedValue(new Error('OPFS write failed'));
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<CabinetDialog />);
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    // Dialog must remain open (cabinetDialog store slot not cleared)
+    await waitFor(() => {
+      expect(useAppStore.getState().cabinetDialog).not.toBeNull();
+    });
+    // An error alert must be visible with the rejection message
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toContain('OPFS write failed');
+  });
+
+  it('onSubmit success closes the dialog', async () => {
+    seedAsm();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<CabinetDialog />);
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => {
+      expect(useAppStore.getState().cabinetDialog).toBeNull();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

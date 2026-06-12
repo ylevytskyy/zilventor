@@ -1,5 +1,10 @@
 import * as Comlink from 'comlink';
 import type { KernelApi } from '@zilventor/kernel/src/api';
+// Vite ?worker import — Vite bundles the kernel worker as a separate chunk and
+// emits the OCCT glue + WASM alongside it. Mirrors the sketcher-worker pattern
+// in packages/app/src/vendor/sketcherWorker.ts. The raw `new Worker(new URL(…))`
+// form inlines the TypeScript as a data: URL in production builds (unusable).
+import KernelWorkerCtor from '@zilventor/kernel/src/worker?worker';
 
 export type KernelClient = KernelApi;
 
@@ -132,17 +137,20 @@ export type SpawnKernelOptions = {
 /**
  * Spawn the kernel Web Worker, wrap it via Comlink, and call init().
  *
- * NOTE FOR PRODUCTION: this uses `new Worker(new URL(...), { type: 'module' })`
- * which Vite will transform at build time. The path must resolve to the
- * kernel's worker.ts. We also reserve a `terminate` fn to kill the worker
- * cleanly on unmount.
+ * NOTE FOR PRODUCTION: the worker is spawned via a Vite `?worker` import
+ * (`import KernelWorkerCtor from '@zilventor/kernel/src/worker?worker'`).
+ * Vite bundles the worker as a real, separate ES-module chunk and emits all
+ * its transitive dependencies (OCCT glue + .wasm references).  The old
+ * `new Worker(new URL('../../../kernel/src/worker.ts'))` form was inlined as a
+ * `data:video/mp2t` URL in production builds, causing a SyntaxError at
+ * runtime — the `?worker` import eliminates that class of bug.
  */
 export async function spawnKernel(
   opts?: SpawnKernelOptions
 ): Promise<{ client: KernelClient; terminate(): void }> {
-  // Vite resolves the URL to the built worker chunk at build time.
-  const workerUrl = new URL('../../../kernel/src/worker.ts', import.meta.url);
-  const worker = new Worker(workerUrl, { type: 'module' });
+  // KernelWorkerCtor is a Vite ?worker factory — Vite bundles the worker as a
+  // separate ES-module chunk and emits all its dependencies (OCCT glue + .wasm).
+  const worker = new KernelWorkerCtor();
   const proxy = Comlink.wrap<KernelApi>(worker);
   // Expose Comlink on `window` so E2E tests can wrap test-injected handles
   // (FakeFileSystemFileHandle) with `Comlink.proxy()` — plain class

@@ -39,7 +39,7 @@ describe('OffsetTool', () => {
     tool.onPointerMove({ x: 5, y: 4 });    // preview fires (non-empty)
     tool.onPointerClick({ x: 5, y: 4 });   // commit
     // Last preview call must be an empty array (< 2 points → App.tsx clearDraft)
-    const lastPreview = previews[previews.length - 1];
+    const lastPreview = previews[previews.length - 1]!;
     expect(lastPreview.length).toBeLessThan(2);
   });
 
@@ -53,7 +53,7 @@ describe('OffsetTool', () => {
     tool.onPointerClick({ x: 5, y: 0 });
     tool.onPointerMove({ x: 5, y: 4 });
     tool.onNumericCommit([4]);
-    const lastPreview = previews[previews.length - 1];
+    const lastPreview = previews[previews.length - 1]!;
     expect(lastPreview.length).toBeLessThan(2);
   });
 
@@ -67,7 +67,7 @@ describe('OffsetTool', () => {
     tool.onPointerClick({ x: 5, y: 0 });
     tool.onPointerMove({ x: 5, y: 4 });
     tool.onEscapePressed();
-    const lastPreview = previews[previews.length - 1];
+    const lastPreview = previews[previews.length - 1]!;
     expect(lastPreview.length).toBeLessThan(2);
   });
 });

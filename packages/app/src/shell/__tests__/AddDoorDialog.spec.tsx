@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AddDoorDialog } from '../AddDoorDialog';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -43,8 +43,8 @@ describe('AddDoorDialog — structural', () => {
     expect((screen.getByLabelText('Hinge side') as HTMLSelectElement).disabled).toBe(true);
   });
 
-  it('OK submits the chosen params and closes', () => {
-    const onSubmit = vi.fn();
+  it('OK submits the chosen params and closes', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
     useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
     render(<AddDoorDialog />);
     fireEvent.change(screen.getByLabelText('Overlay'), { target: { value: 'inset' } });
@@ -60,7 +60,24 @@ describe('AddDoorDialog — structural', () => {
       clearance: 2,
       centerReveal: 3,
     });
-    expect(useAppStore.getState().addDoorDialog).toBeNull();
+    // handleOk is now async — wait for the promise microtask to settle before checking state
+    await waitFor(() => {
+      expect(useAppStore.getState().addDoorDialog).toBeNull();
+    });
+  });
+
+  it('onSubmit rejection keeps dialog open and shows an error alert', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error('door geometry failed'));
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    // Dialog must remain open
+    await waitFor(() => {
+      expect(useAppStore.getState().addDoorDialog).not.toBeNull();
+    });
+    // Error alert must be visible with the rejection message
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toContain('door geometry failed');
   });
 
   it('Cancel calls onCancel and closes', () => {

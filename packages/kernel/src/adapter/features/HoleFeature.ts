@@ -106,6 +106,7 @@ function resolveLinearLocation(
   (oc as any).BRepGProp.SurfaceProperties_1(face, faceProps, 1e-7, false);
   const centroid = faceProps.CentreOfMass();
   const faceCentroid: Vec3 = { x: centroid.X(), y: centroid.Y(), z: centroid.Z() };
+  faceProps.delete?.();
 
   // Perpendicular within face plane to each edge.
   // Orient each perp so it points from the edge toward the face centroid (interior).
@@ -347,11 +348,13 @@ function panelDimsFromBody(oc: OcctInstance, body: unknown): { length: number; w
   (oc as any).BRepBndLib.Add(body, bnd, false);
   const lo = bnd.CornerMin();
   const hi = bnd.CornerMax();
-  return {
+  const dims = {
     length: hi.X() - lo.X(),
     width: hi.Y() - lo.Y(),
     thickness: hi.Z() - lo.Z(),
   };
+  bnd.delete?.();
+  return dims;
 }
 
 /**

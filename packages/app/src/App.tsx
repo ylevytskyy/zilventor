@@ -197,6 +197,8 @@ export default function App() {
   // terminate the freshly spawned worker instead of leaking it after unmount.
   const unmountedRef = useRef(false);
   const [kernelOffline, setKernelOffline] = useState(false);
+  const [kernelFailed, setKernelFailed] = useState(false);
+  const [sketcherCrashed, setSketcherCrashed] = useState(false);
 
   // Sketcher refs — instantiated once viewport is mounted.
   const sketcherClientRef = useRef<SketcherClient | null>(null);
@@ -411,6 +413,7 @@ export default function App() {
   const kernel = useAppStore((s) => s.kernel);
   const statusMessage = useAppStore((s) => s.statusMessage);
   const kernelReady = useAppStore((s) => s.kernelReady);
+  const saveState = useAppStore((s) => s.saveState);
   const sketchMode = useAppStore((s) => s.sketchMode);
   const activeSketchId = useAppStore((s) => s.activeSketchId);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
@@ -1223,9 +1226,11 @@ export default function App() {
         });
         if (disposed) { terminate(); return; }
         terminateRef.current = terminate;
+        setKernelFailed(false);
         useAppStore.getState().setKernel(client);
       } catch (e) {
         useAppStore.getState().setStatus(t('status.kernelFailed', { message: (e as Error).message }));
+        setKernelFailed(true);
       }
     })();
     return () => {
@@ -1332,7 +1337,16 @@ export default function App() {
       // Slice-5: capture OrbitControls ref for bore drag handler.
       orbitControlsRef.current = sm.getControls();
 
-      sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi());
+      sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi({
+        onOffline: () => {
+          // Exit sketch mode so the user isn't stuck in a non-functional state.
+          useAppStore.getState().setSketchMode(false);
+          // Surface a status message so the user understands what happened.
+          useAppStore.getState().setStatus(t('status.sketcherCrashed'));
+          // Show the banner.
+          setSketcherCrashed(true);
+        }
+      }));
 
       sketchModeRef.current = createSketchModeController({
         camera: sm.getCamera(),
@@ -2063,6 +2077,7 @@ export default function App() {
     restartingRef.current = true;
     try {
       setKernelOffline(false);
+      setKernelFailed(false);
       terminateRef.current?.();
       terminateRef.current = null;
       const { client, terminate } = await spawnKernel({
@@ -2096,7 +2111,8 @@ export default function App() {
       }
     } catch (e) {
       if (!unmountedRef.current) {
-        useAppStore.getState().setStatus(t('status.kernelRestartFailed', { message: (e as Error).message }));
+        useAppStore.getState().setStatus(t('status.kernelFailed', { message: (e as Error).message }));
+        setKernelFailed(true);
       }
     } finally {
       restartingRef.current = false;
@@ -4439,6 +4455,7 @@ export default function App() {
     autosaveTimerRef.current = window.setTimeout(() => {
       autosaveTimerRef.current = null;
       void (async () => {
+        useAppStore.getState().setSaveState('saving');
         try {
           // Throttled thumbnail capture — max once per THUMB_THROTTLE_MS
           const vp = useAppStore.getState().viewport;
@@ -4459,6 +4476,7 @@ export default function App() {
           if (doc.kind === 'drawing') {
             await autosaveDrawing({ doc: doc.document, opfs, packDrawing });
             autosaveStatsRef.current.writeCount += 1;
+            useAppStore.getState().setSaveState('saved');
             return;
           }
           if (doc.kind === 'assembly') {
@@ -4507,8 +4525,15 @@ export default function App() {
             setLastOpenDocument({ kind: 'part', opfsPath: `${doc.document.name}.zipt` });
           }
           autosaveStatsRef.current.writeCount += 1;
+          useAppStore.getState().setSaveState('saved');
         } catch (e) {
-          console.warn('autosave failed:', (e as Error).message);
+          const err = e as Error;
+          const quota = err.name === 'QuotaExceededError';
+          useAppStore.getState().setSaveState('error');
+          useAppStore.getState().setStatus(
+            quota ? t('status.saveQuotaFull') : t('status.saveFailed', { message: err.message }),
+          );
+          console.warn('autosave failed:', err.message);
         }
       })();
     }, 500);
@@ -4519,6 +4544,18 @@ export default function App() {
       }
     };
   }, [activeDoc, kernel]);
+
+  // beforeunload guard — warn user if there is unsaved work (saveState !== 'saved').
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (useAppStore.getState().saveState !== 'saved') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
   const scheduleSweepPreview = useCallback(() => {
@@ -5057,6 +5094,18 @@ export default function App() {
           </button>
         </div>
       )}
+      {sketcherCrashed && !kernelOffline && (
+        <div
+          role="alert"
+          className="bg-amber-700 text-white text-xs px-3 py-1 flex justify-between items-center"
+          data-testid="sketcher-crashed-banner"
+        >
+          <span>{t('aria.sketcherCrashedBanner')}</span>
+          <button onClick={() => setSketcherCrashed(false)} className="underline hover:no-underline">
+            {t('common.close')}
+          </button>
+        </div>
+      )}
       <FileOpenOverlay onCancel={handleCancelOpen} />
       <div className="grid flex-1 min-h-0" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
         <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border flex items-center" id="region-appbar">
@@ -5128,7 +5177,12 @@ export default function App() {
           />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
-          <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} />
+          <StatusBar
+            message={kernelFailed ? statusMessage : (kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel'))}
+            saveState={saveState}
+            kernelFailed={kernelFailed}
+            onRetryKernel={handleRestart}
+          />
         </footer>
       </div>
       <NumericInputOverlay

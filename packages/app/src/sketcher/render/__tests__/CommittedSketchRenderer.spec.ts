@@ -10,8 +10,8 @@ describe('CommittedSketchRenderer construction styling', () => {
       { id: 'l2', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10, construction: true },
     ]);
     const objs = r.group.children as THREE.Line[];
-    const normalMat = objs[0].material as THREE.Material;
-    const constructionMat = objs[1].material as THREE.Material;
+    const normalMat = objs[0]!.material as THREE.Material;
+    const constructionMat = objs[1]!.material as THREE.Material;
     expect(normalMat).toBeInstanceOf(THREE.LineBasicMaterial);
     expect(normalMat).not.toBeInstanceOf(THREE.LineDashedMaterial);
     expect(constructionMat).toBeInstanceOf(THREE.LineDashedMaterial);

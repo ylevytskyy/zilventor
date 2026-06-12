@@ -2,7 +2,7 @@
 // F1 (DXF parser) TDD spec. Written RED before parseDxfUnderlay.ts exists.
 
 import { parseDxfUnderlay } from '../parseDxfUnderlay';
-import type { DxfUnderlay } from '@zilventor/shared/drawing/types';
+import type { DxfUnderlay } from '@zilventor/shared';
 
 // ---------------------------------------------------------------------------
 // Helpers — hand-written minimal ASCII DXF strings (group-code / value pairs).
@@ -165,7 +165,7 @@ describe('parseDxfUnderlay', () => {
     it('maps a LINE to a line UnderlayEntity with correct coordinates', () => {
       const result: DxfUnderlay = parseDxfUnderlay(LINE_DXF, 'test.dxf');
       expect(result.entities).toHaveLength(1);
-      const e = result.entities[0];
+      const e = result.entities[0]!;
       expect(e.kind).toBe('line');
       if (e.kind === 'line') {
         expect(e.x1).toBeCloseTo(5);
@@ -180,7 +180,7 @@ describe('parseDxfUnderlay', () => {
     it('maps an open LWPOLYLINE to a polyline with correct points and closed=false', () => {
       const result = parseDxfUnderlay(LWPOLYLINE_DXF, 'poly.dxf');
       expect(result.entities).toHaveLength(1);
-      const e = result.entities[0];
+      const e = result.entities[0]!;
       expect(e.kind).toBe('polyline');
       if (e.kind === 'polyline') {
         expect(e.closed).toBe(false);
@@ -196,7 +196,7 @@ describe('parseDxfUnderlay', () => {
     it('maps a CIRCLE to a circle UnderlayEntity with center and radius', () => {
       const result = parseDxfUnderlay(CIRCLE_DXF, 'circle.dxf');
       expect(result.entities).toHaveLength(1);
-      const e = result.entities[0];
+      const e = result.entities[0]!;
       expect(e.kind).toBe('circle');
       if (e.kind === 'circle') {
         expect(e.cx).toBeCloseTo(50);
@@ -210,7 +210,7 @@ describe('parseDxfUnderlay', () => {
     it('maps an ARC to an arc UnderlayEntity with center, radius, and angles in degrees', () => {
       const result = parseDxfUnderlay(ARC_DXF, 'arc.dxf');
       expect(result.entities).toHaveLength(1);
-      const e = result.entities[0];
+      const e = result.entities[0]!;
       expect(e.kind).toBe('arc');
       if (e.kind === 'arc') {
         expect(e.cx).toBeCloseTo(30);
@@ -226,7 +226,7 @@ describe('parseDxfUnderlay', () => {
     it('maps a TEXT to a text UnderlayEntity with insertion, height, value, and rotation', () => {
       const result = parseDxfUnderlay(TEXT_DXF, 'text.dxf');
       expect(result.entities).toHaveLength(1);
-      const e = result.entities[0];
+      const e = result.entities[0]!;
       expect(e.kind).toBe('text');
       if (e.kind === 'text') {
         expect(e.x).toBeCloseTo(20);
@@ -257,7 +257,7 @@ describe('parseDxfUnderlay', () => {
       // Block LINE: (1,2)→(11,2). Insert offset: (100,200). Expected: (101,202)→(111,202).
       const lines = result.entities.filter(e => e.kind === 'line');
       expect(lines.length).toBeGreaterThanOrEqual(1);
-      const line = lines[0];
+      const line = lines[0]!;
       if (line.kind === 'line') {
         expect(line.x1).toBeCloseTo(101);
         expect(line.y1).toBeCloseTo(202);

@@ -53,6 +53,7 @@
     "hole": "Отвір",
     "increment_qty": "Збільшити кількість",
     "kernelOfflineBanner": "Ядро зупинено — натисніть для перезапуску",
+    "sketcherCrashedBanner": "Вирішувач ескізу аварійно завершився — режим ескізу закрито",
     "leader_text": "Текст з виноскою",
     "nesting_tab": "Вкладка розкладки",
     "offset1": "зміщення 1",
@@ -927,8 +928,10 @@
     },
     "item_num_invalid": "Номер позиції має бути цілим числом від 1 до 9999",
     "kernelFailed": "Помилка ядра: {{message}}",
+    "sketcherCrashed": "Вирішувач ескізу аварійно завершився — режим ескізу закрито",
     "kernelRestartFailed": "Помилка перезапуску ядра: {{message}}",
     "loadingKernel": "Завантаження ядра CAD…",
+    "retryKernel": "Повторити",
     "explodeFailed": "Помилка розкладання: {{error}}",
     "imported": "Імпортовано",
     "insertStepFailed": "Помилка вставлення зі STEP: {{error}}",
@@ -945,7 +948,12 @@
       "cycle": "Не вдається розмістити {{partPath}}: виникне циклічна залежність підзбірки."
     },
     "ready": "Готово",
-    "unitMm": "мм"
+    "unitMm": "мм",
+    "saveFailed": "Не збережено — {{message}}",
+    "saveQuotaFull": "Не збережено — сховище переповнено",
+    "saving": "Збереження…",
+    "saved": "Збережено",
+    "saveError": "Не збережено"
   },
   "stub": {
     "comingIn": "{{what}} — з'явиться у підпроекті {{subProject}}."

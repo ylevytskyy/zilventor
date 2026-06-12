@@ -10,3 +10,10 @@ test-results/
 playwright-report/
 .worktrees/
 tmp/
+
+# Local agent workspace
+.claude/
+.claire/
+
+# Vendored OCCT glue+wasm — regenerated from node_modules by copy-occt.mjs (postinstall/prebuild)
+packages/app/public/occt/

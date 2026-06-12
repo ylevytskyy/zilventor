@@ -17,7 +17,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
       // Enable the service worker in `vite dev` so Playwright's offline test
       // can exercise caching without spinning up a separate preview server.
       devOptions: { enabled: true, type: 'module' },
@@ -27,15 +27,37 @@ export default defineConfig({
         theme_color: '#1f1f1f',
         background_color: '#1f1f1f',
         display: 'standalone',
-        icons: []
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,wasm}'],
-        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024
+        // Precache app shell + BOTH wasm kernels + textures so the app works fully offline
+        // after first install. The OCCT wasm (~50MB) is the bulk; one-time install cost is
+        // acceptable for an offline-first CAD tool.
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg}', '**/*.wasm'],
+        // OCCT wasm is ~48MB; raise this if the wasm grows past ~58MB or it silently drops from precache (breaks offline).
+        maximumFileSizeToCacheInBytes: 60 * 1024 * 1024
       }
     })
   ],
-  worker: { format: 'es' },
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      // opencascade.full.js is served as a public static asset at /occt/ (copied
+      // by scripts/copy-occt.mjs at prebuild). Mark it external so Rollup does
+      // not try to bundle it — the browser fetches it at runtime via a dynamic
+      // import() in occtLoader.ts. The node.js branch is also external (Node-only,
+      // never executed in the browser worker).
+      external: [
+        /^\/occt\//,
+        'opencascade.js/dist/node.js',
+        'opencascade.js'
+      ]
+    }
+  },
   resolve: {
     alias: [
       { find: 'events', replacement: eventsShim },
@@ -53,6 +75,11 @@ export default defineConfig({
     exclude: ['opencascade.js', 'opencascade.js/dist/node.js']
   },
   // Treat the wasm file as a static asset so `?url` imports resolve.
-  assetsInclude: ['**/*.wasm'],
+  // Also include /occt/*.js: Vite's import-analysis rejects dynamic import()
+  // of public-dir JS files (Chromium bypasses this check; Firefox does not).
+  // Listing /occt/*.js here makes assetsInclude() return true for the specifier,
+  // which suppresses the "Cannot import non-asset file" error at line 64431 of
+  // vite:import-analysis, letting the browser fetch it directly at runtime.
+  assetsInclude: ['**/*.wasm', '**/occt/*.js'],
   build: { target: 'es2022' }
 });

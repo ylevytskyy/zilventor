@@ -101,6 +101,7 @@ export type AnnotationElementProps = {
 export function AnnotationElement({ ann, view }: AnnotationElementProps) {
   switch (ann.kind) {
     case 'centerline': {
+      if (!view) return null;
       const cA = edgeCenter(ann.edgeIdA, view);
       const cB = edgeCenter(ann.edgeIdB, view);
       if (!cA || !cB) return null;

@@ -53,6 +53,7 @@
     "hole": "Hole",
     "increment_qty": "Increment qty",
     "kernelOfflineBanner": "Kernel stopped — click to restart",
+    "sketcherCrashedBanner": "Sketch solver crashed — exited sketch mode",
     "leader_text": "Leader Text",
     "nesting_tab": "Nesting tab",
     "offset1": "offset 1",
@@ -927,8 +928,10 @@
     },
     "item_num_invalid": "Item# must be a positive integer up to 9999",
     "kernelFailed": "Kernel failed: {{message}}",
+    "sketcherCrashed": "Sketch solver crashed — sketch mode exited",
     "kernelRestartFailed": "Kernel restart failed: {{message}}",
     "loadingKernel": "Loading CAD kernel…",
+    "retryKernel": "Retry",
     "explodeFailed": "Explode failed: {{error}}",
     "imported": "Imported",
     "insertStepFailed": "Insert From STEP failed: {{error}}",
@@ -945,7 +948,12 @@
       "cycle": "Cannot place {{partPath}}: would create a sub-assembly cycle."
     },
     "ready": "Ready",
-    "unitMm": "mm"
+    "unitMm": "mm",
+    "saveFailed": "Not saved — {{message}}",
+    "saveQuotaFull": "Not saved — storage full",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveError": "Not saved"
   },
   "stub": {
     "comingIn": "{{what}} — coming in sub-project {{subProject}}."

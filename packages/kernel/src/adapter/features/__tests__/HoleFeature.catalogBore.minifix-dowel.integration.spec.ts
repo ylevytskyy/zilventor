@@ -100,7 +100,7 @@ describe('catalog-driven minifix/dowel bores — real OCCT volume drop (integrat
     return v;
   }
 
-  function boreHoleFeature(bore: { face: { featureId: string; role: string; instance: number }; u: number; v: number; diameter: number; depth: number | 'throughAll' }): any {
+  function boreHoleFeature(bore: { face: { featureId: string; role: string; instance?: number }; u: number; v: number; diameter: number; depth: number | 'throughAll' }): any {
     return {
       id: `bake:${bore.face.role}:${bore.diameter}:${bore.depth}:0`,
       kind: 'hole',

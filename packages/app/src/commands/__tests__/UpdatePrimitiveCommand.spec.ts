@@ -27,9 +27,9 @@ describe('UpdatePrimitiveCommand', () => {
 
     await cmd.apply();
     const afterApply = useAppStore.getState().activePart!;
-    const sketch = afterApply.featureTree[0];
+    const sketch = afterApply.featureTree[0]!;
     if (sketch.kind !== 'sketch') throw new Error('not sketch');
-    const prim = sketch.primitives[0];
+    const prim = sketch.primitives[0]!;
     if (prim.kind !== 'line') throw new Error('not line');
     expect(prim.x1).toBeCloseTo(2, 6);
     expect(prim.y1).toBeCloseTo(0, 6);
@@ -38,9 +38,9 @@ describe('UpdatePrimitiveCommand', () => {
 
     await cmd.revert();
     const afterRevert = useAppStore.getState().activePart!;
-    const sketch2 = afterRevert.featureTree[0];
+    const sketch2 = afterRevert.featureTree[0]!;
     if (sketch2.kind !== 'sketch') throw new Error('not sketch');
-    const prim2 = sketch2.primitives[0];
+    const prim2 = sketch2.primitives[0]!;
     if (prim2.kind !== 'line') throw new Error('not line');
     expect(prim2.x1).toBeCloseTo(0, 6);
     expect(prim2.y1).toBeCloseTo(0, 6);

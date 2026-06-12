@@ -37,6 +37,6 @@ describe('dxf-parser smoke (import shape)', () => {
     expect(result).not.toBeNull();
     expect(Array.isArray(result!.entities)).toBe(true);
     expect(result!.entities.length).toBeGreaterThan(0);
-    expect(result!.entities[0].type).toBe('LINE');
+    expect(result!.entities[0]!.type).toBe('LINE');
   });
 });

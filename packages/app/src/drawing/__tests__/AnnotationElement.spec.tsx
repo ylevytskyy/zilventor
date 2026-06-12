@@ -69,6 +69,11 @@ describe('AnnotationElement — centerline', () => {
     const paths = document.querySelectorAll('line,path');
     expect(paths.length).toBeGreaterThan(0);
   });
+
+  it('renders nothing (no crash) for a centerline annotation whose view is unresolved', () => {
+    const { container } = render(<svg><AnnotationElement ann={ann} view={undefined} /></svg>);
+    expect(container.querySelector('line')).toBeNull();
+  });
 });
 
 describe('AnnotationElement — center-mark', () => {

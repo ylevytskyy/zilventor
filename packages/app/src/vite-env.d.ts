@@ -7,3 +7,10 @@ declare module '@zilventor/sketcher-worker/src/worker?worker' {
   const ctor: new () => Worker;
   export default ctor;
 }
+
+// Declare the Vite ?worker suffix for the kernel worker module.
+// Mirrors the sketcher-worker declaration above; see sketcherWorker.ts for precedent.
+declare module '@zilventor/kernel/src/worker?worker' {
+  const ctor: new () => Worker;
+  export default ctor;
+}

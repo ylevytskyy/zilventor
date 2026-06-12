@@ -23,6 +23,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 type DialogState = { sheetId: string; dim: DrawingDimension; computedValue: number };
 
@@ -31,14 +32,21 @@ export function AddDimensionDialog(): JSX.Element | null {
   const state = useAppStore((s) => (s as any).addDimensionDialogState as DialogState | null);
   const bus = useAppStore((s) => s.bus);
   const [decimalPlaces, setDecimalPlaces] = React.useState('2');
+  const [error, setError] = React.useState<string | null>(null);
 
   if (!state) return null;
 
   const close = () => useAppStore.setState({ addDimensionDialogState: null } as any);
 
   const handleOk = async (): Promise<void> => {
-    await bus.execute(new AddDrawingDimensionCommand({ sheetId: state.sheetId, dim: state.dim }));
-    close();
+    setError(null);
+    try {
+      await bus.execute(new AddDrawingDimensionCommand({ sheetId: state.sheetId, dim: state.dim }));
+      close();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   const formatted = state.computedValue.toFixed(Number(decimalPlaces));
@@ -70,6 +78,10 @@ export function AddDimensionDialog(): JSX.Element | null {
             <option value="3">3</option>
           </select>
         </div>
+
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
           <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>

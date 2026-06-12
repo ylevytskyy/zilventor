@@ -78,7 +78,7 @@ export type PanelDialogState = {
 export type CabinetDialogState = {
   template: 'baseCabinet';
   initial?: import('@zilventor/shared').BaseCabinetParams;
-  onSubmit: (params: import('@zilventor/shared').BaseCabinetParams) => void;
+  onSubmit: (params: import('@zilventor/shared').BaseCabinetParams) => Promise<void> | void;
   onCancel: () => void;
 };
 
@@ -105,7 +105,7 @@ export type AddDoorDialogState = {
     reveal: number;
     clearance: number;
     centerReveal: number;
-  }) => void;
+  }) => Promise<void> | void;
   onCancel: () => void;
 };
 
@@ -203,6 +203,8 @@ type AppState = {
   activeDrawingSourceDocument: PartDocument | AssemblyDocument | null;
   kernelReady: boolean;
   statusMessage: string;
+  /** Tracks the last autosave outcome: 'saving' while in-flight, 'saved' on success, 'error' on failure. */
+  saveState: 'saved' | 'saving' | 'error';
   /** Non-null while a File→Open is in progress; drives the blocking FileOpenOverlay. */
   fileOpen: { fileName: string; startedAtMs: number } | null;
   /** Monotonic token; bumped on each open start and on cancel to invalidate stale opens. */
@@ -288,6 +290,7 @@ type AppState = {
   endFileOpen(token: number): void;
   cancelFileOpen(): void;
   setStatus(msg: string): void;
+  setSaveState(state: 'saved' | 'saving' | 'error'): void;
   setSelectedFeature(id: string | null): void;
   setViewport(v: ViewportRef | null): void;
   setSketchMode(mode: boolean, sketchId?: string | null): void;
@@ -496,6 +499,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeDrawingSourceDocument: null,
   kernelReady: false,
   statusMessage: 'Loading…',
+  saveState: 'saved',
   fileOpen: null,
   fileOpenSeq: 0,
   selectedFeatureId: null,
@@ -564,6 +568,7 @@ export const useAppStore = create<AppState>((set) => ({
   endFileOpen: (token) => set((s) => (s.fileOpenSeq === token ? { fileOpen: null } : {})),
   cancelFileOpen: () => set((s) => ({ fileOpenSeq: s.fileOpenSeq + 1, fileOpen: null })),
   setStatus: (msg) => set({ statusMessage: msg }),
+  setSaveState: (state) => set({ saveState: state }),
   setSelectedFeature: (id) => set({ selectedFeatureId: id }),
   setViewport: (v) => set({ viewport: v }),
   setSketchMode: (mode, sketchId = null) =>

@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { DeleteViewCommand } from '../DeleteViewCommand';
-import type { DrawingDocument, BaseView, ProjectedView, IsoView, DrawingDimension, SectionView, DetailView } from '@zilventor/shared';
+import type { DrawingDocument, BaseView, ProjectedView, IsoView, DrawingDimension, SectionView, DetailView, PartsListAnnotation, DrawingAnnotation } from '@zilventor/shared';
 
 vi.mock('../../drawing/sectionCache', () => ({
   sectionCache: {
@@ -537,6 +537,66 @@ describe('DeleteViewCommand — detail cascade (Drawing F2)', () => {
     if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
     const sheet = _ad.document.sheets[0]!;
     expect(sheet.views.map(v => v.id)).toEqual(['base-d1']);
+  });
+});
+
+// ── PartsListAnnotation (sheet-level, no viewId) regression ──────────────
+
+const PARTS_LIST_ANN: PartsListAnnotation = {
+  kind: 'partsList',
+  id: 'pl-ann-1',
+  positionMm: { x: 10, y: 20 },
+  rows: [
+    { item: 1, qty: 2, partName: 'Side Panel', material: 'MDF 18mm', dimensions: '700×300×18', edgeBands: 'ABS' },
+  ],
+};
+
+const VIEW_BOUND_ANN: DrawingAnnotation = {
+  id: 'ann-view-bound',
+  kind: 'balloon',
+  viewId: 'base-1',
+  targetMm: { x: 50, y: 50 },
+  textPosMm: { x: 80, y: 40 },
+  itemNumber: 1,
+};
+
+function makeDrawingWithPartsList(): DrawingDocument {
+  return {
+    id: 'd-pl', name: 'D-PL', units: 'mm',
+    source: { partPath: 'parts/p.zipt', sourceKind: 'part' },
+    properties: {},
+    sheets: [{
+      id: 'sheet-pl', name: 'Sheet PL',
+      size: { kind: 'iso', size: 'A3' }, orientation: 'landscape',
+      views: [BASE, ISO],
+      dimensions: [],
+      dimensionGroups: [],
+      annotations: [PARTS_LIST_ANN as DrawingAnnotation, VIEW_BOUND_ANN],
+      titleBlock: {},
+    }],
+    activeSheetId: 'sheet-pl',
+  };
+}
+
+describe('DeleteViewCommand — partsList annotation (sheet-level, no viewId)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ activeDocument: { kind: 'drawing', document: makeDrawingWithPartsList() } });
+  });
+
+  it('deleting a view does not throw and partsList annotation survives', async () => {
+    const cmd = new DeleteViewCommand({ sheetId: 'sheet-pl', viewId: 'base-1' });
+    await expect(cmd.apply()).resolves.not.toThrow();
+
+    const _ad = useAppStore.getState().activeDocument;
+    if (!_ad || _ad.kind !== 'drawing') throw new Error('expected drawing');
+    const sheet = _ad.document.sheets[0]!;
+    // partsList has no viewId — it must survive a view deletion
+    const survived = sheet.annotations.find(a => a.id === 'pl-ann-1');
+    expect(survived).toBeDefined();
+    expect(survived?.kind).toBe('partsList');
+    // view-bound balloon referencing deleted view is gone
+    expect(sheet.annotations.find(a => a.id === 'ann-view-bound')).toBeUndefined();
   });
 });
 

@@ -80,7 +80,7 @@ describe('createTextureCache', () => {
     const cache = createTextureCache(() => mock as unknown as THREE.TextureLoader);
     const set = cache.loadTextureSet(OAK);
     cache.disposeTextures();
-    expect((set.albedo as { dispose: ReturnType<typeof vi.fn> }).dispose).toHaveBeenCalled();
-    expect((set.normal as { dispose: ReturnType<typeof vi.fn> } | undefined)?.dispose).toHaveBeenCalled();
+    expect((set.albedo as unknown as { dispose: ReturnType<typeof vi.fn> }).dispose).toHaveBeenCalled();
+    expect((set.normal as unknown as { dispose: ReturnType<typeof vi.fn> } | undefined)?.dispose).toHaveBeenCalled();
   });
 });

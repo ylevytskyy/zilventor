@@ -21,6 +21,7 @@ const inputStyle: React.CSSProperties = {
   padding: '4px 6px', fontSize: 11,
 };
 const errStyle: React.CSSProperties = { color: '#ffb3b3', fontSize: 10, marginLeft: 130, marginBottom: 4 };
+const submitErrStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 const btnStyle: React.CSSProperties = {
   background: '#2a2a2a', color: '#eee', border: '1px solid #444',
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
@@ -52,6 +53,8 @@ export function CabinetDialog(): JSX.Element | null {
     ...(dialog?.initial ?? {}),
   });
 
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     if (!dialog) return;
     setParams((prev) => ({
@@ -60,6 +63,7 @@ export function CabinetDialog(): JSX.Element | null {
       backMaterialId: dialog.initial?.backMaterialId ?? initialBack,
       ...(dialog.initial ?? {}),
     }));
+    setSubmitError(null);
   }, [dialog, initialCarcass, initialBack]);
 
   if (!dialog || !asm) return null;
@@ -71,10 +75,16 @@ export function CabinetDialog(): JSX.Element | null {
     setParams((p) => ({ ...p, [k]: v }));
   }
 
-  function handleOk(): void {
+  async function handleOk(): Promise<void> {
     if (hasErr) return;
-    dialog!.onSubmit(params);
-    setDialog(null);
+    setSubmitError(null);
+    try {
+      await dialog!.onSubmit(params);
+      setDialog(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(msg);
+    }
   }
 
   function handleCancel(): void {
@@ -89,7 +99,7 @@ export function CabinetDialog(): JSX.Element | null {
         role="dialog"
         aria-label={t('aria.cabinet')}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') handleOk();
+          if (e.key === 'Enter') { void handleOk(); }
           else if (e.key === 'Escape') handleCancel();
         }}
         tabIndex={-1}
@@ -178,9 +188,13 @@ export function CabinetDialog(): JSX.Element | null {
           {t('dialog.cabinet.front_edges_note')}
         </div>
 
+        {submitError && (
+          <div style={submitErrStyle} role="alert">{submitError}</div>
+        )}
+
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
-          <button style={okBtnStyle} onClick={handleOk} disabled={hasErr} aria-disabled={hasErr}>{t('common.ok')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }} disabled={hasErr} aria-disabled={hasErr}>{t('common.ok')}</button>
         </div>
       </div>
     </div>
