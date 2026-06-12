@@ -411,6 +411,7 @@ export default function App() {
   const kernel = useAppStore((s) => s.kernel);
   const statusMessage = useAppStore((s) => s.statusMessage);
   const kernelReady = useAppStore((s) => s.kernelReady);
+  const saveState = useAppStore((s) => s.saveState);
   const sketchMode = useAppStore((s) => s.sketchMode);
   const activeSketchId = useAppStore((s) => s.activeSketchId);
   const activeToolKind = useAppStore((s) => s.activeToolKind);
@@ -4439,6 +4440,7 @@ export default function App() {
     autosaveTimerRef.current = window.setTimeout(() => {
       autosaveTimerRef.current = null;
       void (async () => {
+        useAppStore.getState().setSaveState('saving');
         try {
           // Throttled thumbnail capture — max once per THUMB_THROTTLE_MS
           const vp = useAppStore.getState().viewport;
@@ -4507,8 +4509,15 @@ export default function App() {
             setLastOpenDocument({ kind: 'part', opfsPath: `${doc.document.name}.zipt` });
           }
           autosaveStatsRef.current.writeCount += 1;
+          useAppStore.getState().setSaveState('saved');
         } catch (e) {
-          console.warn('autosave failed:', (e as Error).message);
+          const err = e as Error;
+          const quota = err.name === 'QuotaExceededError';
+          useAppStore.getState().setSaveState('error');
+          useAppStore.getState().setStatus(
+            quota ? t('status.saveQuotaFull') : t('status.saveFailed', { message: err.message }),
+          );
+          console.warn('autosave failed:', err.message);
         }
       })();
     }, 500);
@@ -4519,6 +4528,18 @@ export default function App() {
       }
     };
   }, [activeDoc, kernel]);
+
+  // beforeunload guard — warn user if there is unsaved work (saveState !== 'saved').
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (useAppStore.getState().saveState !== 'saved') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // Sweep live preview — debounced 150 ms, mirrors scheduleHolePreview pattern.
   const scheduleSweepPreview = useCallback(() => {
@@ -5128,7 +5149,7 @@ export default function App() {
           />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
-          <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} />
+          <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} saveState={saveState} />
         </footer>
       </div>
       <NumericInputOverlay

@@ -945,7 +945,11 @@
       "cycle": "Cannot place {{partPath}}: would create a sub-assembly cycle."
     },
     "ready": "Ready",
-    "unitMm": "mm"
+    "unitMm": "mm",
+    "saveFailed": "Not saved — {{message}}",
+    "saveQuotaFull": "Not saved — storage full",
+    "saving": "Saving…",
+    "saved": "Saved"
   },
   "stub": {
     "comingIn": "{{what}} — coming in sub-project {{subProject}}."

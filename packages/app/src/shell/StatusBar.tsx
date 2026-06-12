@@ -8,9 +8,10 @@ type Props = {
   message?: string;
   modified?: boolean;
   selection?: string;
+  saveState?: 'saved' | 'saving' | 'error';
 };
 
-export function StatusBar({ message, modified = false, selection }: Props) {
+export function StatusBar({ message, modified = false, selection, saveState }: Props) {
   const { t } = useTranslation();
   const statusMessage = useAppStore((s) => s.statusMessage);
   const sketchDof = useAppStore((s) => s.sketchDof);
@@ -57,6 +58,21 @@ export function StatusBar({ message, modified = false, selection }: Props) {
       <span>{displayMessage}</span>
       {selection && <span>{selection}</span>}
       {modified && <span style={{ color: '#facc15' }}>● {t('status.modified')}</span>}
+      {saveState === 'error' && (
+        <span data-testid="save-state-indicator" style={{ color: '#f87171' }}>
+          ✕ Not saved
+        </span>
+      )}
+      {saveState === 'saving' && (
+        <span data-testid="save-state-indicator" style={{ color: '#fbbf24' }}>
+          ⟳ {t('status.saving')}
+        </span>
+      )}
+      {saveState === 'saved' && (
+        <span data-testid="save-state-indicator" style={{ color: '#4ade80' }}>
+          ✓ {t('status.saved')}
+        </span>
+      )}
       {sketchDof && <DofSegment dof={sketchDof} />}
       {hasConstraints && <AssemblyDofSegment diagnostics={solverDiagnostics} />}
       {activeAssembly && (
