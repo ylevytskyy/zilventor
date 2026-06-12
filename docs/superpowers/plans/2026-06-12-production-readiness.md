@@ -56,7 +56,7 @@
 - [x] B7 — Fix the HoleOps.ts WASM heap leak (38 allocations now all deleted) ✅ `bc79082` (geometry-oracle + toNext invariance green; note: opencascade.js uses FinalizationRegistry, so the win is *deterministic* cleanup)
 - [x] B8 — Fix the HoleFeature.ts WASM heap leaks (`GProp_GProps_1`, `Bnd_Box_1`) ✅ `884fffe` (guarded by 111 real-OCCT tests green before+after)
 
-### ▶ PRODUCTION GATE — after A + B all checked, the app is production-ready. Tag `v1.0.0` and deploy.
+### ▶ PRODUCTION GATE — ✅ MET (2026-06-12, branch `production-hardening`). A1–A5 + B1–B8 all shipped; final whole-branch review = SHIP (typecheck 0 / build emits+precaches OCCT wasm, 0 data:URL / app 2852 + shared 1001 + kernel-OCCT 118 green / built-artifact e2e: kernel works in built app). **Remaining human-gated:** merge `production-hardening` → master, open a PR to watch the full CI matrix go green, run the live Vercel deploy (`vercel --prod`, see `DEPLOY.md`), then have an operator run one end-to-end shop job. Tag `v1.0.0` on deploy.
 
 **Phase C — Fast-follow (post-launch, in priority order):**
 - [ ] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer
