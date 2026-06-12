@@ -54,7 +54,7 @@
 - [x] B5 — `try/catch` the 7 dialogs that fire commands via unawaited/sync `onSubmit` ✅ `d4098154`
 - [x] B6 — Sketcher GCS worker crash detection (error listener + banner + exit sketch mode) ✅ `3973cf8`
 - [x] B7 — Fix the HoleOps.ts WASM heap leak (38 allocations now all deleted) ✅ `bc79082` (geometry-oracle + toNext invariance green; note: opencascade.js uses FinalizationRegistry, so the win is *deterministic* cleanup)
-- [ ] B8 — Fix the HoleFeature.ts WASM heap leaks (`GProp_GProps_1`, `Bnd_Box_1`)
+- [x] B8 — Fix the HoleFeature.ts WASM heap leaks (`GProp_GProps_1`, `Bnd_Box_1`) ✅ `884fffe` (guarded by 111 real-OCCT tests green before+after)
 
 ### ▶ PRODUCTION GATE — after A + B all checked, the app is production-ready. Tag `v1.0.0` and deploy.
 
