@@ -52,7 +52,7 @@
 - [x] B3 — Root React `ErrorBoundary` with recovery ✅ `2404f3d4`
 - [x] B4 — Show kernel-init failure instead of "Loading CAD kernel…" forever (+ Retry, + retry-failure path) ✅ `5fc4915`
 - [x] B5 — `try/catch` the 7 dialogs that fire commands via unawaited/sync `onSubmit` ✅ `d4098154`
-- [ ] B6 — Sketcher GCS worker crash detection (error listener + offline path)
+- [x] B6 — Sketcher GCS worker crash detection (error listener + banner + exit sketch mode) ✅ `3973cf8`
 - [ ] B7 — Fix the HoleOps.ts WASM heap leak (23 allocations, 0 deletes)
 - [ ] B8 — Fix the HoleFeature.ts WASM heap leaks (`GProp_GProps_1`, `Bnd_Box_1`)
 
