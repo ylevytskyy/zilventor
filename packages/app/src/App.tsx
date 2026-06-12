@@ -2527,6 +2527,9 @@ export default function App() {
           // T36: Use raycastAssemblyRef to get both componentPath AND triangleIndex.
           // Then look up the part's TessellatedFace[] from partTessellatedFacesCacheRef
           // and call FacePickController.pickByTriangleIndex to recover the real FaceName.
+          // Invariant: Tessellator.tessellate() and tessellateFaces() walk faces in the
+          // same TopExp_Explorer order, so the raycast triangleIndex aligns with the
+          // cached TessellatedFace ranges (box-projection preserves triangle count/order).
           const refHit = viewportRef.current.raycastAssemblyRef('face', ev.clientX, ev.clientY);
           if (refHit && refHit.kind === 'face') {
             const componentPath = refHit.componentPath;
@@ -2550,7 +2553,7 @@ export default function App() {
 
             if (!partPath) {
               // Component not found in current assembly tree — silently no-op.
-              console.warn('[T36] assembly face pick: could not resolve partPath for', componentPath);
+              if (import.meta.env.DEV) console.warn('[T36] assembly face pick: could not resolve partPath for', componentPath);
               return;
             }
 
@@ -2558,7 +2561,7 @@ export default function App() {
             if (!tessellatedFaces) {
               // Cache miss — mesh-sync hasn't populated this part yet.
               // Silently no-op; the user can click again after geometry loads.
-              console.warn('[T36] assembly face pick: tessellated faces not cached for', partPath);
+              if (import.meta.env.DEV) console.warn('[T36] assembly face pick: tessellated faces not cached for', partPath);
               return;
             }
 
@@ -2571,7 +2574,7 @@ export default function App() {
               assemblyPickerRef.current.handleFaceHit(componentPath, realFaceName);
             } else {
               // triangleIndex fell outside all known face ranges (e.g. unnamed face).
-              console.warn('[T36] assembly face pick: triangleIndex', triangleIndex, 'not in any face range for', partPath);
+              if (import.meta.env.DEV) console.warn('[T36] assembly face pick: triangleIndex', triangleIndex, 'not in any face range for', partPath);
             }
           }
           return; // consume the event even if no hit
