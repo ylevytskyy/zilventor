@@ -17,7 +17,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       // Enable the service worker in `vite dev` so Playwright's offline test
       // can exercise caching without spinning up a separate preview server.
       devOptions: { enabled: true, type: 'module' },
@@ -27,14 +27,17 @@ export default defineConfig({
         theme_color: '#1f1f1f',
         background_color: '#1f1f1f',
         display: 'standalone',
-        icons: []
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
       },
       workbox: {
-        // Exclude the large OCCT WASM (~50 MB) from precache — it exceeds any
-        // reasonable precache budget. The browser will cache it normally on
-        // first fetch. All other wasm files (planegcs ≈ 1 MB) are precached.
-        globPatterns: ['**/*.{js,css,html,svg}', '**/planegcs*.wasm'],
-        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024
+        // Precache app shell + BOTH wasm kernels + textures so the app works fully offline
+        // after first install. The OCCT wasm (~50MB) is the bulk; one-time install cost is
+        // acceptable for an offline-first CAD tool.
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg}', '**/*.wasm'],
+        maximumFileSizeToCacheInBytes: 60 * 1024 * 1024
       }
     })
   ],
