@@ -105,7 +105,7 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { globalCustomTextureRegistry, collectCustomTextureBytes } from './textures/customTextureRegistry';
 import { packDrawing } from './storage/DrawingPacker';
-import { autosaveDrawing } from './storage/autosaveDrawing';
+import { autosaveDrawing, withOpfsLock } from './storage/autosaveDrawing';
 import { setLastOpenDocument } from './storage/lastOpenDocument';
 import type { ComponentInstance, AssemblyDocument } from '@zilventor/shared';
 import * as THREE from 'three';
@@ -3118,6 +3118,9 @@ export default function App() {
   const showComponentColors = useAppStore((s) => s.showComponentColors);
   const selectedComponentPaths = useAppStore((s) => s.selectedComponentPaths);
   const geometryCacheRef = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  // Tracks the assembly id of the last rendered project so we can detect a
+  // project switch (id change) and dispose stale GPU geometry.
+  const lastAssemblyIdRef = useRef<string | null>(null);
   // Persists the resolved textureId per partPath across renders, parallel to
   // geometryCacheRef. Must be invalidated at the same sites as geometryCacheRef
   // so a material edit that changes textureId is not served stale.
@@ -4208,6 +4211,25 @@ export default function App() {
     useAppStore.getState().resetEditComponentDialog();
   };
 
+  // GPU geometry cleanup on project switch.
+  // When the active assembly's id changes (a new project was opened), dispose
+  // all BufferGeometries in the SceneManager's part-geometry cache and clear
+  // the React-side geometry ref so stale GPU memory from the old project is
+  // released rather than accumulating indefinitely.
+  useEffect(() => {
+    const currentId = assembly?.id ?? null;
+    const prevId = lastAssemblyIdRef.current;
+    if (currentId !== prevId) {
+      lastAssemblyIdRef.current = currentId;
+      if (prevId !== null) {
+        // Project switched (different id, or closed). Dispose GPU geometry from
+        // the old project before the mesh-sync effect rebuilds for the new one.
+        viewportRef.current?.disposeAllPartGeometries();
+        geometryCacheRef.current.clear();
+      }
+    }
+  }, [assembly?.id]);
+
   // Assembly-mesh sync: load, tessellate, and cache component geometries.
   // Runs whenever the activeAssembly (or its components) changes.
   // Cache is keyed by partPath — same part rendered N times tessellates once.
@@ -4575,13 +4597,15 @@ export default function App() {
             const merged = mergeAndPruneColorOverrides(withCutList, cacheAdapter);
             const texBytes = collectCustomTextureBytes(merged.customTextures, globalCustomTextureRegistry);
             const archive = await packAssembly(merged, thumb, Object.keys(texBytes).length ? texBytes : undefined);
-            await opfs.write(`${doc.document.name}.ziasm`, archive);
-            setLastOpenDocument({ kind: 'assembly', opfsPath: `${doc.document.name}.ziasm` });
+            const asmPath = `${doc.document.name}.ziasm`;
+            await withOpfsLock(`opfs:${asmPath}`, () => opfs.write(asmPath, archive));
+            setLastOpenDocument({ kind: 'assembly', opfsPath: asmPath });
           } else {
             if (!kernel) return;
             const bytes = await kernel.saveToBytes(doc.document.id, thumb);
-            await opfs.write(`${doc.document.name}.zipt`, bytes);
-            setLastOpenDocument({ kind: 'part', opfsPath: `${doc.document.name}.zipt` });
+            const ptPath = `${doc.document.name}.zipt`;
+            await withOpfsLock(`opfs:${ptPath}`, () => opfs.write(ptPath, bytes));
+            setLastOpenDocument({ kind: 'part', opfsPath: ptPath });
           }
           autosaveStatsRef.current.writeCount += 1;
           useAppStore.getState().setSaveState('saved');
