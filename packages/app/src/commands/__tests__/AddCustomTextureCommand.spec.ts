@@ -81,7 +81,7 @@ describe('AddCustomTextureCommand', () => {
 
     const { kernel } = useAppStore.getState();
     const registerMock = kernel!.registerCustomTexture as ReturnType<typeof vi.fn>;
-    const registeredBlobIds = registerMock.mock.calls.map((call: [string, Uint8Array]) => call[0]);
+    const registeredBlobIds = registerMock.mock.calls.map((call: unknown[]) => call[0] as string);
     expect(registeredBlobIds).toContain('a');
     expect(registeredBlobIds).toContain('n');
     expect(registeredBlobIds).toContain('r');
@@ -113,7 +113,7 @@ describe('AddCustomTextureCommand', () => {
     await cmd.apply();
 
     const s = useAppStore.getState();
-    const docTextures = (s.activeDocument!.document as typeof s.activePart).customTextures;
+    const docTextures = (s.activeDocument!.document as NonNullable<typeof s.activePart>).customTextures;
     expect(docTextures).toEqual(s.activePart!.customTextures);
   });
 });

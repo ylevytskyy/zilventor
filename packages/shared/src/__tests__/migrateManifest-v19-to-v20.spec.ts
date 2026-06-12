@@ -28,7 +28,7 @@ describe('migrateManifest v19 → v20 (Phase 2 — customTextures backfill)', ()
     const v19 = { formatVersion: 19, kind: 'part',
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: existing } };
-    const out = migrateManifest(v19) as { document: { customTextures: unknown[] } };
+    const out = migrateManifest(v19) as unknown as { document: { customTextures: unknown[] } };
     expect(out.document.customTextures).toEqual(existing);
   });
   it('leaves drawing documents untouched (no customTextures field)', () => {

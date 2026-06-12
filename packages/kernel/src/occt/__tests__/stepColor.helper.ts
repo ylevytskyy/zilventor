@@ -78,7 +78,7 @@ export function makeColoredBoxStepBytes(oc: OcctInstance, colors: string[]): Arr
 
   const bytes = (oc as { FS: { readFile(p: string): Uint8Array; unlink(p: string): void } }).FS.readFile(tmp);
   (oc as { FS: { readFile(p: string): Uint8Array; unlink(p: string): void } }).FS.unlink(tmp);
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function hexToRgb01(hex: string): [number, number, number] {

@@ -128,7 +128,7 @@ describe('TitleBlock — projection symbol', () => {
     const circleCx = parseFloat(circle.getAttribute('cx')!);
     // Extract the maximum x from the path d attribute (trapezoid right edge)
     const d = path.getAttribute('d')!;
-    const xValues = [...d.matchAll(/(?:M|L)\s*([\d.]+)\s/g)].map((m) => parseFloat(m[1]));
+    const xValues = [...d.matchAll(/(?:M|L)\s*([\d.]+)\s/g)].map((m) => parseFloat(m[1]!));
     const maxTrapX = Math.max(...xValues);
     expect(circleCx).toBeGreaterThan(maxTrapX);
   });

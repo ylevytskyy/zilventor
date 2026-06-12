@@ -138,7 +138,7 @@ describe('CHUNK G.2 — hinge MoveConnector world-space co-height + spacing guar
     return v;
   }
 
-  function boreFeature(bore: { face: { role: string; featureId: string; instance: number }; u: number; v: number; diameter: number; depth: number | 'throughAll' }): any {
+  function boreFeature(bore: { face: { role: string; featureId: string; instance?: number }; u: number; v: number; diameter: number; depth: number | 'throughAll' }): any {
     return {
       id: `bake:${bore.face.role}:${bore.diameter}:${bore.depth}:0`,
       kind: 'hole',

@@ -72,7 +72,7 @@ export class DeleteViewCommand implements Command {
       }
     });
     sheet.annotations.forEach((a, i) => {
-      if (viewIdsToRemove.has(a.viewId)) {
+      if (a.kind !== 'partsList' && viewIdsToRemove.has(a.viewId)) {
         removedAnns.push(a);
         removedAnnIndices.push(i);
       }
@@ -110,7 +110,7 @@ export class DeleteViewCommand implements Command {
               ...s,
               views: s.views.filter(v => !viewIdsToRemove.has(v.id)),
               dimensions: s.dimensions.filter(d => !viewIdsToRemove.has(d.viewId)),
-              annotations: s.annotations.filter(a => !viewIdsToRemove.has(a.viewId)),
+              annotations: s.annotations.filter(a => a.kind === 'partsList' || !viewIdsToRemove.has(a.viewId)),
             }
           : s
       ),

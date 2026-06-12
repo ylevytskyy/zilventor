@@ -229,7 +229,7 @@ describe('renderDrawingPdf — view labels + section headings (CHUNK-C)', () => 
       label: 'A',
       positionMm: { x: 50, y: 150 },
       scale: { numerator: 1, denominator: 1 },
-      showHidden: false,
+      showHidden: false as false,
       mode: 'full' as const,
       hatchSegments: [],
       fingerprint: 'fp-pdf-c',

@@ -10,3 +10,7 @@ test-results/
 playwright-report/
 .worktrees/
 tmp/
+
+# Local agent workspace
+.claude/
+.claire/

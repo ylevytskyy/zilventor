@@ -17,7 +17,7 @@ import type { IArcEntity } from 'dxf-parser/dist/entities/arc';
 import type { ITextEntity } from 'dxf-parser/dist/entities/text';
 import type { IMtextEntity } from 'dxf-parser/dist/entities/mtext';
 import type { IBlock, IDxf } from 'dxf-parser';
-import type { UnderlayEntity, DxfUnderlay } from '@zilventor/shared/drawing/types';
+import type { UnderlayEntity, DxfUnderlay } from '@zilventor/shared';
 
 // ---------------------------------------------------------------------------
 // Entity mappers
@@ -26,8 +26,8 @@ import type { UnderlayEntity, DxfUnderlay } from '@zilventor/shared/drawing/type
 function mapLine(e: ILineEntity, dx: number, dy: number): UnderlayEntity | null {
   const v = e.vertices;
   if (!v || v.length < 2) return null;
-  const start = v[0];
-  const end = v[1];
+  const start = v[0]!;
+  const end = v[1]!;
   return {
     kind: 'line',
     x1: (start.x ?? 0) + dx,
