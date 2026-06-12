@@ -272,4 +272,27 @@ describe('checkInterference: real OCCT', () => {
     });
     expect(pairs).toHaveLength(0);
   }, 120_000);
+
+  /**
+   * SC-13(b): Degenerate/invalid pair — a partId that was never loaded is skipped,
+   * while a valid overlapping pair in the same run still returns an interference result.
+   * Uses makeCubePart (same canonical helper as SC-9) so execute() succeeds for valid leaves.
+   */
+  it('SC-13(b): unloaded leaf is skipped; valid pair in same run still returns', async () => {
+    // Two 20mm cubes that overlap by 15mm on X → interference volume = 15×20×20 = 6000 mm³
+    const idValid1 = await makeCubePart(api, 'boxValid1', 20);
+    const idValid2 = await makeCubePart(api, 'boxValid2', 20);
+
+    const leaves = [
+      posedLeaf('NONEXISTENT-PART-ID', 0, 0, 0),  // will be skipped (never loaded)
+      posedLeaf(idValid1, 0, 0, 0),
+      posedLeaf(idValid2, 5, 0, 0),  // overlap: 20-5=15mm on X → 15×20×20=6000 mm³
+    ];
+
+    // Should not throw; the NONEXISTENT leaf is skipped; valid pair (1,2) still found.
+    const pairs = await api.checkInterference(leaves, { volumeThreshold: 1.0, clearanceThreshold: 1.0 });
+    console.log('[SC-13b] pairs:', JSON.stringify(pairs));
+    // The valid pair at indices 1 and 2 should still be detected.
+    expect(pairs.some((p) => p.kind === 'interference')).toBe(true);
+  }, 120_000);
 });
