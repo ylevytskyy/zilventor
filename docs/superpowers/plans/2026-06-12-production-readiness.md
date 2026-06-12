@@ -644,6 +644,7 @@ With A1-A5 and B1-B8 checked: the app builds to a working offline artifact, depl
 - [ ] **Security:** upgrade `jspdf` 2.5 → 4.x (re-run PDF export tests); add a Content-Security-Policy via the `_headers` file (self + wasm-unsafe-eval as OCCT requires); re-confirm `expr-eval` stays whitelisted (no arbitrary eval through parameter formulas).
 - [ ] **GPU memory:** clear `geometryCacheRef` (App.tsx) and `SceneManager.partGeometries` on project switch (dispose BufferGeometries) to stop cross-project accumulation.
 - [ ] **Test gate:** add a coverage floor to the vitest configs; de-dup the kernel integration tests running twice in CI.
+- [ ] **Lint baseline:** fix the 66 pre-existing ESLint errors (unused-vars / floating-promises / exhaustive-deps) and remove `continue-on-error: true` from the CI lint step (made non-blocking in A5) so lint becomes a hard gate again.
 - [ ] **i18n:** the shop lead reviews `uk.json` присадка/drawer/boring domain terms; `t()` the residual English `U/V/Ø (mm)` labels in `BorePropertiesPanel.tsx:208-210`.
 - [ ] **UX no-ops:** fix "Clear Присадку" (`FurnitureTab.tsx:417`) to recurse into `.ziasm` cabinets (currently silently skips non-`.zipt`).
 
