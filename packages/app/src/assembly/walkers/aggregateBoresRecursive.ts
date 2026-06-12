@@ -1,7 +1,7 @@
 import type { AssemblyDocument, BoreOp, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
-import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
+import type { PanelSpec } from '@zilventor/shared';
 
 export interface BoringPanelGroup {
   partPath: string;

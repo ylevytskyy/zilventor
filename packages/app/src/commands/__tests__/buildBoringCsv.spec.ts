@@ -70,7 +70,7 @@ describe('buildBoringCsv', () => {
     const csv = buildBoringCsv(result);
     // Header has Length/Width/Thickness; data row has three empty cells after panel name.
     expect(csv).toContain('Panel,Length,Width,Thickness,Tag,Face,X,Y,Ø,Depth,Type');
-    // panel name + 3 empty dim cells (Length,,Width,,Thickness,) then bore fields
+    // panel name + 3 empty dim cells (Panel,,,,Tag,...) then bore fields
     expect(csv).toContain('Panel,,,,b1,Top,100,50,5,34,confirmat');
   });
 

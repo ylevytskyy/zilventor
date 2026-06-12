@@ -134,12 +134,13 @@ describe('renderBoringDxf — panel label', () => {
   });
 
   it('emits one TEXT entity per panel', () => {
+    const panelLength = 400;
     const result: BoringAggregateResult = {
       panels: [
         panel('a.zipt', 'Panel A', [bore({ u: 50, v: 50 })],
-          { length: 400, width: 300, thickness: 18 }),
+          { length: panelLength, width: 300, thickness: 18 }),
         panel('b.zipt', 'Panel B', [bore({ u: 50, v: 50 })],
-          { length: 400, width: 300, thickness: 18 }),
+          { length: panelLength, width: 300, thickness: 18 }),
       ],
     };
     const dxf = renderBoringDxf(result);
@@ -147,6 +148,10 @@ describe('renderBoringDxf — panel label', () => {
     expect(textCount).toBe(2);
     expect(dxf).toContain('Panel A');
     expect(dxf).toContain('Panel B');
+    // Second panel's label x = panelLength + PANEL_GAP (50) = 450.
+    // A bug placing both labels at x=0 would emit 0.0000 twice and never 450.0000.
+    const secondPanelLabelX = (panelLength + 50).toFixed(4); // '450.0000'
+    expect(dxf).toContain(secondPanelLabelX);
   });
 });
 
