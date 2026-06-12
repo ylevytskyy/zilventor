@@ -166,6 +166,9 @@
   },
   "bore": {
     "along_joint": "Вздовж стику",
+    "axis_u": "U (мм)",
+    "axis_v": "V (мм)",
+    "diameter_mm": "Ø (мм)",
     "height": "Висота",
     "regenerate_to_enable_move": "Регенеруйте присадку для переміщення"
   },

@@ -166,6 +166,9 @@
   },
   "bore": {
     "along_joint": "Along joint",
+    "axis_u": "U (mm)",
+    "axis_v": "V (mm)",
+    "diameter_mm": "Ø (mm)",
     "height": "Height",
     "regenerate_to_enable_move": "Regenerate bores to enable move"
   },
