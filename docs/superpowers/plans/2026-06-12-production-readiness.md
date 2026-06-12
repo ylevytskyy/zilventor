@@ -59,7 +59,7 @@
 ### ▶ PRODUCTION GATE — ✅ MET (2026-06-12, branch `production-hardening`). A1–A5 + B1–B8 all shipped; final whole-branch review = SHIP (typecheck 0 / build emits+precaches OCCT wasm, 0 data:URL / app 2852 + shared 1001 + kernel-OCCT 118 green / built-artifact e2e: kernel works in built app). **Remaining human-gated:** merge `production-hardening` → master, open a PR to watch the full CI matrix go green, run the live Vercel deploy (`vercel --prod`, see `DEPLOY.md`), then have an operator run one end-to-end shop job. Tag `v1.0.0` on deploy.
 
 **Phase C — Fast-follow (post-launch, in priority order):**
-- [ ] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer
+- [x] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer ✅ (carcass set = all 7 structural roles per shop-lead decision; exhaustive Record-classified; TDD red→green; spec+code review PASS; commits a5fc48ca·0784c07b·26e035b0)
 - [ ] C2 — Assembly mate/flush: resolve real FaceName (stop passing `'unresolved'`)
 - [ ] C3 — Присадка boring-DXF: panel labels + true panel dimensions + CSV dims
 - [ ] C4 — Hardening bundle (multi-tab locks, formatVersion, leaf-cap, persist, CSP, coverage, migrations, i18n review)
