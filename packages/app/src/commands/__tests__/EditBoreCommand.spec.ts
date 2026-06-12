@@ -39,45 +39,45 @@ function makeBore(id = 'b1', overrides: Partial<BoreOp> = {}): BoreOp {
 describe('EditBoreCommand', () => {
   beforeEach(() => { useAppStore.getState().setBoreCacheInvalidator(null); });
 
-  it('patches u on the live doc reference', () => {
+  it('patches u on the live doc reference', async () => {
     const bore = makeBore();
     const doc = { bores: [bore] };
     const cmd = new EditBoreCommand({ bore, patch: { u: 99 }, partPath: 'p.zipt', doc, opfs: null });
-    cmd.apply();
+    await cmd.apply();
     expect(bore.u).toBe(99);
     expect(bore.edited).toBe(true);
   });
 
-  it('patches diameter and depth on the live doc', () => {
+  it('patches diameter and depth on the live doc', async () => {
     const bore = makeBore();
     const doc = { bores: [bore] };
     const cmd = new EditBoreCommand({ bore, patch: { diameter: 5, depth: 20 }, partPath: 'p.zipt', doc, opfs: null });
-    cmd.apply();
+    await cmd.apply();
     expect(bore.diameter).toBe(5);
     expect(bore.depth).toBe(20);
     expect(bore.edited).toBe(true);
   });
 
-  it('revert restores patched fields and removes edited key if it was absent before', () => {
+  it('revert restores patched fields and removes edited key if it was absent before', async () => {
     const bore = makeBore(); // no edited key
     const doc = { bores: [bore] };
     const cmd = new EditBoreCommand({ bore, patch: { u: 99, diameter: 5 }, partPath: 'p.zipt', doc, opfs: null });
-    cmd.apply();
+    await cmd.apply();
     expect(bore.u).toBe(99);
-    cmd.revert();
+    await cmd.revert();
     expect(bore.u).toBe(10);
     expect(bore.diameter).toBe(7);
     // exactOptionalPropertyTypes: edited key was absent before — must be absent after revert
     expect('edited' in bore).toBe(false);
   });
 
-  it('revert restores edited=true when bore was already edited before the patch', () => {
+  it('revert restores edited=true when bore was already edited before the patch', async () => {
     const bore = makeBore('b1', { edited: true, u: 50 });
     const doc = { bores: [bore] };
     const cmd = new EditBoreCommand({ bore, patch: { u: 99 }, partPath: 'p.zipt', doc, opfs: null });
-    cmd.apply();
+    await cmd.apply();
     expect(bore.u).toBe(99);
-    cmd.revert();
+    await cmd.revert();
     expect(bore.u).toBe(50);
     expect(bore.edited).toBe(true);
   });

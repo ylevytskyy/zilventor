@@ -14,22 +14,22 @@ function makePanelDoc(bores: BoreOp[]) {
 }
 
 describe('ClearBoresCommand', () => {
-  it('removes all bores from the panel document (bores key absent after apply)', () => {
+  it('removes all bores from the panel document (bores key absent after apply)', async () => {
     const doc = makePanelDoc([bore]);
     const snapshot = [...doc.bores];
     const cmd = new ClearBoresCommand({ doc, partPath: 'panel.zipt', opfs: null });
-    cmd.apply();
+    await cmd.apply();
     // exactOptionalPropertyTypes contract: key must be absent, not set to []
     expect('bores' in doc).toBe(false);
     // revert restores the original bores
-    cmd.revert();
+    await cmd.revert();
     expect(doc.bores).toEqual(snapshot);
   });
 
-  it('is a no-op on a panel with no bores (does not throw)', () => {
+  it('is a no-op on a panel with no bores (does not throw)', async () => {
     const doc = makePanelDoc([]);
     const cmd = new ClearBoresCommand({ doc, partPath: 'panel.zipt', opfs: null });
-    expect(() => { cmd.apply(); cmd.revert(); }).not.toThrow();
+    await expect(async () => { await cmd.apply(); await cmd.revert(); }).not.toThrow();
   });
 });
 

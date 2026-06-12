@@ -1023,8 +1023,8 @@ export function DrawingCanvas() {
         }
         return (
           <g data-underlay={underlay.name} pointerEvents="none" transform={transform}>
+            {/* SVG is generated from typed CAD data (underlayEntityToSvg), not user input */}
             {underlay.entities.map((entity, i) => (
-              // eslint-disable-next-line react/no-danger
               <g key={i} dangerouslySetInnerHTML={{ __html: underlayEntityToSvg(entity, { yFlipped: underlay.offsetMm !== undefined }) }} />
             ))}
           </g>

@@ -357,7 +357,9 @@ export class ActiveToolController {
         const primitive: SketchPrimitive = this.deps.isConstructionMode?.()
           ? { ...output.primitive, construction: true }
           : output.primitive;
-        this.deps.emitPrimitive(primitive);
+        // emitPrimitive may return a Promise (AddPrimitiveCommand); fire-and-forget here
+        // since applyOutput is void and inferFromSnaps runs independently after.
+        void this.deps.emitPrimitive(primitive);
         if (output.snapEvents.length > 0 && this.deps.sketcherClient) {
           void this.deps.sketcherClient
             .inferFromSnaps(primitive, output.snapEvents)

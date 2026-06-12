@@ -28,7 +28,9 @@ export default [
       'playwright.config.ts',
       'vitest.config.ts',
       'tests/**',
-      '.remember/**'
+      '.remember/**',
+      '.claire/**',
+      'playwright.worktree.config.ts'
     ]
   }
 ];

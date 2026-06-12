@@ -3605,7 +3605,6 @@ export default function App() {
     return () => { cancelled = true; };
   // Intentionally omit subAssemblyDocs from deps — this effect is additive and
   // must not loop when setSubAssemblyDocs is called.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly]);
 
   // Sub-project 6 perf hooks (T62): drawing projection, sheet render, PDF export.
@@ -4468,7 +4467,6 @@ export default function App() {
   // Without it this effect and mesh-sync both fire on the same componentPoses
   // change; this effect reads the cache BEFORE the async work completes → finds
   // nothing → marker count stays 0 and never re-triggers.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, componentPoses, geometryReadyTick]);
 
   // Slice-5: show the drag handle when a bore is selected (so the user can

@@ -4,7 +4,9 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.json';
 import uk from './locales/uk.json';
 
-i18n
+// Module-level i18n init: fire-and-forget — the app renders with fallback 'en'
+// while the async init completes; errors here would be non-recoverable startup failures.
+void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
