@@ -4224,6 +4224,11 @@ export default function App() {
       if (prevId !== null) {
         // Project switched (different id, or closed). Dispose GPU geometry from
         // the old project before the mesh-sync effect rebuilds for the new one.
+        // clearComponentMeshes() is called first so Three.js scene objects stop
+        // referencing the geometries before they are disposed — closes the
+        // theoretical one-RAF window where a scene object could hold a disposed
+        // geometry reference between two separate React effect commits (A3).
+        viewportRef.current?.clearComponentMeshes();
         viewportRef.current?.disposeAllPartGeometries();
         geometryCacheRef.current.clear();
       }

@@ -606,4 +606,31 @@ describe('handleOpen — STEP byte-size guard (A4)', () => {
   it('STEP_MAX_BYTES constant is 50 MB', () => {
     expect(STEP_MAX_BYTES).toBe(50 * 1024 * 1024);
   });
+
+  it('rejects an oversized STEP extracted from a ZIP with an error dialog (A4 ZIP path)', async () => {
+    // The ZIP-extraction path checks extracted.stepBytes.byteLength, not file.size.
+    const oversizeBuffer = new ArrayBuffer(STEP_MAX_BYTES + 1);
+    vi.mocked(extractStepFromZip).mockReturnValue({
+      fileName: 'huge-from-zip.step',
+      stepBytes: oversizeBuffer,
+    });
+
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    useAppStore.getState().setActiveDocument(null);
+
+    const fakeZipFile = { name: 'archive.zip', arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer };
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      { getFile: async () => fakeZipFile } as unknown as FileSystemFileHandle,
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/50\s*MB/i);
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+  });
 });
