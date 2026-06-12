@@ -65,7 +65,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp } from '@zilventor/shared';
+import type { BoreOp, TessellatedFace } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -2518,23 +2518,68 @@ export default function App() {
       return;
     }
     // Assembly-mode constraint pick: route pointer events to the assemblyPickerRef.
-    // Only face mode is fully wired here; edge/axis/point/circularEdge require
-    // T36/T38 to exercise the full hit-dispatch path.
-    // TODO(T36): wire FaceName resolution for assembly-mode face picks.
+    // T36: face mode now resolves the real FaceName via the tessellated-face cache.
+    // edge/axis/point/circularEdge remain T38 work and keep their existing no-op.
     if (assemblyPickerRef.current.isActive()) {
       const pickerMode = assemblyPickerRef.current.getMode();
       if (pickerMode && (ev.type === 'click' || ev.type === 'pointerdown')) {
-        const hit = viewportRef.current.raycastComponent(ev.clientX, ev.clientY);
-        if (hit) {
-          // T30: picker now consumes ComponentPath directly. FaceName is still
-          // unresolved here pending T36/T38 (tessellated-face registry in
-          // assembly mode).
-          assemblyPickerRef.current.handleFaceHit(
-            hit,
-            { featureId: 'unresolved', role: 'unresolved' }
-          );
+        if (pickerMode === 'face') {
+          // T36: Use raycastAssemblyRef to get both componentPath AND triangleIndex.
+          // Then look up the part's TessellatedFace[] from partTessellatedFacesCacheRef
+          // and call FacePickController.pickByTriangleIndex to recover the real FaceName.
+          const refHit = viewportRef.current.raycastAssemblyRef('face', ev.clientX, ev.clientY);
+          if (refHit && refHit.kind === 'face') {
+            const componentPath = refHit.componentPath;
+            const triangleIndex = refHit.triangleIndex;
+
+            // Resolve componentPath → partPath at click time using live store state
+            // so recently-added components are not missed by a stale render closure.
+            const storeState = useAppStore.getState();
+            const activeAssemblyNow = storeState.activeAssembly;
+            const subAsmDocsNow = storeState.subAssemblyDocs;
+            const subAsmInnerPosesNow = storeState.subAssemblyInnerPoses;
+            const subAsmCacheNow = {
+              get: (p: string) => subAsmDocsNow[p]
+                ? ({ kind: 'ok' as const, doc: subAsmDocsNow[p]!, partPath: p,
+                     ...(subAsmInnerPosesNow[p] ? { innerStaticPoses: subAsmInnerPosesNow[p] } : {}) })
+                : undefined,
+            };
+            const partPath = activeAssemblyNow
+              ? resolveLeafPartPath(componentPath, activeAssemblyNow, subAsmCacheNow)
+              : null;
+
+            if (!partPath) {
+              // Component not found in current assembly tree — silently no-op.
+              console.warn('[T36] assembly face pick: could not resolve partPath for', componentPath);
+              return;
+            }
+
+            const tessellatedFaces = partTessellatedFacesCacheRef.current.get(partPath);
+            if (!tessellatedFaces) {
+              // Cache miss — mesh-sync hasn't populated this part yet.
+              // Silently no-op; the user can click again after geometry loads.
+              console.warn('[T36] assembly face pick: tessellated faces not cached for', partPath);
+              return;
+            }
+
+            // Resolve triangleIndex → FaceName via binary search.
+            const facePicker = new FacePickController();
+            facePicker.setCandidates(tessellatedFaces);
+            const realFaceName = facePicker.pickByTriangleIndex(triangleIndex);
+
+            if (realFaceName) {
+              assemblyPickerRef.current.handleFaceHit(componentPath, realFaceName);
+            } else {
+              // triangleIndex fell outside all known face ranges (e.g. unnamed face).
+              console.warn('[T36] assembly face pick: triangleIndex', triangleIndex, 'not in any face range for', partPath);
+            }
+          }
+          return; // consume the event even if no hit
         }
-        return; // consume the event even if no hit, so it doesn't fall through
+
+        // Non-face modes (edge/axis/point/circularEdge): not yet resolved at
+        // this layer (T38 future work). Consume the event to avoid fall-through.
+        return;
       }
       return;
     }
@@ -3075,6 +3120,12 @@ export default function App() {
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
+  // T36: tessellated faces per partPath; populated in the assembly mesh-sync loop
+  // alongside partBoresCacheRef. Used by the assembly face-pick handler to resolve
+  // a triangleIndex (from raycastAssemblyRef) to a real FaceName via
+  // FacePickController.pickByTriangleIndex. Invalidated at the same sites as
+  // geometryCacheRef / partBoresCacheRef so stale face tables are never served.
+  const partTessellatedFacesCacheRef = useRef<Map<string, TessellatedFace[]>>(new Map());
   // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
   // Holds the full {bores?, suppressedConnectorIds?} object so commands can mutate in place.
   const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[] }>>(new Map());
@@ -3144,6 +3195,7 @@ export default function App() {
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
+        partTessellatedFacesCacheRef.current.delete(partPath);
         loadedPartDocsRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
         if (stalePartId && kernelClient) {
@@ -4216,6 +4268,9 @@ export default function App() {
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
               // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
               partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // T36: persist tessellated faces so the assembly face-pick handler can resolve
+              // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
+              partTessellatedFacesCacheRef.current.set(partPath, res.value.tessellatedFaces ?? []);
               // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
               loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[] });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
@@ -5056,6 +5111,7 @@ export default function App() {
       geometryCacheRef.current.delete(partPath);
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
+      partTessellatedFacesCacheRef.current.delete(partPath);
       loadedPartDocsRef.current.delete(partPath);
       if (stalePartId && kernelClient) {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
@@ -5067,7 +5123,7 @@ export default function App() {
     if (doc?.kind === 'assembly') {
       s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
     }
-  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef]);
+  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef]);
 
   // Register invalidatePartPaths into the store so bore commands can self-invalidate
   // caches on both apply() AND revert() (fixing undo/redo visual staleness).
