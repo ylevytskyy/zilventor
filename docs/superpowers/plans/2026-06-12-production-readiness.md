@@ -47,7 +47,7 @@
 - [x] A5 — Re-enable CI on push/PR + Firefox smoke + built-artifact e2e ✅ `46cada3f` (Firefox `/occt` import fix; lint non-blocking→C4; full GH matrix green observed on PR — human-gated)
 
 **Phase B — Data-safety & crash resilience:**
-- [ ] B1 — Surface autosave/OPFS/quota failures (StatusBar indicator + `beforeunload` guard)
+- [x] B1 — Surface autosave/OPFS/quota failures (StatusBar indicator + `beforeunload` guard) ✅ `8e7fc7dd` (caught: drawing-save stuck-saving bug)
 - [ ] B2 — Browser feature-detection splash (OPFS + secure context; allow Chrome/Edge/Firefox)
 - [ ] B3 — Root React `ErrorBoundary` with recovery
 - [ ] B4 — Show kernel-init failure instead of "Loading CAD kernel…" forever
