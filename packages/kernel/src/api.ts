@@ -1,5 +1,5 @@
 import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput, MaterialEntry, CustomTextureDef } from '@zilventor/shared';
-import { migrateManifest, type AnyManifest } from '@zilventor/shared';
+import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
@@ -448,7 +448,7 @@ export function createKernelApi(): KernelApi {
         }
       }
       const manifest = {
-        formatVersion: 1 as const,
+        formatVersion: CURRENT_FORMAT_VERSION,
         kind: 'part' as const,
         createdAt: new Date().toISOString(),
         appVersion: '0.0.0',
