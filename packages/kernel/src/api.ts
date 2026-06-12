@@ -940,62 +940,81 @@ export function createKernelApi(): KernelApi {
           if (!aabbsOverlap(ei.aabb, ej.aabb, opts.clearanceThreshold)) continue;
 
           try {
-            // SC-1: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).
-            const rangeCtor = new oc.Message_ProgressRange_1();
-            const rangeBuild = new oc.Message_ProgressRange_1();
-            const common = new oc.BRepAlgoAPI_Common_3(
-              ei.posedShape.handle as never,
-              ej.posedShape.handle as never,
-              rangeCtor,
-            );
-            common.Build(rangeBuild);
-            rangeCtor.delete?.();
-            rangeBuild.delete?.();
-
-            let isInterference = false;
-            // SC-3: guard HasErrors before volume check.
-            if (!common.HasErrors()) {
-              const commonShape = common.Shape();
-              // SC-3: check for solid via TopExp_Explorer (mirroring BooleanOps.ts).
-              const explorer = new oc.TopExp_Explorer_2(
-                commonShape as never,
-                oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
-                oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+            // SC-5: each OCCT object is declared before its allocation so the
+            // finally block can dispose it unconditionally on ALL paths —
+            // including exceptions, !IsDone() continue, and normal completion.
+            // SC-5: declare all per-pair OCCT handles up-front so the finally
+            // block can dispose them unconditionally on ALL paths — exception,
+            // !IsDone() continue, and normal completion.
+            // eslint-disable-next-line prefer-const
+            let rangeCtor: { delete?(): void } | null = null;
+            let rangeBuild: { delete?(): void } | null = null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let common: any | null = null;
+            let distRange: { delete?(): void } | null = null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let extrema: any | null = null;
+            try {
+              // SC-1: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).
+              rangeCtor = new oc.Message_ProgressRange_1();
+              rangeBuild = new oc.Message_ProgressRange_1();
+              common = new oc.BRepAlgoAPI_Common_3(
+                ei.posedShape.handle as never,
+                ej.posedShape.handle as never,
+                rangeCtor,
               );
-              const hasSolid = explorer.More();
-              explorer.delete?.();
+              common.Build(rangeBuild);
 
-              if (hasSolid) {
-                const vol = shapeVol(commonShape);
-                if (vol > opts.volumeThreshold) {
-                  isInterference = true;
-                  results.push({ aIndex: i, bIndex: j, kind: 'interference', volume: vol });
+              let isInterference = false;
+              // SC-3: guard HasErrors before volume check.
+              if (!common.HasErrors()) {
+                const commonShape = common.Shape();
+                // SC-3: check for solid via TopExp_Explorer (mirroring BooleanOps.ts).
+                const explorer = new oc.TopExp_Explorer_2(
+                  commonShape as never,
+                  oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+                  oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+                );
+                const hasSolid = explorer.More();
+                explorer.delete?.();
+
+                if (hasSolid) {
+                  const vol = shapeVol(commonShape);
+                  if (vol > opts.volumeThreshold) {
+                    isInterference = true;
+                    results.push({ aIndex: i, bIndex: j, kind: 'interference', volume: vol });
+                  }
+                }
+                (commonShape as { delete?: () => void }).delete?.();
+              }
+
+              // Only check clearance if NOT interference (SC-13a precedence).
+              if (!isInterference) {
+                // SC-2: BRepExtrema_DistShapeShape — _1() + LoadS1/LoadS2 + Perform + IsDone (PC-3).
+                distRange = new oc.Message_ProgressRange_1();
+                extrema = new oc.BRepExtrema_DistShapeShape_1();
+                extrema.LoadS1(ei.posedShape.handle as never);
+                extrema.LoadS2(ej.posedShape.handle as never);
+                extrema.Perform(distRange);
+                // PC-3: guard IsDone() before Value() — failed Perform returns garbage, not throw.
+                if (!extrema.IsDone()) {
+                  // finally disposes distRange + extrema before the continue.
+                  continue;
+                }
+                const dist: number = extrema.Value();
+                // Value() returns 0 for touching/overlapping; only report strictly positive.
+                if (dist > 0 && dist <= opts.clearanceThreshold) {
+                  results.push({ aIndex: i, bIndex: j, kind: 'clearance', distance: dist });
                 }
               }
-              (commonShape as { delete?: () => void }).delete?.();
-            }
-            common.delete?.();
-
-            // Only check clearance if NOT interference (SC-13a precedence).
-            if (!isInterference) {
-              // SC-2: BRepExtrema_DistShapeShape — _1() + LoadS1/LoadS2 + Perform + IsDone (PC-3).
-              const distRange = new oc.Message_ProgressRange_1();
-              const extrema = new oc.BRepExtrema_DistShapeShape_1();
-              extrema.LoadS1(ei.posedShape.handle as never);
-              extrema.LoadS2(ej.posedShape.handle as never);
-              extrema.Perform(distRange);
-              distRange.delete?.();
-              // PC-3: guard IsDone() before Value() — failed Perform returns garbage, not throw.
-              if (!extrema.IsDone()) {
-                extrema.delete();
-                continue;
-              }
-              const dist: number = extrema.Value();
-              extrema.delete?.();
-              // Value() returns 0 for touching/overlapping; only report strictly positive.
-              if (dist > 0 && dist <= opts.clearanceThreshold) {
-                results.push({ aIndex: i, bIndex: j, kind: 'clearance', distance: dist });
-              }
+            } finally {
+              // SC-5: dispose every per-pair OCCT object on ALL paths
+              // (exception, !IsDone() continue, and normal completion).
+              rangeCtor?.delete?.();
+              rangeBuild?.delete?.();
+              common?.delete?.();
+              distRange?.delete?.();
+              extrema?.delete?.();
             }
           } catch (e) {
             console.warn(`checkInterference: pair (${i},${j}) threw, skipping: ${(e as Error).message}`);
