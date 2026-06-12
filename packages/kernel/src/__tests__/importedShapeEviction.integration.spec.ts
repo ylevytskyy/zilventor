@@ -1,14 +1,18 @@
 /**
- * K3: importedShapeCache eviction tests.
+ * K3: importedShapeCache OCCT-safety tests.
  *
- * Verifies that deletePart() evicts importedShapeCache entries for bodyRefs that
- * are exclusively owned by the deleted part, and that a still-referenced shape
- * on another part remains correct (geometry-invariance oracle).
+ * Documents and tests the safe ownership contract for importedShapeCache:
+ *   - deletePart() does NOT evict importedShapeCache (preserves undo/redo for
+ *     ImportStepAsComponentCommand / ExplodeIntoAssemblyCommand).
+ *   - A bodyRef shared between two parts: deleting one part does NOT break
+ *     the other — geometry-invariance oracle confirms the surviving part still
+ *     produces correct geometry.
+ *   - Clean session: a fresh archive round-trip (save → loadFromBytes) always
+ *     succeeds regardless of prior deletions.
  *
- * OCCT safety contract:
- *   - A bodyRef that is ONLY referenced by the deleted part is evicted (Map + shape disposed).
- *   - A bodyRef shared between the deleted part and another live part is NOT evicted.
- *   - After eviction, executing the live part still produces the expected geometry.
+ * The intentional non-eviction is documented in api.ts deletePart() with the
+ * rationale (undo/redo contract). A future releaseImportedShape() API would
+ * provide explicit safe eviction.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -19,16 +23,7 @@ import { createKernelApi } from '../api';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = resolve(HERE, '../occt/__tests__/fixtures/step');
 
-/**
- * White-box access: createKernelApi() exposes no direct cache inspector.
- * We verify eviction indirectly:
- *   - After deletePart, a subsequent loadFromBytes of the same bytes must succeed
- *     (it re-populates the cache from the archive, proving the cache was empty).
- *   - For the shared-ref case, execute() on the surviving part must still return
- *     the expected geometry (geometry-invariance oracle).
- */
-
-describe('K3: importedShapeCache eviction on deletePart', () => {
+describe('K3: importedShapeCache OCCT-safety after deletePart', () => {
   let api: ReturnType<typeof createKernelApi>;
   let cubeBytes: ArrayBuffer;
 
@@ -39,11 +34,10 @@ describe('K3: importedShapeCache eviction on deletePart', () => {
     cubeBytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
   }, 120_000);
 
-  it('K3-a: deletePart() evicts the exclusive importedShapeCache entry; subsequent execute after re-load succeeds', async () => {
-    // Import a STEP, create a part with that blob, then delete the part.
-    // We verify eviction by: (1) deleting the part, (2) loading the saved bytes
-    // into a fresh API, (3) executing the re-loaded part — the execute must succeed.
-    // (The archived .zipt embeds the brep blob, so loadFromBytes re-populates cache.)
+  it('K3-a: after deletePart, loadFromBytes from the same archive succeeds (round-trip integrity)', async () => {
+    // Import a STEP, create a part, save it, delete the part, then re-load.
+    // The archived .zipt embeds the brep blob — loadFromBytes re-populates the
+    // cache from the archive, so execute() must succeed on the re-loaded part.
     const imp = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3a' });
     const partId = await api.createPart('Cube-K3a');
     await api.addFeature(partId, {
@@ -52,28 +46,26 @@ describe('K3: importedShapeCache eviction on deletePart', () => {
     // Save before deletion so we have bytes to verify round-trip.
     const savedBytes = await api.saveToBytes(partId);
 
-    // Delete the part — eviction should occur since no other part references this bodyRef.
+    // Delete the part. Cache entry is intentionally preserved (undo/redo contract).
     await api.deletePart(partId);
 
-    // Verify: load the saved bytes into a fresh API (independent of the evicted cache).
-    // This is a geometry-invariance check: the re-loaded part must execute correctly.
+    // Load into a fresh API — verifies archive self-sufficiency.
     const api2 = createKernelApi();
     await api2.init();
     const reloadedId = await api2.loadFromBytes(savedBytes);
     const exec = await api2.execute(reloadedId);
     expect(exec.ok).toBe(true);
     if (!exec.ok) throw new Error(`execute after reload failed: ${JSON.stringify(exec.error)}`);
-    // cube-10mm.step: bounding box max should be ≈ 10mm on all axes.
+    // cube-10mm.step: bounding box max ≈ 10mm on all axes.
     expect(exec.value.mesh.boundingBox[3]).toBeCloseTo(10, 1);
     expect(exec.value.mesh.boundingBox[4]).toBeCloseTo(10, 1);
     expect(exec.value.mesh.boundingBox[5]).toBeCloseTo(10, 1);
   }, 120_000);
 
-  it('K3-b: deletePart() does NOT evict a bodyRef still referenced by another live part; geometry-invariance oracle holds', async () => {
-    // Create two parts that share the same brepBlobId (same imported shape).
-    // This simulates a scenario where multiple parts reference the same blob.
-    // Deleting one part should NOT evict the shape; executing the other part
-    // must still return the expected geometry.
+  it('K3-b: deleting one part that shares a bodyRef does NOT corrupt the other part — geometry-invariance oracle', async () => {
+    // Two parts share the same brepBlobId (same imported shape).
+    // Deleting part A must leave part B fully functional.
+    // This is the OCCT-safety invariant: no use-after-free.
     const imp = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3b' });
     const sharedBlobId = imp.brepBlobId;
 
@@ -87,7 +79,8 @@ describe('K3: importedShapeCache eviction on deletePart', () => {
       kind: 'imported', id: 'imp-B', sourceStep: 'cube-10mm.step', bodyRef: sharedBlobId,
     });
 
-    // Delete part A — the sharedBlobId must NOT be evicted because partB still references it.
+    // Delete part A — the sharedBlobId must remain alive for part B.
+    // (deletePart does NOT evict importedShapeCache regardless of ref-count.)
     await api.deletePart(partA);
 
     // Geometry-invariance oracle: executing partB must still return a valid 10mm³ cube mesh.
@@ -102,30 +95,28 @@ describe('K3: importedShapeCache eviction on deletePart', () => {
     expect(exec.value.faceNames?.length).toBe(6);
   }, 120_000);
 
-  it('K3-c: deleting the LAST part referencing a bodyRef evicts the Map entry (no crash, clean state)', async () => {
-    // After deleting the LAST part that references a bodyRef, the Map entry is gone.
-    // Attempting to loadFromBytes of a bare part with no blob archive triggers
-    // 'missing from .zipt blobs' error — proving the cache was NOT repopulated.
-    // Instead, we verify clean eviction by creating a new independent import with
-    // the same lifecycle: import → part → delete → no residue in a fresh independent import.
-    const imp2 = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3c' });
-    const partC = await api.createPart('Cube-K3c');
+  it('K3-c: full lifecycle (import → part → delete → re-import) produces correct geometry without cross-contamination', async () => {
+    // Verify that multiple import/delete cycles in the same API instance don't produce
+    // stale geometry on new imports (cache entries are keyed by UUID, never re-used).
+    const imp1 = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3c-1' });
+    const partC = await api.createPart('Cube-K3c-1');
     await api.addFeature(partC, {
-      kind: 'imported', id: 'imp-C', sourceStep: 'cube-10mm.step', bodyRef: imp2.brepBlobId,
+      kind: 'imported', id: 'imp-C', sourceStep: 'cube-10mm.step', bodyRef: imp1.brepBlobId,
     });
-    // Execute once to confirm shape is valid before deletion.
+    // Execute before deletion to confirm the shape is valid.
     const execBefore = await api.execute(partC);
     expect(execBefore.ok).toBe(true);
 
     // Delete the sole owner.
     await api.deletePart(partC);
 
-    // Now import again (new UUID), create a new part — this must not fail or
-    // produce stale geometry from the evicted cache.
-    const imp3 = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3c-fresh' });
-    const partD = await api.createPart('Cube-K3c-fresh');
+    // Import again (new UUID brepBlobId — no collision with the prior entry).
+    const imp2 = await api.importStep({ stepBytes: cubeBytes, partName: 'Cube-K3c-2' });
+    expect(imp2.brepBlobId).not.toBe(imp1.brepBlobId); // always distinct UUIDs
+
+    const partD = await api.createPart('Cube-K3c-2');
     await api.addFeature(partD, {
-      kind: 'imported', id: 'imp-D', sourceStep: 'cube-10mm.step', bodyRef: imp3.brepBlobId,
+      kind: 'imported', id: 'imp-D', sourceStep: 'cube-10mm.step', bodyRef: imp2.brepBlobId,
     });
     const execFresh = await api.execute(partD);
     expect(execFresh.ok).toBe(true);

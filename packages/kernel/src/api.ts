@@ -369,50 +369,22 @@ export function createKernelApi(): KernelApi {
       namedShapeCache.delete(partId);
       workFeatureCache.delete(partId);
 
-      // K3: evict importedShapeCache entries for bodyRefs that belong ONLY to this
-      // part (no other active part references them). This prevents unbounded Map growth
-      // when imported parts are repeatedly created and deleted.
+      // K3: importedShapeCache is intentionally NOT evicted here.
       //
-      // OCCT SAFETY: we only evict the Map entry (and dispose the OCCT shape) when we
-      // can prove the bodyRef has a ref-count of zero across all remaining parts after
-      // this deletion. If another active part still references the same bodyRef, we skip
-      // eviction entirely — the shape stays alive for that part's executeTree calls.
+      // UNDO/REDO CONTRACT: application-level undo commands (ImportStepAsComponentCommand,
+      // ExplodeIntoAssemblyCommand) rely on importedShapeCache surviving across deletePart
+      // calls. After revert() calls deletePart(), the redo path calls registerPart() with
+      // the same brepBlobId — which requires the shape to still be in the cache so that
+      // a subsequent executeTree call via lookupImportedShape succeeds. Evicting here
+      // would silently break all STEP-import undo/redo cycles.
       //
-      // UNDO/REDO CAVEAT: application-level undo (e.g. ImportStepAsComponentCommand)
-      // may call registerPart() with the same brepBlobId after deletePart(). If the
-      // Map entry was evicted here, that redo path would fail on the next execute() call.
-      // To preserve undo/redo, we only evict when the ref-count across remaining parts
-      // drops to zero — meaning no existing part (even post-undo) could reference it.
-      // Any undo command that relies on the blob surviving deletePart must either keep
-      // its own bytes and call loadFromBytes, or hold a reference via another registered
-      // part.
-      const partToDelete = parts.get(partId);
-      if (partToDelete) {
-        // Collect bodyRefs used by the part being deleted.
-        const deletedRefs = new Set<string>();
-        for (const f of partToDelete.featureTree) {
-          if (f.kind === 'imported') deletedRefs.add(f.bodyRef);
-        }
-        if (deletedRefs.size > 0) {
-          // Count how many remaining parts (excluding the one being deleted) still reference each bodyRef.
-          const remaining = new Set<string>();
-          for (const [pid, p] of parts.entries()) {
-            if (pid === partId) continue;
-            for (const f of p.featureTree) {
-              if (f.kind === 'imported') remaining.add(f.bodyRef);
-            }
-          }
-          // Evict only refs that have zero remaining references.
-          for (const ref of deletedRefs) {
-            if (!remaining.has(ref)) {
-              const shape = importedShapeCache.get(ref);
-              if (shape) disposeShape(shape);
-              importedShapeCache.delete(ref);
-              importedColorCache.delete(ref);
-            }
-          }
-        }
-      }
+      // OCCT SAFETY: the shapes are never leaked via deletePart; they remain in
+      // importedShapeCache and are safe to read. The only risk is unbounded Map growth
+      // for long sessions with many imports. A future `releaseImportedShape(brepBlobId)`
+      // kernel API (called by the app when it knows a blob is permanently gone) would
+      // provide explicit, safe eviction without breaking undo/redo.
+      //
+      // importedColorCache follows the same policy — no eviction here.
 
       parts.delete(partId);
     },
