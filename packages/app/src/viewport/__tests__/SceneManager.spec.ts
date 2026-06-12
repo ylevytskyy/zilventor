@@ -581,5 +581,36 @@ describe('SceneManager — disposeAllPartGeometries', () => {
     expect(() => mgr.disposeAllPartGeometries()).not.toThrow();
     expect(mgr.partGeometryCount()).toBe(0);
   });
+
+  it('disposes and clears colorMaterials on disposeAllPartGeometries()', () => {
+    // Put a geometry in so setComponentMeshes can build a color-tinted mesh.
+    const g = new THREE.BufferGeometry();
+    mgr.setPartGeometry('parts/a.zipt', g);
+    mgr.setComponentMeshes([
+      {
+        kind: 'leaf',
+        componentPath: ['C1'],
+        partPath: 'parts/a.zipt',
+        worldPose: identityPose,
+        visible: true,
+        materialColor: '#aabbcc',
+      },
+    ]);
+
+    // Capture the material instance so we can spy on dispose.
+    const mesh = mgr.getComponentMesh(pathKey(['C1']));
+    expect(mesh).not.toBeNull();
+    const mat = mesh!.material as THREE.MeshStandardMaterial;
+    expect(mat).toBeInstanceOf(THREE.MeshStandardMaterial);
+    const disposeSpy = vi.spyOn(mat, 'dispose');
+
+    // clearComponentMeshes first (mirrors real caller order), then dispose.
+    mgr.clearComponentMeshes();
+    mgr.disposeAllPartGeometries();
+
+    expect(disposeSpy).toHaveBeenCalledOnce();
+    // The internal cache must be cleared — a subsequent rebuild creates new materials.
+    expect(mgr.partGeometryCount()).toBe(0);
+  });
 });
 

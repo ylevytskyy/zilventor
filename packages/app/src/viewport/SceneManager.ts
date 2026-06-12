@@ -639,19 +639,26 @@ export class SceneManager {
 
   /**
    * Dispose every BufferGeometry in the per-partPath geometry cache and clear
-   * the cache. Call on project switch so GPU memory from the previous project
-   * is released rather than accumulating.
+   * the cache. Also disposes all cached per-component tinted/textured
+   * MeshStandardMaterials (colorMaterials) to free their GPU textures.
+   * Call on project switch so GPU memory from the previous project is released
+   * rather than accumulating.
    *
    * Note: meshes in `componentMeshes` reference the same shared geometry
-   * objects via the partGeometries map.  Callers must clear component meshes
-   * (via clearComponentMeshes) BEFORE or AFTER calling this so the disposed
-   * geometries are no longer referenced from scene objects.
+   * objects via the partGeometries map.  Callers MUST call clearComponentMeshes()
+   * BEFORE calling this so the disposed geometries are no longer referenced
+   * from scene objects.
    */
   disposeAllPartGeometries(): void {
     for (const geo of this.partGeometries.values()) {
       geo.dispose();
     }
     this.partGeometries.clear();
+    // Dispose per-component tinted/textured materials (GPU leak on project switch).
+    for (const mat of this.colorMaterials.values()) {
+      mat.dispose();
+    }
+    this.colorMaterials.clear();
   }
 
   /**

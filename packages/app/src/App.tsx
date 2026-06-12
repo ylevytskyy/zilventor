@@ -4230,7 +4230,18 @@ export default function App() {
         // geometry reference between two separate React effect commits (A3).
         viewportRef.current?.clearComponentMeshes();
         viewportRef.current?.disposeAllPartGeometries();
+        // Clear the React-side geometry cache and all parallel partPath-keyed
+        // caches. Two projects can share identically-named parts (e.g.
+        // 'panel.zipt'), so without these clears stale geometry, bores, faces,
+        // part docs, and part info from the old project would leak into the new
+        // one. All caches repopulate on the next mesh-sync / resolvePartInfo
+        // pass, so clearing is safe.
         geometryCacheRef.current.clear();
+        partTextureIdCacheRef.current.clear();
+        partBoresCacheRef.current.clear();
+        partTessellatedFacesCacheRef.current.clear();
+        loadedPartDocsRef.current.clear();
+        partInfoCacheRef.current.clear();
       }
     }
   }, [assembly?.id]);
