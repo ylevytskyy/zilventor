@@ -40,7 +40,7 @@
 ## Progress tracker
 
 **Phase A — Deploy wall (make a correct artifact that can be hosted):**
-- [ ] A1 — Drive `pnpm -r typecheck` to zero (fix 10 real prod errors + baseline) so `pnpm build` runs
+- [x] A1 — Drive `pnpm -r typecheck` to zero (fix 10 real prod errors + baseline) so `pnpm build` runs ✅ `33315efa`
 - [ ] A2 — Fix kernel-worker bundling (`?worker`) + emit the OCCT glue + 50 MB WASM to `dist/`
 - [ ] A3 — PWA offline: precache the 50 MB WASM, precache textures, add real PWA icons
 - [ ] A4 — Cloudflare Pages deploy config (`_headers`, `_redirects`, `DEPLOY.md`) + deploy preview
