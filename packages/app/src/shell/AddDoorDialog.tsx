@@ -23,6 +23,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 export function AddDoorDialog(): JSX.Element | null {
   const { t } = useTranslation();
@@ -37,6 +38,8 @@ export function AddDoorDialog(): JSX.Element | null {
   const [clearance, setClearance] = React.useState('2');
   const [centerReveal, setCenterReveal] = React.useState('3');
 
+  const [error, setError] = React.useState<string | null>(null);
+
   // Reset defaults each time the dialog opens.
   React.useEffect(() => {
     if (dialog) {
@@ -47,6 +50,7 @@ export function AddDoorDialog(): JSX.Element | null {
       setReveal('2');
       setClearance('2');
       setCenterReveal('3');
+      setError(null);
     }
   }, [dialog]);
 
@@ -56,17 +60,23 @@ export function AddDoorDialog(): JSX.Element | null {
   // the real count is resolved by AddDoorCommand from the computed doorH).
   const hingeHint = hingeCountForHeight(720);
 
-  const handleOk = (): void => {
-    dialog.onSubmit({
-      count,
-      overlay,
-      hingeSide,
-      thickness: Number(thickness),
-      reveal: Number(reveal),
-      clearance: Number(clearance),
-      centerReveal: Number(centerReveal),
-    });
-    setDialog(null);
+  const handleOk = async (): Promise<void> => {
+    setError(null);
+    try {
+      await dialog.onSubmit({
+        count,
+        overlay,
+        hingeSide,
+        thickness: Number(thickness),
+        reveal: Number(reveal),
+        clearance: Number(clearance),
+        centerReveal: Number(centerReveal),
+      });
+      setDialog(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   const handleCancel = (): void => {
@@ -186,9 +196,13 @@ export function AddDoorDialog(): JSX.Element | null {
           <span aria-label={t('dialog.addDoor.hingeCount')}>{hingeHint}</span>
         </div>
 
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
+
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
-          <button style={okBtnStyle} onClick={handleOk}>{t('common.ok')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

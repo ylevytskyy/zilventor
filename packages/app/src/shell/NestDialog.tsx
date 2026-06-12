@@ -34,6 +34,7 @@ export function NestDialog(): JSX.Element | null {
   const materials = useAppStore((s) => s.activeAssembly?.materials ?? []);
   const cutListResult = useCutListResult();
   const [kerfStr, setKerfStr] = React.useState('3');
+  const [error, setError] = React.useState<string | null>(null);
 
   if (!dialog) return null;
 
@@ -49,8 +50,14 @@ export function NestDialog(): JSX.Element | null {
 
   const handleOk = async (): Promise<void> => {
     if (!validKerf) return;
-    await bus.execute(new GenerateNestCommand({ kerfMm: kerf, result: cutListResult, materials }));
-    setDialog(null);
+    setError(null);
+    try {
+      await bus.execute(new GenerateNestCommand({ kerfMm: kerf, result: cutListResult, materials }));
+      setDialog(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   const handleCancel = (): void => {
@@ -85,6 +92,10 @@ export function NestDialog(): JSX.Element | null {
         </div>
         {!validKerf && (
           <div role="alert" style={errStyle}>{t('dialog.nest.kerfError')}</div>
+        )}
+
+        {error && (
+          <div role="alert" style={errStyle}>{error}</div>
         )}
 
         <p style={summaryStyle}>{summary}</p>

@@ -23,6 +23,7 @@ const btnStyle: React.CSSProperties = {
   padding: '4px 10px', cursor: 'pointer', fontSize: 11,
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
+const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
 
 type DialogState = { sheetId: string; initialOverrides: TitleBlockOverrides };
 
@@ -44,6 +45,7 @@ export function EditTitleBlockDialog(): JSX.Element | null {
   const bus = useAppStore((s) => s.bus);
 
   const [values, setValues] = React.useState<Partial<Record<keyof TitleBlockOverrides, string>>>({});
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (state) {
@@ -65,8 +67,14 @@ export function EditTitleBlockDialog(): JSX.Element | null {
       const v = values[key];
       if (v && v.trim()) (overrides as Record<string, string>)[key] = v.trim();
     }
-    await bus.execute(new EditTitleBlockCommand({ sheetId: state.sheetId, overrides }));
-    close();
+    setError(null);
+    try {
+      await bus.execute(new EditTitleBlockCommand({ sheetId: state.sheetId, overrides }));
+      close();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   return (
@@ -97,6 +105,10 @@ export function EditTitleBlockDialog(): JSX.Element | null {
             )}
           </div>
         ))}
+        {error && (
+          <div style={errorStyle} role="alert">{error}</div>
+        )}
+
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
           <button style={btnStyle} onClick={close}>{t('common.cancel')}</button>
           <button style={okBtnStyle} onClick={() => { void handleOk(); }}>{t('common.ok')}</button>

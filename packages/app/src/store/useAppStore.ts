@@ -78,7 +78,7 @@ export type PanelDialogState = {
 export type CabinetDialogState = {
   template: 'baseCabinet';
   initial?: import('@zilventor/shared').BaseCabinetParams;
-  onSubmit: (params: import('@zilventor/shared').BaseCabinetParams) => void;
+  onSubmit: (params: import('@zilventor/shared').BaseCabinetParams) => Promise<void> | void;
   onCancel: () => void;
 };
 
@@ -105,7 +105,7 @@ export type AddDoorDialogState = {
     reveal: number;
     clearance: number;
     centerReveal: number;
-  }) => void;
+  }) => Promise<void> | void;
   onCancel: () => void;
 };
 

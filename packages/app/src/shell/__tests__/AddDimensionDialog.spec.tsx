@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AddDimensionDialog } from '../AddDimensionDialog';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -59,5 +59,19 @@ describe('AddDimensionDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(mockExecute).not.toHaveBeenCalled();
     expect((useAppStore.getState() as any).addDimensionDialogState).toBeNull();
+  });
+
+  it('bus.execute rejection keeps dialog open and shows an error alert', async () => {
+    mockExecute.mockRejectedValueOnce(new Error('kernel exploded'));
+    useAppStore.setState({ addDimensionDialogState: pendingDim } as any);
+    render(<AddDimensionDialog />);
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+    // Dialog must remain open (state not cleared)
+    await waitFor(() => {
+      expect((useAppStore.getState() as any).addDimensionDialogState).not.toBeNull();
+    });
+    // An error alert must be visible with the rejection message
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toContain('kernel exploded');
   });
 });
