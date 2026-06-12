@@ -1,6 +1,7 @@
 import type { AssemblyDocument, BoreOp, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
+import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
 
 export interface BoringPanelGroup {
   partPath: string;
@@ -8,6 +9,10 @@ export interface BoringPanelGroup {
   bores: BoreOp[];
   qty: number;
   componentPathKeys: string[];
+  /** Real panel dimensions from PanelSpec; null when unresolvable. */
+  length: number | null;
+  width: number | null;
+  thickness: number | null;
 }
 
 export interface BoringAggregateResult {
@@ -19,6 +24,7 @@ export function aggregateBoresRecursive(
   cache: Pick<SubAssemblyCache, 'get'>,
   partBores: Map<string, BoreOp[]>,
   partInfo: Map<string, PartInfo>,
+  panelSpecs?: Map<string, PanelSpec | null>,
 ): BoringAggregateResult {
   const groups = new Map<string, BoringPanelGroup>();
 
@@ -37,12 +43,16 @@ export function aggregateBoresRecursive(
         existing.qty += 1;
         existing.componentPathKeys.push(pathKey(path));
       } else {
+        const spec = panelSpecs?.get(c.partPath) ?? null;
         groups.set(c.partPath, {
           partPath: c.partPath,
           partName: partInfo.get(c.partPath)?.name ?? '(missing part)',
           bores: [...bores],
           qty: 1,
           componentPathKeys: [pathKey(path)],
+          length: spec?.length ?? null,
+          width: spec?.width ?? null,
+          thickness: spec?.thickness ?? null,
         });
       }
     }
