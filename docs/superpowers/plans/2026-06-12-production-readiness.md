@@ -61,7 +61,7 @@
 **Phase C — Fast-follow (post-launch, in priority order):**
 - [x] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer ✅ (carcass set = all 7 structural roles per shop-lead decision; exhaustive Record-classified; TDD red→green; spec+code review PASS; commits a5fc48ca·0784c07b·26e035b0)
 - [x] C2 — Assembly mate/flush: resolve real FaceName (stop passing `'unresolved'`) ✅ (partTessellatedFacesCacheRef + raycastAssemblyRef('face') + pickByTriangleIndex; real-click e2e brokenRef true→false + pose moves, verified independently; spec+code review PASS; warns DEV-gated; commits fb0a1e2a + polish)
-- [ ] C3 — Присадка boring-DXF: panel labels + true panel dimensions + CSV dims
+- [x] C3 — Присадка boring-DXF: panel labels + true panel dimensions + CSV dims ✅ (panelOutlineSize real length×width + ANNOTATIONS TEXT label + CSV L/W/T cols, nullable→panelSpan fallback; golden snapshots + targeted tests; spec+code review PASS; commits d77552f3·dc28e7f4·ba21196c·78029617·444e8e6d. NOTE: shop lead must sanity-check one exported DXF vs a real CNC program)
 - [ ] C4 — Hardening bundle (multi-tab locks, formatVersion, leaf-cap, persist, CSP, coverage, migrations, i18n review)
 
 ---
