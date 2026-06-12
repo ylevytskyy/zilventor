@@ -368,6 +368,52 @@ export function createKernelApi(): KernelApi {
       if (ns) disposeShape(ns.shape);
       namedShapeCache.delete(partId);
       workFeatureCache.delete(partId);
+
+      // K3: evict importedShapeCache entries for bodyRefs that belong ONLY to this
+      // part (no other active part references them). This prevents unbounded Map growth
+      // when imported parts are repeatedly created and deleted.
+      //
+      // OCCT SAFETY: we only evict the Map entry (and dispose the OCCT shape) when we
+      // can prove the bodyRef has a ref-count of zero across all remaining parts after
+      // this deletion. If another active part still references the same bodyRef, we skip
+      // eviction entirely — the shape stays alive for that part's executeTree calls.
+      //
+      // UNDO/REDO CAVEAT: application-level undo (e.g. ImportStepAsComponentCommand)
+      // may call registerPart() with the same brepBlobId after deletePart(). If the
+      // Map entry was evicted here, that redo path would fail on the next execute() call.
+      // To preserve undo/redo, we only evict when the ref-count across remaining parts
+      // drops to zero — meaning no existing part (even post-undo) could reference it.
+      // Any undo command that relies on the blob surviving deletePart must either keep
+      // its own bytes and call loadFromBytes, or hold a reference via another registered
+      // part.
+      const partToDelete = parts.get(partId);
+      if (partToDelete) {
+        // Collect bodyRefs used by the part being deleted.
+        const deletedRefs = new Set<string>();
+        for (const f of partToDelete.featureTree) {
+          if (f.kind === 'imported') deletedRefs.add(f.bodyRef);
+        }
+        if (deletedRefs.size > 0) {
+          // Count how many remaining parts (excluding the one being deleted) still reference each bodyRef.
+          const remaining = new Set<string>();
+          for (const [pid, p] of parts.entries()) {
+            if (pid === partId) continue;
+            for (const f of p.featureTree) {
+              if (f.kind === 'imported') remaining.add(f.bodyRef);
+            }
+          }
+          // Evict only refs that have zero remaining references.
+          for (const ref of deletedRefs) {
+            if (!remaining.has(ref)) {
+              const shape = importedShapeCache.get(ref);
+              if (shape) disposeShape(shape);
+              importedShapeCache.delete(ref);
+              importedColorCache.delete(ref);
+            }
+          }
+        }
+      }
+
       parts.delete(partId);
     },
 
@@ -668,6 +714,14 @@ export function createKernelApi(): KernelApi {
       if (!cached) throw new Error(`splitImportedShape: brepBlobId '${brepBlobId}' not in importedShapeCache`);
       const solidColors = importedColorCache.get(brepBlobId);
       const result = splitImportedShapeHelper(occt, cached, solidColors);
+      // K3: the original compound (brepBlobId) is intentionally NOT evicted here.
+      // ExplodeIntoAssemblyCommand.apply() calls splitImportedShape on the original
+      // compound; its redo path calls apply() again after revert() — which calls
+      // deletePart() on the exploded children. After revert, the original part is still
+      // registered (the prior active document is restored), so the deletePart() ref-count
+      // check above keeps the compound alive. When redo fires, splitImportedShape succeeds
+      // because the original compound is still in cache.
+      // The per-solid and surfaces blobs registered below are the new children.
       const solids = result.solids.map((s) => {
         registerImportedShape(s.brepBlobId, s.shape);
         return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox, ...(s.color ? { color: s.color } : {}) };
