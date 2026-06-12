@@ -39,6 +39,12 @@ export type ExportLeaf = {
    * ComponentPath = ReadonlyArray<string> from @zilventor/shared/componentPath.
    */
   componentPath?: import('@zilventor/shared').ComponentPath;
+  /**
+   * C1: Furniture role from ComponentInstance.role — threaded through for the
+   * carcass-noise filter in runInterferenceCheck (suppresses same-cabinet
+   * structural-panel false clashes).
+   */
+  role?: string;
 };
 
 /**
