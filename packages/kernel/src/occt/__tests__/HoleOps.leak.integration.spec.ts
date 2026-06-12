@@ -178,6 +178,39 @@ describe('HoleOps geometry invariance', () => {
     const expected = boxL * boxW * boxH - 2 * Math.PI * 2.5 * 2.5 * boxH;
     expect(vol).toBeCloseTo(expected, 0);
   });
+
+  it('makeHole(toNext, simple Ø5) volume matches box − cylinder oracle (covers axisSolidCrossings intersector-delete path)', () => {
+    // toNext resolution: origin is placed ON the bottom face (z=0), axis +Z.
+    // axisSolidCrossings finds two crossings for the half-line:
+    //   crossing[0]: entry face at z=0, distance ≈ 0
+    //   crossing[1]: exit  face at z=20, distance = 20
+    // resolveLength returns { length: 20, blind: false } — same depth as throughAll.
+    // Oracle: box_volume − cylinder_volume = 8000 − π×2.5²×20 ≈ 7607.3 mm³
+    const boxL = 20;
+    const boxW = 20;
+    const boxH = 20;
+    const body = makeBoxSolid(oc, boxL, boxW, boxH);
+
+    // Origin exactly on the bottom face center, axis pointing INTO the material (+Z).
+    const origin = new oc.gp_Pnt_3(10, 10, 0);
+    const axis = new oc.gp_Dir_4(0, 0, 1);
+
+    const profile: ResolvedHoleProfile = { kind: 'simple', diameter: 5 };
+    const termination: ResolvedHoleTermination = { kind: 'toNext' };
+    const locations: HoleLocation[] = [{ origin, axis }];
+
+    const bored = makeHole(oc, body, locations, profile, termination);
+
+    const vol = solidVolume(oc, bored);
+
+    (bored as any).delete?.();
+    (body as any).delete?.();
+    origin.delete();
+    axis.delete();
+
+    const expected = boxL * boxW * boxH - Math.PI * 2.5 * 2.5 * boxH;
+    expect(vol).toBeCloseTo(expected, 0);
+  });
 });
 
 // ---------------------------------------------------------------------------
