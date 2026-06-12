@@ -929,6 +929,7 @@
     "kernelFailed": "Kernel failed: {{message}}",
     "kernelRestartFailed": "Kernel restart failed: {{message}}",
     "loadingKernel": "Loading CAD kernel…",
+    "retryKernel": "Retry",
     "explodeFailed": "Explode failed: {{error}}",
     "imported": "Imported",
     "insertStepFailed": "Insert From STEP failed: {{error}}",

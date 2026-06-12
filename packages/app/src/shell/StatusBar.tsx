@@ -9,9 +9,13 @@ type Props = {
   modified?: boolean;
   selection?: string;
   saveState?: 'saved' | 'saving' | 'error';
+  /** True when the kernel failed to initialise; shows the failure message + Retry button. */
+  kernelFailed?: boolean;
+  /** Called when the user clicks the Retry button after a kernel-init failure. */
+  onRetryKernel?: () => void;
 };
 
-export function StatusBar({ message, modified = false, selection, saveState }: Props) {
+export function StatusBar({ message, modified = false, selection, saveState, kernelFailed = false, onRetryKernel }: Props) {
   const { t } = useTranslation();
   const statusMessage = useAppStore((s) => s.statusMessage);
   const sketchDof = useAppStore((s) => s.sketchDof);
@@ -56,6 +60,15 @@ export function StatusBar({ message, modified = false, selection, saveState }: P
   return (
     <div style={{ display: 'flex', gap: 16, padding: '4px 12px' }}>
       <span>{displayMessage}</span>
+      {kernelFailed && onRetryKernel && (
+        <button
+          data-testid="retry-kernel"
+          onClick={onRetryKernel}
+          style={{ cursor: 'pointer', color: '#fbbf24', background: 'none', border: '1px solid #fbbf24', borderRadius: 3, padding: '0 6px', fontSize: 'inherit' }}
+        >
+          {t('status.retryKernel')}
+        </button>
+      )}
       {selection && <span>{selection}</span>}
       {modified && <span style={{ color: '#facc15' }}>● {t('status.modified')}</span>}
       {saveState === 'error' && (

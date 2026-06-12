@@ -197,6 +197,7 @@ export default function App() {
   // terminate the freshly spawned worker instead of leaking it after unmount.
   const unmountedRef = useRef(false);
   const [kernelOffline, setKernelOffline] = useState(false);
+  const [kernelFailed, setKernelFailed] = useState(false);
 
   // Sketcher refs — instantiated once viewport is mounted.
   const sketcherClientRef = useRef<SketcherClient | null>(null);
@@ -1224,9 +1225,11 @@ export default function App() {
         });
         if (disposed) { terminate(); return; }
         terminateRef.current = terminate;
+        setKernelFailed(false);
         useAppStore.getState().setKernel(client);
       } catch (e) {
         useAppStore.getState().setStatus(t('status.kernelFailed', { message: (e as Error).message }));
+        setKernelFailed(true);
       }
     })();
     return () => {
@@ -2064,6 +2067,7 @@ export default function App() {
     restartingRef.current = true;
     try {
       setKernelOffline(false);
+      setKernelFailed(false);
       terminateRef.current?.();
       terminateRef.current = null;
       const { client, terminate } = await spawnKernel({
@@ -5150,7 +5154,12 @@ export default function App() {
           />
         </aside>
         <footer role="contentinfo" className="col-span-3 bg-shell-panel border-t border-shell-border" id="region-statusbar">
-          <StatusBar message={kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel')} saveState={saveState} />
+          <StatusBar
+            message={kernelFailed ? statusMessage : (kernelReady ? (statusMessage || t('status.ready')) : t('status.loadingKernel'))}
+            saveState={saveState}
+            kernelFailed={kernelFailed}
+            onRetryKernel={handleRestart}
+          />
         </footer>
       </div>
       <NumericInputOverlay

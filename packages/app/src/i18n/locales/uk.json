@@ -929,6 +929,7 @@
     "kernelFailed": "Помилка ядра: {{message}}",
     "kernelRestartFailed": "Помилка перезапуску ядра: {{message}}",
     "loadingKernel": "Завантаження ядра CAD…",
+    "retryKernel": "Повторити",
     "explodeFailed": "Помилка розкладання: {{error}}",
     "imported": "Імпортовано",
     "insertStepFailed": "Помилка вставлення зі STEP: {{error}}",
