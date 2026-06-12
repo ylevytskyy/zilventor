@@ -22,7 +22,13 @@ export function visibleLeaves(
       const v = visible && c.visible;
       if (!v) continue;
       if (!c.partPath.endsWith('.ziasm')) {
-        out.push({ kind: 'leaf', componentPath: path, partPath: c.partPath, effectiveColor: resolveColor(path, activeDoc, cache), ...(c.role !== undefined ? { role: c.role } : {}) });
+        out.push({
+          kind: 'leaf',
+          componentPath: path,
+          partPath: c.partPath,
+          effectiveColor: resolveColor(path, activeDoc, cache),
+          ...(c.role !== undefined ? { role: c.role } : {}),
+        });
       } else {
         if (stack.has(c.partPath)) {
           out.push({ kind: 'placeholder', componentPath: path, partPath: c.partPath, effectiveColor: undefined });

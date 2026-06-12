@@ -63,7 +63,7 @@ describe('buildClashReport', () => {
         componentPath: path,
         componentPathKey: path.join('/'),
         partName: path[path.length - 1] ?? 'part',
-        role: role as any,
+        ...(role !== undefined ? { role } : {}),
       };
     }
 

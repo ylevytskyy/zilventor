@@ -1,3 +1,5 @@
+import type { PanelRole } from './cabinets/types';
+
 export type ClashKind = 'interference' | 'clearance';
 
 export interface ClashPair {
@@ -16,24 +18,45 @@ export interface ClashLeafMeta {
   role?: string;
 }
 
+/** The role union as it appears on ComponentInstance.role (mirror of types.ts:125). */
+type ComponentRole = PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle';
+
 /**
- * The 7 purely structural carcass roles that can overlap by construction
- * in the flat-slab cabinet model (no rotation). Pairs where BOTH leaves
- * have a role in this set AND share the same immediate parent sub-assembly
- * are suppressed as expected structural noise.
- *
- * door / drawerFront / drawerBox-* / drawerHandle are intentionally absent:
- * those can have real clashes with carcass panels.
+ * Exhaustive carcass/non-carcass classification of every ComponentInstance role.
+ * Keyed by the full role union (the Record<Union,…> exhaustiveness idiom, like
+ * CONNECTOR_BOM_CATALOG) so adding a new PanelRole without classifying it here is
+ * a COMPILE ERROR. `true` = purely structural carcass panel that overlaps by
+ * construction in the flat-slab cabinet model (no rotation); `false` =
+ * movable/hardware whose clashes with carcass panels can be real and are kept.
  */
-export const CARCASS_ROLES: ReadonlySet<string> = new Set([
-  'leftSide',
-  'rightSide',
-  'top',
-  'bottom',
-  'back',
-  'toekick',
-  'shelf',
-]);
+const ROLE_IS_CARCASS: Record<ComponentRole, boolean> = {
+  leftSide: true,
+  rightSide: true,
+  top: true,
+  bottom: true,
+  back: true,
+  toekick: true,
+  shelf: true,
+  door: false,
+  drawerFront: false,
+  drawerBox: false,
+  'drawerBox-side': false,
+  'drawerBox-front': false,
+  'drawerBox-back': false,
+  'drawerBox-bottom': false,
+  drawerHandle: false,
+};
+
+/**
+ * The structural carcass roles, derived from the exhaustive classification above.
+ * Pairs where BOTH leaves have a role in this set AND share the same immediate
+ * parent sub-assembly are suppressed as expected structural noise.
+ */
+export const CARCASS_ROLES: ReadonlySet<string> = new Set(
+  Object.entries(ROLE_IS_CARCASS)
+    .filter(([, isCarcass]) => isCarcass)
+    .map(([role]) => role),
+);
 
 /**
  * Returns true if a clash pair should be suppressed as expected structural noise.
