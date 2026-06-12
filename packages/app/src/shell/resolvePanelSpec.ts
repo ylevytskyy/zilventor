@@ -32,7 +32,7 @@ export async function resolvePanelSpec(
     cache.set(partPath, spec);
     return spec;
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.warn(`panelSpec resolve failed for ${partPath}:`, err);
     cache.set(partPath, null);
     return null;

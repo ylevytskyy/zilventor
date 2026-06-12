@@ -138,8 +138,6 @@ export function DrawingCanvas() {
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
   const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
-  const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const activeDrawingSourceDocument = useAppStore((s) => s.activeDrawingSourceDocument);
   const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {

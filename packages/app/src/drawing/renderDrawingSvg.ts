@@ -993,7 +993,7 @@ function getSheetWidthMm(sheet: DrawingSheet): number {
       ? Math.max(sheet.size.widthMm, sheet.size.heightMm)
       : Math.min(sheet.size.widthMm, sheet.size.heightMm);
   }
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+   
   const base = ISO_SIZES_MM[sheet.size.size]!;
   return sheet.orientation === 'landscape' ? base.w : base.h;
 }
@@ -1004,7 +1004,7 @@ function getSheetHeightMm(sheet: DrawingSheet): number {
       ? Math.min(sheet.size.widthMm, sheet.size.heightMm)
       : Math.max(sheet.size.widthMm, sheet.size.heightMm);
   }
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+   
   const base = ISO_SIZES_MM[sheet.size.size]!;
   return sheet.orientation === 'landscape' ? base.h : base.w;
 }

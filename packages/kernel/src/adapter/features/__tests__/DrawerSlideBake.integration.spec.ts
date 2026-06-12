@@ -37,12 +37,10 @@ import { buildPanelBox } from '../../../occt/PanelOps';
 import { executeHoleFeature } from '../HoleFeature';
 import {
   drawerSlideMath,
-  drawerBoxMath,
   DRAWER_SLIDE_HOLE_DIAMETER,
   DRAWER_SLIDE_HOLE_DEPTH,
   BOX_VERT_CLEARANCE,
   BOX_BACK_CLEARANCE,
-  SLIDE_CLEARANCE_PER_SIDE,
   LEFT_SIDE_INNER_FACE,
   RIGHT_SIDE_INNER_FACE,
 } from '@zilventor/shared';

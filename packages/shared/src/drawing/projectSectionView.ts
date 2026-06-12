@@ -73,11 +73,11 @@ function fingerprintResult(
 function projectPolygon3D(pts: Vec3[], m: Mat4): Vec2[] {
   // Row-major 4×4: row r at m[r*4 .. r*4+3]
   return pts.map((v) => {
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
+     
     const w = m[12]! * v.x + m[13]! * v.y + m[14]! * v.z + m[15]!;
     const x = (m[0]! * v.x + m[1]! * v.y + m[2]!  * v.z + m[3]!)  / w;
     const y = (m[4]! * v.x + m[5]! * v.y + m[6]!  * v.z + m[7]!)  / w;
-    /* eslint-enable @typescript-eslint/no-non-null-assertion */
+     
     return { x, y };
   });
 }

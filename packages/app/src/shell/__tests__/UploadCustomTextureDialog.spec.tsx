@@ -44,7 +44,7 @@ describe('UploadCustomTextureDialog', () => {
     const fakeNormalBytes = new Uint8Array([40, 50]);
 
     // Stub decodeImageFile + downscaleToJpeg to avoid real canvas raster encoding.
-    const stubDecode = vi.fn().mockImplementation((file: File) => {
+    const stubDecode = vi.fn().mockImplementation((_file: File) => {
       // Return a fake DrawableSource with width/height matching file name convention.
       return Promise.resolve({ width: 512, height: 512 });
     });

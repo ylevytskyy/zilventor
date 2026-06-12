@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createCommandBus } from '../CommandBus';
 import { MoveConnectorCommand } from '../MoveConnectorCommand';
 import { useAppStore } from '../../store/useAppStore';
-import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { BoreOp, PartDocument } from '@zilventor/shared';
 
@@ -84,7 +84,7 @@ function makeMoveFixture() {
 describe('MoveConnectorCommand on the bus (§9.D characterization guard)', () => {
   it('execute moves u, undo restores, redo re-applies', async () => {
     // Set up OPFS with persisted docs (required for apply/revert persistence)
-    const { members, opfs, worldDir, readU, boreA, boreB, docA, docB } = makeMoveFixture();
+    const { members, opfs, worldDir, readU, boreA, boreB, docA: _docA, docB: _docB } = makeMoveFixture();
     await writePanel(opfs, 'a.zipt', [{ ...boreA }]);
     await writePanel(opfs, 'b.zipt', [{ ...boreB }]);
 

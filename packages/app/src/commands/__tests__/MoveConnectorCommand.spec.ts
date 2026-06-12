@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MoveConnectorCommand } from '../MoveConnectorCommand';
 import { useAppStore } from '../../store/useAppStore';
-import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { BoreOp, PartDocument } from '@zilventor/shared';
 
@@ -44,11 +44,6 @@ async function writePanel(opfs: MemOpfs, path: string, bores: BoreOp[]) {
   };
   const manifest = { formatVersion: CURRENT_FORMAT_VERSION, kind: 'part' as const, document: doc };
   await opfs.write(path, await packProject({ manifest, blobs: {} }));
-}
-
-async function boresOf(opfs: MemOpfs, path: string): Promise<BoreOp[]> {
-  const project = await unpackProject(await opfs.read(path));
-  return ((project.manifest as { document: { bores?: BoreOp[] } }).document.bores) ?? [];
 }
 
 function makeBore(id: string, connectorId: string, u = 100, overrides: Partial<BoreOp> = {}): BoreOp {

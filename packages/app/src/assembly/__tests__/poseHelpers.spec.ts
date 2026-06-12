@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { computeRectGridPoses, computeMirroredPose, quatToMat3, axisAngleToQuat, quatMul, computeCircularPoses } from '../poseHelpers';
-import type { PatternAxis } from '@zilventor/shared';
 import type { Pose } from '../poseHelpers';
 
 const identityPose = {

@@ -34,7 +34,7 @@ export function aggregateConnectorBomRecursive(
   activeDoc: AssemblyDocument,
   cache: Pick<SubAssemblyCache, 'get'>,
   partBores: Map<string, BoreOp[]>,
-  partInfo: Map<string, PartInfo>,
+  _partInfo: Map<string, PartInfo>,
 ): ConnectorBomRawRow[] {
   // Accumulator: kind → qty
   const qtys = new Map<BoreConnectorKind, number>();

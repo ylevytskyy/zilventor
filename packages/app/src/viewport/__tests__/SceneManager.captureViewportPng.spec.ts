@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as THREE from 'three';
 import { SceneManager } from '../SceneManager';
 
 vi.mock('three', async (orig) => {
@@ -32,9 +31,9 @@ function makeSceneManager(): SceneManager {
 
 describe('SceneManager.captureViewportPng — opaque', () => {
   let mgr: SceneManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let renderSpy: ReturnType<typeof vi.spyOn<any, any>>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let setSizeSpy: ReturnType<typeof vi.spyOn<any, any>>;
 
   beforeEach(() => {
@@ -77,14 +76,11 @@ describe('SceneManager.captureViewportPng — opaque', () => {
 
 describe('SceneManager.captureViewportPng — transparent', () => {
   let mgr: SceneManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let setClearAlphaSpy: ReturnType<typeof vi.spyOn<any, any>>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let renderSpy: ReturnType<typeof vi.spyOn<any, any>>;
-
   beforeEach(() => {
     mgr = makeSceneManager();
-    renderSpy = vi.spyOn(mgr, 'render');
+    vi.spyOn(mgr, 'render');
     setClearAlphaSpy = vi.spyOn(mgr.renderer, 'setClearAlpha');
     const fakeBytes = new Uint8Array([137, 80, 78, 71]);
     const fakeBlob = new Blob([fakeBytes], { type: 'image/png' }) as Blob & { arrayBuffer(): Promise<ArrayBuffer> };

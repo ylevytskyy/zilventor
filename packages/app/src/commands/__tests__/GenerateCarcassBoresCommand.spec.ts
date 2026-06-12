@@ -69,7 +69,7 @@ function instance(
  */
 const W = 600, D = 560, H = 720, Tc = 18, Tb = 6;
 
-function seedCabinetAssembly(opfs: MemOpfs): AssemblyDocument {
+function seedCabinetAssembly(_opfs: MemOpfs): AssemblyDocument {
   const doc: AssemblyDocument = {
     id: 'A1', name: 'Cab', units: 'mm', parameters: {}, properties: {},
     components: [

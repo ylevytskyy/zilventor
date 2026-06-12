@@ -2,7 +2,7 @@ import { renderBoringDxf } from '../drawing/renderBoringDxf';
 import type { BoringAggregateResult } from '../assembly/walkers/aggregateBoresRecursive';
 
 declare global {
-  // eslint-disable-next-line vars-on-top, no-var
+   
   var __zilventorBoringDxfBytes: Uint8Array | undefined;
 }
 

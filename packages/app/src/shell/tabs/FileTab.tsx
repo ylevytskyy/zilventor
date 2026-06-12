@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
-import { unpackAssembly, packAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { globalCustomTextureRegistry } from '../../textures/customTextureRegistry';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';

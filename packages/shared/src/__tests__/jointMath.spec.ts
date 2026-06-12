@@ -4,7 +4,7 @@ import {
   type PanelInput,
 } from '../jointMath';
 
-const Tc = 18;
+const _Tc = 18;
 
 // A minimal carcass laid out so panels physically butt in WORLD space.
 // leftSide: vertical wall at x∈[0,18], spanning y∈[0,500], z∈[0,800].

@@ -336,7 +336,7 @@ export class GcsSystem {
   private readDomainPrimitive(id: string): SketchPrimitive | null {
     const original = this.domainPrimitives.get(id);
     if (!original) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const all = (this.gcs.sketch_index?.get_primitives?.() ?? []) as PlanegcsPrimitive[];
     const pts = new Map<string, { x: number; y: number }>();
     // Also index circle/arc objects by id so we can read back their solved radius.

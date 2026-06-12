@@ -1,6 +1,6 @@
 import type { SketchPrimitive, SketchConstraint, DimensionConstraint, PointRef } from '@zilventor/shared';
 import type { Point2 } from '../snap';
-import { pickPrimitiveAt, distToSegment } from './pick';
+import { distToSegment } from './pick';
 
 // ConstraintTool only handles geometric constraints. Dimensional constraints
 // have their own GeneralDimensionTool (Sub-project 2c Task 15).

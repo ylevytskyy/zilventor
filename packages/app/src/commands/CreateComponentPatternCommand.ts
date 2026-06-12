@@ -49,7 +49,7 @@ export class CreateComponentPatternCommand implements Command {
     );
 
     this.createdIds = [];
-    poses.forEach((pose, idx) => {
+    poses.forEach((pose, _idx) => {
       const id = `Cp${crypto.randomUUID()}`;
       const instance: ComponentInstance = {
         id,

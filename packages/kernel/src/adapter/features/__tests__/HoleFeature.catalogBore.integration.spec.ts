@@ -44,7 +44,7 @@ const BORING_PARAMS: BoringParams = { endSetback: 60, maxSpacing: 250, minCount:
  * boardThicknessA / boardThicknessB = real board thickness (18mm).
  */
 function realCabinetJoint(): JointInput {
-  const jointLen = D - Tb; // 554mm — Y-overlap between side and bottom
+  const _jointLen = D - Tb; // 554mm — Y-overlap between side and bottom
   return {
     line: { p0: { x: Tc, y: Tb, z: Tc / 2 }, p1: { x: Tc, y: D, z: Tc / 2 } },
     panelA: {

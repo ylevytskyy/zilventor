@@ -4,7 +4,7 @@ import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive
 import type { ConnectorBomRow } from '../shell/ConnectorBomTable';
 
 declare global {
-  // eslint-disable-next-line vars-on-top, no-var
+   
   var __zilventorCutListCsvBytes: Uint8Array | undefined;
 }
 

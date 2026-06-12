@@ -1,5 +1,5 @@
 import type { Command } from './Command';
-import type { BoreOp, BoreConnectorKind, PanelInput } from '@zilventor/shared';
+import type { BoreOp, PanelInput } from '@zilventor/shared';
 import {
   inferManualJoint,
   generateConfirmat, generateMinifix, generateDowel,

@@ -28,7 +28,7 @@ import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection 
 import { panelUvProjection, type UvProjection } from '@zilventor/shared';
 import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
-import { type NamedShape, namedFace, attachName, mergeFaceNames } from '../occt/FaceNaming';
+import { type NamedShape, attachName, mergeFaceNames } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
 
 /**

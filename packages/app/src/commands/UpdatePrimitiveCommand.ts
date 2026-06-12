@@ -42,7 +42,7 @@ export class UpdatePrimitiveCommand implements Command {
 
     const prior: Partial<SketchPrimitive> = {};
     for (const key of Object.keys(this.ctx.patch) as (keyof SketchPrimitive)[]) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (prior as any)[key] = (prim as any)[key];
     }
     this.priorPatch = prior;

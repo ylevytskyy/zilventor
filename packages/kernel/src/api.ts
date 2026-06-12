@@ -990,13 +990,13 @@ export function createKernelApi(): KernelApi {
             // SC-5: declare all per-pair OCCT handles up-front so the finally
             // block can dispose them unconditionally on ALL paths — exception,
             // !IsDone() continue, and normal completion.
-            // eslint-disable-next-line prefer-const
+             
             let rangeCtor: { delete?(): void } | null = null;
             let rangeBuild: { delete?(): void } | null = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             let common: any | null = null;
             let distRange: { delete?(): void } | null = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             let extrema: any | null = null;
             try {
               // SC-1: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).
