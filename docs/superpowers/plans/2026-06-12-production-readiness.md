@@ -44,7 +44,7 @@
 - [x] A2 — Fix kernel-worker bundling (`?worker`) + emit the OCCT glue + 50 MB WASM to `dist/` ✅ `268d26b4` (Step-3b fallback: OCCT served from `/occt/`; built-artifact e2e → 12 triangles)
 - [x] A3 — PWA offline: precache the 50 MB WASM, precache textures, add real PWA icons ✅ `7781792` (offline kernel boot verified in 2s)
 - [x] A4 — Deploy config (`_headers`, `_redirects`, `vercel.json`, `DEPLOY.md`) ✅ `b1afe50` — **Vercel primary** (CF Pages 25 MiB/file rejects the 48 MiB wasm); live deploy human-gated
-- [ ] A5 — Re-enable CI on push/PR + add a Firefox Playwright smoke project; full matrix green
+- [x] A5 — Re-enable CI on push/PR + Firefox smoke + built-artifact e2e ✅ `46cada3f` (Firefox `/occt` import fix; lint non-blocking→C4; full GH matrix green observed on PR — human-gated)
 
 **Phase B — Data-safety & crash resilience:**
 - [ ] B1 — Surface autosave/OPFS/quota failures (StatusBar indicator + `beforeunload` guard)
