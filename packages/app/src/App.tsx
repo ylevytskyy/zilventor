@@ -578,6 +578,7 @@ export default function App() {
           subAsmCacheAdapter,
           boresCache,
           partInfoCacheRef.current,
+          panelSpecCacheRef.current,
         );
       };
 
