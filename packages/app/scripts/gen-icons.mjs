@@ -23,15 +23,6 @@ mkdirSync(outDir, { recursive: true });
 
 // --- PNG encoding helpers ---
 
-function adler32(data) {
-  let s1 = 1, s2 = 0;
-  for (let i = 0; i < data.length; i++) {
-    s1 = (s1 + data[i]) % 65521;
-    s2 = (s2 + s1) % 65521;
-  }
-  return (s2 << 16) | s1;
-}
-
 function crc32(buf) {
   const table = crc32.table || (crc32.table = (() => {
     const t = new Uint32Array(256);
@@ -71,8 +62,6 @@ function makePng(w, h, rgba) {
   ihdrData.writeUInt32BE(w, 0);
   ihdrData.writeUInt32BE(h, 4);
   ihdrData[8] = 8;   // bit depth
-  ihdrData[9] = 2;   // color type: RGB (we'll write RGB scanlines, not RGBA, to keep it simple)
-  // Actually let's use RGBA (color type 6) to handle transparency in future
   ihdrData[9] = 6;   // color type: RGBA
   ihdrData[10] = 0;  // compression
   ihdrData[11] = 0;  // filter
@@ -132,8 +121,10 @@ function drawIcon(size) {
     rgba[i * 4 + 3] = 255;
   }
 
-  // Accent square: occupies middle 60% of the icon with rounded corners
-  const margin = Math.round(size * 0.15);
+  // Accent square: occupies middle ~60% of the icon with rounded corners.
+  // 20% margin keeps focal content within the 80% safe zone required for
+  // Android circular maskable masks (nothing clips at the edges).
+  const margin = Math.round(size * 0.20);
   const squareSize = size - 2 * margin;
   const radius = Math.round(squareSize * 0.18); // corner radius
 
