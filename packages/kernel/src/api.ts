@@ -941,6 +941,18 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       if (leaves.length < 2) return [];
 
+      // K4: warn when the narrow-phase O(n²) pair count may be expensive.
+      // Threshold 150 → up to 150×149/2 = 11175 OCCT boolean pairs.
+      // We warn and PROCEED — results are never silently truncated.
+      const LEAF_COUNT_WARN_THRESHOLD = 150;
+      if (leaves.length > LEAF_COUNT_WARN_THRESHOLD) {
+        console.warn(
+          `checkInterference: leaf count ${leaves.length} exceeds threshold ${LEAF_COUNT_WARN_THRESHOLD}. ` +
+          `The O(n²) narrow phase will evaluate up to ${Math.floor(leaves.length * (leaves.length - 1) / 2)} pairs — ` +
+          `this may be slow for large assemblies.`,
+        );
+      }
+
       const oc = occt as any;
 
       // Step 1: Warm all shapes and compute world-posed copies + AABBs.
