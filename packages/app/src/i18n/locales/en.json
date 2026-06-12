@@ -1045,7 +1045,8 @@
     "part_a": "Part A",
     "part_b": "Part B",
     "no_results": "No interferences found.",
-    "never_run": "Run Interference Check to see results."
+    "never_run": "Run Interference Check to see results.",
+    "carcass_noise_disclaimer": "Structural carcass-panel overlaps within a cabinet are expected and hidden; door/drawer and cross-cabinet clashes are shown."
   },
   "toast": {
     "chamferFailed": "Chamfer failed: {{message}}",
