@@ -198,6 +198,7 @@ export default function App() {
   const unmountedRef = useRef(false);
   const [kernelOffline, setKernelOffline] = useState(false);
   const [kernelFailed, setKernelFailed] = useState(false);
+  const [sketcherCrashed, setSketcherCrashed] = useState(false);
 
   // Sketcher refs — instantiated once viewport is mounted.
   const sketcherClientRef = useRef<SketcherClient | null>(null);
@@ -1336,7 +1337,16 @@ export default function App() {
       // Slice-5: capture OrbitControls ref for bore drag handler.
       orbitControlsRef.current = sm.getControls();
 
-      sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi());
+      sketcherClientRef.current = new SketcherClient(createSketcherWorkerApi({
+        onOffline: () => {
+          // Exit sketch mode so the user isn't stuck in a non-functional state.
+          useAppStore.getState().setSketchMode(false);
+          // Surface a status message so the user understands what happened.
+          useAppStore.getState().setStatus(t('status.sketcherCrashed'));
+          // Show the banner.
+          setSketcherCrashed(true);
+        }
+      }));
 
       sketchModeRef.current = createSketchModeController({
         camera: sm.getCamera(),
@@ -5081,6 +5091,18 @@ export default function App() {
           <span>{t('aria.kernelOfflineBanner')}</span>
           <button onClick={handleRestart} className="underline hover:no-underline">
             {t('common.restart')}
+          </button>
+        </div>
+      )}
+      {sketcherCrashed && !kernelOffline && (
+        <div
+          role="alert"
+          className="bg-amber-700 text-white text-xs px-3 py-1 flex justify-between items-center"
+          data-testid="sketcher-crashed-banner"
+        >
+          <span>{t('aria.sketcherCrashedBanner')}</span>
+          <button onClick={() => setSketcherCrashed(false)} className="underline hover:no-underline">
+            {t('common.close')}
           </button>
         </div>
       )}
