@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import App from '../App';
 import { useAppStore } from '../store/useAppStore';
 
@@ -136,5 +136,36 @@ describe('kernel init failure', () => {
     // Look for a button with accessible text matching retry/повтор (en or uk).
     const retryButton = statusBar!.querySelector('button[data-testid="retry-kernel"]');
     expect(retryButton).toBeTruthy();
+  });
+
+  it('keeps kernel-failed state and Retry visible when the retry itself also fails', async () => {
+    // spawnKernel rejects on every call (initial boot AND the retry).
+    render(<App />);
+
+    // Let the initial boot fail.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    const statusBar = document.getElementById('region-statusbar');
+    expect(statusBar).toBeTruthy();
+
+    // Confirm failure is shown before the retry.
+    expect(statusBar!.textContent).toMatch(/Kernel failed/i);
+    const retryButton = statusBar!.querySelector('button[data-testid="retry-kernel"]') as HTMLButtonElement | null;
+    expect(retryButton).toBeTruthy();
+
+    // Click Retry — spawnKernel still rejects.
+    await act(async () => {
+      fireEvent.click(retryButton!);
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    // After the failed retry, the UI must NOT have reverted to "Loading CAD kernel…"
+    // and the Retry button must still be present.
+    expect(statusBar!.textContent).toMatch(/Kernel failed/i);
+    expect(statusBar!.textContent).not.toMatch(/Loading CAD kernel/i);
+    const retryButtonAfter = statusBar!.querySelector('button[data-testid="retry-kernel"]');
+    expect(retryButtonAfter).toBeTruthy();
   });
 });

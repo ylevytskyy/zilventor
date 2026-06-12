@@ -2101,7 +2101,8 @@ export default function App() {
       }
     } catch (e) {
       if (!unmountedRef.current) {
-        useAppStore.getState().setStatus(t('status.kernelRestartFailed', { message: (e as Error).message }));
+        useAppStore.getState().setStatus(t('status.kernelFailed', { message: (e as Error).message }));
+        setKernelFailed(true);
       }
     } finally {
       restartingRef.current = false;
