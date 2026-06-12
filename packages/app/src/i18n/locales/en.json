@@ -935,6 +935,7 @@
     "explodeFailed": "Explode failed: {{error}}",
     "imported": "Imported",
     "insertStepFailed": "Insert From STEP failed: {{error}}",
+    "stepFileTooLarge": "STEP file is too large ({{sizeMb}} MB). The maximum supported size is {{maxMb}} MB. Large files may freeze the browser; consider simplifying the geometry before importing.",
     "modified": "Modified",
     "openCancelled": "Open cancelled",
     "opened": "Opened",
