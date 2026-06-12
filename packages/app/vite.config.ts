@@ -30,12 +30,29 @@ export default defineConfig({
         icons: []
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,wasm}'],
+        // Exclude the large OCCT WASM (~50 MB) from precache — it exceeds any
+        // reasonable precache budget. The browser will cache it normally on
+        // first fetch. All other wasm files (planegcs ≈ 1 MB) are precached.
+        globPatterns: ['**/*.{js,css,html,svg}', '**/planegcs*.wasm'],
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024
       }
     })
   ],
-  worker: { format: 'es' },
+  worker: {
+    format: 'es',
+    rollupOptions: {
+      // opencascade.full.js is served as a public static asset at /occt/ (copied
+      // by scripts/copy-occt.mjs at prebuild). Mark it external so Rollup does
+      // not try to bundle it — the browser fetches it at runtime via a dynamic
+      // import() in occtLoader.ts. The node.js branch is also external (Node-only,
+      // never executed in the browser worker).
+      external: [
+        /^\/occt\//,
+        'opencascade.js/dist/node.js',
+        'opencascade.js'
+      ]
+    }
+  },
   resolve: {
     alias: [
       { find: 'events', replacement: eventsShim },

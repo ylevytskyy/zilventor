@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
+    "postinstall": "node packages/app/scripts/copy-occt.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test:unit": "pnpm -r test:unit",

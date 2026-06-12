@@ -1,5 +1,10 @@
 import * as Comlink from 'comlink';
 import type { KernelApi } from '@zilventor/kernel/src/api';
+// Vite ?worker import — Vite bundles the kernel worker as a separate chunk and
+// emits the OCCT glue + WASM alongside it. Mirrors the sketcher-worker pattern
+// in packages/app/src/vendor/sketcherWorker.ts. The raw `new Worker(new URL(…))`
+// form inlines the TypeScript as a data: URL in production builds (unusable).
+import KernelWorkerCtor from '@zilventor/kernel/src/worker?worker';
 
 export type KernelClient = KernelApi;
 
@@ -140,9 +145,9 @@ export type SpawnKernelOptions = {
 export async function spawnKernel(
   opts?: SpawnKernelOptions
 ): Promise<{ client: KernelClient; terminate(): void }> {
-  // Vite resolves the URL to the built worker chunk at build time.
-  const workerUrl = new URL('../../../kernel/src/worker.ts', import.meta.url);
-  const worker = new Worker(workerUrl, { type: 'module' });
+  // KernelWorkerCtor is a Vite ?worker factory — Vite bundles the worker as a
+  // separate ES-module chunk and emits all its dependencies (OCCT glue + .wasm).
+  const worker = new KernelWorkerCtor();
   const proxy = Comlink.wrap<KernelApi>(worker);
   // Expose Comlink on `window` so E2E tests can wrap test-injected handles
   // (FakeFileSystemFileHandle) with `Comlink.proxy()` — plain class
