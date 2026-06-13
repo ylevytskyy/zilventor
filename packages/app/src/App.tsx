@@ -4241,6 +4241,11 @@ export default function App() {
         partTessellatedFacesCacheRef.current.clear();
         loadedPartDocsRef.current.clear();
         partInfoCacheRef.current.clear();
+        // panelSpecCacheRef writes are guarded by `if (!has(partPath))`, so a
+        // same-named part from the old project would otherwise keep STALE L/W/T
+        // dims — which C3 threads into the boring DXF outline / CSV / 3D markers
+        // (wrong CNC dimensions). Must clear so mesh-sync repopulates it.
+        panelSpecCacheRef.current.clear();
       }
     }
   }, [assembly?.id]);
