@@ -11,6 +11,7 @@ import { AddDoorDialog } from './AddDoorDialog';
 import { DrawerBankDialog } from './DrawerBankDialog';
 import { DrawerHandleDialog } from './DrawerHandleDialog';
 import { ShelfPinDialog } from './ShelfPinDialog';
+import { FaceFrameDialog } from './FaceFrameDialog';
 
 export type WorkFeatureDialogsHostProps = {
   onWorkPlaneCommit: (c: WorkPlaneCommit) => void;
@@ -61,6 +62,7 @@ export function WorkFeatureDialogsHost({
       <DrawerBankDialog />
       <DrawerHandleDialog />
       <ShelfPinDialog />
+      <FaceFrameDialog />
     </>
   );
 }
