@@ -20,6 +20,7 @@
     "add_drawers": "Add Drawers",
     "add_handles_dialog": "Add Handles dialog",
     "add_handles": "Add Handles",
+    "add_face_frame": "Add face frame",
     "add_view": "Add View",
     "assembly_tab": "Assembly tab",
     "bom_tab": "BOM tab",
@@ -202,6 +203,17 @@
       "cc96": "96 mm",
       "cc128": "128 mm",
       "cc160": "160 mm"
+    },
+    "faceFrame": {
+      "title": "Add Face Frame",
+      "rows": "Rows",
+      "cols": "Columns",
+      "stileWidth": "Stile width (mm)",
+      "railWidth": "Rail width (mm)",
+      "thickness": "Thickness (mm)",
+      "error": {
+        "invalidInput": "Rows, columns, and sizes must be positive."
+      }
     },
     "addDoor": {
       "title": "Add Door",
@@ -798,6 +810,7 @@
       "addDoor": "Add Door",
       "addDrawers": "Add Drawers",
       "addHandles": "Add Handles",
+      "addFaceFrame": "Add Face Frame",
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",
@@ -1070,5 +1083,7 @@
     "shellFailed": "Shell failed: {{message}}",
     "showConflict": "Show conflict",
     "valueMin": "Value must be greater than zero."
-  }
+  },
+  "face frame: opening collapses — too many columns for the cabinet width": "Opening collapses — too many columns for the cabinet width.",
+  "face frame: opening collapses — too many rows for the cabinet height": "Opening collapses — too many rows for the cabinet height."
 }
