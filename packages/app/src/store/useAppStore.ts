@@ -129,6 +129,13 @@ export type AddDrawerBankDialogState = {
   onCancel: () => void;
 };
 
+/** "Add Face Frame" dialog. cabinetPath is the picked cabinet `.ziasm`. */
+export type AddFaceFrameDialogState = {
+  cabinetPath: string;
+  onSubmit: (params: { rows: number; cols: number; stileWidth: number; railWidth: number; thickness: number }) => void;
+  onCancel: () => void;
+};
+
 /**
  * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
  * assembly's side panels; `manual` targets one picked panel + chosen broad face.
@@ -399,6 +406,8 @@ type AppState = {
   setAddDoorDialog: (s: AddDoorDialogState | null) => void;
   addDrawerBankDialog: AddDrawerBankDialogState | null;
   setAddDrawerBankDialog: (s: AddDrawerBankDialogState | null) => void;
+  addFaceFrameDialog: AddFaceFrameDialogState | null;
+  setAddFaceFrameDialog: (s: AddFaceFrameDialogState | null) => void;
   addDrawerHandleDialog: AddDrawerHandleDialogState | null;
   setAddDrawerHandleDialog: (s: AddDrawerHandleDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
@@ -959,6 +968,8 @@ export const useAppStore = create<AppState>((set) => ({
   setAddDoorDialog: (s) => set({ addDoorDialog: s }),
   addDrawerBankDialog: null,
   setAddDrawerBankDialog: (s) => set({ addDrawerBankDialog: s }),
+  addFaceFrameDialog: null,
+  setAddFaceFrameDialog: (s) => set({ addFaceFrameDialog: s }),
   addDrawerHandleDialog: null,
   setAddDrawerHandleDialog: (s) => set({ addDrawerHandleDialog: s }),
   shelfPinDialog: null,
