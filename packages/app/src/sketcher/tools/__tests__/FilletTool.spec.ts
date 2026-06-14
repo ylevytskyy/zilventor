@@ -52,7 +52,7 @@ describe('FilletTool — arc-add / line-trim sequencing regression', () => {
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
 
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     // onPointerClick must be awaited so the internal sequencing completes.
     await tool.onPointerClick({ x: 0, y: 5 });
 
@@ -77,7 +77,7 @@ describe('FilletTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
     expect(out.primitives).toHaveLength(1);
     expect(out.primitives[0].kind).toBe('arc');
@@ -115,7 +115,7 @@ describe('FilletTool', () => {
       { id: 'la', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'lb', kind: 'line', x1: 5, y1: 5, x2: 15, y2: 5 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 10, y: 5 });
     expect(out.primitives).toHaveLength(0);
   });
@@ -132,7 +132,7 @@ describe('FilletTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     tool.onEscapePressed();
     // after escape, second click should start fresh (one pick), no commit yet
     await tool.onPointerClick({ x: 5, y: 0 });
@@ -151,7 +151,7 @@ describe('FilletTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     const arcId = out.primitives[0].id;
@@ -181,7 +181,7 @@ describe('FilletTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     // Both updates must have a patch that changes the corner endpoint closer to the arc
@@ -215,7 +215,7 @@ describe('FilletTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     // Previously: 2 tangent + 1 dim-radius = 3 constraints.

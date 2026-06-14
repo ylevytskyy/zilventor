@@ -52,7 +52,7 @@ function makeHwDoc(l: number, w: number, h: number, id: string): PartDocument {
 }
 
 describe('hardware bbox bake: BRepPrimAPI_MakeBox_4 fully-centered box (real OCCT)', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let oc: any;
 
   beforeAll(async () => {
@@ -63,7 +63,7 @@ describe('hardware bbox bake: BRepPrimAPI_MakeBox_4 fully-centered box (real OCC
    * Volume + centroid of a solid via BRepGProp.VolumeProperties_1.
    * Returns { mass, cx, cy, cz }.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   function massProps(shape: any): { mass: number; cx: number; cy: number; cz: number } {
     const props = new oc.GProp_GProps_1();
     oc.BRepGProp.VolumeProperties_1(shape, props, 1e-7, false, false);

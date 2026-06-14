@@ -5,7 +5,7 @@ import { triggerDownload } from '../nesting/triggerDownload';
 
 declare global {
   // E2E-inspectable bytes from the latest export call (mirrors __zilventorCutListCsvBytes).
-  // eslint-disable-next-line no-var
+   
   var __zilventorNestPdfBytes: Uint8Array | undefined;
 }
 

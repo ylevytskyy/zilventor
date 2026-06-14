@@ -9,14 +9,10 @@ const FIXTURES = resolve(HERE, '../occt/__tests__/fixtures/step');
 
 describe('splitImportedShape API (integration)', () => {
   let mixedBytes: ArrayBuffer;
-  let cubeBytes: ArrayBuffer;
 
   beforeAll(() => {
     const mixed = readFileSync(resolve(FIXTURES, 'mixed-solid-surface.step'));
     mixedBytes = mixed.buffer.slice(mixed.byteOffset, mixed.byteOffset + mixed.byteLength);
-
-    const cube = readFileSync(resolve(FIXTURES, 'cube-10mm.step'));
-    cubeBytes = cube.buffer.slice(cube.byteOffset, cube.byteOffset + cube.byteLength);
   });
 
   it('mixed-solid-surface.step: importStep → splitImportedShape returns ≥1 solid + non-null surfaces', async () => {

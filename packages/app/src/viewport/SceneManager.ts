@@ -208,6 +208,8 @@ export class SceneManager {
   getCurrentMaterial(): THREE.Material | null {
     return (this.current?.material as THREE.Material) ?? null;
   }
+  /** @internal For tests only. Returns the number of cached part geometries. */
+  partGeometryCount(): number { return this.partGeometries.size; }
   setCustomTextureRegistry(r: CustomTextureRegistry | null): void {
     this.customTextureRegistry = r;
     // Clear texture-id-keyed caches so rebuilt registries (new blob URLs for
@@ -633,6 +635,30 @@ export class SceneManager {
       this.scene.remove(mesh);
     }
     this.componentMeshes.clear();
+  }
+
+  /**
+   * Dispose every BufferGeometry in the per-partPath geometry cache and clear
+   * the cache. Also disposes all cached per-component tinted/textured
+   * MeshStandardMaterials (colorMaterials) to free their GPU textures.
+   * Call on project switch so GPU memory from the previous project is released
+   * rather than accumulating.
+   *
+   * Note: meshes in `componentMeshes` reference the same shared geometry
+   * objects via the partGeometries map.  Callers MUST call clearComponentMeshes()
+   * BEFORE calling this so the disposed geometries are no longer referenced
+   * from scene objects.
+   */
+  disposeAllPartGeometries(): void {
+    for (const geo of this.partGeometries.values()) {
+      geo.dispose();
+    }
+    this.partGeometries.clear();
+    // Dispose per-component tinted/textured materials (GPU leak on project switch).
+    for (const mat of this.colorMaterials.values()) {
+      mat.dispose();
+    }
+    this.colorMaterials.clear();
   }
 
   /**

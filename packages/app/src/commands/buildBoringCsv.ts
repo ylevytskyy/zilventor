@@ -11,9 +11,16 @@ function depthLabel(d: number | 'throughAll'): string {
   return d === 'throughAll' ? 'THROUGH' : String(d);
 }
 
-function boreLine(panelName: string, b: BoreOp): string {
+function dimCell(v: number | null): string {
+  return v === null ? '' : String(v);
+}
+
+function boreLine(panel: BoringPanelGroup, b: BoreOp): string {
   return [
-    csvCell(panelName),
+    csvCell(panel.partName),
+    dimCell(panel.length),
+    dimCell(panel.width),
+    dimCell(panel.thickness),
     csvCell(b.id),
     b.face.role,   // b.face is FaceName (object); emit the role string ('Top'/'Front'/etc.)
     String(b.u),
@@ -26,9 +33,9 @@ function boreLine(panelName: string, b: BoreOp): string {
 
 export function buildBoringCsv(result: BoringAggregateResult): string {
   const out: string[] = [];
-  out.push('Panel,Tag,Face,X,Y,Ø,Depth,Type');
+  out.push('Panel,Length,Width,Thickness,Tag,Face,X,Y,Ø,Depth,Type');
   for (const panel of result.panels as BoringPanelGroup[]) {
-    for (const b of panel.bores) out.push(boreLine(panel.partName, b));
+    for (const b of panel.bores) out.push(boreLine(panel, b));
   }
   return out.join('\n') + '\n';
 }

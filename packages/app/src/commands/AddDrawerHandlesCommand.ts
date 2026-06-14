@@ -82,7 +82,7 @@ export class AddDrawerHandlesCommand implements Command {
   // ─── apply ──────────────────────────────────────────────────────────────────
 
   async apply(): Promise<void> {
-    const { cabinetPath, cc, opfs, kernel } = this.opts;
+    const { cabinetPath, cc, opfs } = this.opts;
 
     // 1. Unpack cabinet
     const cabBytes = await opfs.read(cabinetPath);

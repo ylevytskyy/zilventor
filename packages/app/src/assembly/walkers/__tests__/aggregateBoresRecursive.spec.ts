@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { aggregateBoresRecursive } from '../aggregateBoresRecursive';
-import type { AssemblyDocument, ComponentInstance, BoreOp, PartInfo } from '@zilventor/shared';
+import type { AssemblyDocument, ComponentInstance, BoreOp, PartInfo, PanelSpec } from '@zilventor/shared';
 
 const bore = (id: string): BoreOp => ({
   id, face: { featureId: 'panel', role: 'Top', instance: 0 }, u: 100, v: 50, diameter: 5, depth: 34,
@@ -99,5 +99,42 @@ describe('aggregateBoresRecursive', () => {
     expect(result.panels[0]!.partName).toBe('Side Panel');
     expect(result.panels[0]!.qty).toBe(1);
     expect(result.panels[0]!.bores).toHaveLength(2);
+  });
+
+  it('threads PanelSpec length/width/thickness onto the panel group when a matching entry is present', () => {
+    const a = asm('a', [cmp('c1', 'p/side.zipt')]);
+    const partBores = new Map<string, BoreOp[]>([['p/side.zipt', [bore('b1')]]]);
+    const spec = { length: 720, width: 560, thickness: 18 } as PanelSpec;
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/side.zipt', spec]]);
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([['p/side.zipt', 'Side']]), panelSpecs,
+    );
+    expect(result.panels).toHaveLength(1);
+    const g = result.panels[0]!;
+    expect(g.length).toBe(720);
+    expect(g.width).toBe(560);
+    expect(g.thickness).toBe(18);
+  });
+
+  it('sets length/width/thickness to null when the panelSpecs entry is null or absent', () => {
+    const a = asm('a', [
+      cmp('c1', 'p/side.zipt'),
+      cmp('c2', 'p/back.zipt'),
+    ]);
+    const partBores = new Map<string, BoreOp[]>([
+      ['p/side.zipt', [bore('b1')]],
+      ['p/back.zipt', [bore('b2')]],
+    ]);
+    // side.zipt → explicit null entry; back.zipt → absent from map
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/side.zipt', null]]);
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([]), panelSpecs,
+    );
+    expect(result.panels).toHaveLength(2);
+    for (const g of result.panels) {
+      expect(g.length).toBeNull();
+      expect(g.width).toBeNull();
+      expect(g.thickness).toBeNull();
+    }
   });
 });

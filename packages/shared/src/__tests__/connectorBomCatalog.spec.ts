@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CONNECTOR_BOM_CATALOG, type ConnectorBomEntry } from '../connectorBomCatalog';
+import { CONNECTOR_BOM_CATALOG } from '../connectorBomCatalog';
 import type { BoreConnectorKind } from '../bore';
 
 const ALL_KINDS = [

@@ -15,7 +15,7 @@ function mul(A: Mat4, B: Mat4): Mat4 {
   for (let r = 0; r < 4; r++) {
     for (let c = 0; c < 4; c++) {
       let s = 0;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       for (let k = 0; k < 4; k++) s += A[r * 4 + k]! * B[k * 4 + c]!;
       C[r * 4 + c] = s;
     }
@@ -68,14 +68,14 @@ function rotateY(a: number): Mat4 {
 /** Apply 4×4 row-major matrix M to a Vec3 (homogeneous divide) */
 export function apply(M: Mat4, v: Vec3): Vec3 {
   const { x, y, z } = v;
-  /* eslint-disable @typescript-eslint/no-non-null-assertion */
+   
   const w = M[12]! * x + M[13]! * y + M[14]! * z + M[15]!;
   return {
     x: (M[0]! * x + M[1]! * y + M[2]!  * z + M[3]!)  / w,
     y: (M[4]! * x + M[5]! * y + M[6]!  * z + M[7]!)  / w,
     z: (M[8]! * x + M[9]! * y + M[10]! * z + M[11]!) / w,
   };
-  /* eslint-enable @typescript-eslint/no-non-null-assertion */
+   
 }
 
 export type ViewOrientation =

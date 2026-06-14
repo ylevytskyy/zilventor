@@ -9,6 +9,7 @@ import type { BoringAggregateResult } from '../../assembly/walkers/aggregateBore
 const result: BoringAggregateResult = {
   panels: [
     { partPath: 'side.zipt', partName: 'Side', qty: 1, componentPathKeys: ['k'],
+      length: 500, width: 300, thickness: 18,
       bores: [{ id: 'b1', face: { featureId: 'panel', role: 'Front', instance: 0 },
         u: 30, v: 40, diameter: 5, depth: 34, role: 'confirmat-face',
         connectorId: 'c1', connectorKind: 'confirmat' }] },

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createKernelApi } from '../api';
+import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 
 class FakeHandle {
   private bytes = new Uint8Array();
@@ -174,5 +175,96 @@ describe('Save/Load round-trip via FakeHandle', () => {
     const p2 = sketch.primitives.find(p => p.id === 'p2');
     expect(p2?.construction).toBe(true);
     expect(p1?.construction).toBeFalsy();
+  }, 120_000);
+
+  it('K1: saveToBytes writes CURRENT_FORMAT_VERSION (not hard-coded 1) in the manifest', async () => {
+    const id = await api.createPart('K1-fmtver');
+    await api.setParameter(id, { name: 'd1', expression: '10', value: 10, unit: 'mm' });
+    await api.addFeature(id, {
+      kind: 'sketch', id: 's1',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [{ id: 'p1', kind: 'rectangle', x: 0, y: 0, w: 10, h: 10 }],
+      constraints: [],
+    });
+    await api.addFeature(id, { kind: 'extrude', id: 'e1', sketchRef: 's1', distanceParam: 'd1', direction: 'forward', operation: 'new' });
+
+    const bytes = await api.saveToBytes(id);
+
+    // Unpack the archive and read the manifest directly to verify the written formatVersion.
+    const { unpackProject } = await import('../storage/ProjectPacker');
+    const { manifest } = await unpackProject(bytes);
+    expect((manifest as { formatVersion: number }).formatVersion).toBe(CURRENT_FORMAT_VERSION);
+  }, 120_000);
+
+  it('K1 back-compat: a formatVersion:1 .zipt archive loads, migrates, and executes to a valid solid', async () => {
+    // Build a minimal v1 part archive by hand. v1 had no primitive ids, no
+    // constraints, no parameters field, etc. — migrateManifest handles all of
+    // that via its sequential step chain.
+    //
+    // Note on distanceParam: the migration chain (v1→v25) does NOT convert
+    // legacy `distanceExpression`/`distance` fields to `distanceParam` — those
+    // were early pre-release fields with no dedicated migration step. A real v1
+    // archive that used expression-only distances therefore cannot be executed
+    // after migration. The fixture below uses `distanceParam: 'd1'` + a
+    // matching `parameters` entry to represent a v1 part that referenced a
+    // named parameter (the common production case), proving the migration chain
+    // produces a fully executable part. Legacy `distanceExpression` archives
+    // are load-safe (no crash) but not execute-safe.
+    const { packProject } = await import('../storage/ProjectPacker');
+    const v1Manifest = {
+      formatVersion: 1,
+      kind: 'part',
+      document: {
+        id: 'v1-compat-part',
+        name: 'V1Part',
+        units: 'mm',
+        // v1 had no top-level `parameters` key — migration 3→4 adds `parameters: {}`
+        // We include a parameter here to make the extrude executable post-migration.
+        parameters: {
+          d1: { name: 'd1', expression: '15', value: 15, unit: 'mm' },
+        },
+        featureTree: [
+          {
+            kind: 'sketch',
+            id: 's1',
+            plane: { source: 'workPlane', featureId: 'origin.XY' },
+            // v1 primitives have no `id` — migration 1→2 synthesises them
+            primitives: [{ kind: 'rectangle', x: 0, y: 0, w: 20, h: 20 }],
+            // v1 had no `constraints` — migration 2→3 seeds them via inferFromGeometry
+          },
+          {
+            kind: 'extrude',
+            id: 'e1',
+            sketchRef: 's1',
+            distanceParam: 'd1',
+            // v1 had no `operation` — migration 4→5 sets it to 'new' / 'join'
+          },
+        ],
+        properties: {},
+        // v1 had no materials, hardware, or customTextures fields
+      },
+    };
+    // Note: `blobs` is empty; no BREP baked. loadFromBytes migrates then
+    // calls executeTree only when we explicitly call execute().
+    const archive = await packProject({ manifest: v1Manifest as Parameters<typeof packProject>[0]['manifest'], blobs: {} });
+
+    // Must not throw: loadFromBytes migrates the v1 manifest to CURRENT_FORMAT_VERSION.
+    const apiK1 = createKernelApi();
+    await apiK1.init();
+    const loadedId = await apiK1.loadFromBytes(archive);
+    const part = await apiK1.getPart(loadedId);
+    expect(part?.name).toBe('V1Part');
+    // Migration 2→3 synthesises primitive ids from sketch id + index.
+    const sketch = part?.featureTree.find(f => f.kind === 'sketch');
+    if (!sketch || sketch.kind !== 'sketch') throw new Error('sketch not found after v1 load');
+    // The migration synthesises an id for the first primitive: 's1-p0'
+    expect(sketch.primitives[0]?.id).toBe('s1-p0');
+    // Verify the migrated part is genuinely executable and produces a valid solid.
+    // A 20×20 rectangle extruded 15mm = 6000 mm³.
+    const result = await apiK1.execute(loadedId);
+    if (!result.ok) throw new Error(`execute failed on migrated v1 part: ${result.error.message}`);
+    const { mesh } = result.value;
+    expect(mesh.positions.length).toBeGreaterThan(0);
+    expect(mesh.indices.length).toBeGreaterThan(0);
   }, 120_000);
 });

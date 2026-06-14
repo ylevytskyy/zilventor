@@ -2,7 +2,7 @@ import { buildBoringCsv } from './buildBoringCsv';
 import type { BoringAggregateResult } from '../assembly/walkers/aggregateBoresRecursive';
 
 declare global {
-  // eslint-disable-next-line vars-on-top, no-var
+   
   var __zilventorBoringCsvBytes: Uint8Array | undefined;
 }
 

@@ -611,7 +611,7 @@ describe('renderDrawingSvg — DXF underlay (F3)', () => {
     // The text element must contain a transform with scale(1,-1)
     expect(svg).toContain('ReadableText');
     // Find the text element's transform — it should have a scale(1,-1) counter-flip
-    const textMatch = svg.match(/<text[^>]*ReadableText|ReadableText[^<]*<\/text>/);
+    const _textMatch = svg.match(/<text[^>]*ReadableText|ReadableText[^<]*<\/text>/);
     // The <text> tag should have a transform with scale(1,-1)
     const textTagEnd = svg.indexOf('ReadableText');
     const textTagStart = svg.lastIndexOf('<text', textTagEnd);

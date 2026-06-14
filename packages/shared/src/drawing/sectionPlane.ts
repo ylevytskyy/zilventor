@@ -38,7 +38,7 @@ function dot3(a: Vec3, b: Vec3): number {
 // Row r, col c: M[r*4 + c]
 // ---------------------------------------------------------------------------
 function invertMat4RowMajor(m: number[]): number[] {
-  /* eslint-disable @typescript-eslint/no-non-null-assertion */
+   
   // cofactors (using 0-indexed row-major layout: m[r*4+c])
   const inv = new Array<number>(16).fill(0);
 
@@ -63,7 +63,7 @@ function invertMat4RowMajor(m: number[]): number[] {
   inv[15] =  m[0]!*m[5]! *m[10]! - m[0]!*m[6]! *m[9]!  - m[4]!*m[1]!*m[10]! + m[4]!*m[2]!*m[9]!  + m[8]! *m[1]!*m[6]!  - m[8]! *m[2]!*m[5]!;
 
   const det = m[0]! * inv[0]! + m[1]! * inv[4]! + m[2]! * inv[8]! + m[3]! * inv[12]!;
-  /* eslint-enable @typescript-eslint/no-non-null-assertion */
+   
   if (Math.abs(det) < 1e-12) throw new Error('singular view matrix');
   const d = 1 / det;
   return inv.map(v => v * d);

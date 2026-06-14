@@ -233,7 +233,7 @@ test(
         : null;
     });
     expect(csv, 'ExportBoringCsvCommand must stash CSV bytes').not.toBeNull();
-    expect(csv).toContain('Panel,Tag,Face,X,Y,Ø,Depth,Type');
+    expect(csv).toContain('Panel,Length,Width,Thickness,Tag,Face,X,Y,Ø,Depth,Type');
     const csvDataRows = csv!
       .split('\n')
       .filter((l) => l.trim() && l.includes(',') && !l.startsWith('Panel,'));

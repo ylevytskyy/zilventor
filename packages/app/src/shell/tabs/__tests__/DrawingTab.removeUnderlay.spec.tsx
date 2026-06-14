@@ -1,6 +1,6 @@
 // packages/app/src/shell/tabs/__tests__/DrawingTab.removeUnderlay.spec.tsx
 // SLICE 2 RED: DrawingTab "Remove Underlay" ribbon button
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import DrawingTab from '../DrawingTab';

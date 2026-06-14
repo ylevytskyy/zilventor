@@ -6,7 +6,7 @@
  *        returned by resolveExportLeaves (no separate visibleLeaves call, no zip).
  * SC-7: carries both componentPath and componentPathKey in each ClashLeafMeta.
  */
-import { buildClashReport, VOLUME_THRESHOLD_MM3, pathKey } from '@zilventor/shared';
+import { buildClashReport, VOLUME_THRESHOLD_MM3, pathKey, isSameCabinetCarcassNoise } from '@zilventor/shared';
 import type { ClashReportRow, ClashLeafMeta, ClashPair, ComponentPath } from '@zilventor/shared';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { resolveExportLeaves } from './resolveExportLeaves';
@@ -72,12 +72,14 @@ export async function runInterferenceCheck(args: {
   // PC-1: build leafMeta[i] from the same ExportLeaf — one walk, no zip.
   // SC-7: carry both componentPath (for setSelectedComponentPaths) and
   //        componentPathKey (for highlight map key).
+  // C1: thread role from ExportLeaf into ClashLeafMeta for the carcass-noise filter.
   const leafMeta: ClashLeafMeta[] = exportLeaves.map((leaf) => {
     const cp: ComponentPath = leaf.componentPath ?? [leaf.partId];
     return {
       componentPath: cp,
       componentPathKey: pathKey(cp),
       partName: leaf.name,
+      ...(leaf.role !== undefined ? { role: leaf.role } : {}),
     };
   });
 
@@ -88,9 +90,18 @@ export async function runInterferenceCheck(args: {
   }));
 
   // PC-5: kernel sequences confirmed — call checkInterference directly.
-  const pairs = await kernel.checkInterference(kernelLeaves, {
+  const allPairs = await kernel.checkInterference(kernelLeaves, {
     volumeThreshold: VOLUME_THRESHOLD_MM3,
     clearanceThreshold,
+  });
+
+  // C1: suppress same-cabinet structural carcass-panel overlaps (expected noise in
+  // the flat-slab cabinet model). Door/drawer/cross-cabinet clashes are always kept.
+  const pairs = allPairs.filter((pair) => {
+    const a = leafMeta[pair.aIndex];
+    const b = leafMeta[pair.bIndex];
+    if (!a || !b) return true;
+    return !isSameCabinetCarcassNoise(a, b);
   });
 
   return buildClashReport(pairs, leafMeta);

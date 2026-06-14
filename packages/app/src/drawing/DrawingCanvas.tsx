@@ -138,8 +138,6 @@ export function DrawingCanvas() {
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
   const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
-  const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const activeDrawingSourceDocument = useAppStore((s) => s.activeDrawingSourceDocument);
   const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {
@@ -1023,8 +1021,8 @@ export function DrawingCanvas() {
         }
         return (
           <g data-underlay={underlay.name} pointerEvents="none" transform={transform}>
+            {/* SVG is generated from typed CAD data (underlayEntityToSvg), not user input */}
             {underlay.entities.map((entity, i) => (
-              // eslint-disable-next-line react/no-danger
               <g key={i} dangerouslySetInnerHTML={{ __html: underlayEntityToSvg(entity, { yFlipped: underlay.offsetMm !== undefined }) }} />
             ))}
           </g>

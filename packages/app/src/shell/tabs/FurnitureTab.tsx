@@ -30,6 +30,7 @@ import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
 import { useConnectorBomResult } from '../useConnectorBomResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { collectBoreDocsForClear } from '../../commands/clearBoresForAssembly';
 
 export default function FurnitureTab() {
   const { t } = useTranslation();
@@ -408,22 +409,13 @@ export default function FurnitureTab() {
               const state = useAppStore.getState();
               const asm = state.activeAssembly;
               if (!asm) return;
-              // Clear bores from all panels that currently have a non-empty bores[].
+              // Clear bores from all panels (including nested .ziasm sub-assemblies).
               // Each ClearBoresCommand is undoable independently.
               void (async () => {
-                const opfs = await (await import('@zilventor/kernel/src/storage/Opfs')).Opfs.forNavigator();
-                const { unpackProject } = await import('@zilventor/kernel/src/storage/ProjectPacker');
-                for (const comp of asm.components) {
-                  if (!comp.partPath.endsWith('.zipt')) continue;
-                  try {
-                    const bytes = await opfs.read(comp.partPath);
-                    const project = await unpackProject(bytes);
-                    const doc = (project.manifest as { document: { bores?: import('@zilventor/shared').BoreOp[] } }).document;
-                    if (!doc.bores || doc.bores.length === 0) continue;
-                    await state.bus.execute(new ClearBoresCommand({ doc, partPath: comp.partPath, opfs }));
-                  } catch {
-                    // panel not yet in OPFS (not yet saved) — skip
-                  }
+                const opfs = await Opfs.forNavigator();
+                const entries = await collectBoreDocsForClear(asm, opfs);
+                for (const { partPath, doc } of entries) {
+                  await state.bus.execute(new ClearBoresCommand({ doc, partPath, opfs }));
                 }
               })();
             }}>

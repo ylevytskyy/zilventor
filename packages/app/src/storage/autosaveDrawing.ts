@@ -14,9 +14,26 @@ export interface AutosaveDrawingOptions {
   packDrawing: (doc: DrawingDocument) => Promise<Uint8Array>;
 }
 
+/**
+ * Acquire a Web Lock keyed on `lockName` before running `fn`.
+ * Falls back to running `fn` directly when navigator.locks is unavailable
+ * (SSR, older browsers, jsdom without the API polyfilled).
+ *
+ * Exported so callers in App.tsx can reuse the same helper for other
+ * OPFS write sites (assembly autosave, part autosave).
+ */
+export async function withOpfsLock<T>(lockName: string, fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request(lockName, fn);
+  }
+  return fn();
+}
+
 export async function autosaveDrawing({ doc, opfs, packDrawing }: AutosaveDrawingOptions): Promise<void> {
-  const bytes = await packDrawing(doc);
   const path = `drawings/${doc.id}.zidw`;
-  await opfs.write(path, bytes);
+  const bytes = await packDrawing(doc);
+  await withOpfsLock(`opfs:${path}`, async () => {
+    await opfs.write(path, bytes);
+  });
   setLastOpenDrawing(path);
 }

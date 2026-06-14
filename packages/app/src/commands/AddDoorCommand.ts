@@ -233,7 +233,7 @@ export class AddDoorCommand implements Command {
   private async writePlateBores(
     cab: AssemblyDocument,
     doors: CreatedDoor[],
-    resolvedParams: DoorMathInput,
+    _resolvedParams: DoorMathInput,
   ): Promise<Set<string>> {
     const affectedSidePaths = new Set<string>();
 

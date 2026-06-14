@@ -117,6 +117,7 @@ export async function resolveExportLeaves(args: {
       pose: { translation: { ...pose.translation }, quaternion: [...pose.quaternion] as ExportPose['quaternion'] },
       componentPath: l.componentPath,
       ...(color !== undefined ? { color } : {}),
+      ...(l.role !== undefined ? { role: l.role } : {}),
     };
   });
 }

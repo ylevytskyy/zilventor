@@ -7,6 +7,8 @@ export type VisibleLeaf = {
   componentPath: ComponentPath;
   partPath: string;
   effectiveColor: ComponentColor | undefined;
+  /** Furniture role from ComponentInstance.role — used for carcass-noise filter (C1). */
+  role?: string;
 };
 
 export function visibleLeaves(
@@ -20,7 +22,13 @@ export function visibleLeaves(
       const v = visible && c.visible;
       if (!v) continue;
       if (!c.partPath.endsWith('.ziasm')) {
-        out.push({ kind: 'leaf', componentPath: path, partPath: c.partPath, effectiveColor: resolveColor(path, activeDoc, cache) });
+        out.push({
+          kind: 'leaf',
+          componentPath: path,
+          partPath: c.partPath,
+          effectiveColor: resolveColor(path, activeDoc, cache),
+          ...(c.role !== undefined ? { role: c.role } : {}),
+        });
       } else {
         if (stack.has(c.partPath)) {
           out.push({ kind: 'placeholder', componentPath: path, partPath: c.partPath, effectiveColor: undefined });

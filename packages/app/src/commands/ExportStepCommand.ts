@@ -7,7 +7,7 @@ import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { computeInnerStaticPoses } from '../assembly/computeInnerStaticPoses';
 
 declare global {
-  // eslint-disable-next-line vars-on-top, no-var
+   
   var __zilventorStepBytes: Uint8Array | undefined;
 }
 

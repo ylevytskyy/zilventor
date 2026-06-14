@@ -31,7 +31,7 @@ describe('ChamferTool — line-emit / line-trim sequencing regression', () => {
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
 
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     // With fix: emitLine is awaited before updateLine → patch (x1 ≈ 3) survives.
@@ -54,7 +54,7 @@ describe('ChamferTool', () => {
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
     // click body of lx near (5,0), then body of ly near (0,5)
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     expect(out.lines).toHaveLength(1);
@@ -78,7 +78,7 @@ describe('ChamferTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     const lineId = out.lines[0].id;
@@ -120,7 +120,7 @@ describe('ChamferTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 0, y: 5 });
 
     const lxUpdate = out.updates.find((u: any) => u.id === 'lx');
@@ -164,7 +164,7 @@ describe('ChamferTool', () => {
       { id: 'la', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'lb', kind: 'line', x1: 5, y1: 5, x2: 15, y2: 5 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     await tool.onPointerClick({ x: 10, y: 5 });
     expect(out.lines).toHaveLength(0);
   });
@@ -181,7 +181,7 @@ describe('ChamferTool', () => {
       { id: 'lx', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
       { id: 'ly', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 },
     ]);
-    tool.onPointerClick({ x: 5, y: 0 });
+    await tool.onPointerClick({ x: 5, y: 0 });
     tool.onEscapePressed();
     // After escape, second click should start fresh (one pick only), no commit
     await tool.onPointerClick({ x: 5, y: 0 });

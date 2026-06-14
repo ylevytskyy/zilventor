@@ -33,7 +33,7 @@ async function boresOf(opfs: MemOpfs, path: string): Promise<BoreOp[]> {
 //   writePanel(B.zipt, length=564, width=560, thickness=18)
 //   corner at {18,0,0}, center = {300, 280, 9}, AABB: x[18,582], y[0,560], z[0,18], thin axis=Z
 // Contact: L.max.x = 18 = B.min.x ✓, overlap Y[0,560] ✓, overlap Z[0,18] ✓ → valid butt joint.
-function seedTwoPanels(opfs: MemOpfs): AssemblyDocument {
+function seedTwoPanels(_opfs: MemOpfs): AssemblyDocument {
   const T = 18;
   const doc: AssemblyDocument = {
     id: 'A1', name: 'Cab', units: 'mm', parameters: {}, properties: {},

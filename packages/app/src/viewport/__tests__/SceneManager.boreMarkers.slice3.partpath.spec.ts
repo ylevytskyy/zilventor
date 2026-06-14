@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-import * as THREE from 'three';
 import { SceneManager, type MarkerOverlaySpec } from '../SceneManager';
 
 vi.mock('three', async (orig) => {

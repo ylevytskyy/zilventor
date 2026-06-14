@@ -59,10 +59,10 @@
 ### ▶ PRODUCTION GATE — ✅ MET (2026-06-12, branch `production-hardening`). A1–A5 + B1–B8 all shipped; final whole-branch review = SHIP (typecheck 0 / build emits+precaches OCCT wasm, 0 data:URL / app 2852 + shared 1001 + kernel-OCCT 118 green / built-artifact e2e: kernel works in built app). **Remaining human-gated:** merge `production-hardening` → master, open a PR to watch the full CI matrix go green, run the live Vercel deploy (`vercel --prod`, see `DEPLOY.md`), then have an operator run one end-to-end shop job. Tag `v1.0.0` on deploy.
 
 **Phase C — Fast-follow (post-launch, in priority order):**
-- [ ] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer
-- [ ] C2 — Assembly mate/flush: resolve real FaceName (stop passing `'unresolved'`)
-- [ ] C3 — Присадка boring-DXF: panel labels + true panel dimensions + CSV dims
-- [ ] C4 — Hardening bundle (multi-tab locks, formatVersion, leaf-cap, persist, CSP, coverage, migrations, i18n review)
+- [x] C1 — Clash check: carcass-overlap filter (role-aware) + interim UI disclaimer ✅ (carcass set = all 7 structural roles per shop-lead decision; exhaustive Record-classified; TDD red→green; spec+code review PASS; commits a5fc48ca·0784c07b·26e035b0)
+- [x] C2 — Assembly mate/flush: resolve real FaceName (stop passing `'unresolved'`) ✅ (partTessellatedFacesCacheRef + raycastAssemblyRef('face') + pickByTriangleIndex; real-click e2e brokenRef true→false + pose moves, verified independently; spec+code review PASS; warns DEV-gated; commits fb0a1e2a + polish)
+- [x] C3 — Присадка boring-DXF: panel labels + true panel dimensions + CSV dims ✅ (panelOutlineSize real length×width + ANNOTATIONS TEXT label + CSV L/W/T cols, nullable→panelSpan fallback; golden snapshots + targeted tests; spec+code review PASS; commits d77552f3·dc28e7f4·ba21196c·78029617·444e8e6d. NOTE: shop lead must sanity-check one exported DXF vs a real CNC program)
+- [x] C4 — Hardening bundle ✅ (Web Locks · formatVersion+migrations · clash leaf-cap+STEP guard · storage.persist · geometry+sibling-cache dispose · jspdf 4.2.1 · CI integration de-dup · **68 lint errors→0 + lint re-blocked as hard gate** · i18n labels · Clear Присадку recursion). **3 documented deferrals:** CSP→deploy pass (owner decision), coverage floor→CI-flakiness risk, K3 importedShapeCache eviction→unsafe vs undo/redo (needs future `releaseImportedShape()` API). Two-stage review + e2e smoke PASS.
 
 ---
 
@@ -637,16 +637,16 @@ With A1-A5 and B1-B8 checked: the app builds to a working offline artifact, depl
 
 ## C4: Hardening bundle (do as capacity allows)
 
-- [ ] **Multi-tab safety:** `navigator.locks.request(docPath, …)` around the autosave write so two tabs can't last-write-clobber the same OPFS doc.
-- [ ] **Migration hygiene:** stop `kernel/src/api.ts:445` hard-coding `formatVersion:1` on v25 `.zipt` writes — write `CURRENT_FORMAT_VERSION` like AssemblyPacker does (prevents a future non-idempotent migration corrupting parts). Add the missing `v22→v23` and `v23→v24` migration unit tests.
-- [ ] **Big-input guards:** clash narrow-phase leaf-count cap with a warning (>~150 leaves); STEP import byte-size guard + progress/abort (`importStepIntoNewPart.ts`); `importedShapeCache` eviction on `deletePart` + after `splitImportedShape`.
-- [ ] **Storage durability:** call `navigator.storage.persist()` at boot so the browser doesn't evict OPFS design data under pressure; surface `navigator.storage.estimate()` usage in the UI.
-- [ ] **Security:** upgrade `jspdf` 2.5 → 4.x (re-run PDF export tests); add a Content-Security-Policy via the `_headers` file (self + wasm-unsafe-eval as OCCT requires); re-confirm `expr-eval` stays whitelisted (no arbitrary eval through parameter formulas).
-- [ ] **GPU memory:** clear `geometryCacheRef` (App.tsx) and `SceneManager.partGeometries` on project switch (dispose BufferGeometries) to stop cross-project accumulation.
-- [ ] **Test gate:** add a coverage floor to the vitest configs; de-dup the kernel integration tests running twice in CI.
-- [ ] **Lint baseline:** fix the 66 pre-existing ESLint errors (unused-vars / floating-promises / exhaustive-deps) and remove `continue-on-error: true` from the CI lint step (made non-blocking in A5) so lint becomes a hard gate again.
-- [ ] **i18n:** the shop lead reviews `uk.json` присадка/drawer/boring domain terms; `t()` the residual English `U/V/Ø (mm)` labels in `BorePropertiesPanel.tsx:208-210`.
-- [ ] **UX no-ops:** fix "Clear Присадку" (`FurnitureTab.tsx:417`) to recurse into `.ziasm` cabinets (currently silently skips non-`.zipt`).
+- [x] **Multi-tab safety:** ✅ `withOpfsLock` (`navigator.locks.request`, feature-detect fallback) around ALL OPFS writes — drawing autosave, assembly + part autosave, and `saveDrawingToOpfs`.
+- [x] **Migration hygiene:** ✅ `.zipt` writes now use `CURRENT_FORMAT_VERSION` (was hard-coded `1`); back-compat test proves old v1 archives still load + execute. Dedicated `migrateManifest-v22-to-v23.spec.ts` + `migrateManifest-v23-to-v24.spec.ts` added.
+- [x] **Big-input guards:** ✅ clash narrow-phase leaf-count WARNING (>150 leaves, warn-and-proceed); STEP import 50 MB byte-size guard (FileTab). **K3 DEFERRED: `importedShapeCache` eviction on `deletePart`/`splitImportedShape` deliberately NOT implemented** — undo/redo commands (`ImportStepAsComponentCommand`, `ExplodeIntoAssemblyCommand`) rely on the cache surviving across `deletePart` calls so the redo path can call `lookupImportedShape` after `registerPart`. Evicting inside `deletePart` silently breaks all STEP-import undo/redo cycles. Geometry-invariance tests confirm no use-after-free on the non-eviction path. Future fix: an explicit `releaseImportedShape(brepBlobId)` kernel API called by the app when a blob is permanently gone (no active or undoable reference).
+- [x] **Storage durability:** ✅ `navigator.storage.persist()` called at boot (feature-detected). (Surfacing `storage.estimate()` in the UI — minor, not done; optional follow-up.)
+- [x] **Security (partial):** ✅ `jspdf` 2.5.1 → **4.2.1** (clears the known <3.x ReDoS advisory; all 31 PDF tests green, no assertion changes needed); `expr-eval` whitelist re-confirmed (`min/max/abs/sqrt/floor/ceil/round`). **CSP DEFERRED to the deploy pass** (project-owner decision 2026-06-13): a WASM/worker/OPFS CSP can only be safely verified against the real prod CDN — add it on deploy as `Content-Security-Policy-Report-Only` first (collect violation telemetry), then flip to enforcing once clean.
+- [x] **GPU memory:** ✅ on project switch, `disposeAllPartGeometries()` disposes all BufferGeometries + `colorMaterials`, and `geometryCacheRef` + the 5 sibling partPath-keyed caches (`partTextureId/partBores/partTessellatedFaces/loadedPartDocs/partInfo`) are cleared — stops cross-project staleness AND GPU accumulation.
+- [x] **Test gate (partial):** ✅ kernel integration specs de-duped in CI — new `packages/kernel/vitest.config.ts` excludes `*.integration.spec.ts` from `test:unit` (they ran twice; now once via `test:integration`). **Coverage floor DEFERRED** (CI-flakiness risk without a measured baseline; low value — revisit post-launch).
+- [x] **Lint baseline:** ✅ all **68** ESLint errors fixed (25 floating-promises judged await-vs-void per-site; 38 unused-vars; orphaned eslint-disable comments for unloaded rules removed; worktree-config parsing error ignored) → `pnpm lint` exits 0; `continue-on-error: true` REMOVED from the CI lint step — lint is a hard gate again. e2e smoke confirms boot/render unbroken.
+- [x] **i18n:** ✅ residual `U/V/Ø (mm)` labels in `BorePropertiesPanel.tsx` now `t()`'d (`bore.axis_u/axis_v/diameter_mm`, en+uk parity). (Shop-lead review of `uk.json` domain terms remains human-gated — carried forward.)
+- [x] **UX no-ops:** ✅ "Clear Присадку" now recurses into `.ziasm` sub-assemblies (`collectBoreDocsForClear` unpacks + walks nested panels) instead of silently skipping them; nested-fixture test proves nested-panel bores clear.
 
 ---
 

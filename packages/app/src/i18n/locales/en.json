@@ -166,6 +166,9 @@
   },
   "bore": {
     "along_joint": "Along joint",
+    "axis_u": "U (mm)",
+    "axis_v": "V (mm)",
+    "diameter_mm": "Ø (mm)",
     "height": "Height",
     "regenerate_to_enable_move": "Regenerate bores to enable move"
   },
@@ -935,6 +938,7 @@
     "explodeFailed": "Explode failed: {{error}}",
     "imported": "Imported",
     "insertStepFailed": "Insert From STEP failed: {{error}}",
+    "stepFileTooLarge": "STEP file is too large ({{sizeMb}} MB). The maximum supported size is {{maxMb}} MB. Large files may freeze the browser; consider simplifying the geometry before importing.",
     "modified": "Modified",
     "openCancelled": "Open cancelled",
     "opened": "Opened",
@@ -1045,7 +1049,8 @@
     "part_a": "Part A",
     "part_b": "Part B",
     "no_results": "No interferences found.",
-    "never_run": "Run Interference Check to see results."
+    "never_run": "Run Interference Check to see results.",
+    "carcass_noise_disclaimer": "Structural carcass-panel overlaps within a cabinet are expected and hidden; door/drawer and cross-cabinet clashes are shown."
   },
   "toast": {
     "chamferFailed": "Chamfer failed: {{message}}",

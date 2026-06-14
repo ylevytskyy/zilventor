@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { refKey, type PartLocalGeometry, resolveRef, type ExtractorBundle, AssemblyRefCache } from '../AssemblyConstraintRefs';
-import type { AssemblyConstraintRef } from '@zilventor/shared';
+import type { AssemblyConstraintRef, KernelError } from '@zilventor/shared';
 
 const stubExtractors: ExtractorBundle = {
   extractFacePlane:    (_s, _f) => ({ ok: true, value: { P: { x: 0, y: 0, z: 0 }, N: { x: 0, y: 0, z: 1 } } }),
@@ -59,6 +59,39 @@ describe('resolveRef', () => {
     const out = resolveRef(r, null as any, wfs, stubExtractors);
     expect(out.ok).toBe(true);
     if (out.ok && out.value.kind === 'axis') expect(out.value.P.x).toBe(9);
+  });
+});
+
+/**
+ * Regression: viewport click handler used to pass a placeholder FaceName
+ * { featureId: 'unresolved', role: 'unresolved' } for every face pick. The
+ * real NamedShape has no face with that id, so extractFacePlane returns null
+ * / ok:false, which makes the ref resolve to ok:false, which leaves the entry
+ * out of resolvedRefs, which makes the solver mark the constraint brokenRef=true.
+ *
+ * This test pins the ok:false behaviour so the regression is detected if the
+ * resolution path ever accidentally returns ok:true for a placeholder face.
+ */
+describe('resolveRef — unresolved placeholder featureId', () => {
+  it('returns ok:false when extractFacePlane returns error for featureId="unresolved"', () => {
+    const failExtractors: ExtractorBundle = {
+      ...stubExtractors,
+      extractFacePlane: (_s, f) => ({
+        ok: false,
+        error: {
+          kind: 'invalidGeometry' as const,
+          message: `face ${f.featureId}|${f.role} not found in NamedShape`,
+          correlationId: '',
+        } satisfies KernelError,
+      }),
+    };
+    const ref: AssemblyConstraintRef = {
+      kind: 'face',
+      componentPath: ['C1'],
+      face: { featureId: 'unresolved', role: 'unresolved', instance: 0 },
+    };
+    const out = resolveRef(ref, null as any, new Map(), failExtractors);
+    expect(out.ok).toBe(false);
   });
 });
 

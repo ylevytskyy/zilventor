@@ -205,9 +205,9 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
       <div style={{ fontWeight: 600, marginBottom: 6, color: '#ccc' }}>
         {t('common.bore_properties', 'Bore properties')} — {bore.connectorKind}
       </div>
-      {numericInput('u', 'U (mm)')}
-      {numericInput('v', 'V (mm)')}
-      {numericInput('diameter', 'Ø (mm)')}
+      {numericInput('u', t('bore.axis_u', 'U (mm)'))}
+      {numericInput('v', t('bore.axis_v', 'V (mm)'))}
+      {numericInput('diameter', t('bore.diameter_mm', 'Ø (mm)'))}
       {numericInput('depth', t('aria.depth', 'Depth'))}
       {hasJointDir && (
         <label style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4 }}>

@@ -86,4 +86,4 @@ export { drawerSlideMath } from './drawerSlideMath';
 export type { DrawerBoxPanel, DrawerBoxResult, BoxSlot, BoxOpening } from './drawerBoxMath';
 export { drawerBoxMath } from './drawerBoxMath';
 export type { ClashKind, ClashPair, ClashLeafMeta, ClashReportRow } from './clash';
-export { buildClashReport, VOLUME_THRESHOLD_MM3, CLEARANCE_DEFAULT_MM } from './clash';
+export { buildClashReport, VOLUME_THRESHOLD_MM3, CLEARANCE_DEFAULT_MM, isSameCabinetCarcassNoise, CARCASS_ROLES } from './clash';

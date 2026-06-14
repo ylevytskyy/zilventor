@@ -47,7 +47,7 @@ function joint(len = 700): JointInput {
 function swappedSideBottomJoint(): JointInput {
   // 554mm joint (left↔bottom, same 600×560×720 cabinet fixture as the command spec).
   // endSetback=60, maxSpacing=250 → count=3, spacings=[60, 277, 494].
-  const jointLen = 554;
+  const _jointLen = 554;
   return {
     line: { p0: { x: 18, y: 6, z: 9 }, p1: { x: 18, y: 560, z: 9 } },
     panelA: {

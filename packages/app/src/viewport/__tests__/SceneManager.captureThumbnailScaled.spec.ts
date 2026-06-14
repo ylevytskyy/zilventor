@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as THREE from 'three';
 import { SceneManager } from '../SceneManager';
 
 vi.mock('three', async (orig) => {

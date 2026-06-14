@@ -153,4 +153,35 @@ describe('solveAssembly', () => {
     const out = solveAssembly(input);
     expect(out.diagnostics.perConstraint.get('k1')!.brokenRef).toBe(true);
   });
+
+  /**
+   * Regression pin: viewport click handler used to forward a placeholder
+   * FaceName { featureId:'unresolved', role:'unresolved' } for every face pick
+   * (T36 wiring was deferred). The real NamedShape has no face with that id, so
+   * ref resolution fails → resolvedRefs is empty for those refs → brokenRef=true.
+   * This test pins the brokenRef=true outcome so the regression is detectable
+   * even before the fix lands (and confirmed absent after).
+   */
+  it('constraint with placeholder featureId="unresolved" produces brokenRef=true (pre-fix regression pin)', () => {
+    const input: AssemblySolveInput = {
+      components: [
+        { id: 'A', T: { x: 0, y: 0, z: 0 }, q: [0, 0, 0, 1] },
+        { id: 'B', T: { x: 0, y: 0, z: 5 }, q: [0, 0, 0, 1] },
+      ],
+      groundedComponentIds: ['A'],
+      constraints: [{
+        id: 'k1', kind: 'mate', suppressed: false,
+        // These are the placeholder FaceNames emitted by the pre-fix click handler.
+        refA: { kind: 'face', componentPath: ['A'], face: { featureId: 'unresolved', role: 'unresolved', instance: 0 } } as any,
+        refB: { kind: 'face', componentPath: ['B'], face: { featureId: 'unresolved', role: 'unresolved', instance: 0 } } as any,
+        offset: { kind: 'literal', value: 0 } as any,
+      }],
+      // Simulates the real path: extractAssemblyRef found no face with featureId='unresolved'
+      // → result.ok=false → ref was never inserted into resolvedRefs.
+      resolvedRefs: new Map<string, any>(),
+      paramValues: {},
+    };
+    const out = solveAssembly(input);
+    expect(out.diagnostics.perConstraint.get('k1')!.brokenRef).toBe(true);
+  });
 });

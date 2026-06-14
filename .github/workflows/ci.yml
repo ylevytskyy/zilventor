@@ -18,13 +18,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
-      # Lint is NON-BLOCKING: 66 errors predate the production-hardening branch
-      # (unused-vars / floating-promises / exhaustive-deps). Tracked for cleanup
-      # in Phase C4 — remove continue-on-error once the baseline is zero to make
-      # lint a hard gate.
-      - name: Lint (non-blocking — C4 cleanup pending)
+      - name: Lint
         run: pnpm lint
-        continue-on-error: true
       - run: pnpm -r test:unit
       - run: pnpm --filter @zilventor/kernel test:integration
       - name: Install Playwright browsers

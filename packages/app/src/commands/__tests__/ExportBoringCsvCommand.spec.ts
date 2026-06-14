@@ -9,6 +9,7 @@ Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), writable: true }
 const result: BoringAggregateResult = {
   panels: [{
     partPath: 'p.zipt', partName: 'Side', qty: 1, componentPathKeys: [],
+    length: 600, width: 400, thickness: 18,
     bores: [{
       id: 'b1', face: { featureId: 'panel', role: 'Top', instance: 0 }, u: 100, v: 50, diameter: 5, depth: 34,
       role: 'confirmat-face', connectorId: 'k1', connectorKind: 'confirmat',
@@ -29,8 +30,8 @@ describe('ExportBoringCsvCommand', () => {
     const bytes = (globalThis as Record<string, unknown>).__zilventorBoringCsvBytes as Uint8Array;
     expect(bytes?.constructor?.name).toBe('Uint8Array');
     const text = new TextDecoder().decode(bytes);
-    expect(text).toContain('Panel,Tag,Face,X,Y,Ø,Depth,Type');
-    expect(text).toContain('Side,b1,Top,100,50,5,34,confirmat');
+    expect(text).toContain('Panel,Length,Width,Thickness,Tag,Face,X,Y,Ø,Depth,Type');
+    expect(text).toContain('Side,600,400,18,b1,Top,100,50,5,34,confirmat');
   });
 
   it('writes via showSaveFilePicker when available', async () => {

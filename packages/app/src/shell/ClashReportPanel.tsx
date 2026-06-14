@@ -23,7 +23,8 @@ export function ClashReportPanel({ rows, ran, onRowClick }: Props): JSX.Element 
   if (!rows || rows.length === 0) {
     return (
       <div style={{ color: '#888', fontSize: 11, marginTop: 8 }}>
-        {t('clash.no_results')}
+        <div>{t('clash.no_results')}</div>
+        <div style={{ color: '#666', marginTop: 4 }}>{t('clash.carcass_noise_disclaimer')}</div>
       </div>
     );
   }
@@ -33,6 +34,7 @@ export function ClashReportPanel({ rows, ran, onRowClick }: Props): JSX.Element 
       <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4 }}>
         {t('clash.panel_title')}
       </div>
+      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>{t('clash.carcass_noise_disclaimer')}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead>
           <tr>

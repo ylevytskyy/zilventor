@@ -9,7 +9,7 @@ const EMPTY: BoringAggregateResult = { panels: [] };
 export function useBoringResult(): BoringAggregateResult {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const { partBoresCacheRef, partInfoCacheRef } = useCutListCacheContext();
+  const { partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY;
@@ -29,6 +29,7 @@ export function useBoringResult(): BoringAggregateResult {
       subAsmCacheAdapter,
       boresCache,
       partInfoCacheRef.current ?? new Map(),
+      panelSpecCacheRef.current ?? new Map(),
     );
-  }, [activeAssembly, subAssemblyDocs, partBoresCacheRef, partInfoCacheRef]);
+  }, [activeAssembly, subAssemblyDocs, partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef]);
 }

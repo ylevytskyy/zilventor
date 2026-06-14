@@ -1,5 +1,5 @@
 import type { Feature, Parameter, Mesh, PartDocument, Result, KernelError, SketchPrimitive, TessellatedEdge, TessellatedFace, FaceName, WorkFeatureValue, AssemblyConstraintRef, EdgeName, BoundingBox, ProjectorInput, MaterialEntry, CustomTextureDef } from '@zilventor/shared';
-import { migrateManifest, type AnyManifest } from '@zilventor/shared';
+import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '@zilventor/shared';
 import { loadOcct, type OcctInstance } from './occt/occtLoader';
 import { executeTree } from './adapter/FeatureTree';
 import { newPart, addFeature as addFeatureToPart, setParameter as setParameterOnPart, removeParameter as removeParameterFromPart, removeFeature as removeFeatureFromPart, addPrimitive as addPrimitiveToPart, removePrimitive as removePrimitiveFromPart } from './adapter/PartDocument';
@@ -39,6 +39,12 @@ export type ExportLeaf = {
    * ComponentPath = ReadonlyArray<string> from @zilventor/shared/componentPath.
    */
   componentPath?: import('@zilventor/shared').ComponentPath;
+  /**
+   * C1: Furniture role from ComponentInstance.role — threaded through for the
+   * carcass-noise filter in runInterferenceCheck (suppresses same-cabinet
+   * structural-panel false clashes).
+   */
+  role?: string;
 };
 
 /**
@@ -362,6 +368,24 @@ export function createKernelApi(): KernelApi {
       if (ns) disposeShape(ns.shape);
       namedShapeCache.delete(partId);
       workFeatureCache.delete(partId);
+
+      // K3: importedShapeCache is intentionally NOT evicted here.
+      //
+      // UNDO/REDO CONTRACT: application-level undo commands (ImportStepAsComponentCommand,
+      // ExplodeIntoAssemblyCommand) rely on importedShapeCache surviving across deletePart
+      // calls. After revert() calls deletePart(), the redo path calls registerPart() with
+      // the same brepBlobId — which requires the shape to still be in the cache so that
+      // a subsequent executeTree call via lookupImportedShape succeeds. Evicting here
+      // would silently break all STEP-import undo/redo cycles.
+      //
+      // OCCT SAFETY: the shapes are never leaked via deletePart; they remain in
+      // importedShapeCache and are safe to read. The only risk is unbounded Map growth
+      // for long sessions with many imports. A future `releaseImportedShape(brepBlobId)`
+      // kernel API (called by the app when it knows a blob is permanently gone) would
+      // provide explicit, safe eviction without breaking undo/redo.
+      //
+      // importedColorCache follows the same policy — no eviction here.
+
       parts.delete(partId);
     },
 
@@ -442,7 +466,7 @@ export function createKernelApi(): KernelApi {
         }
       }
       const manifest = {
-        formatVersion: 1 as const,
+        formatVersion: CURRENT_FORMAT_VERSION,
         kind: 'part' as const,
         createdAt: new Date().toISOString(),
         appVersion: '0.0.0',
@@ -662,6 +686,14 @@ export function createKernelApi(): KernelApi {
       if (!cached) throw new Error(`splitImportedShape: brepBlobId '${brepBlobId}' not in importedShapeCache`);
       const solidColors = importedColorCache.get(brepBlobId);
       const result = splitImportedShapeHelper(occt, cached, solidColors);
+      // K3: the original compound (brepBlobId) is intentionally NOT evicted here.
+      // ExplodeIntoAssemblyCommand.apply() calls splitImportedShape on the original
+      // compound; its redo path calls apply() again after revert() — which calls
+      // deletePart() on the exploded children. After revert, the original part is still
+      // registered (the prior active document is restored), so the deletePart() ref-count
+      // check above keeps the compound alive. When redo fires, splitImportedShape succeeds
+      // because the original compound is still in cache.
+      // The per-solid and surfaces blobs registered below are the new children.
       const solids = result.solids.map((s) => {
         registerImportedShape(s.brepBlobId, s.shape);
         return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox, ...(s.color ? { color: s.color } : {}) };
@@ -881,6 +913,18 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       if (leaves.length < 2) return [];
 
+      // K4: warn when the narrow-phase O(n²) pair count may be expensive.
+      // Threshold 150 → up to 150×149/2 = 11175 OCCT boolean pairs.
+      // We warn and PROCEED — results are never silently truncated.
+      const LEAF_COUNT_WARN_THRESHOLD = 150;
+      if (leaves.length > LEAF_COUNT_WARN_THRESHOLD) {
+        console.warn(
+          `checkInterference: leaf count ${leaves.length} exceeds threshold ${LEAF_COUNT_WARN_THRESHOLD}. ` +
+          `The O(n²) narrow phase will evaluate up to ${Math.floor(leaves.length * (leaves.length - 1) / 2)} pairs — ` +
+          `this may be slow for large assemblies.`,
+        );
+      }
+
       const oc = occt as any;
 
       // Step 1: Warm all shapes and compute world-posed copies + AABBs.
@@ -946,13 +990,13 @@ export function createKernelApi(): KernelApi {
             // SC-5: declare all per-pair OCCT handles up-front so the finally
             // block can dispose them unconditionally on ALL paths — exception,
             // !IsDone() continue, and normal completion.
-            // eslint-disable-next-line prefer-const
+             
             let rangeCtor: { delete?(): void } | null = null;
             let rangeBuild: { delete?(): void } | null = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             let common: any | null = null;
             let distRange: { delete?(): void } | null = null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             let extrema: any | null = null;
             try {
               // SC-1: BRepAlgoAPI_Common_3 + explicit Build (two separate ProgressRange objects).

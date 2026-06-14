@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import FileTab from '../FileTab';
+import FileTab, { STEP_MAX_BYTES } from '../FileTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
 
@@ -541,5 +541,96 @@ describe('handleOpen — STEP import progress ticker (integration)', () => {
     await waitFor(() => {
       expect(useAppStore.getState().statusMessage).toBe('Imported');
     });
+  });
+});
+
+describe('handleOpen — STEP byte-size guard (A4)', () => {
+  function makeFakeStepHandle(name: string, sizeBytes: number) {
+    // File.size is read-only; use Object.defineProperty to stub it.
+    const fakeFile = { name, size: sizeBytes, arrayBuffer: async () => new Uint8Array(3).buffer };
+    return { getFile: async () => fakeFile } as unknown as FileSystemFileHandle;
+  }
+
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    vi.mocked(importStepIntoNewPart).mockClear();
+    vi.mocked(ImportStepAsComponentCommand).mockClear();
+  });
+
+  it('rejects a STEP file larger than STEP_MAX_BYTES with an error dialog', async () => {
+    const oversizeBytes = STEP_MAX_BYTES + 1;
+
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      makeFakeStepHandle('huge.step', oversizeBytes),
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    // Error dialog should mention the size limit.
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/50\s*MB/i);
+    // No kernel call made.
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+  });
+
+  it('allows a STEP file exactly at STEP_MAX_BYTES (boundary: passes through)', async () => {
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'blob-ok',
+      triangleCount: 12,
+      boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
+      faceCount: 6,
+      solidCount: 1,
+    }));
+    const registerPart = vi.fn(async () => {});
+
+    useAppStore.setState((s) => ({ ...s, kernel: { importStep, registerPart } as any }));
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      makeFakeStepHandle('exactly-max.step', STEP_MAX_BYTES),
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    // Import should proceed without an error dialog.
+    await waitFor(() => expect(importStep).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('STEP_MAX_BYTES constant is 50 MB', () => {
+    expect(STEP_MAX_BYTES).toBe(50 * 1024 * 1024);
+  });
+
+  it('rejects an oversized STEP extracted from a ZIP with an error dialog (A4 ZIP path)', async () => {
+    // The ZIP-extraction path checks extracted.stepBytes.byteLength, not file.size.
+    const oversizeBuffer = new ArrayBuffer(STEP_MAX_BYTES + 1);
+    vi.mocked(extractStepFromZip).mockReturnValue({
+      fileName: 'huge-from-zip.step',
+      stepBytes: oversizeBuffer,
+    });
+
+    useAppStore.setState((s) => ({ ...s, kernel: {} as any }));
+    useAppStore.getState().setActiveDocument(null);
+
+    const fakeZipFile = { name: 'archive.zip', arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer };
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([
+      { getFile: async () => fakeZipFile } as unknown as FileSystemFileHandle,
+    ]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^open/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alertdialog').textContent).toMatch(/50\s*MB/i);
+    expect(vi.mocked(ImportStepAsComponentCommand)).not.toHaveBeenCalled();
+    expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
   });
 });

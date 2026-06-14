@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { CreatePartCommand } from '../../commands/CreatePartCommand';
 import { NewAssemblyCommand } from '../../commands/NewAssemblyCommand';
 import { readTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
-import { unpackAssembly, packAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssemblyWithTextures } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { globalCustomTextureRegistry } from '../../textures/customTextureRegistry';
 import { unpackDrawing, packDrawing } from '../../storage/DrawingPacker';
@@ -14,6 +14,9 @@ import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { startImportTicker } from '../../import/importTicker';
 import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidworksGuidance';
 import { triggerDownload } from '../../nesting/triggerDownload';
+
+/** Maximum STEP file size accepted before warning the user (50 MB). */
+export const STEP_MAX_BYTES = 50 * 1024 * 1024;
 
 export default function FileTab() {
   const { t } = useTranslation();
@@ -167,6 +170,14 @@ export default function FileTab() {
           );
           return;
         }
+        // Guard: reject extracted STEP bytes that exceed the safe import threshold.
+        if (extracted.stepBytes.byteLength > STEP_MAX_BYTES) {
+          setErrorDialog(t('status.stepFileTooLarge', {
+            sizeMb: (extracted.stepBytes.byteLength / 1024 / 1024).toFixed(1),
+            maxMb: (STEP_MAX_BYTES / 1024 / 1024).toFixed(0),
+          }));
+          return;
+        }
         const stopTicker = startImportTicker(setStatus, () => useAppStore.getState().fileOpenSeq === token);
         try {
           const { activeDocument } = useAppStore.getState();
@@ -193,6 +204,14 @@ export default function FileTab() {
 
       // STEP early-branch: dispatch by active document kind
       if (/\.(step|stp)$/i.test(file.name)) {
+        // Guard: reject files that exceed the safe import threshold before buffering.
+        if (file.size > STEP_MAX_BYTES) {
+          setErrorDialog(t('status.stepFileTooLarge', {
+            sizeMb: (file.size / 1024 / 1024).toFixed(1),
+            maxMb: (STEP_MAX_BYTES / 1024 / 1024).toFixed(0),
+          }));
+          return;
+        }
         const stopTicker = startImportTicker(setStatus, () => useAppStore.getState().fileOpenSeq === token);
         try {
           const { activeDocument } = useAppStore.getState();
