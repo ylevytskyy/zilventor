@@ -45,6 +45,8 @@ const ROLE_IS_CARCASS: Record<ComponentRole, boolean> = {
   'drawerBox-back': false,
   'drawerBox-bottom': false,
   drawerHandle: false,
+  faceFrameStile: false,
+  faceFrameRail: false,
 };
 
 /**
