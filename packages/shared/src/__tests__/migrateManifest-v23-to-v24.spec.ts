@@ -12,7 +12,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
  */
 describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, drawerSlide kind — additive no-op)', () => {
   it('CURRENT_FORMAT_VERSION is 25', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(25);
+    expect(CURRENT_FORMAT_VERSION).toBe(26);
   });
 
   it('a v23 part manifest migrates to current unchanged (identity)', () => {
@@ -25,7 +25,7 @@ describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, dra
       },
     };
     const out = migrateManifest(v23);
-    expect(out.formatVersion).toBe(25);
+    expect(out.formatVersion).toBe(26);
     // Ensure no spurious fields were injected
     const doc = out.document as Record<string, unknown>;
     expect('drawerSpec' in doc).toBe(false);
@@ -54,7 +54,7 @@ describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, dra
       },
     };
     const out = migrateManifest(v23);
-    expect(out.formatVersion).toBe(25);
+    expect(out.formatVersion).toBe(26);
     const doc = out.document as { components: Array<Record<string, unknown>> };
     expect('drawerSpec' in doc.components[0]!).toBe(false);
   });
@@ -80,7 +80,7 @@ describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, dra
       },
     };
     const out = migrateManifest(v23);
-    expect(out.formatVersion).toBe(25);
+    expect(out.formatVersion).toBe(26);
     const doc = out.document as { bores: Array<Record<string, unknown>> };
     expect(doc.bores).toHaveLength(1);
     expect(doc.bores[0]!['connectorKind']).toBe('drawerSlide');
@@ -97,7 +97,7 @@ describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, dra
       },
     };
     const out = migrateManifest(v24);
-    expect(out.formatVersion).toBe(25);
+    expect(out.formatVersion).toBe(26);
   });
 
   it('leaves drawing documents untouched (advances version only)', () => {
@@ -107,6 +107,6 @@ describe('migrateManifest v23 → v24 (присадка slice 4: DrawerSpec, dra
       document: { id: 'd', name: 'DWG', units: 'mm', sheets: [], properties: {} },
     };
     const out = migrateManifest(v23);
-    expect(out.formatVersion).toBe(25);
+    expect(out.formatVersion).toBe(26);
   });
 });
