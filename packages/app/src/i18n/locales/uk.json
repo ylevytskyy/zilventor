@@ -20,6 +20,7 @@
     "add_drawers": "Додати шухляди",
     "add_handles_dialog": "Діалог додавання ручок",
     "add_handles": "Додати ручки",
+    "add_face_frame": "Додати лицьову рамку",
     "add_view": "Додати вид",
     "assembly_tab": "Вкладка збірки",
     "bom_tab": "Вкладка ВМ",
@@ -202,6 +203,17 @@
       "cc96": "96 мм",
       "cc128": "128 мм",
       "cc160": "160 мм"
+    },
+    "faceFrame": {
+      "title": "Додати лицьову рамку",
+      "rows": "Рядки",
+      "cols": "Стовпці",
+      "stileWidth": "Ширина стійки (мм)",
+      "railWidth": "Ширина поперечки (мм)",
+      "thickness": "Товщина (мм)",
+      "error": {
+        "invalidInput": "Рядки, стовпці та розміри мають бути додатними."
+      }
     },
     "addDoor": {
       "title": "Додати двері",
@@ -798,6 +810,7 @@
       "addDoor": "Двері",
       "addDrawers": "Шухляди",
       "addHandles": "Ручки",
+      "addFaceFrame": "Додати лицьову рамку",
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
@@ -1070,5 +1083,7 @@
     "shellFailed": "Помилка оболонки: {{message}}",
     "showConflict": "Показати конфлікт",
     "valueMin": "Значення має бути більше нуля."
-  }
+  },
+  "face frame: opening collapses — too many columns for the cabinet width": "Отвір зникає — забагато стовпців для ширини шафи.",
+  "face frame: opening collapses — too many rows for the cabinet height": "Отвір зникає — забагато рядків для висоти шафи."
 }

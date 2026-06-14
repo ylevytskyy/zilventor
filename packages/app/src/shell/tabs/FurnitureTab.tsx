@@ -22,6 +22,7 @@ import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
 import { AddDrawerHandlesCommand } from '../../commands/AddDrawerHandlesCommand';
+import { AddFaceFrameCommand } from '../../commands/AddFaceFrameCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
@@ -221,6 +222,30 @@ export default function FurnitureTab() {
     useAppStore.getState().setOneComponentPickHandle(handle);
   };
 
+  /**
+   * "Add Face Frame" button — mirrors the Add Drawers flow.
+   * Picks a cabinet via beginOneComponentPick, then sets addFaceFrameDialog with
+   * cabinetPath, onSubmit (sources opfs same way as Add Drawers), and onCancel.
+   */
+  const handleAddFaceFrame = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setAddFaceFrameDialog({
+        cabinetPath,
+        onSubmit: async (p) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddFaceFrameCommand({ cabinetPath, params: p, opfs, store: useAppStore }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setAddFaceFrameDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
   const handleSystem32Auto = () => {
     useAppStore.getState().setShelfPinDialog({
       mode: 'auto',
@@ -372,6 +397,16 @@ export default function FurnitureTab() {
             aria-label={t('aria.add_handles', 'Add Handles')}
           >
             {t('ribbon.furniture.addHandles', 'Add Handles')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddFaceFrame(); }}
+            aria-label={t('aria.add_face_frame', 'Add Face Frame')}
+          >
+            {t('ribbon.furniture.addFaceFrame', 'Add Face Frame')}
           </button>
           <button
             type="button"

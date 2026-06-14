@@ -14,7 +14,9 @@ export type PanelRole =
   | 'drawerBox-side'
   | 'drawerBox-front'
   | 'drawerBox-back'
-  | 'drawerBox-bottom';
+  | 'drawerBox-bottom'
+  | 'faceFrameStile'
+  | 'faceFrameRail';
 
 export interface BaseCabinetParams {
   readonly name: string;

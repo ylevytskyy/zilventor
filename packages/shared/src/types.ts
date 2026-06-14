@@ -170,9 +170,9 @@ export type AssemblyConstraint =
 // Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
 // bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
-  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
+  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
 
 export type FaceName = {
   featureId: string;
