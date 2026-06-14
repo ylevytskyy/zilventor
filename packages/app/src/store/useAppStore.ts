@@ -132,7 +132,7 @@ export type AddDrawerBankDialogState = {
 /** "Add Face Frame" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddFaceFrameDialogState = {
   cabinetPath: string;
-  onSubmit: (params: { rows: number; cols: number; stileWidth: number; railWidth: number; thickness: number }) => void;
+  onSubmit: (params: { rows: number; cols: number; stileWidth: number; railWidth: number; thickness: number }) => void | Promise<void>;
   onCancel: () => void;
 };
 
