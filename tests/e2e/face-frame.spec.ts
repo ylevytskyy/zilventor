@@ -8,11 +8,87 @@
  *   C. AddFaceFrameCommand (rows=2, cols=2) via __zilventorStore bus.
  *   D. Assert 3 stiles + 6 rails in subAssemblyDocs (cols+1=3, cols·(rows+1)=6).
  *   E. Members reach the cabinet doc (cut-list/BOM will aggregate them via existing recursion).
+ *   E2. Run interference check → assert NO new clash rows (face-frame members butt-touch,
+ *       never overlap; spec §12.G + §14). Uses same runClashCheck pattern as
+ *       tests/e2e/interference-clash-check.spec.ts.
  *   F. Undo → component count back to baseline (all face-frame members removed).
  *   G. Zero browser console errors.
  */
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from './helpers/buildBox';
+
+/**
+ * Runs the interference check by replicating InspectTab.handleRun logic in page.evaluate.
+ * Mirrors the helper in interference-clash-check.spec.ts (exact same pattern).
+ */
+async function runClashCheck(page: import('@playwright/test').Page, clearanceMm = 1.0): Promise<void> {
+  await page.evaluate(async (threshold: number) => {
+    const w = window as any;
+
+    const { runInterferenceCheck } = await import('/src/assembly/runInterferenceCheck.ts');
+    const { resolvePartInfo } = await import('/src/shell/resolvePartInfo.ts');
+    const { computeInnerStaticPoses } = await import('/src/assembly/computeInnerStaticPoses.ts');
+
+    const unpackAssembly: (bytes: Uint8Array) => Promise<any> = w.__zilventorUnpackAssembly;
+    if (!unpackAssembly) throw new Error('__zilventorUnpackAssembly probe not registered');
+
+    const state = w.__zilventorStore.getState();
+    const { activeAssembly, kernel, subAssemblyDocs, subAssemblyInnerPoses, componentPoses, setClashResult } = state;
+    if (!activeAssembly || !kernel) throw new Error('no assembly or kernel');
+
+    const opfs = await w.__zilventorGetOpfs();
+
+    // Mirror InspectTab.handleRun BFS sub-asm cache build
+    let docs: Record<string, any> = { ...subAssemblyDocs };
+    const innerPoses: Record<string, any> = { ...subAssemblyInnerPoses };
+
+    if (Object.keys(docs).length === 0) {
+      const stack: any[] = [activeAssembly];
+      const seen = new Set<string>();
+      while (stack.length) {
+        const d = stack.pop()!;
+        for (const c of d.components) {
+          if (!c.partPath.endsWith('.ziasm')) continue;
+          if (seen.has(c.partPath)) continue;
+          seen.add(c.partPath);
+          if (docs[c.partPath]) { stack.push(docs[c.partPath]); continue; }
+          try {
+            if (await opfs.exists(c.partPath)) {
+              const sub = await unpackAssembly(await opfs.read(c.partPath));
+              docs[c.partPath] = sub;
+              innerPoses[c.partPath] = computeInnerStaticPoses(sub);
+              stack.push(sub);
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } else {
+      for (const [p, d] of Object.entries(docs)) {
+        if (!innerPoses[p]) innerPoses[p] = computeInnerStaticPoses(d);
+      }
+    }
+
+    const subAsmCache = {
+      get: (p: string) =>
+        docs[p]
+          ? { kind: 'ok' as const, doc: docs[p], partPath: p, ...(innerPoses[p] ? { innerStaticPoses: innerPoses[p] } : {}) }
+          : undefined,
+    };
+
+    const rows = await runInterferenceCheck({
+      assembly: activeAssembly,
+      kernel,
+      opfs,
+      subAsmCache,
+      componentPoses,
+      partInfoCache: new Map(),
+      resolvePartInfo: (o: any, p: string, c: any) => resolvePartInfo(o, p, c),
+      clearanceThreshold: threshold,
+    });
+
+    setClashResult(rows);
+  }, clearanceMm);
+}
 
 test(
   'face frame: add 2×2 grid → 3 stiles + 6 rails, undo restores baseline, zero errors',
@@ -217,6 +293,31 @@ test(
       cabinetPath,
     );
     expect(cutListReachable, 'faceFrameStile members must be reachable in subAssemblyDocs (cut-list / BOM gate)').toBe(true);
+
+    // ── E2. Clash check → NO new rows (spec §12.G + §14: touching members, not overlapping) ──
+    // Face-frame members butt-touch the carcass front face at y=depth. Touching faces yield
+    // zero overlap volume ("no solid" / threshold backstop, SC-10). The clash filter also
+    // classifies faceFrameStile/faceFrameRail as non-carcass (kept = false) — same as doors.
+    // So a clash check on the post-add assembly must produce 0 interference rows.
+    await runClashCheck(page, 1.0);
+
+    await page.waitForFunction(
+      () => {
+        const w = window as unknown as {
+          __zilventorStore: { getState(): { clashRan: boolean } };
+        };
+        return w.__zilventorStore?.getState().clashRan === true;
+      },
+      undefined,
+      { timeout: 120_000 },
+    );
+
+    const clashCount: number = await page.evaluate(() => {
+      const w = window as unknown as { __zilventorClashCount(): number };
+      return w.__zilventorClashCount();
+    });
+    console.log('[face-frame] clash rows after face-frame add =', clashCount);
+    expect(clashCount, 'face-frame members must produce NO clash rows (butt-touch, no overlap)').toBe(0);
 
     // ── F. Undo → component count returns to baseline ──────────────────────────
     await page.evaluate(async () => {
