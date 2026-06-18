@@ -37,6 +37,7 @@ const ROLE_IS_CARCASS: Record<ComponentRole, boolean> = {
   back: true,
   toekick: true,
   hangingRail: true,
+  cornerPost: true,
   shelf: true,
   door: false,
   drawerFront: false,

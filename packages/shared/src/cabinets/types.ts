@@ -9,6 +9,7 @@ export type PanelRole =
   | 'back'
   | 'toekick'
   | 'hangingRail'
+  | 'cornerPost'
   | 'shelf'
   | 'door'
   | 'drawerFront'
@@ -44,6 +45,25 @@ export interface BaseCabinetParams {
 export type WallCabinetParams = BaseCabinetParams & { readonly cabinetType: 'wall' };
 export type TallCabinetParams = BaseCabinetParams & { readonly cabinetType: 'tall' };
 
+/**
+ * L-corner cabinet (slice 1: no blind/diagonal door). Two legs meet at a shared
+ * corner: leg 1 runs along +X with length `width1` and depth `depth1` (into the
+ * room on Y); leg 2 runs along +Y with length `width2` and depth `depth2` (into
+ * the room on X). The reentrant inner corner sits at (depth2, depth1) and carries
+ * a full-height corner post. No toekick in slice 1 (the bottom seats at Z=0).
+ */
+export interface CornerCabinetParams {
+  readonly name: string;
+  readonly width1: number;
+  readonly depth1: number;
+  readonly width2: number;
+  readonly depth2: number;
+  readonly height: number;
+  readonly carcassMaterialId: MaterialId;
+  readonly backMaterialId: MaterialId;
+  readonly bandMaterialId: MaterialId | null;
+}
+
 export interface CabinetPanelDef {
   readonly role: PanelRole;
   readonly shelfIndex?: number;
@@ -70,6 +90,9 @@ export type CabinetTemplateErrorKind =
   | 'toekickHeightTooLarge'
   | 'toekickSetbackTooLarge'
   | 'shelfCountTooLarge'
+  | 'cornerWidthTooSmall'
+  | 'cornerDepthTooSmall'
+  | 'cornerLegTooShort'
   | 'carcassMaterialMissing'
   | 'backMaterialMissing';
 
