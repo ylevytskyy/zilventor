@@ -8,6 +8,7 @@ export type PanelRole =
   | 'top'
   | 'back'
   | 'toekick'
+  | 'hangingRail'
   | 'shelf'
   | 'door'
   | 'drawerFront'
@@ -18,8 +19,17 @@ export type PanelRole =
   | 'faceFrameStile'
   | 'faceFrameRail';
 
+/**
+ * Cabinet body type. 'base' (default when absent) is a floor-standing carcass
+ * with a toekick; 'wall' is a hung upper (no toekick, with a top-back hanging
+ * rail); 'tall' is a full-height carcass that is structurally identical to a
+ * base cabinet — it differs only by dimension presets applied at the UI layer.
+ */
+export type CabinetType = 'base' | 'wall' | 'tall';
+
 export interface BaseCabinetParams {
   readonly name: string;
+  readonly cabinetType?: CabinetType;
   readonly width: number;
   readonly depth: number;
   readonly height: number;
@@ -30,6 +40,9 @@ export interface BaseCabinetParams {
   readonly backMaterialId: MaterialId;
   readonly bandMaterialId: MaterialId | null;
 }
+
+export type WallCabinetParams = BaseCabinetParams & { readonly cabinetType: 'wall' };
+export type TallCabinetParams = BaseCabinetParams & { readonly cabinetType: 'tall' };
 
 export interface CabinetPanelDef {
   readonly role: PanelRole;

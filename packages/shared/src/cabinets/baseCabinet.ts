@@ -11,17 +11,22 @@ import type {
 import { CabinetTemplateError } from './types';
 
 const SHELF_DEPTH_SHRINK_MM = 20;
+const HANGING_RAIL_HEIGHT_MM = 80;
 
 export function buildBaseCabinet(
   params: BaseCabinetParams,
   registry: ReadonlyArray<MaterialEntry>,
 ): CabinetBuildOutput {
   const materials = resolveMaterials(params, registry);
-  validate(params, materials);
 
   const Tc = materials.carcass.defaultThickness;
   const Tb = materials.back.defaultThickness;
-  const { width: W, depth: D, height: H, toekickHeight: tkH, toekickSetback: tkS } = params;
+  const isWall = params.cabinetType === 'wall';
+  // Wall cabinets hang on the wall — no toekick regardless of the passed value.
+  const tkH = isWall ? 0 : params.toekickHeight;
+  const { width: W, depth: D, height: H, toekickSetback: tkS } = params;
+
+  validate(params, materials, tkH);
 
   const panels: CabinetPanelDef[] = [];
   const layout: CabinetComponentDef[] = [];
@@ -73,6 +78,18 @@ export function buildBaseCabinet(
       materialId: materials.carcass.id, grain: 'length',
       bands: bandsForRole('toekick', materials.band?.id ?? null),
       position: { x: Tc, y: D - tkS - Tc, z: 0 },
+    });
+  }
+
+  if (isWall) {
+    // Top-back nailer for hanging the cabinet: spans the inner width, tucked
+    // under the top panel and flush against the back.
+    pushPanel(panels, layout, {
+      role: 'hangingRail', fileNameSuffix: 'Hanging Rail',
+      length: W - 2 * Tc, width: HANGING_RAIL_HEIGHT_MM, thickness: Tc,
+      materialId: materials.carcass.id, grain: 'length',
+      bands: bandsForRole('hangingRail', materials.band?.id ?? null),
+      position: { x: Tc, y: Tb, z: H - Tc - HANGING_RAIL_HEIGHT_MM },
     });
   }
 
@@ -163,15 +180,20 @@ function resolveMaterials(
   return { carcass, back, band };
 }
 
-function validate(params: BaseCabinetParams, materials: ResolvedCabinetMaterials): void {
+function validate(
+  params: BaseCabinetParams,
+  materials: ResolvedCabinetMaterials,
+  effectiveToekickHeight: number,
+): void {
   const Tc = materials.carcass.defaultThickness;
+  const tkH = effectiveToekickHeight;
   if (params.name.trim() === '') throw new CabinetTemplateError({ kind: 'nameEmpty' });
   if (params.width <= 2 * Tc) throw new CabinetTemplateError({ kind: 'widthTooSmall', minDimension: 2 * Tc });
   if (params.depth <= 2 * Tc) throw new CabinetTemplateError({ kind: 'depthTooSmall', minDimension: 2 * Tc });
-  if (params.height <= 2 * Tc + params.toekickHeight) throw new CabinetTemplateError({ kind: 'heightTooSmall' });
-  if (params.toekickHeight >= params.height / 2) throw new CabinetTemplateError({ kind: 'toekickHeightTooLarge' });
+  if (params.height <= 2 * Tc + tkH) throw new CabinetTemplateError({ kind: 'heightTooSmall' });
+  if (tkH >= params.height / 2) throw new CabinetTemplateError({ kind: 'toekickHeightTooLarge' });
   if (params.toekickSetback >= params.depth - Tc) throw new CabinetTemplateError({ kind: 'toekickSetbackTooLarge' });
-  const innerH = params.height - params.toekickHeight - 2 * Tc;
+  const innerH = params.height - tkH - 2 * Tc;
   const maxShelves = Math.max(0, Math.floor(innerH / 100));
   if (params.shelfCount > maxShelves) {
     throw new CabinetTemplateError({ kind: 'shelfCountTooLarge', maxShelves });
