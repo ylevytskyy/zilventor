@@ -66,6 +66,7 @@
     "ribbon": "Ribbon",
     "setback": "Setback",
     "shelf_pin_dialog": "Система-32 shelf-pin dialog",
+    "groove": "Groove dialog",
     "sheetContextMenu": "Sheet context menu",
     "start_radius": "Start radius",
     "termination": "Termination",
@@ -587,6 +588,14 @@
       "columnsOne": "1 (front)",
       "columnsTwo": "2 (front + back)"
     },
+    "groove": {
+      "title": "Groove",
+      "face": "Face",
+      "axis": "Axis",
+      "position": "Position (mm)",
+      "width": "Width (mm)",
+      "depth": "Depth (mm)"
+    },
     "sketchRect": {
       "ariaLabel": "Rectangle dialog",
       "title": "Rectangle (two corner points)"
@@ -848,7 +857,8 @@
       "presadka": "Присадка",
       "showBores": "Show Bores",
       "system32Auto": "Система-32",
-      "system32Manual": "Система-32 (pick)"
+      "system32Manual": "Система-32 (pick)",
+      "groove": "Groove"
     },
     "model": {
       "axis": "Axis",

@@ -26,6 +26,7 @@ import { AddDrawerHandlesCommand } from '../../commands/AddDrawerHandlesCommand'
 import { AddFaceFrameCommand } from '../../commands/AddFaceFrameCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
+import { AddGrooveCommand } from '../../commands/AddGrooveCommand';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
@@ -312,6 +313,34 @@ export default function FurnitureTab() {
     useAppStore.getState().setOneComponentPickHandle(handle);
   };
 
+  const handleAddGroove = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (panelPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      const state = useAppStore.getState();
+      const allComponents = [
+        ...(state.activeAssembly?.components ?? []),
+        ...Object.values(state.subAssemblyDocs).flatMap((d) => d.components),
+      ];
+      const comp = allComponents.find((c) => c.partPath === panelPath);
+      const defaultFace: 'Top' | 'Bottom' =
+        comp?.role === 'rightSide' ? RIGHT_SIDE_INNER_FACE : LEFT_SIDE_INNER_FACE;
+      useAppStore.getState().setGrooveDialog({
+        panelPath,
+        defaultFace,
+        onSubmit: async (spec) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddGrooveCommand({ partPath: panelPath, groove: spec, opfs, store: useAppStore }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setGrooveDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title={t('ribbon.furniture.create')}>
@@ -448,6 +477,16 @@ export default function FurnitureTab() {
             aria-label={t('ribbon.furniture.system32Manual')}
           >
             {t('ribbon.furniture.system32Manual')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddGroove(); }}
+            aria-label={t('ribbon.furniture.groove')}
+          >
+            {t('ribbon.furniture.groove')}
           </button>
           <button type="button" className="text-xs hover:text-white"
             aria-pressed={showBores}

@@ -8,6 +8,7 @@ import type { NestState } from './nesting/nestState';
 import type { DrawingDocument } from './drawing/types';
 import type { CustomTextureDef } from './custom-texture-def';
 import type { BoreOp } from './bore';
+import type { GrooveFeature } from './groove';
 import type { PanelRole } from './cabinets/types';
 
 /** @deprecated Use ParameterUnit from './parameters' */
@@ -62,6 +63,7 @@ export type Feature =
   | WorkPointFeature
   | ImportedFeature
   | PanelFeature
+  | GrooveFeature
   | HardwareFeature;
 
 export type CachedGeometry = {

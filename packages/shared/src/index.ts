@@ -14,6 +14,8 @@ export type { UvProjection } from './uv-projection';
 export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
 export * from './bore';
+export * from './groove';
+export * from './grooveMath';
 export * from './prisadkaFaceConventions';
 export * from './shelfPinGrid';
 export * from './doorMath';

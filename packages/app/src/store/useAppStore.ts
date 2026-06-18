@@ -142,6 +142,14 @@ export type AddFaceFrameDialogState = {
   onCancel: () => void;
 };
 
+/** Groove (dado/rabbet) dialog: targets one picked panel. */
+export type GrooveDialogState = {
+  panelPath: string;
+  defaultFace: 'Top' | 'Bottom';
+  onSubmit: (spec: import('@zilventor/shared').GrooveSpec) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 /**
  * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
  * assembly's side panels; `manual` targets one picked panel + chosen broad face.
@@ -420,6 +428,8 @@ type AppState = {
   setAddDrawerHandleDialog: (s: AddDrawerHandleDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
+  grooveDialog: GrooveDialogState | null;
+  setGrooveDialog: (s: GrooveDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
   oneComponentPickHandle: OneComponentPickHandle | null;
   setOneComponentPickHandle: (h: OneComponentPickHandle | null) => void;
@@ -984,6 +994,8 @@ export const useAppStore = create<AppState>((set) => ({
   setAddDrawerHandleDialog: (s) => set({ addDrawerHandleDialog: s }),
   shelfPinDialog: null,
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
+  grooveDialog: null,
+  setGrooveDialog: (s) => set({ grooveDialog: s }),
   oneComponentPickHandle: null,
   setOneComponentPickHandle: (h) => set({ oneComponentPickHandle: h }),
   boreCacheInvalidator: null,

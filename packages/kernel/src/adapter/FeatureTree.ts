@@ -25,8 +25,8 @@ import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
-import { panelUvProjection, type UvProjection } from '@zilventor/shared';
-import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
+import { panelUvProjection, type UvProjection, buildGrooveCutter } from '@zilventor/shared';
+import { disposeShape, computeBoundingBox, makeBoxFromCorners, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, attachName, mergeFaceNames } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
@@ -681,6 +681,41 @@ export async function executeTree(
         };
       } catch (e) {
         // Soft-fail: keep the pre-hole body intact and record the error.
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+    } else if (feature.kind === 'groove') {
+      // Groove cuts a parametric channel into an existing body. Without a body
+      // there's nothing to cut — soft-fail (same convention as hole/sweep).
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Groove needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        // Panel dims from the running body's bbox. buildPanelBox is centred in
+        // X/Y with its base at Z=0, so bbox sizes reproduce face2DFrame's frame.
+        const [xmin, ymin, zmin, xmax, ymax, zmax] = computeBoundingBox(oc, finalSolid.shape);
+        const panelDims = { length: xmax - xmin, width: ymax - ymin, thickness: zmax - zmin };
+        const { p1, p2 } = buildGrooveCutter(panelDims, feature);
+        const cutter = makeBoxFromCorners(oc, p1, p2);
+        const cut = cutShapes(oc, finalSolid.shape, cutter);
+        disposeShape(cutter);
+        if (!cut.ok) {
+          featureErrors.set(feature.id, { ...cut.error, featureId: feature.id });
+          continue;
+        }
+        finalSolid = { shape: cut.value, faceNames: finalSolid.faceNames };
+      } catch (e) {
         featureErrors.set(feature.id, {
           kind: 'invalidParameter',
           message: (e instanceof Error) ? e.message : String(e),
