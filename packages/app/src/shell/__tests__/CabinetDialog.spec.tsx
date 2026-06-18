@@ -76,6 +76,58 @@ describe('CabinetDialog — structural', () => {
   });
 });
 
+describe('CabinetDialog — cabinet type selector', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setCabinetDialog(null);
+  });
+
+  it('renders a Type selector offering base/wall/tall', () => {
+    seedAsm();
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    render(<CabinetDialog />);
+    const sel = screen.getByLabelText('Type') as HTMLSelectElement;
+    const values = Array.from(sel.options).map((o) => o.value);
+    expect(values).toEqual(['base', 'wall', 'tall']);
+  });
+
+  it('selecting Wall submits cabinetType=wall with toekickHeight 0', async () => {
+    seedAsm();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit,
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'wall' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ cabinetType: 'wall', toekickHeight: 0 });
+  });
+
+  it('selecting Tall submits cabinetType=tall with a height preset ≥2000', async () => {
+    seedAsm();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setCabinetDialog({
+      template: 'baseCabinet',
+      onSubmit,
+      onCancel: () => useAppStore.getState().setCabinetDialog(null),
+    });
+    render(<CabinetDialog />);
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'tall' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const submitted = onSubmit.mock.calls[0]![0] as { cabinetType?: string; height: number };
+    expect(submitted.cabinetType).toBe('tall');
+    expect(submitted.height).toBeGreaterThanOrEqual(2000);
+  });
+});
+
 describe('CabinetDialog — validation', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);

@@ -160,6 +160,41 @@ describe('CreateCabinetCommand — mid-flight rollback', () => {
   });
 });
 
+describe('CreateCabinetCommand — cabinet type routing', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('wall type emits a Hanging Rail panel, no Toekick, and stamps the hangingRail role', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Wall Cab', cabinetType: 'wall', toekickHeight: 0, toekickSetback: 0 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths.some((p) => p.includes('Hanging Rail'))).toBe(true);
+    expect(paths.some((p) => p.includes('Toekick'))).toBe(false);
+
+    const project = await unpackProject(await opfs.read('Wall Cab.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; role?: PanelRole }> } }).document;
+    const roleByPath = new Map(doc.components.map((c) => [c.partPath, c.role]));
+    expect(roleByPath.get('Wall Cab - Hanging Rail.zipt')).toBe('hangingRail');
+  });
+
+  it('tall type is a base carcass (Toekick present, no Hanging Rail)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Tall Cab', cabinetType: 'tall', height: 2100 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths.some((p) => p.includes('Toekick'))).toBe(true);
+    expect(paths.some((p) => p.includes('Hanging Rail'))).toBe(false);
+  });
+});
+
 describe('CreateCabinetCommand — persists ComponentInstance.role', () => {
   beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
 

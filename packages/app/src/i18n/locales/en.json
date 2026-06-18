@@ -272,7 +272,12 @@
       "shelf_count": "Shelf count",
       "shelves_section": "Shelves",
       "title": "Base Cabinet",
-      "toekick_section": "Toekick (mm)"
+      "toekick_section": "Toekick (mm)",
+      "type_base": "Base (floor)",
+      "type_label": "Type",
+      "type_section": "Cabinet type",
+      "type_tall": "Tall",
+      "type_wall": "Wall (upper)"
     },
     "chamfer": {
       "distance": "Distance",

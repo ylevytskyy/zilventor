@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BaseCabinetParams, MaterialId } from '@zilventor/shared';
+import type { BaseCabinetParams, CabinetType, MaterialId } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 
 const overlayStyle: React.CSSProperties = {
@@ -30,9 +30,18 @@ const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', bo
 
 const DEFAULTS: Omit<BaseCabinetParams, 'carcassMaterialId' | 'backMaterialId'> = {
   name: 'Base Cabinet 1',
+  cabinetType: 'base',
   width: 600, depth: 560, height: 720,
   toekickHeight: 100, toekickSetback: 50,
   shelfCount: 1, bandMaterialId: null,
+};
+
+// Dimension presets applied when the user switches cabinet type. Wall uppers
+// hang on the wall (no toekick); tall units use a full-height preset (≥2000 mm).
+const TYPE_PRESETS: Record<CabinetType, Pick<BaseCabinetParams, 'height' | 'depth' | 'toekickHeight'>> = {
+  base: { height: 720, depth: 560, toekickHeight: 100 },
+  wall: { height: 720, depth: 320, toekickHeight: 0 },
+  tall: { height: 2100, depth: 560, toekickHeight: 100 },
 };
 
 export function CabinetDialog(): JSX.Element | null {
@@ -75,6 +84,10 @@ export function CabinetDialog(): JSX.Element | null {
     setParams((p) => ({ ...p, [k]: v }));
   }
 
+  function changeType(type: CabinetType): void {
+    setParams((p) => ({ ...p, cabinetType: type, ...TYPE_PRESETS[type] }));
+  }
+
   async function handleOk(): Promise<void> {
     if (hasErr) return;
     setSubmitError(null);
@@ -112,6 +125,18 @@ export function CabinetDialog(): JSX.Element | null {
           <input id="cab-name" style={inputStyle} value={params.name} onChange={(e) => patch('name', e.target.value)} />
         </div>
         {errors.name && <div style={errStyle}>{errors.name}</div>}
+
+        <div style={sectionHeading}>{t('dialog.cabinet.type_section')}</div>
+        <div style={fieldRow}>
+          <label style={labelStyle} htmlFor="cab-type">{t('dialog.cabinet.type_label')}</label>
+          <select id="cab-type" aria-label={t('dialog.cabinet.type_label')} style={inputStyle}
+            value={params.cabinetType ?? 'base'}
+            onChange={(e) => changeType(e.target.value as CabinetType)}>
+            <option value="base">{t('dialog.cabinet.type_base')}</option>
+            <option value="wall">{t('dialog.cabinet.type_wall')}</option>
+            <option value="tall">{t('dialog.cabinet.type_tall')}</option>
+          </select>
+        </div>
 
         <div style={sectionHeading}>{t('dialog.cabinet.dimensions_section')}</div>
         {(['width', 'depth', 'height'] as const).map((k) => (

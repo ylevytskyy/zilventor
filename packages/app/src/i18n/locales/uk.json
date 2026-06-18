@@ -272,7 +272,12 @@
       "shelf_count": "Кількість полиць",
       "shelves_section": "Полиці",
       "title": "Нижня шафа",
-      "toekick_section": "Цоколь (мм)"
+      "toekick_section": "Цоколь (мм)",
+      "type_base": "Нижня (підлогова)",
+      "type_label": "Тип",
+      "type_section": "Тип шафи",
+      "type_tall": "Висока",
+      "type_wall": "Навісна (верхня)"
     },
     "chamfer": {
       "distance": "Відстань",
