@@ -195,6 +195,36 @@ describe('CreateCabinetCommand — cabinet type routing', () => {
   });
 });
 
+describe('CreateCabinetCommand — corner cabinet template', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  const CORNER = {
+    name: 'Corner Cab',
+    width1: 900, depth1: 350, width2: 600, depth2: 350, height: 720,
+    carcassMaterialId: 'm-birch-18',
+    backMaterialId: 'm-hb-6',
+    bandMaterialId: null,
+  } as const;
+
+  it('writes the L-corner panels including a Corner Post and stamps the cornerPost role', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'cornerCabinet', params: { ...CORNER }, opfs }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    // 9 carcass panels for the L-unit.
+    expect(paths).toHaveLength(9);
+    expect(paths.some((p) => p.includes('Corner Post'))).toBe(true);
+    expect(paths.some((p) => p.includes('Bottom 2'))).toBe(true);
+
+    const project = await unpackProject(await opfs.read('Corner Cab.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; role?: PanelRole }> } }).document;
+    const roleByPath = new Map(doc.components.map((c) => [c.partPath, c.role]));
+    expect(roleByPath.get('Corner Cab - Corner Post.zipt')).toBe('cornerPost');
+    expect(doc.components).toHaveLength(9);
+    for (const c of doc.components) expect(c.role).toBeDefined();
+  });
+});
+
 describe('CreateCabinetCommand — persists ComponentInstance.role', () => {
   beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
 

@@ -71,7 +71,8 @@
     "termination": "Завершення",
     "text_input": "Текст",
     "circular_pattern": "Круговий масив",
-    "visible": "видимий"
+    "visible": "видимий",
+    "cornerCabinet": "Кутова шафа"
   },
   "browser": {
     "assembly_label": "Збірка: {{name}}",
@@ -285,6 +286,14 @@
       "no_edges": "Ребра не вибрані.",
       "pick_mode": "Режим вибору",
       "title": "Фаска"
+    },
+    "cornerCabinet": {
+      "depth1": "Глибина 1 (мм)",
+      "depth2": "Глибина 2 (мм)",
+      "height": "Висота (мм)",
+      "title": "Кутова шафа",
+      "width1": "Ширина 1 (мм)",
+      "width2": "Ширина 2 (мм)"
     },
     "dimension": {
       "name": "Назва",
@@ -819,6 +828,7 @@
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
+      "cornerCabinet": "Кутова шафа",
       "cabinetsPanel": "Панель шаф",
       "clearPresadku": "Очистити присадку",
       "create": "Створити",

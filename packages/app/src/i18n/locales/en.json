@@ -71,7 +71,8 @@
     "termination": "Termination",
     "text_input": "Text",
     "circular_pattern": "Circular Pattern",
-    "visible": "visible"
+    "visible": "visible",
+    "cornerCabinet": "Corner Cabinet"
   },
   "browser": {
     "assembly_label": "Assembly: {{name}}",
@@ -285,6 +286,14 @@
       "no_edges": "No edges selected.",
       "pick_mode": "Pick mode",
       "title": "Chamfer"
+    },
+    "cornerCabinet": {
+      "depth1": "Depth 1 (mm)",
+      "depth2": "Depth 2 (mm)",
+      "height": "Height (mm)",
+      "title": "Corner Cabinet",
+      "width1": "Width 1 (mm)",
+      "width2": "Width 2 (mm)"
     },
     "dimension": {
       "name": "Name",
@@ -819,6 +828,7 @@
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",
+      "cornerCabinet": "Corner Cabinet",
       "cabinetsPanel": "Cabinets panel",
       "clearPresadku": "Очистити присадку",
       "create": "Create",

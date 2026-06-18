@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import type { BaseCabinetParams, PanelFeature } from '@zilventor/shared';
+import type { BaseCabinetParams, CornerCabinetParams, PanelFeature } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { OpenPanelDialogCommand } from '../../commands/OpenPanelDialogCommand';
 import { OpenCabinetDialogCommand } from '../../commands/OpenCabinetDialogCommand';
+import { OpenCornerCabinetDialogCommand } from '../../commands/OpenCornerCabinetDialogCommand';
 import { OpenHardwareDialogCommand } from '../../commands/OpenHardwareDialogCommand';
 import { AddHardwareCommand } from '../../commands/AddHardwareCommand';
 import { AddPanelFeatureCommand } from '../../commands/AddPanelFeatureCommand';
@@ -71,6 +72,16 @@ export default function FurnitureTab() {
       );
     };
     await new OpenCabinetDialogCommand({ template: 'baseCabinet', onSubmit }).apply();
+  };
+
+  const handleCornerCabinet = async () => {
+    const onSubmit = async (params: CornerCabinetParams) => {
+      const opfs = await Opfs.forNavigator();
+      await useAppStore.getState().bus.execute(
+        new CreateCabinetCommand({ template: 'cornerCabinet', params, opfs }),
+      );
+    };
+    await new OpenCornerCabinetDialogCommand({ onSubmit }).apply();
   };
 
   const handleHardware = async () => {
@@ -325,6 +336,16 @@ export default function FurnitureTab() {
             title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
           >
             {t('ribbon.furniture.baseCabinet')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            onClick={() => { void handleCornerCabinet(); }}
+            aria-label={t('ribbon.furniture.cornerCabinet')}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+          >
+            {t('ribbon.furniture.cornerCabinet')}
           </button>
         </RibbonPanel>
       </div>

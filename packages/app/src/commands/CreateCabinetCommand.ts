@@ -3,10 +3,11 @@ import type {
   BaseCabinetParams,
   CabinetBuildOutput,
   ComponentInstance,
+  CornerCabinetParams,
   PanelFeature,
   PartDocument,
 } from '@zilventor/shared';
-import { CURRENT_FORMAT_VERSION, buildBaseCabinet } from '@zilventor/shared';
+import { CURRENT_FORMAT_VERSION, buildBaseCabinet, buildCornerCabinet } from '@zilventor/shared';
 import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -20,11 +21,11 @@ interface OpfsWriteDeleteCapable {
   delete?(path: string): Promise<void>;
 }
 
-export type CreateCabinetOpts = {
-  template: 'baseCabinet';
-  params: BaseCabinetParams;
-  opfs: OpfsLike & OpfsWriteDeleteCapable;
-};
+type OpfsArg = OpfsLike & OpfsWriteDeleteCapable;
+
+export type CreateCabinetOpts =
+  | { template: 'baseCabinet'; params: BaseCabinetParams; opfs: OpfsArg }
+  | { template: 'cornerCabinet'; params: CornerCabinetParams; opfs: OpfsArg };
 
 const SUFFIX_LIMIT = 999;
 
@@ -43,9 +44,10 @@ export class CreateCabinetCommand implements Command {
 
     const finalName = await this.resolveCollisionFreeName(this.opts.params.name);
     this.resolvedName = finalName;
-    const params = { ...this.opts.params, name: finalName };
 
-    const built = buildBaseCabinet(params, asm.materials);
+    const built = this.opts.template === 'cornerCabinet'
+      ? buildCornerCabinet({ ...this.opts.params, name: finalName }, asm.materials)
+      : buildBaseCabinet({ ...this.opts.params, name: finalName }, asm.materials);
 
     try {
       for (const p of built.panels) {
