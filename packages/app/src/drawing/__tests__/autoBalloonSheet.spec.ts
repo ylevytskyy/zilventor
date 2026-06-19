@@ -173,4 +173,131 @@ describe('autoBalloonSheet', () => {
     const result = autoBalloonSheet({ ...ARGS, sheet });
     expect(result).toHaveLength(0);
   });
+
+  it('silently skips a row whose component path has no tagged edges in any view', () => {
+    // c2 ('parts/shelf.zipt', item 2) has no edges in the projection.
+    // Only c1 ('parts/box.zipt', item 1) has edges → only 1 balloon produced.
+    const sheet: DrawingSheet = {
+      ...makeSheet(),
+      views: [
+        {
+          id: 'v1',
+          kind: 'base' as const,
+          positionMm: { x: 50, y: 50 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [
+              {
+                id: 'e1',
+                kind: 'feature' as const,
+                points: [[0, 0], [10, 10]] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c1',
+              },
+              // c2 intentionally absent
+            ],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+          },
+        },
+      ],
+    };
+    const balloons = autoBalloonSheet({ ...ARGS, sheet });
+    // Two rows total (items 1 and 2), but item 2 has no edges → only item 1 balloon.
+    expect(balloons.length).toBeLessThan(2);
+    expect(balloons.map((b) => b.itemNumber)).toContain(1);
+    expect(balloons.map((b) => b.itemNumber)).not.toContain(2);
+  });
+
+  it('uses each balloon best-view own max-x for column placement (multi-view, no cross-frame mixing)', () => {
+    // Setup:
+    //   view A: positionMm {x:10, y:0}, scale 1:1, wide geometry — edges span x [0..80]
+    //   view B: positionMm {x:200, y:0}, scale 1:1, narrow geometry — edges span x [0..20]
+    //
+    //   c1 (item 1) has edges ONLY in view B → best view = B, localMaxX = 20
+    //     colX = 200 + 20*1 + 30 = 250
+    //
+    //   c2 (item 2) has edges in BOTH views but more in view A → best view = A, localMaxX = 80
+    //     colX = 10 + 80*1 + 30 = 120
+    //
+    // The bug (before fix) would have used the GLOBAL max-x (80) for item 1:
+    //     colX = 200 + 80*1 + 30 = 310  ← wrong, mixed coordinate frames
+    //
+    const sheet: DrawingSheet = {
+      ...makeSheet(),
+      views: [
+        {
+          id: 'vA',
+          kind: 'base' as const,
+          positionMm: { x: 10, y: 0 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [
+              {
+                // c2 in view A: 4 edge points (wins the "most points" contest for c2)
+                id: 'eA2',
+                kind: 'feature' as const,
+                points: [
+                  [0, 0], [80, 0], [80, 40], [0, 40],
+                ] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c2',
+              },
+            ],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 80, maxY: 40 },
+          },
+        },
+        {
+          id: 'vB',
+          kind: 'base' as const,
+          positionMm: { x: 200, y: 0 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [
+              {
+                // c1 in view B only: 2 edge points → best view for c1 is B
+                id: 'eB1',
+                kind: 'feature' as const,
+                points: [
+                  [5, 5], [20, 15],
+                ] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c1',
+              },
+              {
+                // c2 in view B: 2 edge points (fewer than in A → best view for c2 stays A)
+                id: 'eB2',
+                kind: 'feature' as const,
+                points: [
+                  [0, 0], [20, 20],
+                ] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c2',
+              },
+            ],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
+          },
+        },
+      ],
+    };
+    const balloons = autoBalloonSheet({ ...ARGS, sheet });
+    expect(balloons).toHaveLength(2);
+
+    const b1 = balloons.find((b) => b.itemNumber === 1)!;
+    const b2 = balloons.find((b) => b.itemNumber === 2)!;
+
+    // c1 best view = vB (positionMm.x=200, localMaxX=20, scale=1)
+    // colX = 200 + 20*1 + 30 = 250
+    expect(b1.viewId).toBe('vB');
+    expect(b1.textPosMm.x).toBe(250);
+
+    // c2 best view = vA (positionMm.x=10, localMaxX=80, scale=1)
+    // colX = 10 + 80*1 + 30 = 120
+    expect(b2.viewId).toBe('vA');
+    expect(b2.textPosMm.x).toBe(120);
+  });
 });

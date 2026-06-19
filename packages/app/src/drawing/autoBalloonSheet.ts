@@ -53,9 +53,6 @@ export function autoBalloonSheet(args: {
   );
   if (viewsWithProjection.length === 0) return [];
 
-  // Pre-compute the rightmost view-local x for the ladder x-offset.
-  const viewMaxX = computeViewMaxX(viewsWithProjection);
-
   const result: BalloonAnnotation[] = [];
   let ladderStep = 0;
 
@@ -66,7 +63,7 @@ export function autoBalloonSheet(args: {
     const hit = bestViewBBoxCenter(viewsWithProjection, cp);
     if (!hit) continue;
 
-    const { view, cx: localCx, cy: localCy } = hit;
+    const { view, cx: localCx, cy: localCy, localMaxX } = hit;
     const s = view.scale.numerator / view.scale.denominator;
 
     // Sheet-space target: positionMm + local * scale  (matches center-mark in AnnotationElement)
@@ -75,8 +72,9 @@ export function autoBalloonSheet(args: {
       y: view.positionMm.y + localCy * s,
     };
 
-    // Ladder: stack in a column to the right of the widest view.
-    const colX = view.positionMm.x + viewMaxX * s + COLUMN_DX;
+    // Ladder: stack in a column to the right of the BEST VIEW's own right edge.
+    // Using the best view's local max-x avoids mixing coordinate frames across views.
+    const colX = view.positionMm.x + localMaxX * s + COLUMN_DX;
     const textPosMm = {
       x: colX,
       y: view.positionMm.y + ladderStep * LADDER_DY,
@@ -106,13 +104,21 @@ type ViewWithProjection = DrawingView & {
 
 /**
  * Pick the view where the component path has the most edge-point entries.
- * Returns the bbox center in VIEW-LOCAL mm space.
+ * Returns the bbox center in VIEW-LOCAL mm space, plus the view's own local
+ * max-x (across ALL edges in that view, not just this component's) for ladder
+ * column placement that stays within the chosen view's coordinate frame.
  */
 function bestViewBBoxCenter(
   views: ViewWithProjection[],
   cp: string,
-): { view: ViewWithProjection; cx: number; cy: number } | null {
-  let best: { view: ViewWithProjection; cx: number; cy: number; count: number } | null = null;
+): { view: ViewWithProjection; cx: number; cy: number; localMaxX: number } | null {
+  let best: {
+    view: ViewWithProjection;
+    cx: number;
+    cy: number;
+    localMaxX: number;
+    count: number;
+  } | null = null;
 
   for (const view of views) {
     const proj = view.projection;
@@ -132,30 +138,32 @@ function bestViewBBoxCenter(
 
     if (count === 0) continue;
 
+    // Compute the rightmost view-local x across ALL edges in this view
+    // (not just the component's edges) so the ladder column clears the
+    // entire view, not only the component's bbox.
+    // Initialize to -Infinity so an all-negative-x view is handled correctly.
+    let viewLocalMaxX = -Infinity;
+    for (const e of [...proj.visibleEdges, ...proj.hiddenEdges]) {
+      for (const [x] of e.points) {
+        if (x > viewLocalMaxX) viewLocalMaxX = x;
+      }
+    }
+    // Fall back to 0 when there are no points at all (empty projection).
+    if (viewLocalMaxX === -Infinity) viewLocalMaxX = 0;
+
     if (!best || count > best.count) {
       best = {
         view,
         cx: (minX + maxX) / 2,
         cy: (minY + maxY) / 2,
+        localMaxX: viewLocalMaxX,
         count,
       };
     }
   }
 
-  return best ? { view: best.view, cx: best.cx, cy: best.cy } : null;
+  return best
+    ? { view: best.view, cx: best.cx, cy: best.cy, localMaxX: best.localMaxX }
+    : null;
 }
 
-/**
- * Returns the maximum view-local x across all projections (for ladder column placement).
- */
-function computeViewMaxX(views: ViewWithProjection[]): number {
-  let maxX = 0;
-  for (const view of views) {
-    for (const e of [...view.projection.visibleEdges, ...view.projection.hiddenEdges]) {
-      for (const [x] of e.points) {
-        if (x > maxX) maxX = x;
-      }
-    }
-  }
-  return maxX;
-}
