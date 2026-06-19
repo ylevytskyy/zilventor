@@ -33,6 +33,8 @@ export function AddDoorDialog(): JSX.Element | null {
   const [count, setCount] = React.useState<'single' | 'double'>('single');
   const [hingeSide, setHingeSide] = React.useState<'left' | 'right'>('left');
   const [overlay, setOverlay] = React.useState<'full' | 'half' | 'inset'>('full');
+  const [style, setStyle] = React.useState<'slab' | 'shaker' | 'raisedPanel'>('slab');
+  const [frameWidth, setFrameWidth] = React.useState('70');
   const [thickness, setThickness] = React.useState('18');
   const [reveal, setReveal] = React.useState('2');
   const [clearance, setClearance] = React.useState('2');
@@ -46,6 +48,8 @@ export function AddDoorDialog(): JSX.Element | null {
       setCount('single');
       setHingeSide('left');
       setOverlay('full');
+      setStyle('slab');
+      setFrameWidth('70');
       setThickness('18');
       setReveal('2');
       setClearance('2');
@@ -71,6 +75,8 @@ export function AddDoorDialog(): JSX.Element | null {
         reveal: Number(reveal),
         clearance: Number(clearance),
         centerReveal: Number(centerReveal),
+        style,
+        frameWidth: Number(frameWidth),
       });
       setDialog(null);
     } catch (err: unknown) {
@@ -140,6 +146,34 @@ export function AddDoorDialog(): JSX.Element | null {
             <option value="half">{t('dialog.addDoor.overlayHalf')}</option>
             <option value="inset">{t('dialog.addDoor.overlayInset')}</option>
           </select>
+        </div>
+
+        <div style={rowStyle}>
+          <label htmlFor="adddoor-style">{t('dialog.addDoor.style')}</label>
+          <select
+            id="adddoor-style"
+            aria-label={t('dialog.addDoor.style')}
+            style={fieldStyle}
+            value={style}
+            onChange={(e) => setStyle(e.target.value as 'slab' | 'shaker' | 'raisedPanel')}
+          >
+            <option value="slab">{t('dialog.addDoor.styleSlab')}</option>
+            <option value="shaker">{t('dialog.addDoor.styleShaker')}</option>
+            <option value="raisedPanel">{t('dialog.addDoor.styleRaisedPanel')}</option>
+          </select>
+        </div>
+
+        <div style={rowStyle}>
+          <label htmlFor="adddoor-framewidth">{t('dialog.addDoor.frameWidth')}</label>
+          <input
+            id="adddoor-framewidth"
+            aria-label={t('dialog.addDoor.frameWidth')}
+            style={fieldStyle}
+            type="number"
+            value={frameWidth}
+            disabled={style === 'slab'}
+            onChange={(e) => setFrameWidth(e.target.value)}
+          />
         </div>
 
         <div style={rowStyle}>

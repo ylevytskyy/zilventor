@@ -111,6 +111,8 @@ export type AddDoorDialogState = {
     reveal: number;
     clearance: number;
     centerReveal: number;
+    style: 'slab' | 'shaker' | 'raisedPanel';
+    frameWidth: number;
   }) => Promise<void> | void;
   onCancel: () => void;
 };

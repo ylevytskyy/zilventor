@@ -16,6 +16,15 @@ export interface DoorMathInput {
   reveal: number;              // r, default 2 (overlay)
   clearance: number;           // c, default 2 (inset)
   centerReveal: number;        // cr, default 3 (double)
+  /** Door construction style. Absent/'slab' = single panel (legacy). 'shaker'/
+   *  'raisedPanel' = framed door built as a nested rail+stile+panel .ziasm.
+   *  Additive (v27) — no migration; doorMath itself is style-agnostic (it sizes
+   *  the OUTER door leaves), the command reads style to choose the builder. */
+  style?: 'slab' | 'shaker' | 'raisedPanel';
+  /** Rail & stile width for framed styles (mm). Default 70. */
+  frameWidth?: number;
+  /** Center-panel thickness for framed styles (mm). Default = thickness. */
+  panelThickness?: number;
 }
 
 export interface DoorPanel {

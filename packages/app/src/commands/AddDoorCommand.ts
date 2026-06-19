@@ -10,11 +10,14 @@ import type {
 import {
   CURRENT_FORMAT_VERSION,
   doorMath,
+  computeShakerParts,
+  faceExtents,
   hingeCupBores,
   hingePositions,
   hingePlateBores,
   DEFAULT_SHELF_PIN_PARAMS,
 } from '@zilventor/shared';
+import type { GrooveSpec } from '@zilventor/shared';
 // ADDENDUM §1: import face-sign constants from the shared conventions module (Phase 0 output).
 // DO NOT re-declare local literals — a single Phase-0 change propagates to all consumers.
 import {
@@ -29,6 +32,10 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { dedupeName } from '../import/dedupeName';
 import { useAppStore } from '../store/useAppStore';
 import { deriveCabinetDims } from './cabinetDims';
+import { buildShakerDoor } from './buildShakerDoor';
+
+/** Default rail/stile width (mm) for framed doors when params omit frameWidth. */
+const DEFAULT_FRAME_WIDTH = 70;
 
 type OpfsRWD = {
   read(p: string): Promise<Uint8Array>;
@@ -44,11 +51,13 @@ type KernelPartApi = {
 
 /** A door created during apply() — recorded so revert (and redo) can replay/undo it. */
 interface CreatedDoor {
-  partPath: string;     // OPFS .zipt path of the door part
-  partId: string;       // PartDocument id (for kernel deletePart)
+  partPath: string;     // OPFS path of the door artifact (.zipt slab, or .ziasm shaker)
+  partId: string;       // slab: PartDocument id (kernel deletePart). shaker: unused ('')
   componentId: string;  // ComponentInstance.id pushed into the cabinet doc
-  bytes: Uint8Array;    // packed .zipt bytes (for redo without rebuild)
+  bytes: Uint8Array;    // packed bytes of the door artifact (for redo without rebuild)
   component: ComponentInstance; // the pushed component (for redo re-push)
+  /** Framed (shaker) door members — present only when the door is a nested .ziasm. */
+  members?: { path: string; partId: string; bytes: Uint8Array }[];
 }
 
 export class AddDoorCommand implements Command {
@@ -86,17 +95,82 @@ export class AddDoorCommand implements Command {
     if (!isRedo) {
       const panels = doorMath(resolvedParams);
       const existingNames = this.listZiptBasenames(cab);
+      const style = resolvedParams.style ?? 'slab';
       let index = 0;
       for (const panel of panels) {
         const doorH = panel.dims.length;
         const doorW = panel.dims.width;
         const Td = panel.dims.thickness;
 
-        // Door part name — de-dup against existing .zipt basenames.
+        // Door part name — de-dup against existing component basenames.
         const baseName = panels.length === 1
           ? `${cab.name} - Door`
           : `${cab.name} - Door ${index + 1}`;
         const finalName = dedupeName(baseName, [...existingNames, ...doors.map((d) => basenameOf(d.partPath))]);
+
+        if (style !== 'slab') {
+          // ── Framed (shaker / raised-panel) door: nested rail+stile+panel .ziasm ──
+          const shaker = computeShakerParts({
+            doorW,
+            doorH,
+            thickness: Td,
+            frameWidth: resolvedParams.frameWidth ?? DEFAULT_FRAME_WIDTH,
+            ...(resolvedParams.panelThickness !== undefined
+              ? { panelThickness: resolvedParams.panelThickness }
+              : {}),
+          });
+          const doorPath = `${finalName}.ziasm`;
+          // Raised-panel: a perimeter rebate on the center panel's back face → raised field.
+          // (Simplified; true router-bit profiling deferred to Wave 1c per plan.)
+          const centerPanelGrooves =
+            style === 'raisedPanel'
+              ? raisedPanelRebateGrooves(
+                  shaker.parts.find((p) => p.role === 'doorCenterPanel')!.dims,
+                  resolvedParams.frameWidth ?? DEFAULT_FRAME_WIDTH,
+                )
+              : undefined;
+          const built = await buildShakerDoor(
+            shaker,
+            {
+              doorId: finalName,
+              name: finalName,
+              materialId: cab.materials[0]?.id ?? 'm',
+              ...(centerPanelGrooves ? { centerPanelGrooves } : {}),
+            },
+            this.opts.opfs,
+          );
+          if (this.opts.kernel) {
+            for (const doc of built.memberDocs) await this.opts.kernel.registerPart(doc);
+          }
+          await this.opts.opfs.write(doorPath, built.bytes);
+
+          // Place the whole frame at the slab door's pose — composedPoses composes this
+          // quaternion onto each member (identity-posed in door-part frame), landing the
+          // frame upright at the cabinet front exactly where a slab door sits.
+          const component: ComponentInstance = {
+            id: `D${Date.now()}-${index}`,
+            partPath: doorPath,
+            position: { x: panel.pose.translation.x, y: panel.pose.translation.y, z: panel.pose.translation.z },
+            rotation: { rx: 0, ry: 0, rz: 0 },
+            visible: true,
+            pose: panel.pose,
+            role: 'door',
+            doorSpec: panel.doorSpec,
+          };
+          // Capture member bytes for redo replay (read back the just-written .zipts).
+          const members: { path: string; partId: string; bytes: Uint8Array }[] = [];
+          for (let i = 0; i < built.memberPaths.length; i++) {
+            members.push({
+              path: built.memberPaths[i]!,
+              partId: built.memberPartIds[i]!,
+              bytes: await this.opts.opfs.read(built.memberPaths[i]!),
+            });
+          }
+          doors.push({ partPath: doorPath, partId: '', componentId: component.id, bytes: built.bytes, component, members });
+          index++;
+          continue;
+        }
+
         const doorPath = `${finalName}.zipt`;
 
         // Door PanelFeature (length=doorH, width=doorW, thickness=Td literals).
@@ -145,13 +219,22 @@ export class AddDoorCommand implements Command {
       }
       this.createdDoors = doors;
     } else {
-      // REDO: re-register parts + re-write the captured .zipt bytes (skip doorMath/rebuild).
+      // REDO: re-register parts + re-write the captured bytes (skip doorMath/rebuild).
       for (const d of doors) {
-        if (this.opts.kernel) {
-          const re = await unpackProjectDoc(d);
-          await this.opts.kernel.registerPart(re);
+        if (d.members) {
+          // Framed door: re-register each member part + re-write member .zipts and the .ziasm.
+          for (const m of d.members) {
+            if (this.opts.kernel) await this.opts.kernel.registerPart(await unpackPartBytes(m.bytes));
+            await this.opts.opfs.write(m.path, m.bytes);
+          }
+          await this.opts.opfs.write(d.partPath, d.bytes);
+        } else {
+          if (this.opts.kernel) {
+            const re = await unpackProjectDoc(d);
+            await this.opts.kernel.registerPart(re);
+          }
+          await this.opts.opfs.write(d.partPath, d.bytes);
         }
-        await this.opts.opfs.write(d.partPath, d.bytes);
       }
     }
 
@@ -183,7 +266,17 @@ export class AddDoorCommand implements Command {
 
     // Delete door parts (kernel + OPFS).
     for (const d of doors) {
-      if (this.opts.kernel) await this.opts.kernel.deletePart(d.partId);
+      if (d.members) {
+        // Framed door: deregister + delete each member .zipt, then the door .ziasm.
+        for (const m of d.members) {
+          if (this.opts.kernel) await this.opts.kernel.deletePart(m.partId);
+          if (typeof this.opts.opfs.delete === 'function') {
+            try { await this.opts.opfs.delete(m.path); } catch { /* best-effort */ }
+          }
+        }
+      } else if (this.opts.kernel) {
+        await this.opts.kernel.deletePart(d.partId);
+      }
       if (typeof this.opts.opfs.delete === 'function') {
         try { await this.opts.opfs.delete(d.partPath); } catch { /* best-effort */ }
       }
@@ -238,6 +331,9 @@ export class AddDoorCommand implements Command {
     const affectedSidePaths = new Set<string>();
 
     for (const d of doors) {
+      // Framed (shaker) doors are nested .ziasm with no single PanelFeature; hinge
+      // boring on framed doors is deferred (cups belong in the stile) — skip plate bores.
+      if (d.members) continue;
       const spec = d.component.doorSpec!;
       const side = await this.resolveSidePanel(cab, spec.hingeSide);
       if (!side) continue;
@@ -311,6 +407,28 @@ function basenameOf(path: string): string {
 }
 
 /**
+ * Four through-channel grooves on the center panel's back broad face ('Bottom'),
+ * forming a picture-frame rebate around the perimeter so the central field stands
+ * proud — a simplified raised panel. Two 'u'-axis channels rebate the v-edges and
+ * two 'v'-axis channels rebate the u-edges; they overlap at the corners.
+ * True router-bit profiling is deferred to Wave 1c (plan).
+ */
+function raisedPanelRebateGrooves(
+  centerDims: { length: number; width: number; thickness: number },
+  frameWidth: number,
+): GrooveSpec[] {
+  const { uLen, vLen } = faceExtents(centerDims, 'Bottom');
+  const land = Math.min(frameWidth / 2, 20); // rebate land width
+  const depth = Math.min(centerDims.thickness / 2, 6);
+  return [
+    { faceRole: 'Bottom', axis: 'u', position: land / 2, width: land, depth, label: 'raisedPanelRebate' },
+    { faceRole: 'Bottom', axis: 'u', position: vLen - land / 2, width: land, depth, label: 'raisedPanelRebate' },
+    { faceRole: 'Bottom', axis: 'v', position: land / 2, width: land, depth, label: 'raisedPanelRebate' },
+    { faceRole: 'Bottom', axis: 'v', position: uLen - land / 2, width: land, depth, label: 'raisedPanelRebate' },
+  ];
+}
+
+/**
  * Pack a door PartDocument into a .zipt (manifest-only — PanelFeature regenerates geometry).
  * ADDENDUM §5: async because writeTarGz (tarGzipUtil.ts:91) returns Promise<Uint8Array>.
  * Mirrors CreateCabinetCommand.packPanelPart (which is also async and awaits writeTarGz).
@@ -319,6 +437,12 @@ async function packDoorZipt(doc: PartDocument): Promise<Uint8Array> {
   const manifest = { formatVersion: CURRENT_FORMAT_VERSION, kind: 'part' as const, document: doc };
   const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
   return writeTarGz([{ name: 'manifest.json', data: manifestBytes }]);
+}
+
+/** Re-read a member PartDocument from packProject .zipt bytes (shaker redo re-register). */
+async function unpackPartBytes(bytes: Uint8Array): Promise<PartDocument> {
+  const project = await unpackProject(bytes);
+  return (project.manifest as { document: PartDocument }).document;
 }
 
 /** Re-read a door PartDocument from its captured bytes (redo re-register). */

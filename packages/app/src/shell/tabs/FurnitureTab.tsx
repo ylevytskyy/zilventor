@@ -160,6 +160,8 @@ export default function FurnitureTab() {
                 reveal: p.reveal,
                 clearance: p.clearance,
                 centerReveal: p.centerReveal,
+                style: p.style,
+                frameWidth: p.frameWidth,
               },
               opfs,
               store: useAppStore,

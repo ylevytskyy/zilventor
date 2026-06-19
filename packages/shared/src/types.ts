@@ -128,8 +128,10 @@ export type ComponentInstance = {
   pose?: { translation: Vec3; quaternion: [number, number, number, number] };
   color?: ComponentColor;
   flexible?: boolean;
-  /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21. */
-  role?: PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle';
+  /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21.
+   *  doorStile/doorRail/doorCenterPanel are the members of a framed (shaker) door's
+   *  nested .ziasm — Additive v27. */
+  role?: PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle' | 'doorStile' | 'doorRail' | 'doorCenterPanel';
   /** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
   doorSpec?: DoorSpec;
   /** Drawer bank spec; present only on role:'drawerFront'|'drawerBox' components. Additive v24. */

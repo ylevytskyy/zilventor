@@ -19,6 +19,7 @@ export * from './grooveMath';
 export * from './prisadkaFaceConventions';
 export * from './shelfPinGrid';
 export * from './doorMath';
+export * from './framedDoorMath';
 export * from './hingeMath';
 export * from './connectorCatalog';
 export * from './jointMath';
