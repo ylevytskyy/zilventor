@@ -5,6 +5,7 @@ export type Edge3D = {
   readonly id: string;
   readonly points: ReadonlyArray<readonly [number, number, number]>;
   readonly adjacentFaces?: readonly string[];
+  readonly componentPath?: string;
 };
 
 export type Edge2D = {
@@ -12,6 +13,7 @@ export type Edge2D = {
   readonly kind: 'silhouette' | 'feature' | 'outline';
   readonly points: ReadonlyArray<readonly [number, number]>;
   readonly sourceFaceIds?: readonly string[];
+  readonly componentPath?: string;
 };
 
 export type ClassifiedEdges = {
@@ -82,6 +84,7 @@ export function classifyEdges(
         kind: 'outline',
         points: run.pts,
         ...(edge.adjacentFaces !== undefined && { sourceFaceIds: edge.adjacentFaces }),
+        ...(edge.componentPath !== undefined && { componentPath: edge.componentPath }),
       };
       if (run.vis) {
         visibleEdges.push(e2d);
