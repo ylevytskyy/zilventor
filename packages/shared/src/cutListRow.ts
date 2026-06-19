@@ -35,7 +35,18 @@ export type CutListRow = {
   partPath: string;
   partName: string;
   componentPathKeys: string[];
+  oversize?: { lengthMm: number; widthMm: number };
 };
+
+/** Cut (raw) length = finished length + length oversize allowance (0 if absent). */
+export function rawLength(row: CutListRow): number {
+  return row.length + (row.oversize?.lengthMm ?? 0);
+}
+
+/** Cut (raw) width = finished width + width oversize allowance (0 if absent). */
+export function rawWidth(row: CutListRow): number {
+  return row.width + (row.oversize?.widthMm ?? 0);
+}
 
 export type EdgeBandTotal = {
   materialId: MaterialId;

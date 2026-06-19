@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutListRowKey, normalizeLW, aggregateCutListLocal, compareCutListRowsForRenumber, pruneCutListItemNumbers } from '../cutListRow';
+import { cutListRowKey, normalizeLW, aggregateCutListLocal, compareCutListRowsForRenumber, pruneCutListItemNumbers, rawLength, rawWidth } from '../cutListRow';
 import type { CutListRow } from '../cutListRow';
 import type { PanelSpec } from '../panel-feature';
 import type { ComponentInstance, AssemblyDocument } from '../types';
@@ -13,6 +13,43 @@ const baseSpec = (overrides: Partial<PanelSpec> = {}): PanelSpec => ({
   grain: 'length',
   edgeBands: { front: null, back: null, left: null, right: null },
   ...overrides,
+});
+
+const baseRow = (overrides: Partial<CutListRow> = {}): CutListRow => ({
+  rowKey: 'L=600|W=400|T=18|M=m-birch|G=length',
+  itemNumber: 1,
+  qty: 1,
+  length: 600,
+  width: 400,
+  thickness: 18,
+  materialId: 'm-birch',
+  materialName: 'Birch',
+  grain: 'length',
+  edgeBands: { front: null, back: null, left: null, right: null },
+  partPath: 'p.zipt',
+  partName: 'Side',
+  componentPathKeys: ['c1'],
+  ...overrides,
+});
+
+describe('rawLength / rawWidth', () => {
+  it('returns net dimensions when no oversize', () => {
+    const row = baseRow({ length: 600, width: 400 });
+    expect(rawLength(row)).toBe(600);
+    expect(rawWidth(row)).toBe(400);
+  });
+
+  it('adds oversize to net dimensions', () => {
+    const row = baseRow({ length: 600, width: 400, oversize: { lengthMm: 10, widthMm: 6 } });
+    expect(rawLength(row)).toBe(610);
+    expect(rawWidth(row)).toBe(406);
+  });
+
+  it('applies length and width oversize independently', () => {
+    const row = baseRow({ length: 600, width: 400, oversize: { lengthMm: 10, widthMm: 0 } });
+    expect(rawLength(row)).toBe(610);
+    expect(rawWidth(row)).toBe(400);
+  });
 });
 
 describe('normalizeLW', () => {
