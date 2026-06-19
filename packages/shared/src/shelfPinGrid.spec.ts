@@ -50,6 +50,39 @@ describe('columnPositions — centered system-32 ladder', () => {
   });
 });
 
+describe('columnPositions — configurable start offset (System-32 datum)', () => {
+  it('startOffset omitted is identical to startOffset=0 (back-compat)', () => {
+    expect(columnPositions(64, 656, 32)).toEqual(columnPositions(64, 656, 32, 0));
+  });
+
+  it('startOffset=0 keeps the centered ladder (current behavior)', () => {
+    const xs = columnPositions(64, 656, 32, 0);
+    const first = xs[0] ?? 0;
+    const last = xs[xs.length - 1] ?? 0;
+    expect(first - 64).toBeCloseTo(656 - last, 9); // still centered
+  });
+
+  it('startOffset=16 anchors the first hole at start+startOffset', () => {
+    const xs = columnPositions(64, 656, 32, 16);
+    expect(xs[0]).toBeCloseTo(80, 9); // 64 + 16
+  });
+
+  it('steps at exactly pitch from the offset anchor', () => {
+    const xs = columnPositions(64, 656, 32, 16);
+    for (let i = 1; i < xs.length; i++) {
+      expect((xs[i] ?? 0) - (xs[i - 1] ?? 0)).toBeCloseTo(32, 9);
+    }
+  });
+
+  it('keeps every offset hole within [start+startOffset, end]', () => {
+    const xs = columnPositions(64, 656, 32, 16);
+    for (const x of xs) {
+      expect(x).toBeGreaterThanOrEqual(80 - 1e-9);
+      expect(x).toBeLessThanOrEqual(656 + 1e-9);
+    }
+  });
+});
+
 // Build a REAL side panel via buildBaseCabinet and read its native dims.
 // Side panel native frame = {length:H, width:D, thickness:Tc} (baseCabinet.ts:30-43).
 const CARCASS: MaterialEntry = { id: 'm-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' };
@@ -144,6 +177,21 @@ describe('shelfPinGrid — 2-column system-32 grid on a side inner broad face', 
     const bores = shelfPinGrid(dims, 'Top', p);
     const ids = bores.map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('honors params.startOffset — first front-column hole shifts to bottomMargin+startOffset', () => {
+    const bores = shelfPinGrid(dims, 'Top', { ...p, startOffset: 16 });
+    const frontUs = bores
+      .filter((b) => b.connectorId === 'pin-col-front')
+      .map((b) => b.u)
+      .sort((a, b) => a - b);
+    expect(frontUs[0]).toBeCloseTo(p.bottomMargin + 16, 9); // 64 + 16 = 80
+  });
+
+  it('startOffset omitted/0 yields the centered grid (back-compat)', () => {
+    const centered = shelfPinGrid(dims, 'Top', p).map((b) => b.u);
+    const zero = shelfPinGrid(dims, 'Top', { ...p, startOffset: 0 }).map((b) => b.u);
+    expect(zero).toEqual(centered);
   });
 
   it('honors columns:1 (front column only)', () => {
