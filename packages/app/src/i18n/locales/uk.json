@@ -461,6 +461,11 @@
       "kerf": "Ширина пропилу (мм)",
       "kerfAriaLabel": "Ширина пропилу",
       "kerfError": "Ширина пропилу має бути позитивним числом.",
+      "oversizeLength": "Припуск Д (мм)",
+      "oversizeLengthAriaLabel": "Припуск довжини",
+      "oversizeWidth": "Припуск Ш (мм)",
+      "oversizeWidthAriaLabel": "Припуск ширини",
+      "oversizeError": "Припуск має бути нулем або позитивним числом.",
       "summary": "{{count}} панелей за {{materials}} матеріалами буде розкладено",
       "title": "Генерувати розкладку"
     },

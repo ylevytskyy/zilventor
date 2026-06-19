@@ -21,11 +21,11 @@ export function NestingTab() {
   useEffect(() => {
     let cancelled = false;
     const kerf = nest?.params.kerfMm ?? 3;
-    void computeNestFingerprint(cutListResult.rows, materials, kerf).then((fp) => {
+    void computeNestFingerprint(cutListResult.rows, materials, kerf, nest?.params.oversize).then((fp) => {
       if (!cancelled) setCurrentFingerprint(fp);
     });
     return () => { cancelled = true; };
-  }, [cutListResult.rows, materials, nest?.params.kerfMm]);
+  }, [cutListResult.rows, materials, nest?.params.kerfMm, nest?.params.oversize?.lengthMm, nest?.params.oversize?.widthMm]);
 
   const stale = !!nest && currentFingerprint !== null && currentFingerprint !== nest.inputFingerprint;
 
@@ -50,7 +50,7 @@ export function NestingTab() {
   });
 
   const handleRegenerate = () => {
-    void bus.execute(new GenerateNestCommand({ kerfMm: nest.params.kerfMm, result: cutListResult, materials }));
+    void bus.execute(new GenerateNestCommand({ kerfMm: nest.params.kerfMm, ...(nest.params.oversize ? { oversize: nest.params.oversize } : {}), result: cutListResult, materials }));
   };
 
   const handleExportPng = (sheet: NestSheet) => {

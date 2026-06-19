@@ -461,6 +461,11 @@
       "kerf": "Kerf (mm)",
       "kerfAriaLabel": "Kerf",
       "kerfError": "Kerf must be a positive number.",
+      "oversizeLength": "Oversize L (mm)",
+      "oversizeLengthAriaLabel": "Length oversize",
+      "oversizeWidth": "Oversize W (mm)",
+      "oversizeWidthAriaLabel": "Width oversize",
+      "oversizeError": "Oversize must be zero or a positive number.",
       "summary": "{{count}} panels across {{materials}} materials will be nested",
       "title": "Generate Nest"
     },
