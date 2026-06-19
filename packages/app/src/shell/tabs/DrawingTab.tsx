@@ -5,6 +5,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../../drawing/toolMode';
 import { pickFile } from '../fsaFallback';
 import { AddSheetCommand } from '../../commands/AddSheetCommand';
+import { AutoBalloonCommand } from '../../commands/AutoBalloonCommand';
+import { autoBalloonSheet } from '../../drawing/autoBalloonSheet';
 import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand';
 import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
 import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
@@ -246,6 +248,45 @@ export default function DrawingTab(): JSX.Element {
           onClick={() => setMode('addBalloon')}
         >
           {t('ribbon.drawing.balloon')}
+        </button>
+        {/* Auto-balloon: Task 8 — one balloon per BOM row, anchored to component bbox center */}
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label={t('ribbon.drawing.autoBalloon')}
+          disabled={!isAssembly}
+          aria-disabled={!isAssembly}
+          title={!isAssembly ? t('ribbon.drawing.balloonTip') : undefined}
+          onClick={() => {
+            const drw = useAppStore.getState().activeDrawing;
+            const sheet = drw
+              ? (drw.sheets.find((s) => s.id === drw.activeSheetId) ?? drw.sheets[0])
+              : undefined;
+            const srcDoc = useAppStore.getState().activeDrawingSourceDocument;
+            const asm = (srcDoc && 'components' in srcDoc ? srcDoc : null)
+              ?? useAppStore.getState().activeAssembly
+              ?? undefined;
+            if (!sheet || !asm) return;
+            const subAsmDocs = useAppStore.getState().subAssemblyDocs;
+            const cache = {
+              get: (p: string) =>
+                subAsmDocs[p]
+                  ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
+                  : undefined,
+            };
+            const balloons = autoBalloonSheet({
+              sheet,
+              asm,
+              cache,
+              partInfo: new Map(),
+              panelSpecs: new Map(),
+            });
+            if (balloons.length > 0) {
+              void bus.execute(new AutoBalloonCommand({ sheetId: sheet.id, balloons }));
+            }
+          }}
+        >
+          {t('ribbon.drawing.autoBalloon')}
         </button>
         {/* Hole Table: Drawing F6 */}
         <button

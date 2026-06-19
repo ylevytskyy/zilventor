@@ -796,6 +796,8 @@
       "annotate": "Annotate",
       "autoDim": "Auto-Dim",
       "autoDimTip": "Place parametric dimensions from base sketch parameters — click a view after enabling",
+      "autoBalloon": "Auto-balloon",
+      "autoBalloonTip": "Automatically place balloon annotations for all assembly parts",
       "balloon": "Balloon",
       "balloonTip": "Balloon annotations require an assembly drawing",
       "baseline": "Baseline",
