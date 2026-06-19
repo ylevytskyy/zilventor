@@ -972,10 +972,16 @@ export function DrawingCanvas() {
       const srcAsm = srcDoc && 'components' in srcDoc ? srcDoc : useAppStore.getState().activeAssembly;
       if (!liveDrw || !liveSheet || !srcAsm || !edgeId) { setClickAccum([]); return; }
 
-      const v = liveSheet.views.find((vw) => vw.id === viewId) ?? liveSheet.views[0];
-      const proj = v?.projection;
+      // Finding #3: no-op on view mismatch instead of falling back to views[0]
+      const v = liveSheet.views.find((vw) => vw.id === viewId);
+      if (!v) { setClickAccum([]); return; }
+
+      const proj = v.projection;
       const edge = proj ? [...proj.visibleEdges, ...proj.hiddenEdges].find((e) => e.id === edgeId) : undefined;
       const cp = edge?.componentPath;
+
+      // Finding #5: guard before the BOM walk — skip if no componentPath on the edge
+      if (!cp) { setClickAccum([]); return; }
 
       const subAsmDocs = useAppStore.getState().subAssemblyDocs;
       const cacheAdapter = {
@@ -985,7 +991,7 @@ export function DrawingCanvas() {
             : undefined,
       };
       const rows = aggregateBomRecursive(srcAsm, cacheAdapter, partInfoCacheRef.current ?? new Map());
-      const item = cp ? itemNumberByComponentPath(rows).get(cp) : undefined;
+      const item = itemNumberByComponentPath(rows).get(cp);
 
       if (item === undefined) { setClickAccum([]); return; }
 
@@ -994,7 +1000,7 @@ export function DrawingCanvas() {
         ann: {
           id: `ann-${Date.now()}`,
           kind: 'balloon',
-          viewId: v!.id,
+          viewId: v.id, // Finding #4: v is guaranteed defined here; no assertion needed
           targetMm: { x: svgX, y: svgY },
           textPosMm: { x: svgX + 12, y: svgY - 12 },
           itemNumber: item,

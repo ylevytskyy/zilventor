@@ -32,6 +32,13 @@ const EDGE_ID = 'v1_e1_0';
 const UNTAGGED_EDGE_ID = 'v1_untagged_0';
 const VIEW_ID = 'v1';
 
+// Finding #2: WHY item 1 resolves from this seed without a PartDocument in subAssemblyDocs.
+// aggregateBomRecursive builds BOM rows by walking srcAsm.components; for each leaf component
+// it emits a BomRow whose itemNumber comes from srcAsm.bomItemNumbers[bomRowKey(partPath, color)].
+// The cacheAdapter (subAssemblyDocs) is only consulted to resolve nested sub-assemblies —
+// it provides the sub-assembly doc for name/description/further recursion, NOT the item number.
+// A missing subAssemblyDocs entry for a LEAF part (one that is never used as a parent .ziasm)
+// is therefore fine: the item number 1 is read directly from bomItemNumbers['parts/box.zipt::none'].
 const makeAssembly = (): AssemblyDocument => ({
   id: 'asm1',
   name: 'Test Assembly',
@@ -127,7 +134,10 @@ describe('DrawingCanvas — addBalloon tool mode', () => {
     useToolModeStore.setState({ mode: 'addBalloon' } as never);
     const { container } = render(<DrawingCanvas />);
 
-    // Find the rendered polyline for the tagged edge and click it
+    // Find the rendered polyline for the tagged edge and click it.
+    // clientX/Y become svgX/Y directly in JSDOM because getBoundingClientRect()
+    // returns {width:0, height:0}, so the handler takes the else branch:
+    //   svgX = e.clientX = 50, svgY = e.clientY = 50
     const edgeEl = container.querySelector(`[data-edge-id="${EDGE_ID}"]`) as Element | null;
     expect(edgeEl).not.toBeNull(); // sanity: edge must be rendered
 
@@ -135,6 +145,13 @@ describe('DrawingCanvas — addBalloon tool mode', () => {
 
     // Flush microtasks (bus.execute is awaited with void)
     await Promise.resolve();
+
+    // Finding #1(a): assert exact targetMm — proves the coord transform produced
+    // svgX=50, svgY=50 (JSDOM fallback path: no viewport scaling).
+    // Finding #1(b): assert exact textPosMm = targetMm + {x:+12, y:-12} —
+    // locks the offset relationship so a broken offset cannot pass silently.
+    const EXPECTED_X = 50;
+    const EXPECTED_Y = 50;
 
     expect(busExecuteSpy).toHaveBeenCalledTimes(1);
     expect(AddDrawingAnnotationCommand).toHaveBeenCalledWith(
@@ -144,7 +161,8 @@ describe('DrawingCanvas — addBalloon tool mode', () => {
           kind: 'balloon',
           viewId: VIEW_ID,
           itemNumber: 1,
-          targetMm: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+          targetMm: { x: EXPECTED_X, y: EXPECTED_Y },
+          textPosMm: { x: EXPECTED_X + 12, y: EXPECTED_Y - 12 },
         }),
       }),
     );
@@ -158,6 +176,26 @@ describe('DrawingCanvas — addBalloon tool mode', () => {
     expect(edgeEl).not.toBeNull();
 
     fireEvent.click(edgeEl!, { clientX: 10, clientY: 10 });
+    await Promise.resolve();
+
+    expect(busExecuteSpy).not.toHaveBeenCalled();
+  });
+
+  it('addBalloon click with a non-matching viewId does not dispatch', async () => {
+    // Finding #3 regression: a mismatched viewId should no-op rather than
+    // silently falling back to views[0] and ballooning the wrong view.
+    useToolModeStore.setState({ mode: 'addBalloon' } as never);
+    const { container } = render(<DrawingCanvas />);
+
+    // The edge has data-view-id set to VIEW_ID ('v1'); override it with an
+    // unknown id so the handler's views.find() returns undefined.
+    const edgeEl = container.querySelector(`[data-edge-id="${EDGE_ID}"]`) as Element | null;
+    expect(edgeEl).not.toBeNull();
+
+    // Temporarily override data-view-id on the element
+    edgeEl!.setAttribute('data-view-id', 'nonexistent-view');
+
+    fireEvent.click(edgeEl!, { clientX: 50, clientY: 50 });
     await Promise.resolve();
 
     expect(busExecuteSpy).not.toHaveBeenCalled();
