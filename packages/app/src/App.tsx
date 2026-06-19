@@ -65,7 +65,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, TessellatedFace } from '@zilventor/shared';
+import type { BoreOp, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -3134,8 +3134,8 @@ export default function App() {
   // geometryCacheRef / partBoresCacheRef so stale face tables are never served.
   const partTessellatedFacesCacheRef = useRef<Map<string, TessellatedFace[]>>(new Map());
   // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
-  // Holds the full {bores?, suppressedConnectorIds?} object so commands can mutate in place.
-  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[] }>>(new Map());
+  // Holds the full {bores?, suppressedConnectorIds?, shelfPinParams?} object so commands can mutate in place.
+  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -4318,7 +4318,7 @@ export default function App() {
               // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
               partTessellatedFacesCacheRef.current.set(partPath, res.value.tessellatedFaces ?? []);
               // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
-              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[] });
+              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
               // hand so bore markers render without requiring the Cut List tab to be visited.
               // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so

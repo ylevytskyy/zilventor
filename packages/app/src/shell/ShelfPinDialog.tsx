@@ -35,6 +35,7 @@ export function ShelfPinDialog(): JSX.Element | null {
   const [backSetback, setBackSetback] = React.useState('37');
   const [topMargin, setTopMargin] = React.useState('64');
   const [bottomMargin, setBottomMargin] = React.useState('64');
+  const [startOffset, setStartOffset] = React.useState('0');
   const [columns, setColumns] = React.useState<'1' | '2'>('2');
 
   // Reset defaults each time the dialog opens.
@@ -47,6 +48,7 @@ export function ShelfPinDialog(): JSX.Element | null {
       setBackSetback('37');
       setTopMargin('64');
       setBottomMargin('64');
+      setStartOffset('0');
       setColumns('2');
     }
   }, [dialog]);
@@ -62,6 +64,7 @@ export function ShelfPinDialog(): JSX.Element | null {
       backSetback: Number(backSetback),
       topMargin: Number(topMargin),
       bottomMargin: Number(bottomMargin),
+      startOffset: Number(startOffset),
       columns: (columns === '1' ? 1 : 2),
     });
     setDialog(null);
@@ -112,6 +115,7 @@ export function ShelfPinDialog(): JSX.Element | null {
         {numRow('shelfpin-backsetback', 'dialog.shelfPin.backSetback', backSetback, setBackSetback)}
         {numRow('shelfpin-topmargin', 'dialog.shelfPin.topMargin', topMargin, setTopMargin)}
         {numRow('shelfpin-bottommargin', 'dialog.shelfPin.bottomMargin', bottomMargin, setBottomMargin)}
+        {numRow('shelfpin-startoffset', 'dialog.shelfPin.startOffset', startOffset, setStartOffset)}
 
         <div style={rowStyle}>
           <label htmlFor="shelfpin-columns">{t('dialog.shelfPin.columns')}</label>

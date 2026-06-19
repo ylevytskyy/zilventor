@@ -9,6 +9,7 @@ import type { DrawingDocument } from './drawing/types';
 import type { CustomTextureDef } from './custom-texture-def';
 import type { BoreOp } from './bore';
 import type { GrooveFeature } from './groove';
+import type { ShelfPinParams } from './shelfPinGrid';
 import type { PanelRole } from './cabinets/types';
 
 /** @deprecated Use ParameterUnit from './parameters' */
@@ -93,6 +94,10 @@ export type PartDocument = {
    *  resurrect them.
    *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
   suppressedConnectorIds?: string[];
+  /** The система-32 grid params last used to drill this panel's shelf-pin bores.
+   *  Persisted by GenerateShelfPinBoresCommand so a later start-offset tweak can
+   *  re-run the grid without resetting custom pitch/setbacks. Additive, no migration. */
+  shelfPinParams?: ShelfPinParams;
 };
 
 export type ComponentColor =

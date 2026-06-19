@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
-import type { BoreOp } from '@zilventor/shared';
+import type { BoreOp, ShelfPinParams } from '@zilventor/shared';
+import { DEFAULT_SHELF_PIN_PARAMS } from '@zilventor/shared';
 import { rotate } from '@zilventor/shared/src/jointMath';
 import { EditBoreCommand } from '../commands/EditBoreCommand';
 import { DeleteConnectorCommand } from '../commands/DeleteConnectorCommand';
 import { MoveConnectorCommand } from '../commands/MoveConnectorCommand';
+import { UpdateShelfPinStartOffsetCommand } from '../commands/UpdateShelfPinStartOffsetCommand';
 import { collectConnectorMembers } from './collectConnectorMembers';
 
 type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8Array): Promise<void> };
@@ -30,7 +32,7 @@ interface Props {
    * receive this reference so mutate+persist+boreCacheInvalidator refreshes
    * markers correctly via the same object the cache holds.
    */
-  getLiveDoc: (partPath: string) => { bores?: BoreOp[]; suppressedConnectorIds?: string[] } | null;
+  getLiveDoc: (partPath: string) => { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams } | null;
   /**
    * Returns all loaded member docs with their panel dims and world poses.
    * Called at command-construction time to build the cross-document member list.
@@ -64,6 +66,8 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
   // Both reset to 0 after each commit — they represent a relative delta, not an absolute value.
   const [jointDelta, setJointDelta] = useState('0');
   const [hingeDelta, setHingeDelta] = useState('0');
+  // 1a.4 column start offset: null = show persisted value; string = user is editing.
+  const [offsetDraft, setOffsetDraft] = useState<string | null>(null);
 
   if (!bore || !selectedBorePartPath) return null;
 
@@ -124,6 +128,35 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
 
   const hasJointDir = bore.connectorKind === 'confirmat' || bore.connectorKind === 'minifix' || bore.connectorKind === 'dowel';
   const isHinge = bore.connectorKind === 'hinge';
+  const isShelfPin = bore.role === 'shelfPin-system32';
+
+  // The persisted (committed) start offset for the selected panel's grid.
+  const persistedOffset = getLiveDoc(selectedBorePartPath)?.shelfPinParams?.startOffset ?? 0;
+
+  /** Re-run the carcass shelf-pin grid with a new column start offset, keeping
+   *  the panel's other persisted grid params. Warns if a manual edit would be left stale. */
+  function commitOffset() {
+    if (offsetDraft === null) return;
+    const num = parseFloat(offsetDraft);
+    if (!isFinite(num)) { setOffsetDraft(null); return; }
+    const liveDoc = getLiveDoc(selectedBorePartPath!);
+    const base: ShelfPinParams = liveDoc?.shelfPinParams ?? DEFAULT_SHELF_PIN_PARAMS;
+    // Warn: regen preserves manually-edited holes at their OLD positions (mergeBores).
+    const hasEditedPin = (liveDoc?.bores ?? []).some(
+      (b) => b.role === 'shelfPin-system32' && b.edited === true,
+    );
+    if (hasEditedPin) {
+      useAppStore.getState().setStatus(
+        t('bore.start_offset_kept_edits', 'Start offset regenerated the shelf-pin grid; manually moved holes stayed at their old positions.'),
+      );
+    }
+    void bus.execute(new UpdateShelfPinStartOffsetCommand({
+      params: { ...base, startOffset: num },
+      opfs: opfs ?? null,
+      store: useAppStore,
+    }));
+    setOffsetDraft(null);
+  }
 
   function commitJointMove() {
     if (!bore!.jointDir) return;
@@ -238,6 +271,22 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
             onChange={(e) => setHingeDelta(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { commitHingeMove(); } if (e.key === 'Escape') { setHingeDelta('0'); } }}
             onBlur={() => commitHingeMove()}
+          />
+        </label>
+      )}
+      {isShelfPin && (
+        <label style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ minWidth: 80, color: '#aaa', fontSize: 11 }}>
+            {t('bore.column_start_offset', 'Column start offset (mm)')}
+          </span>
+          <input
+            type="number"
+            aria-label={t('bore.column_start_offset', 'Column start offset (mm)')}
+            value={offsetDraft ?? String(persistedOffset)}
+            style={{ width: 80, fontSize: 11, background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, padding: '1px 4px' }}
+            onChange={(e) => setOffsetDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { commitOffset(); } if (e.key === 'Escape') { setOffsetDraft(null); } }}
+            onBlur={() => commitOffset()}
           />
         </label>
       )}

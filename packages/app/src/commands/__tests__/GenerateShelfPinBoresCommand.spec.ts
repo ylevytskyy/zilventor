@@ -189,6 +189,47 @@ describe('GenerateShelfPinBoresCommand — auto recurse', () => {
   });
 });
 
+async function shelfPinParamsOf(opfs: MemOpfs, path: string) {
+  const project = await unpackProject(await opfs.read(path));
+  return (project.manifest as { document: { shelfPinParams?: unknown } }).document.shelfPinParams;
+}
+
+describe('GenerateShelfPinBoresCommand — persists the grid params (1a.4)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('writes the ShelfPinParams it used onto each drilled side panel doc', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+    const params = { ...DEFAULT_SHELF_PIN_PARAMS, pitch: 40, startOffset: 16 };
+
+    await new GenerateShelfPinBoresCommand({ params, opfs }).apply();
+
+    expect(await shelfPinParamsOf(opfs, LP)).toEqual(params);
+    expect(await shelfPinParamsOf(opfs, RP)).toEqual(params);
+    // Horizontal panels are never drilled → never tagged.
+    expect(await shelfPinParamsOf(opfs, BP)).toBeUndefined();
+  });
+
+  it('revert() removes shelfPinParams it added when none existed before', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+    const cmd = new GenerateShelfPinBoresCommand({ params: DEFAULT_SHELF_PIN_PARAMS, opfs });
+    await cmd.apply();
+    expect(await shelfPinParamsOf(opfs, LP)).toBeDefined();
+
+    await cmd.revert();
+
+    for (const path of [LP, RP]) {
+      const project = await unpackProject(await opfs.read(path));
+      const doc = (project.manifest as { document: Record<string, unknown> }).document;
+      expect('shelfPinParams' in doc, `${path}: shelfPinParams must be absent after revert`).toBe(false);
+    }
+  });
+});
+
 describe('GenerateShelfPinBoresCommand — boreCacheInvalidator', () => {
   beforeEach(() => {
     useAppStore.getState().setActiveDocument(null);

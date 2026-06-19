@@ -166,6 +166,7 @@ export type ShelfPinDialogState = {
     backSetback: number;
     topMargin: number;
     bottomMargin: number;
+    startOffset: number;
     columns: 1 | 2;
   }) => void;
   onCancel: () => void;

@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BorePropertiesPanel } from '../BorePropertiesPanel';
 import { useAppStore } from '../../store/useAppStore';
-import type { BoreOp } from '@zilventor/shared';
+import { DEFAULT_SHELF_PIN_PARAMS } from '@zilventor/shared';
+import type { BoreOp, ShelfPinParams } from '@zilventor/shared';
 
 vi.mock('../../commands/EditBoreCommand', () => ({
   EditBoreCommand: class {
@@ -23,6 +24,15 @@ vi.mock('../../commands/MoveConnectorCommand', () => ({
   MoveConnectorCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
+  },
+}));
+
+vi.mock('../../commands/UpdateShelfPinStartOffsetCommand', () => ({
+  UpdateShelfPinStartOffsetCommand: class {
+    name = 'UpdateShelfPinStartOffset';
+    constructor(public opts: unknown) {}
+    async apply() {}
+    async revert() {}
   },
 }));
 
@@ -198,6 +208,74 @@ describe('BorePropertiesPanel', () => {
       capturedDoc = calls[0];
       expect(capturedDoc).toBe(liveDoc);
     }
+  });
+
+  // ── 1a.4: column start offset field (shelf-pin only) ──────────────────────
+  it('shows a Column start offset field for shelfPin bores, seeded from persisted params', () => {
+    const bore = shelfPinBore();
+    setSelectedBore(bore);
+    const props = makeProps(bore);
+    const doc = { bores: [bore], shelfPinParams: { ...DEFAULT_SHELF_PIN_PARAMS, startOffset: 16 } };
+    props.getLiveDoc = () => doc;
+    render(<BorePropertiesPanel {...props} />);
+    expect((screen.getByLabelText('Column start offset (mm)') as HTMLInputElement).value).toBe('16');
+  });
+
+  it('does NOT show the offset field for a non-shelfPin bore', () => {
+    const bore = confirmatBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+    expect(screen.queryByLabelText('Column start offset (mm)')).toBeNull();
+  });
+
+  it('committing the offset dispatches UpdateShelfPinStartOffsetCommand with persisted params + new offset', async () => {
+    const { UpdateShelfPinStartOffsetCommand } = await import('../../commands/UpdateShelfPinStartOffsetCommand');
+    const applySpy = vi.spyOn(UpdateShelfPinStartOffsetCommand.prototype, 'apply').mockResolvedValue(undefined);
+    const bore = shelfPinBore();
+    setSelectedBore(bore);
+    const props = makeProps(bore);
+    const doc = { bores: [bore], shelfPinParams: { ...DEFAULT_SHELF_PIN_PARAMS, pitch: 40, startOffset: 0 } };
+    props.getLiveDoc = () => doc;
+    render(<BorePropertiesPanel {...props} />);
+
+    const field = screen.getByLabelText('Column start offset (mm)') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: '24' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    expect(applySpy).toHaveBeenCalled();
+    const inst = applySpy.mock.instances[0] as unknown as { opts: { params: ShelfPinParams } };
+    expect(inst.opts.params).toMatchObject({ pitch: 40, startOffset: 24 }); // custom pitch kept
+  });
+
+  it('falls back to DEFAULT params when the doc has no persisted shelfPinParams', async () => {
+    const { UpdateShelfPinStartOffsetCommand } = await import('../../commands/UpdateShelfPinStartOffsetCommand');
+    const applySpy = vi.spyOn(UpdateShelfPinStartOffsetCommand.prototype, 'apply').mockResolvedValue(undefined);
+    const bore = shelfPinBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />); // doc has bores but no shelfPinParams
+
+    const field = screen.getByLabelText('Column start offset (mm)') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: '20' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    const inst = applySpy.mock.instances[0] as unknown as { opts: { params: ShelfPinParams } };
+    expect(inst.opts.params).toMatchObject({ pitch: DEFAULT_SHELF_PIN_PARAMS.pitch, startOffset: 20 });
+  });
+
+  it('warns via setStatus when an edited shelf-pin hole would be left behind', () => {
+    useAppStore.getState().setStatus('Ready');
+    const bore = { ...shelfPinBore(), edited: true };
+    setSelectedBore(bore);
+    const props = makeProps(bore);
+    const doc = { bores: [bore], shelfPinParams: { ...DEFAULT_SHELF_PIN_PARAMS } };
+    props.getLiveDoc = () => doc;
+    render(<BorePropertiesPanel {...props} />);
+
+    const field = screen.getByLabelText('Column start offset (mm)') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: '24' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+
+    expect(useAppStore.getState().statusMessage).toMatch(/manually moved/i);
   });
 
   // ── B1: carcass along-joint move dispatches MoveConnectorCommand ──────────

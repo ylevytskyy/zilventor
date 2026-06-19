@@ -171,9 +171,11 @@
     "along_joint": "Along joint",
     "axis_u": "U (mm)",
     "axis_v": "V (mm)",
+    "column_start_offset": "Column start offset (mm)",
     "diameter_mm": "Ø (mm)",
     "height": "Height",
-    "regenerate_to_enable_move": "Regenerate bores to enable move"
+    "regenerate_to_enable_move": "Regenerate bores to enable move",
+    "start_offset_kept_edits": "Start offset regenerated the shelf-pin grid; manually moved holes stayed at their old positions."
   },
   "dialog": {
     "addBreak": {
@@ -584,6 +586,7 @@
       "backSetback": "Back setback (mm)",
       "topMargin": "Top margin (mm)",
       "bottomMargin": "Bottom margin (mm)",
+      "startOffset": "Start offset (mm)",
       "columns": "Columns",
       "columnsOne": "1 (front)",
       "columnsTwo": "2 (front + back)"
