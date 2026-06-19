@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-fill)', () => {
   it('CURRENT_FORMAT_VERSION is 18', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(29);
+    expect(CURRENT_FORMAT_VERSION).toBe(30);
   });
 
   it('v17 drawing with SectionView missing mode → v18 view has mode: full', () => {
@@ -25,7 +25,7 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
       },
     };
     const out = migrateManifest(v17) as { formatVersion: number; document: { sheets: Array<{ views: Array<{ kind: string; mode?: string; cutSide?: unknown; splitPlane?: unknown }> }> } };
-    expect(out.formatVersion).toBe(29);
+    expect(out.formatVersion).toBe(30);
     const sv = out.document.sheets[0]!.views.find(v => v.kind === 'section')!;
     expect(sv.mode).toBe('full');
     expect(sv.cutSide).toBeUndefined();
@@ -59,7 +59,7 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
   it('v17 non-drawing passes through to v18 unchanged', () => {
     const v17 = { formatVersion: 17, kind: 'part', document: { id: 'p1', name: 'Panel', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [] } };
     const out = migrateManifest(v17) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(29);
+    expect(out.formatVersion).toBe(30);
     expect(out.kind).toBe('part');
   });
 
@@ -81,7 +81,7 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
       },
     };
     const out = migrateManifest(JSON.parse(JSON.stringify(v18))) as { formatVersion: number; document: { sheets: Array<{ views: Array<{ kind: string; mode?: string; cutSide?: number; splitPlane?: { origin: { x: number }; normal: { y: number } } }> }> } };
-    expect(out.formatVersion).toBe(29);
+    expect(out.formatVersion).toBe(30);
     const hsv = out.document.sheets[0]!.views.find(v => v.kind === 'section')!;
     expect(hsv.mode).toBe('half');
     expect(hsv.cutSide).toBe(1);
@@ -93,7 +93,7 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
   it('v18 manifest passes through without re-migration', () => {
     const v18 = { formatVersion: 18, kind: 'part', document: { id: 'p2', name: 'Shelf', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [] } };
     const out = migrateManifest(v18) as { formatVersion: number };
-    expect(out.formatVersion).toBe(29);
+    expect(out.formatVersion).toBe(30);
   });
 
   // SS-MIG-1: v18 drawing with mode: 'stepped' + valid stepSegments round-trips intact
@@ -142,7 +142,7 @@ describe('migrateManifest v17 → v18 (Drawing F1.1 — half-section mode back-f
         }>;
       };
     };
-    expect(out.formatVersion).toBe(29);
+    expect(out.formatVersion).toBe(30);
     const ss = out.document.sheets[0]!.views.find(v => v.kind === 'section')!;
     expect(ss.mode).toBe('stepped');
     expect(ss.stepSegments).toBeDefined();

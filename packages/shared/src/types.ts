@@ -110,6 +110,18 @@ export type PartDocument = {
    *  suppressedConnectorIds; injected as [] at format v29.
    *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
   suppressedFeatureIds?: string[];
+  /** Named iPart configurations (design table). Each configuration maps parameter
+   *  names to expressions; activating one bulk-sets those parameters. Injected as []
+   *  at format v30.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  configurations?: Configuration[];
+};
+
+/** A named iPart configuration: parameter name → expression overrides applied
+ *  together when the configuration is activated. (Milestone 2.5) */
+export type Configuration = {
+  name: string;
+  values: Record<string, string>;
 };
 
 /** A single `target = expression` assignment applied when a rule fires. */

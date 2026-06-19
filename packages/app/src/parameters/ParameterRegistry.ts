@@ -25,8 +25,34 @@ export class ParameterRegistry {
     return () => this.listeners.delete(listener);
   }
 
+  private batchDepth = 0;
+  private pendingEmit = false;
+
   private emit(): void {
+    if (this.batchDepth > 0) {
+      this.pendingEmit = true;
+      return;
+    }
     for (const l of this.listeners) l();
+  }
+
+  /**
+   * Runs `fn`, coalescing every parameter-change notification it triggers into a
+   * single subscriber burst emitted once after `fn` returns. Nestable via a depth
+   * counter; the deferred emit fires only when the outermost batch unwinds, and
+   * only if at least one mutation occurred inside.
+   */
+  batch<T>(fn: () => T): T {
+    this.batchDepth++;
+    try {
+      return fn();
+    } finally {
+      this.batchDepth--;
+      if (this.batchDepth === 0 && this.pendingEmit) {
+        this.pendingEmit = false;
+        this.emit();
+      }
+    }
   }
 
   /**

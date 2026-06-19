@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 29 as const;
+export const CURRENT_FORMAT_VERSION = 30 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -401,6 +401,17 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 29 };
   },
+  // v29 → v30: iPart configurations — inject an empty `configurations` array onto
+  // every part document so the design-table machinery has a stable field to read.
+  // Assembly documents have no configurations. (Milestone 2.5)
+  29: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: Record<string, unknown> };
+    if (anyM.kind === 'part' && anyM.document && anyM.document.configurations === undefined) {
+      anyM.document.configurations = [];
+    }
+    return { ...m, formatVersion: 30 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -412,7 +423,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 22 || m.formatVersion === 23 || m.formatVersion === 24 ||
      m.formatVersion === 25 || m.formatVersion === 26 ||
      m.formatVersion === 27 || m.formatVersion === 28 ||
-     m.formatVersion === 29) &&
+     m.formatVersion === 29 || m.formatVersion === 30) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
