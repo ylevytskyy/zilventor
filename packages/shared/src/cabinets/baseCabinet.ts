@@ -35,7 +35,7 @@ export function buildBaseCabinet(
     role: 'leftSide', fileNameSuffix: 'Left Side',
     length: H, width: D, thickness: Tc,
     materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('leftSide', materials.band?.id ?? null),
+    bands: bandsForRole('leftSide', materials.band ?? null),
     position: { x: 0, y: 0, z: 0 },
   });
 
@@ -43,7 +43,7 @@ export function buildBaseCabinet(
     role: 'rightSide', fileNameSuffix: 'Right Side',
     length: H, width: D, thickness: Tc,
     materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('rightSide', materials.band?.id ?? null),
+    bands: bandsForRole('rightSide', materials.band ?? null),
     position: { x: W - Tc, y: 0, z: 0 },
   });
 
@@ -51,7 +51,7 @@ export function buildBaseCabinet(
     role: 'bottom', fileNameSuffix: 'Bottom',
     length: W - 2 * Tc, width: D - Tb, thickness: Tc,
     materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('bottom', materials.band?.id ?? null),
+    bands: bandsForRole('bottom', materials.band ?? null),
     position: { x: Tc, y: Tb, z: tkH },
   });
 
@@ -59,7 +59,7 @@ export function buildBaseCabinet(
     role: 'top', fileNameSuffix: 'Top',
     length: W - 2 * Tc, width: D - Tb, thickness: Tc,
     materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('top', materials.band?.id ?? null),
+    bands: bandsForRole('top', materials.band ?? null),
     position: { x: Tc, y: Tb, z: H - Tc },
   });
 
@@ -67,7 +67,7 @@ export function buildBaseCabinet(
     role: 'back', fileNameSuffix: 'Back',
     length: W, width: H, thickness: Tb,
     materialId: materials.back.id, grain: 'length',
-    bands: bandsForRole('back', materials.band?.id ?? null),
+    bands: bandsForRole('back', materials.band ?? null),
     position: { x: 0, y: 0, z: 0 },
   });
 
@@ -76,7 +76,7 @@ export function buildBaseCabinet(
       role: 'toekick', fileNameSuffix: 'Toekick',
       length: W - 2 * Tc, width: tkH, thickness: Tc,
       materialId: materials.carcass.id, grain: 'length',
-      bands: bandsForRole('toekick', materials.band?.id ?? null),
+      bands: bandsForRole('toekick', materials.band ?? null),
       position: { x: Tc, y: D - tkS - Tc, z: 0 },
     });
   }
@@ -88,7 +88,7 @@ export function buildBaseCabinet(
       role: 'hangingRail', fileNameSuffix: 'Hanging Rail',
       length: W - 2 * Tc, width: HANGING_RAIL_HEIGHT_MM, thickness: Tc,
       materialId: materials.carcass.id, grain: 'length',
-      bands: bandsForRole('hangingRail', materials.band?.id ?? null),
+      bands: bandsForRole('hangingRail', materials.band ?? null),
       position: { x: Tc, y: Tb, z: H - Tc - HANGING_RAIL_HEIGHT_MM },
     });
   }
@@ -104,7 +104,7 @@ export function buildBaseCabinet(
         role: 'shelf', shelfIndex: i, fileNameSuffix: `Shelf ${i}`,
         length: W - 2 * Tc, width: D - Tb - SHELF_DEPTH_SHRINK_MM, thickness: Tc,
         materialId: materials.carcass.id, grain: 'length',
-        bands: bandsForRole('shelf', materials.band?.id ?? null),
+        bands: bandsForRole('shelf', materials.band ?? null),
         position: { x: Tc, y: Tb, z },
       });
     }
@@ -155,11 +155,11 @@ function pushPanel(
   });
 }
 
-function bandsForRole(role: PanelRole, bandId: MaterialId | null): PanelFeature['edgeBands'] {
+function bandsForRole(role: PanelRole, band: MaterialEntry | null): PanelFeature['edgeBands'] {
   const empty = { front: null, back: null, left: null, right: null } as const;
-  if (bandId === null) return empty;
+  if (band === null) return empty;
   if (role === 'leftSide' || role === 'rightSide' || role === 'bottom' || role === 'top' || role === 'shelf') {
-    return { front: { materialId: bandId }, back: null, left: null, right: null };
+    return { front: { materialId: band.id, thickness: band.bandThicknessMm ?? 0.4 }, back: null, left: null, right: null };
   }
   return empty;
 }

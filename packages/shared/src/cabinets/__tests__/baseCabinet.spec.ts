@@ -188,7 +188,7 @@ describe('buildBaseCabinet — edge bands', () => {
     for (const p of out.panels) {
       const fr = p.panel.edgeBands.front;
       if (banded.includes(p.role)) {
-        expect(fr).toEqual({ materialId: 'm-pvc-white' });
+        expect(fr).toEqual({ materialId: 'm-pvc-white', thickness: 0.4 });
       } else {
         expect(fr).toBeNull();
       }
@@ -196,6 +196,17 @@ describe('buildBaseCabinet — edge bands', () => {
       expect(p.panel.edgeBands.left).toBeNull();
       expect(p.panel.edgeBands.right).toBeNull();
     }
+  });
+
+  it("front band carries the band material's bandThicknessMm", () => {
+    const params = { ...DEFAULT_PARAMS, bandMaterialId: 'm-pvc-2' };
+    const REG_WITH_BAND = [
+      ...REGISTRY,
+      { id: 'm-pvc-2', name: 'PVC 2mm', defaultThickness: 1, color: '#fff', bandThicknessMm: 2 },
+    ];
+    const out = buildBaseCabinet(params, REG_WITH_BAND);
+    const side = out.panels.find((p) => p.role === 'leftSide')!;
+    expect(side.panel.edgeBands.front).toEqual({ materialId: 'm-pvc-2', thickness: 2 });
   });
 });
 

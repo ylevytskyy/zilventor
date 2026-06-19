@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 26 as const;
+export const CURRENT_FORMAT_VERSION = 27 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -355,6 +355,30 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 26 };
   },
+
+  // v26 → v27: edge bands gain a required `thickness` (mm) field for net→gross cut
+  // sizing. Back-fill 0.4mm onto every existing non-null band in part-document panel
+  // features. MaterialEntry.bandThicknessMm stays optional (defaults to 0.4 at read).
+  // (1b.3 — edge-band thickness → net/gross sizes)
+  26: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { document?: { featureTree?: Array<Record<string, unknown>> } };
+    const tree = anyM.document?.featureTree;
+    if (Array.isArray(tree)) {
+      for (const f of tree) {
+        if (f.kind !== 'panel') continue;
+        const eb = f.edgeBands as Record<string, unknown> | undefined;
+        if (!eb || typeof eb !== 'object') continue;
+        for (const k of ['front', 'back', 'left', 'right']) {
+          const band = eb[k];
+          if (band && typeof band === 'object' && (band as Record<string, unknown>).thickness === undefined) {
+            (band as Record<string, unknown>).thickness = 0.4;
+          }
+        }
+      }
+    }
+    return { ...m, formatVersion: 27 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -364,7 +388,8 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 16 || m.formatVersion === 17 || m.formatVersion === 18 ||
      m.formatVersion === 19 || m.formatVersion === 20 || m.formatVersion === 21 ||
      m.formatVersion === 22 || m.formatVersion === 23 || m.formatVersion === 24 ||
-     m.formatVersion === 25 || m.formatVersion === 26) &&
+     m.formatVersion === 25 || m.formatVersion === 26 ||
+     m.formatVersion === 27) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;

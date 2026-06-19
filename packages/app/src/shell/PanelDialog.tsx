@@ -220,6 +220,9 @@ export function PanelDialog(): JSX.Element | null {
     setPanelDialog(null);
   };
 
+  const bandFor = (matId: MaterialId | '' | null): { materialId: MaterialId; thickness: number } | null =>
+    matId ? { materialId: matId, thickness: materials.find((m) => m.id === matId)?.bandThicknessMm ?? 0.4 } : null;
+
   const submit = () => {
     if (brokenMaterialRef) return;
     const id = initial?.id ?? `pf-${Date.now()}`;
@@ -233,10 +236,10 @@ export function PanelDialog(): JSX.Element | null {
       materialId,
       grain,
       edgeBands: {
-        front: edgeBands.front ? { materialId: edgeBands.front } : null,
-        back: edgeBands.back ? { materialId: edgeBands.back } : null,
-        left: edgeBands.left ? { materialId: edgeBands.left } : null,
-        right: edgeBands.right ? { materialId: edgeBands.right } : null,
+        front: bandFor(edgeBands.front),
+        back: bandFor(edgeBands.back),
+        left: bandFor(edgeBands.left),
+        right: bandFor(edgeBands.right),
       },
     };
     panelDialog.onSubmit(feature);

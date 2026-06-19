@@ -18,7 +18,7 @@ export function cutListRowKey(spec: PanelSpec, normalized: { L: number; W: numbe
 }
 
 export type CutListEdgeBandCell =
-  | { materialId: MaterialId; materialName: string }
+  | { materialId: MaterialId; materialName: string; thickness: number }
   | null;
 
 export type CutListRow = {
@@ -46,6 +46,20 @@ export function rawLength(row: CutListRow): number {
 /** Cut (raw) width = finished width + width oversize allowance (0 if absent). */
 export function rawWidth(row: CutListRow): number {
   return row.width + (row.oversize?.widthMm ?? 0);
+}
+
+/**
+ * Gross length = finished length + thickness of the two bands that run across the
+ * width (left/right edges). Mirrors the front/back↔length, left/right↔width edge
+ * convention used by the band-length rollup below.
+ */
+export function grossLength(row: CutListRow): number {
+  return row.length + (row.edgeBands.left?.thickness ?? 0) + (row.edgeBands.right?.thickness ?? 0);
+}
+
+/** Gross width = finished width + thickness of the front/back bands (run along length). */
+export function grossWidth(row: CutListRow): number {
+  return row.width + (row.edgeBands.front?.thickness ?? 0) + (row.edgeBands.back?.thickness ?? 0);
 }
 
 export type EdgeBandTotal = {
@@ -78,11 +92,15 @@ function resolveMaterialName(id: MaterialId, materials: MaterialRegistry): strin
 }
 
 function makeBandCell(
-  band: { materialId: MaterialId } | null,
+  band: { materialId: MaterialId; thickness: number } | null,
   materials: MaterialRegistry,
 ): CutListEdgeBandCell {
   if (!band) return null;
-  return { materialId: band.materialId, materialName: resolveMaterialName(band.materialId, materials) };
+  return {
+    materialId: band.materialId,
+    materialName: resolveMaterialName(band.materialId, materials),
+    thickness: band.thickness,
+  };
 }
 
 export function aggregateCutListLocal(

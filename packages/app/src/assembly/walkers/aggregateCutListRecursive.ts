@@ -19,8 +19,8 @@ function materialName(id: MaterialId, materials: MaterialRegistry): string {
   return materials.find((m) => m.id === id)?.name ?? '(missing material)';
 }
 
-function bandCell(b: { materialId: MaterialId } | null, materials: MaterialRegistry): CutListEdgeBandCell {
-  return b ? { materialId: b.materialId, materialName: materialName(b.materialId, materials) } : null;
+function bandCell(b: { materialId: MaterialId; thickness: number } | null, materials: MaterialRegistry): CutListEdgeBandCell {
+  return b ? { materialId: b.materialId, materialName: materialName(b.materialId, materials), thickness: b.thickness } : null;
 }
 
 export function aggregateCutListRecursive(
