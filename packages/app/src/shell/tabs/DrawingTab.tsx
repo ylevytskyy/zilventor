@@ -256,7 +256,7 @@ export default function DrawingTab(): JSX.Element {
           aria-label={t('ribbon.drawing.autoBalloon')}
           disabled={!isAssembly}
           aria-disabled={!isAssembly}
-          title={!isAssembly ? t('ribbon.drawing.balloonTip') : undefined}
+          title={!isAssembly ? t('ribbon.drawing.autoBalloonTip') : undefined}
           onClick={() => {
             const drw = useAppStore.getState().activeDrawing;
             const sheet = drw
@@ -274,6 +274,9 @@ export default function DrawingTab(): JSX.Element {
                   ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
                   : undefined,
             };
+            // Empty partInfo/panelSpecs Maps are intentional: they only affect display
+            // name/dimensions in the parts list, not balloon count or placement
+            // (item numbers come from bomItemNumbers, anchoring from projected edges).
             const balloons = autoBalloonSheet({
               sheet,
               asm,

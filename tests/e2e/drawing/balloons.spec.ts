@@ -21,19 +21,6 @@ const PART_B_PATH = 'parts/t8-panel-B.zipt';
 const COMP_A_ID = 'c-t8-A';
 const COMP_B_ID = 'c-t8-B';
 
-function makeStubPart(id: string) {
-  return {
-    id,
-    name: 'StubPart',
-    units: 'mm',
-    parameters: {},
-    featureTree: [],
-    properties: {},
-    materials: [],
-    hardware: [],
-  };
-}
-
 test('T8-auto-balloon: Auto-balloon button creates one balloon per BOM row', async ({ page }) => {
   page.on('console', (m) => console.log('BROWSER:', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));

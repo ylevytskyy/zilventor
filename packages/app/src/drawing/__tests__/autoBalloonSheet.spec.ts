@@ -300,4 +300,100 @@ describe('autoBalloonSheet', () => {
     expect(b2.viewId).toBe('vA');
     expect(b2.textPosMm.x).toBe(120);
   });
+
+  it('falls back to a sibling instance when the first componentId has no projected edges (Fix 1 regression guard)', () => {
+    // Fixture:
+    //   Assembly has a THIRD part (item 3) with two component instances:
+    //     c-edgeless  — absent from the projection (simulates a hidden first instance)
+    //     c-visible3  — has edges in view-local x[10..30] y[5..15] → bbox center (20, 10)
+    //
+    //   View at positionMm {x:50, y:50}, scale 1:1.
+    //   Sheet-space targetMm = positionMm + center * scale = (50+20, 50+10) = (70, 60).
+    //
+    //   Before the fix, representativePathByItem returned only 'c-edgeless' for item 3.
+    //   bestViewBBoxCenter('c-edgeless') → null → the whole item was dropped silently.
+    //   After the fix, componentPathsByItem returns ['c-edgeless','c-visible3'] and we
+    //   iterate: 'c-edgeless' → null → 'c-visible3' → non-null hit → balloon produced.
+    const asm: AssemblyDocument = {
+      ...makeAssembly(),
+      bomItemNumbers: {
+        'parts/box.zipt::none': 1,
+        'parts/shelf.zipt::none': 2,
+        'parts/lid.zipt::none': 3,
+      },
+      components: [
+        ...makeAssembly().components,
+        {
+          id: 'c-edgeless',
+          partPath: 'parts/lid.zipt',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: false, // hidden instance — absent from the projection
+        },
+        {
+          id: 'c-visible3',
+          partPath: 'parts/lid.zipt',
+          position: { x: 100, y: 0, z: 0 },
+          rotation: { rx: 0, ry: 0, rz: 0 },
+          visible: true,
+        },
+      ],
+    };
+
+    const sheet: DrawingSheet = {
+      ...makeSheet(),
+      views: [
+        {
+          id: 'v1',
+          kind: 'base' as const,
+          positionMm: { x: 50, y: 50 },
+          scale: { numerator: 1, denominator: 1 },
+          orientation: 'front' as const,
+          showHidden: false,
+          projection: {
+            visibleEdges: [
+              // item 1 — c1 present (unchanged)
+              {
+                id: 'e1', kind: 'feature' as const,
+                points: [[0, 0], [10, 0], [10, 10], [0, 10]] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c1',
+              },
+              // item 2 — c2 present (unchanged)
+              {
+                id: 'e2', kind: 'feature' as const,
+                points: [[20, 20], [40, 20], [40, 40], [20, 40]] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c2',
+              },
+              // item 3 — c-edgeless is ABSENT; c-visible3 has edges here
+              {
+                id: 'e3', kind: 'feature' as const,
+                // view-local x[10..30] y[5..15] → bbox center (20, 10)
+                // sheet targetMm = (50+20*1, 50+10*1) = (70, 60)
+                points: [[10, 5], [30, 5], [30, 15], [10, 15]] as ReadonlyArray<readonly [number, number]>,
+                componentPath: 'c-visible3',
+              },
+            ],
+            hiddenEdges: [],
+            bbox: { minX: 0, minY: 0, maxX: 40, maxY: 40 },
+          },
+        },
+      ],
+    };
+
+    const partInfo: Map<string, PartInfo> = new Map(makePartInfo());
+    partInfo.set('parts/lid.zipt', { name: 'Lid' });
+
+    const balloons = autoBalloonSheet({ ...ARGS, asm, sheet, partInfo });
+
+    // All 3 items must produce a balloon (item 3 falls back to c-visible3).
+    expect(balloons).toHaveLength(3);
+    expect(balloons.map((b) => b.itemNumber)).toContain(3);
+
+    const b3 = balloons.find((b) => b.itemNumber === 3)!;
+    // Anchored to c-visible3's bbox center (20, 10) in sheet space:
+    //   targetMm.x = positionMm.x(50) + 20 * scale(1) = 70
+    //   targetMm.y = positionMm.y(50) + 10 * scale(1) = 60
+    expect(b3.targetMm).toEqual({ x: 70, y: 60 });
+    expect(b3.viewId).toBe('v1');
+  });
 });

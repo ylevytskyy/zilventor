@@ -18,3 +18,21 @@ export function representativePathByItem(rows: readonly BomRow[]): Map<number, s
   }
   return m;
 }
+
+/**
+ * BOM item number → ALL component paths for that item (preserving order).
+ * Used by autoBalloonSheet to fall back to a visible instance when the first
+ * component path has no projected edges in any view.
+ */
+export function componentPathsByItem(rows: readonly BomRow[]): Map<number, string[]> {
+  const m = new Map<number, string[]>();
+  for (const row of rows) {
+    const existing = m.get(row.itemNumber);
+    if (existing !== undefined) {
+      existing.push(...row.componentIds);
+    } else {
+      m.set(row.itemNumber, [...row.componentIds]);
+    }
+  }
+  return m;
+}

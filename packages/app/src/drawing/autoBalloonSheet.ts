@@ -15,7 +15,7 @@ import type { DrawingSheet, DrawingView } from '@zilventor/shared';
 import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
 import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
 import { computePartsListRows } from './computePartsListRows';
-import { representativePathByItem } from './componentItemNumbers';
+import { componentPathsByItem } from './componentItemNumbers';
 
 // Local alias matching the SubAsmCacheLike type used by computePartsListRows.
 type SubAsmCacheLike = {
@@ -42,9 +42,12 @@ export function autoBalloonSheet(args: {
   // Get parts-list rows (same source as the parts-list annotation).
   const rows = computePartsListRows(asm, cache, panelSpecs, partInfo);
 
-  // Build map: BOM item number → representative component path.
+  // Build map: BOM item number → ALL component paths for that item.
+  // We iterate every path (not just the first) so that a hidden/edgeless first
+  // instance does not silently drop the balloon for an item that has other
+  // visible instances in the projection.
   const bomRows = aggregateBomRecursive(asm, cache, partInfo);
-  const repByItem = representativePathByItem(bomRows);
+  const pathsByItem = componentPathsByItem(bomRows);
 
   // Only views that have a populated projection can contribute edges.
   const viewsWithProjection = sheet.views.filter(
@@ -57,10 +60,17 @@ export function autoBalloonSheet(args: {
   let ladderStep = 0;
 
   for (const row of rows) {
-    const cp = repByItem.get(row.item);
-    if (cp === undefined) continue;
+    const cps = pathsByItem.get(row.item);
+    if (cps === undefined || cps.length === 0) continue;
 
-    const hit = bestViewBBoxCenter(viewsWithProjection, cp);
+    // Anchor to the FIRST component path that has edges in some view.
+    // If the representative (first) instance is hidden/edgeless, fall through
+    // to siblings until a visible instance is found.
+    let hit: ReturnType<typeof bestViewBBoxCenter> = null;
+    for (const cp of cps) {
+      hit = bestViewBBoxCenter(viewsWithProjection, cp);
+      if (hit) break;
+    }
     if (!hit) continue;
 
     const { view, cx: localCx, cy: localCy, localMaxX } = hit;
