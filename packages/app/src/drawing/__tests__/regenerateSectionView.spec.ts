@@ -262,7 +262,7 @@ describe('regenerateSectionView — cut failure', () => {
 // cutAssemblyComponentsByStepSegments using state.activeDrawingSourceComponents.
 
 const ASM_COMPONENTS = [
-  { partId: 'p1', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as [number,number,number,number] } },
+  { partId: 'p1', componentPath: 'comp-1', pose: { translation: { x: 0, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] as [number,number,number,number] } },
 ];
 
 function makeAsmDrawingWithSection(): DrawingDocument {

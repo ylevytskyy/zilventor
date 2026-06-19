@@ -4140,6 +4140,7 @@ export default function App() {
       // the section plane (y=0, normal +Y → cuts through each box at mid-height).
       const components = Array.from({ length: leafCount }, (_, i) => ({
         partId: activePart.id,
+        componentPath: String(i),
         pose: {
           translation: { x: i * 30, y: 0, z: 0 },
           quaternion: [0, 0, 0, 1] as [number, number, number, number],

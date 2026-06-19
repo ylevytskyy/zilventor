@@ -72,7 +72,7 @@ describe('activeDrawingSourceComponents store slot', () => {
 
   it('activeDrawingSourceComponents can be set and read', () => {
     const comps: AssemblyComponentInput[] = [
-      { partId: 'pid-1', pose: { translation: { x: 1, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      { partId: 'pid-1', componentPath: 'comp-1', pose: { translation: { x: 1, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
     ];
     useAppStore.setState({ activeDrawingSourceComponents: comps } as never);
     const s = useAppStore.getState() as unknown as { activeDrawingSourceComponents: AssemblyComponentInput[] | null };
@@ -81,7 +81,7 @@ describe('activeDrawingSourceComponents store slot', () => {
 
   it('drawingDocState does NOT reset activeDrawingSourceComponents', () => {
     const comps: AssemblyComponentInput[] = [
-      { partId: 'pid-asm', pose: { translation: { x: 5, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+      { partId: 'pid-asm', componentPath: 'comp-asm', pose: { translation: { x: 5, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
     ];
     useAppStore.setState({ activeDrawingSourceComponents: comps } as never);
 

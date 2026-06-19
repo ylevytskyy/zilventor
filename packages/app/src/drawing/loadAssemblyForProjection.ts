@@ -154,6 +154,7 @@ export async function loadAssemblyForProjection(
 
     components.push({
       partId,
+      componentPath: pathKey(leaf.componentPath),
       pose: {
         translation: { x: pose.translation.x, y: pose.translation.y, z: pose.translation.z },
         quaternion: [...pose.quaternion] as [number, number, number, number],

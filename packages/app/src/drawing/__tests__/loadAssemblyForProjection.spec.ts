@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest';
+import { pathKey } from '@zilventor/shared';
 import type { AssemblyDocument } from '@zilventor/shared';
 
 // ---- Fixtures ----
@@ -295,5 +296,35 @@ describe('loadAssemblyForProjection', () => {
     expect(result.components).toHaveLength(2);
     expect(result.components.map((c) => c.partId).sort()).toEqual(['kernel-id-C', 'kernel-id-D']);
     expect(nestedKernel.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('T7: each component carries componentPath matching pathKey of its leaf component-id array', async () => {
+    // EXPECTED_LEAF_PATH: top-level asmDoc has c1 and c2; their paths are ['c1'] and ['c2'].
+    // These must match the key space aggregateBomRecursive uses (component id array keyed by pathKey).
+    const { loadAssemblyForProjection } = await import('../loadAssemblyForProjection');
+    const opfs = makeOpfs();
+    const kernel = makeKernel();
+
+    const result = await loadAssemblyForProjection({
+      asmPath: ASM_PATH,
+      asmDoc,
+      opfs: opfs as never,
+      kernel: kernel as never,
+    });
+
+    expect(result.components.length).toBeGreaterThan(0);
+    for (const c of result.components) {
+      expect(typeof c.componentPath).toBe('string');
+      expect(c.componentPath.length).toBeGreaterThan(0);
+    }
+
+    // componentPath must be byte-identical to the BOM walker key space.
+    const compA = result.components.find((c) => c.partId === 'kernel-id-A');
+    expect(compA).toBeDefined();
+    expect(compA!.componentPath).toBe(pathKey(['c1']));
+
+    const compB = result.components.find((c) => c.partId === 'kernel-id-B');
+    expect(compB).toBeDefined();
+    expect(compB!.componentPath).toBe(pathKey(['c2']));
   });
 });
