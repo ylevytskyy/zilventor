@@ -104,6 +104,12 @@ export type PartDocument = {
    *  before the next execute. Injected as [] at format v28.
    *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
   rules?: Rule[];
+  /** Feature ids suppressed from the regenerated build (iLogic-equivalent feature
+   *  suppression). `executeTree` skips any feature whose id appears here, in both
+   *  the pre-scan classification loop and the main build loop. Mirror of
+   *  suppressedConnectorIds; injected as [] at format v29.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  suppressedFeatureIds?: string[];
 };
 
 /** A single `target = expression` assignment applied when a rule fires. */
@@ -123,6 +129,10 @@ export type Rule = {
   condition: string;
   /** Assignments applied (in order) when `condition` is true. */
   thenSet: RuleAssignment[];
+  /** Feature ids toggled by this rule: suppressed when `condition` is true,
+   *  un-suppressed when false (so one rule is a clean parametric on/off toggle).
+   *  Absent when the rule sets parameters only. (Milestone 2.4) */
+  thenSuppress?: string[];
 };
 
 export type ComponentColor =

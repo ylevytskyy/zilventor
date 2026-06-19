@@ -74,8 +74,16 @@ export class RuleEngine {
   private unsubscribe: (() => void) | null = null;
   private applying = false;
   private lastSnapshot: Record<string, number> = {};
+  private suppressionHandler: ((featureId: string, suppressed: boolean) => void) | null = null;
 
   constructor(private readonly registry: ParameterRegistry) {}
+
+  /** Install the callback that applies a rule's `thenSuppress` toggles (typically
+   *  wired to the kernel's suppressFeature + a re-execute). Engine-agnostic: the
+   *  handler decides how to mutate the document and regenerate geometry. */
+  setSuppressionHandler(handler: (featureId: string, suppressed: boolean) => void): void {
+    this.suppressionHandler = handler;
+  }
 
   /** Load a rule set. Throws RuleCycleError if the rules contain a cycle. */
   load(rules: Rule[]): void {
@@ -125,11 +133,18 @@ export class RuleEngine {
         } catch {
           continue; // malformed rule expression — skip, don't break the pipeline
         }
-        if (!cond) continue;
-        for (const a of rule.thenSet) {
-          const existing = this.registry.getAll().find((p) => p.name === a.target);
-          const unit = existing?.unit ?? 'mm';
-          this.registry.setParameter({ name: a.target, expression: a.expression, unit });
+        const truthy = !!cond;
+        if (truthy) {
+          for (const a of rule.thenSet) {
+            const existing = this.registry.getAll().find((p) => p.name === a.target);
+            const unit = existing?.unit ?? 'mm';
+            this.registry.setParameter({ name: a.target, expression: a.expression, unit });
+          }
+        }
+        // thenSuppress is a toggle: suppress when the condition holds, un-suppress
+        // when it does not — so a single rule is a clean parametric on/off switch.
+        if (rule.thenSuppress && this.suppressionHandler) {
+          for (const fid of rule.thenSuppress) this.suppressionHandler(fid, truthy);
         }
       }
     } finally {

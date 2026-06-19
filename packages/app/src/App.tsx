@@ -64,7 +64,7 @@ import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { PanelDialog } from './shell/PanelDialog';
-import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
+import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
 import type { BoreOp, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -1522,6 +1522,51 @@ export default function App() {
       }
     }
   }, [activePart?.id]);
+
+  // Wire the rule engine's feature-suppression toggles to the kernel: when a rule
+  // fires thenSuppress, push the suppress/un-suppress to the kernel's part, mirror
+  // it onto the store part (absent-not-empty, so saves persist), then re-execute so
+  // the viewport reflects the regenerated body. Installed once; reads live state via
+  // getState/refs so it stays valid across part changes.
+  useEffect(() => {
+    ruleEngine.setSuppressionHandler((featureId, suppressed) => {
+      void (async () => {
+        const store = useAppStore.getState();
+        const kernelClient = store.kernel;
+        const part = store.activePart;
+        if (!kernelClient || !part) return;
+        await kernelClient.suppressFeature(part.id, featureId, suppressed);
+        // Mirror onto the store part (absent-not-empty contract).
+        const fresh = useAppStore.getState().activePart;
+        if (!fresh || fresh.id !== part.id) return;
+        const ids = new Set(fresh.suppressedFeatureIds ?? []);
+        if (suppressed) ids.add(featureId); else ids.delete(featureId);
+        if (ids.size === 0) {
+          const { suppressedFeatureIds: _drop, ...rest } = fresh;
+          store.setActivePart(rest as PartDocument);
+        } else {
+          store.setActivePart({ ...fresh, suppressedFeatureIds: [...ids] });
+        }
+        // Regenerate geometry without the suppressed feature.
+        if (useAppStore.getState().sketchMode) return;
+        const res = await kernelClient.execute(part.id);
+        if (res.ok && viewportRef.current) {
+          const partHex = fresh.color?.kind === 'hex' ? fresh.color.hex : undefined;
+          const panelFeat = fresh.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+          const panelMat = panelFeat ? fresh.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+          viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+          tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
+          setAvailableFaceNames(res.value.faceNames ?? []);
+          facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
+          useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+          applyWorkFeaturesToViewport(res.value.workFeatures, fresh.featureTree);
+        } else if (!res.ok) {
+          useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
+        }
+      })();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cascade parameter changes to the solver + kernel + store.
   // Fires on any successful ParameterRegistry mutation (setParameter / rename /

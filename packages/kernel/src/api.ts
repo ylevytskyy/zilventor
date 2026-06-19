@@ -91,6 +91,9 @@ export type KernelApi = {
   removePrimitive(partId: string, sketchId: string, primitiveId: string): Promise<void>;
   setParameter(partId: string, param: Parameter): Promise<void>;
   deleteParameter(partId: string, name: string): Promise<void>;
+  /** Suppress (true) or un-suppress (false) a feature so the next execute skips it.
+   *  Mutates the part's suppressedFeatureIds set (absent-not-empty). (Milestone 2.4) */
+  suppressFeature(partId: string, featureId: string, suppressed: boolean): Promise<void>;
   setMaterials(partId: string, materials: MaterialEntry[]): Promise<void>;
   /** Register raw JPEG bytes for a custom texture blob. Must be called before
    *  `saveToBytes` for any part that references this blobId in its
@@ -345,6 +348,21 @@ export function createKernelApi(): KernelApi {
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
       parts.set(partId, removeParameterFromPart(p, name));
+    },
+
+    async suppressFeature(partId, featureId, suppressed) {
+      const p = parts.get(partId);
+      if (!p) throw new Error(`suppressFeature: unknown partId ${partId}`);
+      const current = new Set(p.suppressedFeatureIds ?? []);
+      if (suppressed) current.add(featureId);
+      else current.delete(featureId);
+      // Absent-not-empty contract: never persist an empty array.
+      if (current.size === 0) {
+        const { suppressedFeatureIds: _drop, ...rest } = p;
+        parts.set(partId, rest);
+      } else {
+        parts.set(partId, { ...p, suppressedFeatureIds: [...current] });
+      }
     },
 
     async setMaterials(partId, materials) {

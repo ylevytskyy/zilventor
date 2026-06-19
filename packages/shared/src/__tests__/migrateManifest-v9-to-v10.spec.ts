@@ -8,7 +8,7 @@ describe('migrateManifest v9 → v10', () => {
       document: { id: 'p', name: 'X', units: 'mm', parameters: {}, featureTree: [], properties: {} },
     };
     const out = migrateManifest(v9 as never);
-    expect(out.formatVersion).toBe(28);
+    expect(out.formatVersion).toBe(29);
     expect((out.document as { materials: unknown }).materials).toEqual([]);
   });
 
@@ -21,7 +21,7 @@ describe('migrateManifest v9 → v10', () => {
       },
     };
     const out = migrateManifest(v9 as never);
-    expect(out.formatVersion).toBe(28);
+    expect(out.formatVersion).toBe(29);
     expect((out.document as { materials: unknown }).materials).toEqual([]);
   });
 
@@ -35,11 +35,11 @@ describe('migrateManifest v9 → v10', () => {
       },
     };
     const out = migrateManifest(v10 as never);
-    expect(out.formatVersion).toBe(28);
+    expect(out.formatVersion).toBe(29);
     expect((out.document as { materials: { id: string }[] }).materials[0]!.id).toBe('m1');
   });
 
   it('CURRENT_FORMAT_VERSION === 11', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(28);
+    expect(CURRENT_FORMAT_VERSION).toBe(29);
   });
 });

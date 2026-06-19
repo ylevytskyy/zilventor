@@ -131,11 +131,19 @@ export async function executeTree(
   // A sketch referenced by a hole's fromSketch placement is consumed
   // directly by the hole branch (it reads circle primitives for axis
   // locations) and must similarly bypass `executeSketchFeature`.
+  // Feature suppression (iLogic-equivalent): skip any feature whose id is in
+  // suppressedFeatureIds, in BOTH the pre-scan classification loop and the main
+  // build loop. Skipping in the pre-scan too keeps a suppressed revolve/hole/sweep
+  // from claiming its sketch as "consumed directly" — otherwise that sketch would
+  // be orphaned (never run through executeSketchFeature). (Milestone 2.4)
+  const suppressed = new Set<string>(part.suppressedFeatureIds ?? []);
+
   const revolveSketchIds = new Set<string>();
   const holeSketchIds = new Set<string>();
   const sweepSketchIds = new Set<string>();
   const sketchById = new Map<string, (typeof part.featureTree)[number]>();
   for (const f of part.featureTree) {
+    if (suppressed.has(f.id)) continue;
     if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
     if (f.kind === 'hole' && f.placement.kind === 'fromSketch') {
       holeSketchIds.add(f.placement.sketchId);
@@ -151,6 +159,7 @@ export async function executeTree(
   }
 
   for (const feature of part.featureTree) {
+    if (suppressed.has(feature.id)) continue;
     // Inline work-feature evaluation: origin features come first in the tree
     // (seeded by newPart / migration), so by the time a downstream sketch or
     // user-created work feature references the cache, prior entries are

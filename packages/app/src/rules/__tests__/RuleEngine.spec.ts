@@ -80,6 +80,53 @@ describe('RuleEngine — firing on trigger change', () => {
   });
 });
 
+describe('RuleEngine — feature suppression (thenSuppress)', () => {
+  it('suppresses listed features when a trigger fires and the condition is true', () => {
+    const reg = makeRegistry();
+    const engine = new RuleEngine(reg);
+    const handler = vi.fn();
+    engine.setSuppressionHandler(handler);
+    engine.load([
+      { id: 'r1', trigger: ['width'], condition: 'width > 600', thenSet: [], thenSuppress: ['featA', 'featB'] },
+    ]);
+    engine.start();
+
+    reg.setParameter({ name: 'width', expression: '700', unit: 'mm' });
+
+    expect(handler).toHaveBeenCalledWith('featA', true);
+    expect(handler).toHaveBeenCalledWith('featB', true);
+  });
+
+  it('un-suppresses listed features when the condition is false', () => {
+    const reg = makeRegistry();
+    const engine = new RuleEngine(reg);
+    const handler = vi.fn();
+    engine.setSuppressionHandler(handler);
+    engine.load([
+      { id: 'r1', trigger: ['width'], condition: 'width > 600', thenSet: [], thenSuppress: ['featA'] },
+    ]);
+    engine.start();
+
+    reg.setParameter({ name: 'width', expression: '550', unit: 'mm' }); // condition false
+    expect(handler).toHaveBeenCalledWith('featA', false);
+  });
+
+  it('does not call the suppression handler for a non-trigger change', () => {
+    const reg = makeRegistry();
+    reg.setParameter({ name: 'depth', expression: '300', unit: 'mm' });
+    const engine = new RuleEngine(reg);
+    const handler = vi.fn();
+    engine.setSuppressionHandler(handler);
+    engine.load([
+      { id: 'r1', trigger: ['width'], condition: 'width > 600', thenSet: [], thenSuppress: ['featA'] },
+    ]);
+    engine.start();
+
+    reg.setParameter({ name: 'depth', expression: '350', unit: 'mm' });
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
 describe('RuleEngine — cycle detection at load', () => {
   const cyclic: Rule[] = [
     { id: 'a', trigger: ['x'], condition: 'x > 0', thenSet: [{ target: 'y', expression: '1' }] },
