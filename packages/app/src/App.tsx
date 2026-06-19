@@ -39,6 +39,9 @@ import { useParameterValues } from './parameters/useParameterValues';
 import { RuleEngine, RuleCycleError } from './rules/RuleEngine';
 import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
+import { ConfigurationsPanel } from './shell/ConfigurationsPanel';
+import { activateConfiguration } from './configurations/activateConfiguration';
+import { configurationFromParameters } from './configurations/configurationFromParameters';
 import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue } from './shell/RevolveDialog';
 import { AxisPickController } from './model/AxisPickController';
 import { ProfilePickController } from './model/ProfilePickController';
@@ -427,6 +430,9 @@ export default function App() {
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const parametersPanelOpen = useAppStore((s) => s.parametersPanelOpen);
   const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
+  const configurationsPanelOpen = useAppStore((s) => s.configurationsPanelOpen);
+  const setConfigurationsPanelOpen = useAppStore((s) => s.setConfigurationsPanelOpen);
+  const [activeConfigName, setActiveConfigName] = useState<string | null>(null);
   const importFromInventorDialogOpen = useAppStore((s) => s.importFromInventorDialogOpen);
   const setImportFromInventorDialogOpen = useAppStore((s) => s.setImportFromInventorDialogOpen);
   const [importStatus, setImportStatus] = useState<ImportDialogStatus>({ kind: 'idle' });
@@ -5383,6 +5389,28 @@ export default function App() {
         <ParametersPanel
           registry={parameterRegistry}
           onClose={() => setParametersPanelOpen(false)}
+        />
+      )}
+      {configurationsPanelOpen && (
+        <ConfigurationsPanel
+          configurations={activePart?.configurations ?? []}
+          activeName={activeConfigName}
+          onActivate={(name) => {
+            const configs = useAppStore.getState().activePart?.configurations ?? [];
+            if (activateConfiguration(parameterRegistry, configs, name)) {
+              setActiveConfigName(name);
+            }
+          }}
+          onAddRow={() => {
+            const configs = useAppStore.getState().activePart?.configurations ?? [];
+            let n = configs.length + 1;
+            let name = `Config ${n}`;
+            while (configs.some((c) => c.name === name)) name = `Config ${++n}`;
+            const cfg = configurationFromParameters(name, parameterRegistry.getAll());
+            useAppStore.getState().setConfigurations([...configs, cfg]);
+          }}
+          onImport={(configs) => useAppStore.getState().setConfigurations(configs)}
+          onClose={() => setConfigurationsPanelOpen(false)}
         />
       )}
       {filletDialogOpen && (

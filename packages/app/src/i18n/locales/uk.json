@@ -758,6 +758,15 @@
       "stale": "Список розкрою змінився з часу останньої розкладки.",
       "staleAriaLabel": "Розкладка застаріла"
     },
+    "configurations": {
+      "addRow": "Додати рядок",
+      "ariaLabel": "Конфігурації",
+      "colName": "Конфігурація",
+      "colValues": "Значення",
+      "empty": "Конфігурацій ще немає. Натисніть «Додати рядок», щоб зберегти поточний дизайн.",
+      "importCsv": "Імпорт CSV",
+      "title": "Конфігурації"
+    },
     "parameters": {
       "ariaLabel": "Параметри",
       "colExpression": "Вираз",
@@ -886,6 +895,7 @@
       "linearPattern": "Лінійний масив (L)",
       "mirror": "Дзеркало (M)",
       "modify": "Змінити",
+      "configurationsBtn": "Конфігурації…",
       "parameters": "Параметри",
       "parametersBtn": "Параметри…",
       "pattern": "Масив",

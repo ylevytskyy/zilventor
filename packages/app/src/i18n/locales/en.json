@@ -758,6 +758,15 @@
       "stale": "Cut list changed since last nest.",
       "staleAriaLabel": "Nest stale"
     },
+    "configurations": {
+      "addRow": "Add Row",
+      "ariaLabel": "Configurations",
+      "colName": "Configuration",
+      "colValues": "Values",
+      "empty": "No configurations yet. Click \"Add Row\" to capture the current design.",
+      "importCsv": "Import CSV",
+      "title": "Configurations"
+    },
     "parameters": {
       "ariaLabel": "Parameters",
       "colExpression": "Expression",
@@ -886,6 +895,7 @@
       "linearPattern": "Linear Pattern (L)",
       "mirror": "Mirror (M)",
       "modify": "Modify",
+      "configurationsBtn": "Configurations…",
       "parameters": "Parameters",
       "parametersBtn": "Parameters…",
       "pattern": "Pattern",

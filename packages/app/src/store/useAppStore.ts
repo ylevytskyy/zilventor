@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -242,6 +242,10 @@ type AppState = {
   selectedPrimitiveId: string | null;
   sketchDof: DofStatus | null;
   parametersPanelOpen: boolean;
+  configurationsPanelOpen: boolean;
+  setConfigurationsPanelOpen(v: boolean): void;
+  /** Replaces the active part document's iPart configurations (part-only). */
+  setConfigurations(configs: Configuration[]): void;
   revolveDialogOpen: boolean;
   filletDialogOpen: boolean;
   filletEdges: FilletEdgeSpec[];
@@ -540,6 +544,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeToolKind: null,
   selectedPrimitiveId: null,
   parametersPanelOpen: false,
+  configurationsPanelOpen: false,
   revolveDialogOpen: false,
   filletDialogOpen: false,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
@@ -615,6 +620,12 @@ export const useAppStore = create<AppState>((set) => ({
   sketchDof: null,
   setSketchDof: (v) => set({ sketchDof: v }),
   setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
+  setConfigurationsPanelOpen: (v) => set({ configurationsPanelOpen: v }),
+  setConfigurations: (configs) => set((s) => {
+    if (!s.activePart) return s;
+    const next: PartDocument = { ...s.activePart, configurations: configs };
+    return { activeDocument: { kind: 'part', document: next }, activePart: next };
+  }),
   setRevolveDialogOpen: (v) => set({ revolveDialogOpen: v }),
   setFilletDialogOpen: (v) => set({ filletDialogOpen: v }),
   filletEdges: [],
