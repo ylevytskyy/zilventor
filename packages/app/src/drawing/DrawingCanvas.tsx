@@ -25,6 +25,8 @@ import { AddHoleTableCommand } from '../commands/AddHoleTableCommand';
 import { extractHolesInView, assignHoleTags } from '@zilventor/shared/src/drawing/holeTable';
 import { AddPartsListCommand } from '../commands/AddPartsListCommand';
 import { computePartsListRows } from './computePartsListRows';
+import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
+import { itemNumberByComponentPath } from './componentItemNumbers';
 import { useCutListCacheContext } from '../shell/CutListCacheContext';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
@@ -963,7 +965,46 @@ export function DrawingCanvas() {
       return;
     }
 
-    // Other modes (addLeader, addBalloon)
+    if (toolMode === 'addBalloon') {
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      const srcDoc = useAppStore.getState().activeDrawingSourceDocument;
+      const srcAsm = srcDoc && 'components' in srcDoc ? srcDoc : useAppStore.getState().activeAssembly;
+      if (!liveDrw || !liveSheet || !srcAsm || !edgeId) { setClickAccum([]); return; }
+
+      const v = liveSheet.views.find((vw) => vw.id === viewId) ?? liveSheet.views[0];
+      const proj = v?.projection;
+      const edge = proj ? [...proj.visibleEdges, ...proj.hiddenEdges].find((e) => e.id === edgeId) : undefined;
+      const cp = edge?.componentPath;
+
+      const subAsmDocs = useAppStore.getState().subAssemblyDocs;
+      const cacheAdapter = {
+        get: (p: string) =>
+          subAsmDocs[p]
+            ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
+            : undefined,
+      };
+      const rows = aggregateBomRecursive(srcAsm, cacheAdapter, partInfoCacheRef.current ?? new Map());
+      const item = cp ? itemNumberByComponentPath(rows).get(cp) : undefined;
+
+      if (item === undefined) { setClickAccum([]); return; }
+
+      void bus.execute(new AddDrawingAnnotationCommand({
+        sheetId: liveSheet.id,
+        ann: {
+          id: `ann-${Date.now()}`,
+          kind: 'balloon',
+          viewId: v!.id,
+          targetMm: { x: svgX, y: svgY },
+          textPosMm: { x: svgX + 12, y: svgY - 12 },
+          itemNumber: item,
+        },
+      }));
+      setClickAccum([]);
+      return;
+    }
+
+    // Other modes (addLeader)
     setClickAccum([]);
   }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
