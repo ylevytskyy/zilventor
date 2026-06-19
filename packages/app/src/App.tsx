@@ -36,6 +36,7 @@ import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSele
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
+import { RuleEngine, RuleCycleError } from './rules/RuleEngine';
 import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
 import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue } from './shell/RevolveDialog';
@@ -147,6 +148,13 @@ import { restoreLastOpenDocument, type KernelForRestore } from './drawing/restor
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
+
+// Conditional parameter rules (Milestone 2). Started at module level so the engine
+// subscribes ahead of the in-component cascade subscriber — rule-applied params are
+// then present before the cascade pushes values to the kernel and re-executes.
+// Rules for the active part are (re)loaded on every part change below.
+export const ruleEngine = new RuleEngine(parameterRegistry);
+ruleEngine.start();
 
 /**
  * T29-T30: Resolve a `ParamOrLiteral` to a numeric value for the panel
@@ -447,6 +455,7 @@ export default function App() {
       w.__zilventorWorldToScreen3d = (wx: number, wy: number, wz: number) =>
         viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
+      w.__zilventorRuleEngine = ruleEngine;
       w.__zilventorPackProject = packProject;
       w.__zilventorUnpackProject = unpackProject;
       w.__zilventorPackAssembly = packAssembly;
@@ -1493,11 +1502,24 @@ export default function App() {
   // Sync ParameterRegistry with the active part's parameters on every part change.
   useEffect(() => {
     if (!activePart) return;
+    // Silence rule firing while we bulk-repopulate parameters below.
+    ruleEngine.load([]);
     // Reset and repopulate on every activePart change.
     const names = parameterRegistry.getAll().map((p) => p.name);
     for (const n of names) parameterRegistry.removeParameter(n);
     for (const p of Object.values(activePart.parameters ?? {})) {
       parameterRegistry.setParameter({ name: p.name, expression: p.expression, unit: p.unit });
+    }
+    // Load this part's rules (runs cycle detection). A cyclic rule set is reported
+    // and ignored rather than crashing the app.
+    try {
+      ruleEngine.load(activePart.rules ?? []);
+    } catch (e) {
+      if (e instanceof RuleCycleError) {
+        useAppStore.getState().setStatus(`Rule cycle ignored: ${e.cycle.join(' → ')}`);
+      } else {
+        throw e;
+      }
     }
   }, [activePart?.id]);
 

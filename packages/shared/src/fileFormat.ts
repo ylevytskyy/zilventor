@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 27 as const;
+export const CURRENT_FORMAT_VERSION = 28 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -379,6 +379,17 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 27 };
   },
+  // v27 → v28: parametric configurator — inject an empty `rules` array onto every
+  // part document so the rule engine has a stable field to read/write. Assembly
+  // documents have no rules. (Milestone 2.2 — conditional parameter rules)
+  27: (mIn) => {
+    const m = deepClone(mIn);
+    const anyM = m as { kind?: string; document?: Record<string, unknown> };
+    if (anyM.kind === 'part' && anyM.document && anyM.document.rules === undefined) {
+      anyM.document.rules = [];
+    }
+    return { ...m, formatVersion: 28 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -389,7 +400,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 19 || m.formatVersion === 20 || m.formatVersion === 21 ||
      m.formatVersion === 22 || m.formatVersion === 23 || m.formatVersion === 24 ||
      m.formatVersion === 25 || m.formatVersion === 26 ||
-     m.formatVersion === 27) &&
+     m.formatVersion === 27 || m.formatVersion === 28) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;

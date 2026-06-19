@@ -98,6 +98,31 @@ export type PartDocument = {
    *  Persisted by GenerateShelfPinBoresCommand so a later start-offset tweak can
    *  re-run the grid without resetting custom pitch/setbacks. Additive, no migration. */
   shelfPinParams?: ShelfPinParams;
+  /** Conditional parameter rules (iLogic-equivalent). When a parameter named in a
+   *  rule's `trigger` list changes, the rule's `condition` is evaluated against the
+   *  current parameter snapshot and, if true, its `thenSet` assignments are applied
+   *  before the next execute. Injected as [] at format v28.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  rules?: Rule[];
+};
+
+/** A single `target = expression` assignment applied when a rule fires. */
+export type RuleAssignment = {
+  /** Name of the parameter to set. */
+  target: string;
+  /** Expression evaluated against the current parameter snapshot (see evaluateRule). */
+  expression: string;
+};
+
+/** A conditional parameter rule (iLogic-equivalent). */
+export type Rule = {
+  id: string;
+  /** Parameter names whose change fires this rule. */
+  trigger: string[];
+  /** Boolean expression; when it evaluates truthy, `thenSet` is applied. */
+  condition: string;
+  /** Assignments applied (in order) when `condition` is true. */
+  thenSet: RuleAssignment[];
 };
 
 export type ComponentColor =
