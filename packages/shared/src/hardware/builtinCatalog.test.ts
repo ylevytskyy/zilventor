@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { BUILTIN_CATALOG } from './builtinCatalog';
 
 describe('BUILTIN_CATALOG', () => {
-  it('has exactly 10 entries', () => {
-    expect(BUILTIN_CATALOG).toHaveLength(10);
+  it('has exactly 16 entries', () => {
+    expect(BUILTIN_CATALOG).toHaveLength(16);
   });
 
   it('all ids are unique', () => {
     const ids = BUILTIN_CATALOG.map((e) => e.id);
-    expect(new Set(ids).size).toBe(10);
+    expect(new Set(ids).size).toBe(16);
   });
 
   it('has 4 hinge entries, 3 shelf-pin entries, and 3 bar-pull entries', () => {
@@ -18,6 +18,15 @@ describe('BUILTIN_CATALOG', () => {
     expect(hinges).toHaveLength(4);
     expect(pins).toHaveLength(3);
     expect(pulls).toHaveLength(3);
+  });
+
+  it('has 3 drawer-slide, 1 leg-leveler, and 2 soft-close-hinge entries (1b.5)', () => {
+    const slides   = BUILTIN_CATALOG.filter((e) => e.category === 'drawerSlides');
+    const levelers = BUILTIN_CATALOG.filter((e) => e.category === 'legLevelers');
+    const softHinges = BUILTIN_CATALOG.filter((e) => e.category === 'softCloseHinges');
+    expect(slides).toHaveLength(3);
+    expect(levelers).toHaveLength(1);
+    expect(softHinges).toHaveLength(2);
   });
 
   it('every entry has a non-empty name and non-empty notes', () => {

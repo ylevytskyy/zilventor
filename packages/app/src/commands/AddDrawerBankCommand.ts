@@ -45,6 +45,7 @@ import { dedupeName } from '../import/dedupeName';
 import { useAppStore } from '../store/useAppStore';
 import { deriveCabinetDims } from './cabinetDims';
 import { buildDrawerBox, writeBoxSideBores } from './buildDrawerBox';
+import { buildSlidePart, DEFAULT_DRAWER_SLIDE_SKU } from './buildSlidePart';
 import { drawerBankLayout } from '@zilventor/shared/src/drawerBankLayout';
 import { drawerFrontMath } from '@zilventor/shared/src/drawerFrontMath';
 import { drawerBoxMath } from '@zilventor/shared/src/drawerBoxMath';
@@ -86,6 +87,9 @@ interface DrawerArtifacts {
   boxPanelPartIds: string[];
   /** Box component pushed into the cabinet */
   boxComponent: ComponentInstance;
+
+  /** Drawer-slide hardware component pushed into the cabinet (1b.5.3) */
+  slideComponent: ComponentInstance;
 }
 
 export class AddDrawerBankCommand implements Command {
@@ -145,6 +149,13 @@ export class AddDrawerBankCommand implements Command {
     const existingNames = listZiptBasenames(cab);
     const artifacts: DrawerArtifacts[] = [];
     const timestamp = Date.now();
+
+    // Drawer slides are sold as a pair → one slide hardware part per drawer.
+    // Build/write the slide .zipt once (idempotent); each drawer references it (1b.5.3).
+    const slideSkuId = DEFAULT_DRAWER_SLIDE_SKU;
+    const slideHwPath = `hardware/${slideSkuId}.zipt`;
+    const { bytes: slideHwBytes } = await buildSlidePart(slideSkuId);
+    await opfs.write(slideHwPath, slideHwBytes);
 
     for (const slot of slots) {
       const i = slot.index;
@@ -264,6 +275,23 @@ export class AddDrawerBankCommand implements Command {
       // Append cabinet-side bores to cabinet L/R side panels (snapshot priors once per path)
       await this.appendCabinetSideBores(cab, cabinetBores, opfs);
 
+      // ─── 4d. Slide hardware part (pair) at the drawer-box centroid (1b.5.3) ──
+      // Identity pose; bbox w runs front-to-back (world-Y). BOM-bearing marker —
+      // the real per-rail slide positions are already captured by the bores above.
+      const slideComponent: ComponentInstance = {
+        id: `DS${timestamp}-${i}`,
+        partPath: slideHwPath,
+        position: {
+          x: boxComponent.position.x + boxResult.outer.width / 2,
+          y: boxComponent.position.y + boxResult.outer.depth / 2,
+          z: boxComponent.position.z + boxResult.outer.height / 2,
+        },
+        rotation: { rx: 0, ry: 0, rz: 0 },
+        visible: true,
+        role: 'drawerSlide',
+        drawerSpec: { overlay: params.overlay, index: i, count: N },
+      };
+
       artifacts.push({
         frontPath,
         frontPartId: frontPartDoc.id,
@@ -272,6 +300,7 @@ export class AddDrawerBankCommand implements Command {
         boxPanelPaths,
         boxPanelPartIds,
         boxComponent,
+        slideComponent,
       });
     }
 
@@ -281,11 +310,20 @@ export class AddDrawerBankCommand implements Command {
     for (const art of artifacts) {
       cab.components.push(art.frontComponent);
       cab.components.push(art.boxComponent);
+      cab.components.push(art.slideComponent);
     }
 
     // ─── 6. Pack + write + reload ─────────────────────────────────────────────
     await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
     await this.reloadCabinet(cab);
+
+    // Invalidate the bore-marker cache for the cabinet side panels we appended
+    // slide bores to, so the cabinet-side markers refresh live (mirrors revert()).
+    // Without this, apply() leaves the side-panel bore cache stale until a tab bump.
+    const cabinetSidePaths = [...this.priorCabinetSideBores.keys()];
+    if (cabinetSidePaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(cabinetSidePaths);
+    }
   }
 
   async revert(): Promise<void> {
@@ -298,6 +336,7 @@ export class AddDrawerBankCommand implements Command {
     const createdIds = new Set([
       ...arts.map((a) => a.frontComponent.id),
       ...arts.map((a) => a.boxComponent.id),
+      ...arts.map((a) => a.slideComponent.id),
     ]);
     cab.components = cab.components.filter((c) => !createdIds.has(c.id));
 

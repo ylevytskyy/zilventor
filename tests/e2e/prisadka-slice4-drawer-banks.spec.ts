@@ -5,7 +5,8 @@
  * Flow:
  *   A. New assembly + materials → CreateCabinetCommand (base cabinet, generous dims).
  *   B. AddDrawerBankCommand (N=3, full overlay, thickness=18) via __zilventorStore bus.
- *   C. Assert cabinet component count grew by 6 (3 drawerFront + 3 drawerBox).
+ *   C. Assert cabinet component count grew by 9 (3 drawerFront + 3 drawerBox + 3 drawerSlide).
+ *   C2. Hardware BOM: 3 drawer-slide hardware parts render (1b.5.3).
  *   D. Assert bore markers render (proves box panels are real geometry, not placeholders).
  *   E. OPFS-unpack one box .ziasm → 5 panel components + box-side bores present.
  *   F. __zilventorBoringAggregate() returns ≥1 bore with role:'drawerSlide-box'
@@ -21,7 +22,7 @@ import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from './helpers/buildBox';
 
 test(
-  'присадка slice4: AddDrawerBankCommand N=3 → 6 components + box panels + drawerSlide-box bores + undo',
+  'присадка slice4: AddDrawerBankCommand N=3 → 9 components + slide hardware + box panels + drawerSlide-box bores + undo',
   async ({ page }) => {
     test.setTimeout(360_000);
     page.setDefaultTimeout(120_000);
@@ -151,7 +152,7 @@ test(
       await w.__zilventorStore.getState().bus.execute(cmd);
     }, cabinetPath);
 
-    // ── C. Assert cabinet component count grew by 6 (3 fronts + 3 boxes) ────────
+    // ── C. Assert cabinet component count grew by 9 (3 fronts + 3 boxes + 3 slides) ──
     await page.waitForFunction(
       ({ cabPath, base }: { cabPath: string; base: number }) => {
         const w = window as unknown as {
@@ -160,13 +161,13 @@ test(
           };
         };
         const count = w.__zilventorStore.getState().subAssemblyDocs[cabPath]?.components.length ?? 0;
-        return count >= base + 6;
+        return count >= base + 9;
       },
       { cabPath: cabinetPath, base: baseline },
       { timeout: 30_000 },
     );
 
-    const postAddComponents: { total: number; frontRoles: number; boxRoles: number } =
+    const postAddComponents: { total: number; frontRoles: number; boxRoles: number; slideRoles: number } =
       await page.evaluate(
         (cabPath: string) => {
           const w = window as unknown as {
@@ -177,11 +178,12 @@ test(
             };
           };
           const doc = w.__zilventorStore.getState().subAssemblyDocs[cabPath];
-          if (!doc) return { total: -1, frontRoles: -1, boxRoles: -1 };
+          if (!doc) return { total: -1, frontRoles: -1, boxRoles: -1, slideRoles: -1 };
           return {
             total: doc.components.length,
             frontRoles: doc.components.filter((c) => c.role === 'drawerFront').length,
             boxRoles: doc.components.filter((c) => c.role === 'drawerBox').length,
+            slideRoles: doc.components.filter((c) => c.role === 'drawerSlide').length,
           };
         },
         cabinetPath,
@@ -190,10 +192,29 @@ test(
     console.log('[slice4] post-add components:', JSON.stringify(postAddComponents));
     expect(
       postAddComponents.total - baseline,
-      'cabinet must gain exactly 6 components (3 fronts + 3 boxes)',
-    ).toBe(6);
+      'cabinet must gain exactly 9 components (3 fronts + 3 boxes + 3 slides)',
+    ).toBe(9);
     expect(postAddComponents.frontRoles, 'must have 3 drawerFront components').toBe(3);
     expect(postAddComponents.boxRoles, 'must have 3 drawerBox components').toBe(3);
+    expect(postAddComponents.slideRoles, 'must have 3 drawerSlide hardware components (1b.5.3)').toBe(3);
+
+    // ── C2. Hardware BOM rollup: drawer slides appear as a drawerSlides row, qty=3 ──
+    // Proves the slide .zipt is recognised by buildHardwareCache + aggregateHardwareRecursive
+    // in the REAL app (not just the unit-test cache).
+    await page.waitForFunction(
+      () => {
+        const w = window as unknown as { __zilventorHardwarePartCount?: () => number };
+        return (w.__zilventorHardwarePartCount?.() ?? 0) >= 3;
+      },
+      undefined,
+      { timeout: 30_000 },
+    );
+    const hwPartCount: number = await page.evaluate(() => {
+      const w = window as unknown as { __zilventorHardwarePartCount?: () => number };
+      return w.__zilventorHardwarePartCount?.() ?? 0;
+    });
+    console.log('[slice4] __zilventorHardwarePartCount =', hwPartCount);
+    expect(hwPartCount, 'drawer-slide hardware parts must render (≥3)').toBeGreaterThanOrEqual(3);
 
     // ── D. Force full sub-asm tree load + wait for bore markers ─────────────────
     // __zilventorSubAsmInvalidateAll does BFS walk from activeAssembly through all
@@ -339,9 +360,14 @@ test(
     ).toBeGreaterThan(0);
 
     // ── G. Undo → component count returns to baseline ──────────────────────────
+    // Undo via the SAME bus reference the command was executed on (the window-exposed
+    // store). A dynamic `import('/src/store/useAppStore.ts')` resolves to a DIFFERENT
+    // module instance with its own empty bus → undo would be a silent no-op.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<boolean> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
 
     // Force re-sync so subAssemblyDocs reflects the post-undo OPFS state

@@ -419,9 +419,14 @@ test(
     ).toBe(3);
 
     // ── J. Undo removes drawerHandle components ────────────────────────────────
+    // Undo via the SAME bus the command was executed on (window-exposed store).
+    // A dynamic `import('/src/store/useAppStore.ts')` resolves to a DIFFERENT module
+    // instance with its own empty bus → undo would be a silent no-op.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<boolean> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
 
     // Force re-sync so subAssemblyDocs reflects the post-undo OPFS state
