@@ -798,6 +798,8 @@
       "autoDimTip": "Place parametric dimensions from base sketch parameters — click a view after enabling",
       "autoBalloon": "Auto-balloon",
       "autoBalloonTip": "Automatically place balloon annotations for all assembly parts",
+      "autoUpdateViews": "Auto-update views",
+      "autoUpdateViewsTip": "Automatically regenerate stale views when the source changes",
       "balloon": "Balloon",
       "balloonTip": "Balloon annotations require an assembly drawing",
       "baseline": "Baseline",

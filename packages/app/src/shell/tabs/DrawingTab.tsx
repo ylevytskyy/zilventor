@@ -20,6 +20,8 @@ export default function DrawingTab(): JSX.Element {
   const { t } = useTranslation();
   const activeDocument = useAppStore((s) => s.activeDocument);
   const bus = useAppStore((s) => s.bus);
+  const autoRegen = useAppStore((s) => s.autoRegen);
+  const setAutoRegen = useAppStore((s) => s.setAutoRegen);
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly ?? s.activeDrawingSourceDocument);
 
   if (activeDocument?.kind !== 'drawing') {
@@ -316,6 +318,17 @@ export default function DrawingTab(): JSX.Element {
 
       {/* Reference panel */}
       <RibbonPanel title={t('ribbon.drawing.reference')}>
+        {/* Auto-update views toggle: M3.2 — auto-regen stale views when source changes */}
+        <button
+          type="button"
+          aria-pressed={autoRegen}
+          className="text-xs hover:text-white"
+          aria-label={t('ribbon.drawing.autoUpdateViews')}
+          title={t('ribbon.drawing.autoUpdateViewsTip')}
+          onClick={() => setAutoRegen(!autoRegen)}
+        >
+          {t('ribbon.drawing.autoUpdateViews')}
+        </button>
         <button
           type="button"
           className="text-xs hover:text-white"
