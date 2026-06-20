@@ -9,4 +9,6 @@ export interface NestInputRow {
   readonly width: number;
   readonly materialId: MaterialId;
   readonly grain: GrainDirection;
+  /** Per-cut oversize allowance (mm) added to net length/width before packing. */
+  readonly oversize?: { readonly lengthMm: number; readonly widthMm: number };
 }

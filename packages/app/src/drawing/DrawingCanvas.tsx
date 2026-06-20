@@ -25,6 +25,8 @@ import { AddHoleTableCommand } from '../commands/AddHoleTableCommand';
 import { extractHolesInView, assignHoleTags } from '@zilventor/shared/src/drawing/holeTable';
 import { AddPartsListCommand } from '../commands/AddPartsListCommand';
 import { computePartsListRows } from './computePartsListRows';
+import { aggregateBomRecursive } from '../assembly/walkers/aggregateBomRecursive';
+import { itemNumberByComponentPath } from './componentItemNumbers';
 import { useCutListCacheContext } from '../shell/CutListCacheContext';
 import { AddBreakDialog } from './AddBreakDialog';
 import { DetailRegionOverlay } from './DetailRegionOverlay';
@@ -34,6 +36,7 @@ import { EditDetailRegionCommand } from '../commands/EditDetailRegionCommand';
 import { AddBaseViewCommand } from '../commands/AddBaseViewCommand';
 import { AddProjectedViewCommand } from '../commands/AddProjectedViewCommand';
 import { AddIsoViewCommand } from '../commands/AddIsoViewCommand';
+import { MoveViewCommand } from '../commands/MoveViewCommand';
 import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
@@ -113,6 +116,10 @@ export function DrawingCanvas() {
   const [cursorMm, setCursorMm] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const middleDragRef = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null);
+  // Left-button view drag (M3.4): a view (and any projected views aligned to it)
+  // is dragged to a new sheet position; committed as MoveViewCommand on release.
+  const viewDragRef = useRef<{ viewId: string; startSheet: { x: number; y: number }; startPos: { x: number; y: number } } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ viewId: string; dx: number; dy: number } | null>(null);
 
   // F5 session refs — useRef to avoid triggering re-render on phase transitions
   type BaselineSession =
@@ -135,9 +142,12 @@ export function DrawingCanvas() {
 
   // Per-view stale flags
   const [staleViews, setStaleViews] = useState<Set<string>>(new Set());
+  // Auto-regen: track which stale views we've already auto-dispatched this source-change episode.
+  const autoRegenAttemptedRef = useRef<Set<string>>(new Set());
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
   const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
+  const autoRegen = useAppStore((s) => s.autoRegen);
   const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {
@@ -159,6 +169,7 @@ export function DrawingCanvas() {
   // NOTE: do NOT use fingerprintPartState(activePart) here — activePart is null in the live
   // drawing context (reset by drawingDocState). The bytes-based fingerprint slot is correct.
   useEffect(() => {
+    autoRegenAttemptedRef.current = new Set(); // new episode → allow fresh auto-attempts
     setStaleViews(computeStaleViewIds(sheet.views, activeDrawingSourceFingerprint));
   }, [drawing.id, sheet.id, activeDrawingSourceFingerprint]);
 
@@ -287,17 +298,50 @@ export function DrawingCanvas() {
     setZoom((z) => Math.max(0.1, Math.min(20, z * delta)));
   }, []);
 
+  // Client pixel coords → sheet-space mm (matches the conversion used by tool clicks;
+  // falls back to raw client coords when the SVG has no measured size, e.g. in jsdom).
+  const clientToSheet = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    const hasSize = rect && rect.width > 0 && rect.height > 0;
+    return {
+      x: hasSize ? (clientX - rect.left) / (rect.width / sheetW) : clientX,
+      y: hasSize ? (clientY - rect.top) / (rect.height / sheetH) : clientY,
+    };
+  }, [sheetW, sheetH]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (e.button === 1) {
       middleDragRef.current = { startX: e.clientX, startY: e.clientY, startPan: pan };
+      return;
     }
-  }, [pan]);
+    // Left button in idle mode begins a view drag if a view is under the cursor.
+    if (e.button === 0 && toolMode === 'idle') {
+      // Resolve the grabbed view from the nearest ancestor carrying data-view-id
+      // (edge paths and the view group all tag it) so grabbing any rendered edge works.
+      const tagged = (e.target as Element).closest?.('[data-view-id]') ?? null;
+      const targetViewId = tagged?.getAttribute('data-view-id') ?? undefined;
+      const sheetPt = clientToSheet(e.clientX, e.clientY);
+      const hitId = getViewAtPoint(sheet.views, sheetPt, targetViewId);
+      if (hitId) {
+        const view = sheet.views.find((v) => v.id === hitId)!;
+        viewDragRef.current = { viewId: hitId, startSheet: sheetPt, startPos: { ...view.positionMm } };
+      }
+    }
+  }, [pan, toolMode, sheet, clientToSheet]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (middleDragRef.current) {
       const dx = e.clientX - middleDragRef.current.startX;
       const dy = e.clientY - middleDragRef.current.startY;
       setPan({ x: middleDragRef.current.startPan.x + dx, y: middleDragRef.current.startPan.y + dy });
+    }
+    if (viewDragRef.current) {
+      const cur = clientToSheet(e.clientX, e.clientY);
+      setDragPreview({
+        viewId: viewDragRef.current.viewId,
+        dx: cur.x - viewDragRef.current.startSheet.x,
+        dy: cur.y - viewDragRef.current.startSheet.y,
+      });
     }
     // Track cursor for live preview
     const svg = svgRef.current;
@@ -312,11 +356,25 @@ export function DrawingCanvas() {
       // In test environment, use client coords directly as mm
       setCursorMm({ x: e.clientX, y: e.clientY });
     }
-  }, [pan, sheetW, sheetH]);
+  }, [pan, sheetW, sheetH, clientToSheet]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     middleDragRef.current = null;
-  }, []);
+    const drag = viewDragRef.current;
+    viewDragRef.current = null;
+    setDragPreview(null);
+    if (drag) {
+      const cur = clientToSheet(e.clientX, e.clientY);
+      const nextPos = {
+        x: drag.startPos.x + (cur.x - drag.startSheet.x),
+        y: drag.startPos.y + (cur.y - drag.startSheet.y),
+      };
+      // Skip no-op drags (a plain click) so the undo stack stays clean.
+      if (nextPos.x !== drag.startPos.x || nextPos.y !== drag.startPos.y) {
+        void bus.execute(new MoveViewCommand({ sheetId: sheet.id, viewId: drag.viewId, positionMm: nextPos }));
+      }
+    }
+  }, [bus, sheet, clientToSheet]);
 
   // Tool-mode click dispatch
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -963,7 +1021,52 @@ export function DrawingCanvas() {
       return;
     }
 
-    // Other modes (addLeader, addBalloon)
+    if (toolMode === 'addBalloon') {
+      const liveDrw = useAppStore.getState().activeDrawing;
+      const liveSheet = liveDrw?.sheets.find((s) => s.id === liveDrw.activeSheetId) ?? liveDrw?.sheets[0];
+      const srcDoc = useAppStore.getState().activeDrawingSourceDocument;
+      const srcAsm = srcDoc && 'components' in srcDoc ? srcDoc : useAppStore.getState().activeAssembly;
+      if (!liveDrw || !liveSheet || !srcAsm || !edgeId) { setClickAccum([]); return; }
+
+      // Finding #3: no-op on view mismatch instead of falling back to views[0]
+      const v = liveSheet.views.find((vw) => vw.id === viewId);
+      if (!v) { setClickAccum([]); return; }
+
+      const proj = v.projection;
+      const edge = proj ? [...proj.visibleEdges, ...proj.hiddenEdges].find((e) => e.id === edgeId) : undefined;
+      const cp = edge?.componentPath;
+
+      // Finding #5: guard before the BOM walk — skip if no componentPath on the edge
+      if (!cp) { setClickAccum([]); return; }
+
+      const subAsmDocs = useAppStore.getState().subAssemblyDocs;
+      const cacheAdapter = {
+        get: (p: string) =>
+          subAsmDocs[p]
+            ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
+            : undefined,
+      };
+      const rows = aggregateBomRecursive(srcAsm, cacheAdapter, partInfoCacheRef.current ?? new Map());
+      const item = itemNumberByComponentPath(rows).get(cp);
+
+      if (item === undefined) { setClickAccum([]); return; }
+
+      void bus.execute(new AddDrawingAnnotationCommand({
+        sheetId: liveSheet.id,
+        ann: {
+          id: `ann-${Date.now()}`,
+          kind: 'balloon',
+          viewId: v.id, // Finding #4: v is guaranteed defined here; no assertion needed
+          targetMm: { x: svgX, y: svgY },
+          textPosMm: { x: svgX + 12, y: svgY - 12 },
+          itemNumber: item,
+        },
+      }));
+      setClickAccum([]);
+      return;
+    }
+
+    // Other modes (addLeader)
     setClickAccum([]);
   }, [toolMode, clickAccum, sheet, bus, sheetW, sheetH, drawing, sectionMode]);
 
@@ -980,6 +1083,19 @@ export function DrawingCanvas() {
     });
     void dispatcher(viewId);
   }, [sheet, bus, staleViews]);
+
+  // M3.2: live associativity — auto-regenerate stale views when enabled.
+  // Guarded by autoRegenAttemptedRef so a view that stays stale (regen failed) is not
+  // re-dispatched every render; the ref resets on each source-change episode (above).
+  useEffect(() => {
+    if (!autoRegen) return;
+    for (const id of staleViews) {
+      if (!autoRegenAttemptedRef.current.has(id)) {
+        autoRegenAttemptedRef.current.add(id);
+        handleRegenerate(id);
+      }
+    }
+  }, [autoRegen, staleViews, handleRegenerate]);
 
   // viewBox incorporating pan/zoom (at zero pan/zoom = "0 0 sheetW sheetH")
   const vbX = -pan.x / zoom;
@@ -1030,14 +1146,24 @@ export function DrawingCanvas() {
       })()}
 
       {/* Views */}
-      {sheet.views.map((v) => (
-        <ViewElement
-          key={v.id}
-          view={v}
-          isStale={staleViews.has(v.id)}
-          onRegenerate={handleRegenerate}
-        />
-      ))}
+      {sheet.views.map((v) => {
+        // Live drag preview: offset the dragged view and any projected views that
+        // align to it, mirroring the committed MoveViewCommand cascade.
+        const follows = dragPreview &&
+          (v.id === dragPreview.viewId ||
+            (v.kind === 'projected' && v.baseViewId === dragPreview.viewId));
+        const view = follows
+          ? { ...v, positionMm: { x: v.positionMm.x + dragPreview!.dx, y: v.positionMm.y + dragPreview!.dy } }
+          : v;
+        return (
+          <ViewElement
+            key={v.id}
+            view={view}
+            isStale={staleViews.has(v.id)}
+            onRegenerate={handleRegenerate}
+          />
+        );
+      })}
 
       {/* Section line overlays — one per section view over its parent */}
       {sheet.views

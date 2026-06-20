@@ -66,12 +66,14 @@
     "ribbon": "Ribbon",
     "setback": "Setback",
     "shelf_pin_dialog": "Система-32 shelf-pin dialog",
+    "groove": "Groove dialog",
     "sheetContextMenu": "Sheet context menu",
     "start_radius": "Start radius",
     "termination": "Termination",
     "text_input": "Text",
     "circular_pattern": "Circular Pattern",
-    "visible": "visible"
+    "visible": "visible",
+    "cornerCabinet": "Corner Cabinet"
   },
   "browser": {
     "assembly_label": "Assembly: {{name}}",
@@ -169,9 +171,11 @@
     "along_joint": "Along joint",
     "axis_u": "U (mm)",
     "axis_v": "V (mm)",
+    "column_start_offset": "Column start offset (mm)",
     "diameter_mm": "Ø (mm)",
     "height": "Height",
-    "regenerate_to_enable_move": "Regenerate bores to enable move"
+    "regenerate_to_enable_move": "Regenerate bores to enable move",
+    "start_offset_kept_edits": "Start offset regenerated the shelf-pin grid; manually moved holes stayed at their old positions."
   },
   "dialog": {
     "addBreak": {
@@ -228,6 +232,11 @@
       "overlayHalf": "Half",
       "overlayInset": "Inset",
       "thickness": "Thickness (mm)",
+      "style": "Style",
+      "styleSlab": "Slab",
+      "styleShaker": "Shaker",
+      "styleRaisedPanel": "Raised panel",
+      "frameWidth": "Frame width (mm)",
       "reveal": "Reveal (mm)",
       "clearance": "Clearance (mm)",
       "centerReveal": "Center reveal (mm)",
@@ -272,7 +281,12 @@
       "shelf_count": "Shelf count",
       "shelves_section": "Shelves",
       "title": "Base Cabinet",
-      "toekick_section": "Toekick (mm)"
+      "toekick_section": "Toekick (mm)",
+      "type_base": "Base (floor)",
+      "type_label": "Type",
+      "type_section": "Cabinet type",
+      "type_tall": "Tall",
+      "type_wall": "Wall (upper)"
     },
     "chamfer": {
       "distance": "Distance",
@@ -280,6 +294,14 @@
       "no_edges": "No edges selected.",
       "pick_mode": "Pick mode",
       "title": "Chamfer"
+    },
+    "cornerCabinet": {
+      "depth1": "Depth 1 (mm)",
+      "depth2": "Depth 2 (mm)",
+      "height": "Height (mm)",
+      "title": "Corner Cabinet",
+      "width1": "Width 1 (mm)",
+      "width2": "Width 2 (mm)"
     },
     "dimension": {
       "name": "Name",
@@ -444,6 +466,11 @@
       "kerf": "Kerf (mm)",
       "kerfAriaLabel": "Kerf",
       "kerfError": "Kerf must be a positive number.",
+      "oversizeLength": "Oversize L (mm)",
+      "oversizeLengthAriaLabel": "Length oversize",
+      "oversizeWidth": "Oversize W (mm)",
+      "oversizeWidthAriaLabel": "Width oversize",
+      "oversizeError": "Oversize must be zero or a positive number.",
       "summary": "{{count}} panels across {{materials}} materials will be nested",
       "title": "Generate Nest"
     },
@@ -569,9 +596,18 @@
       "backSetback": "Back setback (mm)",
       "topMargin": "Top margin (mm)",
       "bottomMargin": "Bottom margin (mm)",
+      "startOffset": "Start offset (mm)",
       "columns": "Columns",
       "columnsOne": "1 (front)",
       "columnsTwo": "2 (front + back)"
+    },
+    "groove": {
+      "title": "Groove",
+      "face": "Face",
+      "axis": "Axis",
+      "position": "Position (mm)",
+      "width": "Width (mm)",
+      "depth": "Depth (mm)"
     },
     "sketchRect": {
       "ariaLabel": "Rectangle dialog",
@@ -722,6 +758,15 @@
       "stale": "Cut list changed since last nest.",
       "staleAriaLabel": "Nest stale"
     },
+    "configurations": {
+      "addRow": "Add Row",
+      "ariaLabel": "Configurations",
+      "colName": "Configuration",
+      "colValues": "Values",
+      "empty": "No configurations yet. Click \"Add Row\" to capture the current design.",
+      "importCsv": "Import CSV",
+      "title": "Configurations"
+    },
     "parameters": {
       "ariaLabel": "Parameters",
       "colExpression": "Expression",
@@ -751,6 +796,10 @@
       "annotate": "Annotate",
       "autoDim": "Auto-Dim",
       "autoDimTip": "Place parametric dimensions from base sketch parameters — click a view after enabling",
+      "autoBalloon": "Auto-balloon",
+      "autoBalloonTip": "Automatically place balloon annotations for all assembly parts",
+      "autoUpdateViews": "Auto-update views",
+      "autoUpdateViewsTip": "Automatically regenerate stale views when the source changes",
       "balloon": "Balloon",
       "balloonTip": "Balloon annotations require an assembly drawing",
       "baseline": "Baseline",
@@ -804,7 +853,16 @@
       "section": "Section",
       "sheet": "Sheet",
       "sheetSettings": "Sheet…",
-      "steppedSection": "Stepped Section"
+      "steppedSection": "Stepped Section",
+      "templates": "Templates",
+      "saveAsTemplate": "Save as Template…",
+      "saveAsTemplateTip": "Save the active sheet's title block and underlay as a reusable template",
+      "newFromTemplate": "New from Template…",
+      "newFromTemplateTip": "Create a new sheet from a saved template",
+      "templateNamePrompt": "Template name",
+      "templatePickerTitle": "New from template",
+      "noTemplates": "No saved templates yet.",
+      "templateCancel": "Cancel"
     },
     "furniture": {
       "addDoor": "Add Door",
@@ -814,6 +872,7 @@
       "addHardware": "Add Hardware",
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",
+      "cornerCabinet": "Corner Cabinet",
       "cabinetsPanel": "Cabinets panel",
       "clearPresadku": "Очистити присадку",
       "create": "Create",
@@ -833,7 +892,8 @@
       "presadka": "Присадка",
       "showBores": "Show Bores",
       "system32Auto": "Система-32",
-      "system32Manual": "Система-32 (pick)"
+      "system32Manual": "Система-32 (pick)",
+      "groove": "Groove"
     },
     "model": {
       "axis": "Axis",
@@ -848,6 +908,7 @@
       "linearPattern": "Linear Pattern (L)",
       "mirror": "Mirror (M)",
       "modify": "Modify",
+      "configurationsBtn": "Configurations…",
       "parameters": "Parameters",
       "parametersBtn": "Parameters…",
       "pattern": "Pattern",

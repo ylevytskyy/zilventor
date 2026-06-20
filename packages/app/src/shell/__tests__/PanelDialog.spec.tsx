@@ -119,9 +119,9 @@ describe('PanelDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
     expect(slot.onSubmit).toHaveBeenCalledTimes(1);
     const submitted = (slot.onSubmit as ReturnType<typeof vi.fn>).mock.calls[0]![0] as PanelFeature;
-    expect(submitted.edgeBands.front).toEqual({ materialId: 'm-birch' });
+    expect(submitted.edgeBands.front).toEqual({ materialId: 'm-birch', thickness: 0.4 });
     expect(submitted.edgeBands.back).toBeNull();
-    expect(submitted.edgeBands.left).toEqual({ materialId: 'm-oak' });
+    expect(submitted.edgeBands.left).toEqual({ materialId: 'm-oak', thickness: 0.4 });
     expect(submitted.edgeBands.right).toBeNull();
   });
 

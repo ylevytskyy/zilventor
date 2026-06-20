@@ -54,7 +54,7 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByText('Export')).toBeInTheDocument();
   });
 
-  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 4 Annotate buttons, 5 Export buttons', () => {
+  it('renders exactly 2 Sheet buttons, 3 Place Views buttons, 5 Dimension buttons, 5 Annotate buttons, 5 Export buttons', () => {
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() });
     render(<DrawingTab />);
     // Sheet panel: New Sheet + Sheet… (disabled follow-up)
@@ -70,11 +70,12 @@ describe('DrawingTab — drawing active doc', () => {
     expect(screen.getByRole('button', { name: /^aligned$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^radial$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^diametric$/i })).toBeInTheDocument();
-    // Annotate panel
+    // Annotate panel (5 buttons: Centerline, Center Mark, Leader Text, Balloon, Auto-balloon)
     expect(screen.getByRole('button', { name: /centerline/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /center mark/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /leader text/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /balloon/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^balloon$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /auto-balloon/i })).toBeInTheDocument();
     // Export panel
     expect(screen.getByRole('button', { name: /export pdf/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export svg/i })).toBeInTheDocument();
@@ -100,7 +101,7 @@ describe('DrawingTab — drawing active doc', () => {
   it('Balloon button is disabled for a part source drawing', () => {
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: seedDrawing() }); // sourceKind: 'part'
     render(<DrawingTab />);
-    expect(screen.getByRole('button', { name: /balloon/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^balloon$/i })).toBeDisabled();
   });
 
   it('Balloon button is enabled for an assembly source drawing', () => {
@@ -110,7 +111,7 @@ describe('DrawingTab — drawing active doc', () => {
     };
     useAppStore.getState().setActiveDocument({ kind: 'drawing', document: dwg });
     render(<DrawingTab />);
-    expect(screen.getByRole('button', { name: /balloon/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^balloon$/i })).not.toBeDisabled();
   });
 
   it('Sheet… button is disabled with title indicating follow-up', () => {

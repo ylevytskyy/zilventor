@@ -38,7 +38,7 @@ describe('computeNestFingerprint', () => {
   it('edge-band changes → same hash (we do not include edges)', async () => {
     const a = await computeNestFingerprint([cutRow({})], m, 3);
     const b = await computeNestFingerprint([cutRow({
-      edgeBands: { front: { materialId: 'b1', materialName: 'Band' }, back: null, left: null, right: null },
+      edgeBands: { front: { materialId: 'b1', materialName: 'Band', thickness: 0.4 }, back: null, left: null, right: null },
     })], m, 3);
     expect(a).toBe(b);
   });

@@ -233,8 +233,8 @@ describe('getProjectorInput — assembly source', () => {
       {
         kind: 'assembly',
         components: [
-          { partId: 'box-asm-a', pose: IDENTITY_POSE },
-          { partId: 'box-asm-b', pose: { translation: { x: 200, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+          { partId: 'box-asm-a', pose: IDENTITY_POSE, componentPath: 'box-asm-a' },
+          { partId: 'box-asm-b', pose: { translation: { x: 200, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] }, componentPath: 'box-asm-b' },
         ],
       },
       (id) => cache.get(id),
@@ -265,8 +265,8 @@ describe('getProjectorInput — assembly source', () => {
       {
         kind: 'assembly',
         components: [
-          { partId: 'box-asm-supp-a', pose: IDENTITY_POSE },
-          { partId: 'box-asm-supp-b', pose: IDENTITY_POSE },
+          { partId: 'box-asm-supp-a', pose: IDENTITY_POSE, componentPath: 'supp-a' },
+          { partId: 'box-asm-supp-b', pose: IDENTITY_POSE, componentPath: 'supp-b' },
         ],
       },
       (id) => cache.get(id),
@@ -292,8 +292,8 @@ describe('getProjectorInput — assembly source', () => {
         kind: 'assembly',
         components: [
           // Same partId, different poses → simulates a repeated component (e.g. screw × 2).
-          { partId: 'box-shared', pose: IDENTITY_POSE },
-          { partId: 'box-shared', pose: { translation: { x: 200, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] } },
+          { partId: 'box-shared', pose: IDENTITY_POSE, componentPath: 'inst-0' },
+          { partId: 'box-shared', pose: { translation: { x: 200, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] }, componentPath: 'inst-1' },
         ],
       },
       (id) => cache.get(id),
@@ -310,11 +310,84 @@ describe('getProjectorInput — assembly source', () => {
         oc,
         {
           kind: 'assembly',
-          components: [{ partId: 'ghost', pose: IDENTITY_POSE }],
+          components: [{ partId: 'ghost', pose: IDENTITY_POSE, componentPath: 'ghost' }],
         },
         () => undefined,
       ),
     ).rejects.toThrow(/ghost.*cache/i);
+  });
+});
+
+// --- componentPath tagging tests ---
+
+describe('getProjectorInput — assembly componentPath tagging', () => {
+  const IDENTITY_POSE = {
+    translation: { x: 0, y: 0, z: 0 },
+    quaternion: [0, 0, 0, 1] as [number, number, number, number],
+  };
+
+  function makeSmallBox(id: string) {
+    return {
+      id,
+      name: id,
+      units: 'mm' as const,
+      parameters: {
+        d1: { name: 'd1', expression: '20', value: 20, unit: 'mm' as const },
+      },
+      properties: {},
+      materials: [],
+      hardware: [],
+      featureTree: [
+        {
+          kind: 'sketch' as const,
+          id: 'sk1',
+          plane: { source: 'workPlane', featureId: 'origin.XY' } as const,
+          primitives: [{ id: 'r1', kind: 'rectangle' as const, x: 0, y: 0, w: 30, h: 20 }],
+          constraints: [],
+        },
+        {
+          kind: 'extrude' as const,
+          id: 'ex1',
+          sketchRef: 'sk1',
+          distanceParam: 'd1',
+          direction: 'forward' as const,
+          operation: 'new' as const,
+        },
+      ],
+    };
+  }
+
+  it('every assembly edge carries the componentPath of its source component', async () => {
+    const resA = await executeTree(oc, makeSmallBox('cp-box-a'));
+    const resB = await executeTree(oc, makeSmallBox('cp-box-b'));
+    expect(resA.ok).toBe(true);
+    expect(resB.ok).toBe(true);
+    if (!resA.ok || !resB.ok) return;
+
+    const cache = new Map([
+      ['cp-box-a', resA.value.namedShape],
+      ['cp-box-b', resB.value.namedShape],
+    ]);
+
+    const input = await getProjectorInput(
+      oc,
+      {
+        kind: 'assembly',
+        components: [
+          { partId: 'cp-box-a', pose: IDENTITY_POSE, componentPath: 'A' },
+          { partId: 'cp-box-b', pose: { translation: { x: 50, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] }, componentPath: 'B' },
+        ],
+      },
+      (id) => cache.get(id),
+    );
+
+    expect(input.edges.length).toBeGreaterThan(0);
+    const paths = new Set(input.edges.map((e) => e.componentPath));
+    expect(paths.has('A')).toBe(true);
+    expect(paths.has('B')).toBe(true);
+    for (const e of input.edges) {
+      expect(e.componentPath, `edge ${e.id} must have componentPath`).toBeDefined();
+    }
   });
 });
 

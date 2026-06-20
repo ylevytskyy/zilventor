@@ -25,8 +25,8 @@ import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
-import { panelUvProjection, type UvProjection } from '@zilventor/shared';
-import { disposeShape, computeBoundingBox, type OcctShape } from '../occt/SolidOps';
+import { panelUvProjection, type UvProjection, buildGrooveCutter } from '@zilventor/shared';
+import { disposeShape, computeBoundingBox, makeBoxFromCorners, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, attachName, mergeFaceNames } from '../occt/FaceNaming';
 import { resolve } from './ParameterResolver';
@@ -131,11 +131,19 @@ export async function executeTree(
   // A sketch referenced by a hole's fromSketch placement is consumed
   // directly by the hole branch (it reads circle primitives for axis
   // locations) and must similarly bypass `executeSketchFeature`.
+  // Feature suppression (iLogic-equivalent): skip any feature whose id is in
+  // suppressedFeatureIds, in BOTH the pre-scan classification loop and the main
+  // build loop. Skipping in the pre-scan too keeps a suppressed revolve/hole/sweep
+  // from claiming its sketch as "consumed directly" — otherwise that sketch would
+  // be orphaned (never run through executeSketchFeature). (Milestone 2.4)
+  const suppressed = new Set<string>(part.suppressedFeatureIds ?? []);
+
   const revolveSketchIds = new Set<string>();
   const holeSketchIds = new Set<string>();
   const sweepSketchIds = new Set<string>();
   const sketchById = new Map<string, (typeof part.featureTree)[number]>();
   for (const f of part.featureTree) {
+    if (suppressed.has(f.id)) continue;
     if (f.kind === 'revolve') revolveSketchIds.add(f.sketchRef);
     if (f.kind === 'hole' && f.placement.kind === 'fromSketch') {
       holeSketchIds.add(f.placement.sketchId);
@@ -151,6 +159,7 @@ export async function executeTree(
   }
 
   for (const feature of part.featureTree) {
+    if (suppressed.has(feature.id)) continue;
     // Inline work-feature evaluation: origin features come first in the tree
     // (seeded by newPart / migration), so by the time a downstream sketch or
     // user-created work feature references the cache, prior entries are
@@ -681,6 +690,41 @@ export async function executeTree(
         };
       } catch (e) {
         // Soft-fail: keep the pre-hole body intact and record the error.
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+    } else if (feature.kind === 'groove') {
+      // Groove cuts a parametric channel into an existing body. Without a body
+      // there's nothing to cut — soft-fail (same convention as hole/sweep).
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'Groove needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        // Panel dims from the running body's bbox. buildPanelBox is centred in
+        // X/Y with its base at Z=0, so bbox sizes reproduce face2DFrame's frame.
+        const [xmin, ymin, zmin, xmax, ymax, zmax] = computeBoundingBox(oc, finalSolid.shape);
+        const panelDims = { length: xmax - xmin, width: ymax - ymin, thickness: zmax - zmin };
+        const { p1, p2 } = buildGrooveCutter(panelDims, feature);
+        const cutter = makeBoxFromCorners(oc, p1, p2);
+        const cut = cutShapes(oc, finalSolid.shape, cutter);
+        disposeShape(cutter);
+        if (!cut.ok) {
+          featureErrors.set(feature.id, { ...cut.error, featureId: feature.id });
+          continue;
+        }
+        finalSolid = { shape: cut.value, faceNames: finalSolid.faceNames };
+      } catch (e) {
         featureErrors.set(feature.id, {
           kind: 'invalidParameter',
           message: (e instanceof Error) ? e.message : String(e),

@@ -160,6 +160,71 @@ describe('CreateCabinetCommand — mid-flight rollback', () => {
   });
 });
 
+describe('CreateCabinetCommand — cabinet type routing', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('wall type emits a Hanging Rail panel, no Toekick, and stamps the hangingRail role', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Wall Cab', cabinetType: 'wall', toekickHeight: 0, toekickSetback: 0 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths.some((p) => p.includes('Hanging Rail'))).toBe(true);
+    expect(paths.some((p) => p.includes('Toekick'))).toBe(false);
+
+    const project = await unpackProject(await opfs.read('Wall Cab.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; role?: PanelRole }> } }).document;
+    const roleByPath = new Map(doc.components.map((c) => [c.partPath, c.role]));
+    expect(roleByPath.get('Wall Cab - Hanging Rail.zipt')).toBe('hangingRail');
+  });
+
+  it('tall type is a base carcass (Toekick present, no Hanging Rail)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Tall Cab', cabinetType: 'tall', height: 2100 },
+      opfs,
+    }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    expect(paths.some((p) => p.includes('Toekick'))).toBe(true);
+    expect(paths.some((p) => p.includes('Hanging Rail'))).toBe(false);
+  });
+});
+
+describe('CreateCabinetCommand — corner cabinet template', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  const CORNER = {
+    name: 'Corner Cab',
+    width1: 900, depth1: 350, width2: 600, depth2: 350, height: 720,
+    carcassMaterialId: 'm-birch-18',
+    backMaterialId: 'm-hb-6',
+    bandMaterialId: null,
+  } as const;
+
+  it('writes the L-corner panels including a Corner Post and stamps the cornerPost role', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'cornerCabinet', params: { ...CORNER }, opfs }).apply();
+    const paths = (await opfs.list()).filter((p) => p.endsWith('.zipt'));
+    // 9 carcass panels for the L-unit.
+    expect(paths).toHaveLength(9);
+    expect(paths.some((p) => p.includes('Corner Post'))).toBe(true);
+    expect(paths.some((p) => p.includes('Bottom 2'))).toBe(true);
+
+    const project = await unpackProject(await opfs.read('Corner Cab.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; role?: PanelRole }> } }).document;
+    const roleByPath = new Map(doc.components.map((c) => [c.partPath, c.role]));
+    expect(roleByPath.get('Corner Cab - Corner Post.zipt')).toBe('cornerPost');
+    expect(doc.components).toHaveLength(9);
+    for (const c of doc.components) expect(c.role).toBeDefined();
+  });
+});
+
 describe('CreateCabinetCommand — persists ComponentInstance.role', () => {
   beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
 

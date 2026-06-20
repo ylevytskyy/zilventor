@@ -43,6 +43,8 @@ export class GenerateShelfPinBoresCommand implements Command {
   readonly name = 'GenerateShelfPinBores';
   /** partPath → prior bores[] (for revert). Captured during apply(). */
   private priorBores = new Map<string, BoreOp[]>();
+  /** partPath → prior shelfPinParams (or undefined if absent). Captured during apply(). */
+  private priorParams = new Map<string, ShelfPinParams | undefined>();
   private readonly store: typeof useAppStore;
 
   constructor(private readonly opts: {
@@ -109,6 +111,10 @@ export class GenerateShelfPinBoresCommand implements Command {
       } else {
         delete (entry.document as Record<string, unknown>).bores;
       }
+      // Persist the grid params so a later start-offset tweak re-runs without
+      // resetting custom pitch/setbacks. Snapshot the prior value for revert.
+      this.priorParams.set(partPath, entry.document.shelfPinParams as ShelfPinParams | undefined);
+      entry.document.shelfPinParams = this.opts.params;
       const repackedManifest = {
         ...entry.manifest,
         formatVersion: CURRENT_FORMAT_VERSION,
@@ -141,6 +147,12 @@ export class GenerateShelfPinBoresCommand implements Command {
       } else {
         delete manifest.document.bores;
       }
+      const priorP = this.priorParams.get(partPath);
+      if (priorP !== undefined) {
+        manifest.document.shelfPinParams = priorP;
+      } else {
+        delete (manifest.document as Record<string, unknown>).shelfPinParams;
+      }
       await this.opts.opfs.write(
         partPath,
         await packProject({
@@ -150,6 +162,7 @@ export class GenerateShelfPinBoresCommand implements Command {
       );
     }
     this.priorBores.clear();
+    this.priorParams.clear();
     if (affectedPaths.length > 0) {
       this.store.getState().boreCacheInvalidator?.(affectedPaths);
     }

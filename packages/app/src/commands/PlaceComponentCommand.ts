@@ -208,7 +208,7 @@ function applyRewritesInPlace(
         if (band) {
           next = {
             ...next,
-            edgeBands: { ...next.edgeBands, [key]: { materialId: r.newMaterialId } },
+            edgeBands: { ...next.edgeBands, [key]: { ...band, materialId: r.newMaterialId } },
           };
         }
       }

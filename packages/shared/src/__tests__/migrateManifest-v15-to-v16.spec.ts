@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
   it('CURRENT_FORMAT_VERSION is 17', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(26);
+    expect(CURRENT_FORMAT_VERSION).toBe(30);
   });
 
   it('passes a v15 part through to v16 without data loss', () => {
@@ -16,7 +16,7 @@ describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v15Part) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(26);
+    expect(out.formatVersion).toBe(30);
     expect(out.kind).toBe('part');
   });
 
@@ -33,7 +33,7 @@ describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v15Asm) as { formatVersion: number };
-    expect(out.formatVersion).toBe(26);
+    expect(out.formatVersion).toBe(30);
   });
 
   it('passes a v15 drawing with no detail views through to v16 unchanged', () => {
@@ -66,7 +66,7 @@ describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
       kind: string;
       document: { name: string; sheets: Array<{ views: unknown[] }> };
     };
-    expect(out.formatVersion).toBe(26);
+    expect(out.formatVersion).toBe(30);
     expect(out.kind).toBe('drawing');
     expect(out.document.name).toBe('Box — Drawing');
     expect(out.document.sheets[0]!.views).toHaveLength(1);
@@ -111,7 +111,7 @@ describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
       formatVersion: number;
       document: { sheets: Array<{ views: Array<{ kind: string; label?: string }> }> };
     };
-    expect(out.formatVersion).toBe(26);
+    expect(out.formatVersion).toBe(30);
     const detailView = out.document.sheets[0]!.views.find((v) => v.kind === 'detail');
     expect(detailView).toBeDefined();
     expect(detailView!.label).toBe('A');
@@ -127,6 +127,6 @@ describe('migrateManifest v15 → v16 (Drawing F2 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v16) as { formatVersion: number };
-    expect(out.formatVersion).toBe(26);
+    expect(out.formatVersion).toBe(30);
   });
 });

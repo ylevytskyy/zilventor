@@ -31,6 +31,18 @@ describe('isMaterialEntry', () => {
     const reg: MaterialRegistry = [];
     expect(Array.isArray(reg)).toBe(true);
   });
+
+  it('accepts an optional bandThicknessMm', () => {
+    const entry: MaterialEntry = {
+      id: 'm-pvc', name: 'PVC tape', defaultThickness: 18, color: '#ffffff', bandThicknessMm: 0.4,
+    };
+    expect(isMaterialEntry(entry)).toBe(true);
+  });
+
+  it('rejects a non-positive bandThicknessMm', () => {
+    const entry = { id: 'm1', name: 'X', defaultThickness: 18, color: '#000000', bandThicknessMm: 0 };
+    expect(isMaterialEntry(entry)).toBe(false);
+  });
 });
 
 describe('isMaterialEntry — sheet-stock fields', () => {

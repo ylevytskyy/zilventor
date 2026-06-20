@@ -33,17 +33,28 @@ describe('PanelFeature', () => {
     expect(f.kind).toBe('panel');
   });
 
-  it('edge band slot accepts null and {materialId}', () => {
+  it('edge band slot accepts null and {materialId, thickness}', () => {
     const banded: PanelFeature = {
       ...PANEL,
       edgeBands: {
-        front: { materialId: 'mat-pvc-1' },
+        front: { materialId: 'mat-pvc-1', thickness: 0.4 },
         back: null,
-        left: { materialId: 'mat-pvc-1' },
+        left: { materialId: 'mat-pvc-1', thickness: 2 },
         right: null,
       },
     };
     expect(isPanelFeature(banded)).toBe(true);
+  });
+
+  it('rejects an edge band missing thickness', () => {
+    const banded = {
+      ...PANEL,
+      edgeBands: {
+        front: { materialId: 'mat-pvc-1' },
+        back: null, left: null, right: null,
+      },
+    };
+    expect(isPanelFeature(banded as unknown)).toBe(false);
   });
 });
 
@@ -94,20 +105,20 @@ describe('resolvePanelSpecFromFeature', () => {
     expect(resolvePanelSpecFromFeature(f, {})).toBeNull();
   });
 
-  it('preserves edgeBand materialIds in the spec', () => {
+  it('preserves edgeBand materialIds and thickness in the spec', () => {
     const f: PanelFeature = {
       ...baseFeature,
       edgeBands: {
-        front: { materialId: 'm-pvc' },
+        front: { materialId: 'm-pvc', thickness: 0.4 },
         back: null,
-        left: { materialId: 'm-pvc' },
+        left: { materialId: 'm-pvc', thickness: 2 },
         right: null,
       },
     };
     const spec = resolvePanelSpecFromFeature(f, {})!;
-    expect(spec.edgeBands.front).toEqual({ materialId: 'm-pvc' });
+    expect(spec.edgeBands.front).toEqual({ materialId: 'm-pvc', thickness: 0.4 });
     expect(spec.edgeBands.back).toBeNull();
-    expect(spec.edgeBands.left).toEqual({ materialId: 'm-pvc' });
+    expect(spec.edgeBands.left).toEqual({ materialId: 'm-pvc', thickness: 2 });
     expect(spec.edgeBands.right).toBeNull();
   });
 });

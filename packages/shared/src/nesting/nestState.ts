@@ -28,7 +28,10 @@ export interface NestExclusion {
 }
 
 export interface NestState {
-  readonly params: { readonly kerfMm: number };
+  readonly params: {
+    readonly kerfMm: number;
+    readonly oversize?: { readonly lengthMm: number; readonly widthMm: number };
+  };
   readonly generatedAt: number;
   readonly inputFingerprint: string;
   readonly sheets: readonly NestSheet[];

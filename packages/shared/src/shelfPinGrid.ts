@@ -15,6 +15,9 @@ export interface ShelfPinParams {
   topMargin: number;
   bottomMargin: number;
   columns: 1 | 2;
+  /** Distance from the bottom datum (start) to the first hole. When >0 the ladder
+   *  is anchored at start+startOffset instead of centered. Default/0 = centered. */
+  startOffset?: number;
 }
 
 export const DEFAULT_SHELF_PIN_PARAMS: ShelfPinParams = {
@@ -32,8 +35,18 @@ export const DEFAULT_SHELF_PIN_PARAMS: ShelfPinParams = {
  * Hole centers along one axis: a run spaced `pitch` apart, centered inside
  * [start, end] so the leading and trailing clearances are equal. When the
  * span is smaller than one pitch, a single hole is placed at the midpoint.
+ *
+ * `startOffset` (System-32 datum): when >0, the first hole is anchored at
+ * `start + startOffset` and the run steps by `pitch` up to `end` (no centering).
+ * Default 0 keeps the centered behavior.
  */
-export function columnPositions(start: number, end: number, pitch: number): number[] {
+export function columnPositions(start: number, end: number, pitch: number, startOffset = 0): number[] {
+  if (startOffset > 0) {
+    const first = start + startOffset;
+    const out: number[] = [];
+    for (let u = first; u <= end + 1e-9; u += pitch) out.push(u);
+    return out.length > 0 ? out : [first];
+  }
   const span = end - start;
   if (span <= 0) return [start];
   const steps = Math.floor(span / pitch); // gaps between holes
@@ -69,6 +82,7 @@ export function shelfPinGrid(
     params.bottomMargin,
     dims.length - params.topMargin,
     params.pitch,
+    params.startOffset ?? 0,
   );
   const cols: Array<{ id: 'pin-col-front' | 'pin-col-back'; v: number }> = [
     { id: 'pin-col-front', v: params.frontSetback },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutListRowKey, normalizeLW, aggregateCutListLocal, compareCutListRowsForRenumber, pruneCutListItemNumbers } from '../cutListRow';
+import { cutListRowKey, normalizeLW, aggregateCutListLocal, compareCutListRowsForRenumber, pruneCutListItemNumbers, rawLength, rawWidth, grossLength, grossWidth } from '../cutListRow';
 import type { CutListRow } from '../cutListRow';
 import type { PanelSpec } from '../panel-feature';
 import type { ComponentInstance, AssemblyDocument } from '../types';
@@ -13,6 +13,90 @@ const baseSpec = (overrides: Partial<PanelSpec> = {}): PanelSpec => ({
   grain: 'length',
   edgeBands: { front: null, back: null, left: null, right: null },
   ...overrides,
+});
+
+const baseRow = (overrides: Partial<CutListRow> = {}): CutListRow => ({
+  rowKey: 'L=600|W=400|T=18|M=m-birch|G=length',
+  itemNumber: 1,
+  qty: 1,
+  length: 600,
+  width: 400,
+  thickness: 18,
+  materialId: 'm-birch',
+  materialName: 'Birch',
+  grain: 'length',
+  edgeBands: { front: null, back: null, left: null, right: null },
+  partPath: 'p.zipt',
+  partName: 'Side',
+  componentPathKeys: ['c1'],
+  ...overrides,
+});
+
+describe('grossLength / grossWidth', () => {
+  it('returns net dimensions when no bands applied', () => {
+    const row = baseRow({ length: 600, width: 400 });
+    expect(grossLength(row)).toBe(600);
+    expect(grossWidth(row)).toBe(400);
+  });
+
+  it('left/right bands add to length; front/back bands add to width', () => {
+    const row = baseRow({
+      length: 600,
+      width: 400,
+      edgeBands: {
+        front: { materialId: 'm-pvc', materialName: 'PVC', thickness: 0.4 },
+        back: { materialId: 'm-pvc', materialName: 'PVC', thickness: 0.4 },
+        left: { materialId: 'm-pvc', materialName: 'PVC', thickness: 0.4 },
+        right: { materialId: 'm-pvc', materialName: 'PVC', thickness: 0.4 },
+      },
+    });
+    expect(grossLength(row)).toBeCloseTo(600.8, 5);
+    expect(grossWidth(row)).toBeCloseTo(400.8, 5);
+  });
+
+  it('aggregateCutListLocal carries band thickness into the row cell', () => {
+    const spec = baseSpec({
+      edgeBands: {
+        front: null, back: null,
+        left: { materialId: 'm-pvc', thickness: 0.4 },
+        right: { materialId: 'm-pvc', thickness: 0.4 },
+      },
+    });
+    const materials: MaterialEntry[] = [
+      { id: 'm-birch', name: 'Birch', defaultThickness: 18, color: '#d8c896' },
+      { id: 'm-pvc', name: 'PVC', defaultThickness: 1, color: '#ffffff' },
+    ];
+    const assembly = {
+      components: [{ id: 'c1', partPath: 'p.zipt' } as ComponentInstance],
+      cutListItemNumbers: {},
+    };
+    const specs = new Map<string, PanelSpec | null>([['p.zipt', spec]]);
+    const result = aggregateCutListLocal(assembly, specs, materials);
+    const row = result.rows[0]!;
+    expect(row.edgeBands.left).toEqual({ materialId: 'm-pvc', materialName: 'PVC', thickness: 0.4 });
+    expect(grossLength(row)).toBe(600.8);
+    expect(grossWidth(row)).toBe(400);
+  });
+});
+
+describe('rawLength / rawWidth', () => {
+  it('returns net dimensions when no oversize', () => {
+    const row = baseRow({ length: 600, width: 400 });
+    expect(rawLength(row)).toBe(600);
+    expect(rawWidth(row)).toBe(400);
+  });
+
+  it('adds oversize to net dimensions', () => {
+    const row = baseRow({ length: 600, width: 400, oversize: { lengthMm: 10, widthMm: 6 } });
+    expect(rawLength(row)).toBe(610);
+    expect(rawWidth(row)).toBe(406);
+  });
+
+  it('applies length and width oversize independently', () => {
+    const row = baseRow({ length: 600, width: 400, oversize: { lengthMm: 10, widthMm: 0 } });
+    expect(rawLength(row)).toBe(610);
+    expect(rawWidth(row)).toBe(400);
+  });
 });
 
 describe('normalizeLW', () => {
@@ -159,8 +243,8 @@ describe('aggregateCutListLocal', () => {
       length: 600,
       width: 400,
       edgeBands: {
-        front: { materialId: 'm-pvc' },
-        back: { materialId: 'm-pvc' },
+        front: { materialId: 'm-pvc', thickness: 0.4 },
+        back: { materialId: 'm-pvc', thickness: 0.4 },
         left: null,
         right: null,
       },
@@ -179,8 +263,8 @@ describe('aggregateCutListLocal', () => {
       edgeBands: {
         front: null,
         back: null,
-        left: { materialId: 'm-pvc' },
-        right: { materialId: 'm-pvc' },
+        left: { materialId: 'm-pvc', thickness: 0.4 },
+        right: { materialId: 'm-pvc', thickness: 0.4 },
       },
     })]]);
     const result = aggregateCutListLocal(asm, map, materials);

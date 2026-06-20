@@ -34,6 +34,27 @@ export function makeBox(
 }
 
 /**
+ * Builds an axis-aligned box spanning two opposite corners `p1`/`p2`
+ * (in any order — `BRepPrimAPI_MakeBox_4(p1, p2)` normalises min/max per axis).
+ * Unlike `makeBox`, the box is NOT anchored at the origin, so callers can place
+ * a cutter directly in panel-local space (e.g. for groove cuts).
+ */
+export function makeBoxFromCorners(
+  oc: OcctInstance,
+  p1: { x: number; y: number; z: number },
+  p2: { x: number; y: number; z: number }
+): OcctShape {
+  const a = new oc.gp_Pnt_3(p1.x, p1.y, p1.z);
+  const b = new oc.gp_Pnt_3(p2.x, p2.y, p2.z);
+  const mk = new oc.BRepPrimAPI_MakeBox_4(a as never, b as never);
+  const shape = mk.Shape();
+  mk.delete();
+  a.delete();
+  b.delete();
+  return { __brand: 'OcctShape', handle: shape };
+}
+
+/**
  * Returns the axis-aligned bounding box of a shape as a 6-tuple
  * [xmin, ymin, zmin, xmax, ymax, zmax].
  *

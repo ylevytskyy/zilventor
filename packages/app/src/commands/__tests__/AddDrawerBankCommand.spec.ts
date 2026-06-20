@@ -12,9 +12,12 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AddDrawerBankCommand } from '../AddDrawerBankCommand';
+import { DEFAULT_DRAWER_SLIDE_SKU } from '../buildSlidePart';
 import { useAppStore } from '../../store/useAppStore';
 import { unpackProject, packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { aggregateHardwareRecursive } from '../../assembly/walkers/aggregateHardwareRecursive';
+import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AssemblyDocument, BoreOp, PartDocument } from '@zilventor/shared';
 
@@ -283,6 +286,73 @@ describe('AddDrawerBankCommand — apply (H1)', () => {
     const cab = await unpackAssembly(await opfs.read(cabinetPath));
     const added = cab.components.filter((c) => c.role === 'drawerFront' || c.role === 'drawerBox');
     expect(added).toHaveLength(0);
+  });
+});
+
+describe('AddDrawerBankCommand — drawer-slide hardware (1b.5.3)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('places one drawerSlide hardware component per drawer that rolls up to a drawerSlides BOM row (qty=N)', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const N = 2;
+    const cmd = new AddDrawerBankCommand({
+      cabinetPath,
+      params: { count: N, overlay: 'full', thickness: 18 },
+      opfs,
+      kernel,
+      store: useAppStore,
+    });
+    await cmd.apply();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const slideComps = cab.components.filter((c) => c.role === 'drawerSlide');
+    expect(slideComps).toHaveLength(N);
+
+    // Each references the hardware .zipt, which must be written to OPFS
+    const hwPath = `hardware/${DEFAULT_DRAWER_SLIDE_SKU}.zipt`;
+    for (const c of slideComps) {
+      expect(c.partPath).toBe(hwPath);
+    }
+    expect(await opfs.exists(hwPath)).toBe(true);
+
+    // Real BOM rollup proof (not just doc presence): aggregate over the cabinet
+    // with a cache built from the written hardware .zipt → one drawerSlides row, qty=N.
+    const cache = new Map<string, { kind: 'part'; document: { featureTree: unknown[] } }>();
+    const proj = await unpackProject(await opfs.read(hwPath));
+    const hwDoc = (proj.manifest as { document: { featureTree: unknown[] } }).document;
+    cache.set(hwPath, { kind: 'part', document: hwDoc });
+
+    const { rows } = aggregateHardwareRecursive(cab, cache as never, BUILTIN_CATALOG);
+    const slideRow = rows.find((r) => r.category === 'drawerSlides');
+    expect(slideRow, 'expected a drawerSlides BOM row').toBeDefined();
+    expect(slideRow!.skuId).toBe(DEFAULT_DRAWER_SLIDE_SKU);
+    expect(slideRow!.qty).toBe(N);
+  });
+
+  it('revert removes the drawerSlide hardware components (hardwarePartCount back to 0)', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const cmd = new AddDrawerBankCommand({
+      cabinetPath,
+      params: { count: 2, overlay: 'full', thickness: 18 },
+      opfs,
+      kernel,
+      store: useAppStore,
+    });
+    await cmd.apply();
+    expect((await unpackAssembly(await opfs.read(cabinetPath))).components.filter((c) => c.role === 'drawerSlide')).toHaveLength(2);
+
+    await cmd.revert();
+    expect((await unpackAssembly(await opfs.read(cabinetPath))).components.filter((c) => c.role === 'drawerSlide')).toHaveLength(0);
   });
 });
 

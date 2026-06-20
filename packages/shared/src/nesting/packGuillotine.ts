@@ -27,8 +27,12 @@ export function packGuillotine(
   // 1. Expand qty into a flat list.
   const panels: PanelInstance[] = [];
   for (const r of rows) {
+    // Pack on the raw (cut) footprint: net + oversize allowance. Kerf is applied
+    // separately as the gap between placed raw rectangles.
+    const rawL = r.length + (r.oversize?.lengthMm ?? 0);
+    const rawW = r.width + (r.oversize?.widthMm ?? 0);
     for (let i = 0; i < r.qty; i++) {
-      panels.push({ itemNumber: r.itemNumber, rowKey: r.rowKey, L: r.length, W: r.width, grain: r.grain });
+      panels.push({ itemNumber: r.itemNumber, rowKey: r.rowKey, L: rawL, W: rawW, grain: r.grain });
     }
   }
 

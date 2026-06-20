@@ -188,7 +188,7 @@ describe('buildBaseCabinet — edge bands', () => {
     for (const p of out.panels) {
       const fr = p.panel.edgeBands.front;
       if (banded.includes(p.role)) {
-        expect(fr).toEqual({ materialId: 'm-pvc-white' });
+        expect(fr).toEqual({ materialId: 'm-pvc-white', thickness: 0.4 });
       } else {
         expect(fr).toBeNull();
       }
@@ -196,6 +196,17 @@ describe('buildBaseCabinet — edge bands', () => {
       expect(p.panel.edgeBands.left).toBeNull();
       expect(p.panel.edgeBands.right).toBeNull();
     }
+  });
+
+  it("front band carries the band material's bandThicknessMm", () => {
+    const params = { ...DEFAULT_PARAMS, bandMaterialId: 'm-pvc-2' };
+    const REG_WITH_BAND = [
+      ...REGISTRY,
+      { id: 'm-pvc-2', name: 'PVC 2mm', defaultThickness: 1, color: '#fff', bandThicknessMm: 2 },
+    ];
+    const out = buildBaseCabinet(params, REG_WITH_BAND);
+    const side = out.panels.find((p) => p.role === 'leftSide')!;
+    expect(side.panel.edgeBands.front).toEqual({ materialId: 'm-pvc-2', thickness: 2 });
   });
 });
 
@@ -205,5 +216,48 @@ describe('buildBaseCabinet — grain', () => {
     for (const p of out.panels) {
       expect(p.panel.grain).toBe('length');
     }
+  });
+});
+
+describe('buildBaseCabinet — wall cabinet (cabinetType="wall")', () => {
+  const WALL_PARAMS: BaseCabinetParams = { ...DEFAULT_PARAMS, cabinetType: 'wall', depth: 330 };
+
+  it('forces toekick off and seats the bottom at Z=0 regardless of toekickHeight', () => {
+    const out = buildBaseCabinet(WALL_PARAMS, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'toekick')).toHaveLength(0);
+    const bottom = out.layout.find((c) => c.fileNameSuffix === 'Bottom')!;
+    expect(bottom.position.z).toBe(0);
+  });
+
+  it('emits exactly one hangingRail panel', () => {
+    const out = buildBaseCabinet(WALL_PARAMS, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'hangingRail')).toHaveLength(1);
+  });
+
+  it('places the hangingRail at the top-back, spanning the inner width', () => {
+    const out = buildBaseCabinet(WALL_PARAMS, REGISTRY);
+    const rail = out.panels.find((p) => p.role === 'hangingRail')!;
+    // Spans between the sides (W − 2·Tc), 80mm tall, carcass-thick (Tc).
+    expect(rail.panel.length).toEqual({ kind: 'literal', value: 600 - 36 });
+    expect(rail.panel.width).toEqual({ kind: 'literal', value: 80 });
+    expect(rail.panel.thickness).toEqual({ kind: 'literal', value: 18 });
+    const railLayout = out.layout.find((c) => c.fileNameSuffix === rail.fileNameSuffix)!;
+    // Inset past left side (x=Tc), just in front of back (y=Tb), tucked under top (z=H−Tc−80).
+    expect(railLayout.position).toEqual({ x: 18, y: 6, z: 720 - 18 - 80 });
+  });
+});
+
+describe('buildBaseCabinet — tall cabinet (cabinetType="tall")', () => {
+  it('is structurally identical to base (no hangingRail, keeps toekick)', () => {
+    const out = buildBaseCabinet({ ...DEFAULT_PARAMS, cabinetType: 'tall' }, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'hangingRail')).toHaveLength(0);
+    expect(out.panels.filter((p) => p.role === 'toekick')).toHaveLength(1);
+  });
+});
+
+describe('buildBaseCabinet — base cabinet (default)', () => {
+  it('emits no hangingRail when cabinetType is absent', () => {
+    const out = buildBaseCabinet(DEFAULT_PARAMS, REGISTRY);
+    expect(out.panels.filter((p) => p.role === 'hangingRail')).toHaveLength(0);
   });
 });

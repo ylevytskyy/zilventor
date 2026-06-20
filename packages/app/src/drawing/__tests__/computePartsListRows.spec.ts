@@ -43,13 +43,13 @@ function makePanelSpecs(): Map<string, PanelSpec | null> {
       length: 720, width: 400, thickness: 18,
       materialId: 'mat-oak',
       grain: 'length' as const,
-      edgeBands: { front: null, back: null, left: null, right: { materialId: 'mat-oak' } },
+      edgeBands: { front: null, back: null, left: null, right: { materialId: 'mat-oak', thickness: 0.4 } },
     }],
     ['parts/shelf.zipt', {
       length: 564, width: 380, thickness: 18,
       materialId: 'mat-oak',
       grain: 'none' as const,
-      edgeBands: { front: { materialId: 'mat-oak' }, back: null, left: null, right: null },
+      edgeBands: { front: { materialId: 'mat-oak', thickness: 0.4 }, back: null, left: null, right: null },
     }],
     // hardware/hinge.zipt NOT in panelSpecs → hardware row
   ]);

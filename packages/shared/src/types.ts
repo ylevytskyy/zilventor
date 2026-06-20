@@ -8,6 +8,8 @@ import type { NestState } from './nesting/nestState';
 import type { DrawingDocument } from './drawing/types';
 import type { CustomTextureDef } from './custom-texture-def';
 import type { BoreOp } from './bore';
+import type { GrooveFeature } from './groove';
+import type { ShelfPinParams } from './shelfPinGrid';
 import type { PanelRole } from './cabinets/types';
 
 /** @deprecated Use ParameterUnit from './parameters' */
@@ -62,6 +64,7 @@ export type Feature =
   | WorkPointFeature
   | ImportedFeature
   | PanelFeature
+  | GrooveFeature
   | HardwareFeature;
 
 export type CachedGeometry = {
@@ -91,6 +94,57 @@ export type PartDocument = {
    *  resurrect them.
    *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
   suppressedConnectorIds?: string[];
+  /** The система-32 grid params last used to drill this panel's shelf-pin bores.
+   *  Persisted by GenerateShelfPinBoresCommand so a later start-offset tweak can
+   *  re-run the grid without resetting custom pitch/setbacks. Additive, no migration. */
+  shelfPinParams?: ShelfPinParams;
+  /** Conditional parameter rules (iLogic-equivalent). When a parameter named in a
+   *  rule's `trigger` list changes, the rule's `condition` is evaluated against the
+   *  current parameter snapshot and, if true, its `thenSet` assignments are applied
+   *  before the next execute. Injected as [] at format v28.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  rules?: Rule[];
+  /** Feature ids suppressed from the regenerated build (iLogic-equivalent feature
+   *  suppression). `executeTree` skips any feature whose id appears here, in both
+   *  the pre-scan classification loop and the main build loop. Mirror of
+   *  suppressedConnectorIds; injected as [] at format v29.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  suppressedFeatureIds?: string[];
+  /** Named iPart configurations (design table). Each configuration maps parameter
+   *  names to expressions; activating one bulk-sets those parameters. Injected as []
+   *  at format v30.
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write []. */
+  configurations?: Configuration[];
+};
+
+/** A named iPart configuration: parameter name → expression overrides applied
+ *  together when the configuration is activated. (Milestone 2.5) */
+export type Configuration = {
+  name: string;
+  values: Record<string, string>;
+};
+
+/** A single `target = expression` assignment applied when a rule fires. */
+export type RuleAssignment = {
+  /** Name of the parameter to set. */
+  target: string;
+  /** Expression evaluated against the current parameter snapshot (see evaluateRule). */
+  expression: string;
+};
+
+/** A conditional parameter rule (iLogic-equivalent). */
+export type Rule = {
+  id: string;
+  /** Parameter names whose change fires this rule. */
+  trigger: string[];
+  /** Boolean expression; when it evaluates truthy, `thenSet` is applied. */
+  condition: string;
+  /** Assignments applied (in order) when `condition` is true. */
+  thenSet: RuleAssignment[];
+  /** Feature ids toggled by this rule: suppressed when `condition` is true,
+   *  un-suppressed when false (so one rule is a clean parametric on/off toggle).
+   *  Absent when the rule sets parameters only. (Milestone 2.4) */
+  thenSuppress?: string[];
 };
 
 export type ComponentColor =
@@ -121,8 +175,10 @@ export type ComponentInstance = {
   pose?: { translation: Vec3; quaternion: [number, number, number, number] };
   color?: ComponentColor;
   flexible?: boolean;
-  /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21. */
-  role?: PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle';
+  /** Carcass role for auto-присадка generation; populated by CreateCabinetCommand. Additive v21.
+   *  doorStile/doorRail/doorCenterPanel are the members of a framed (shaker) door's
+   *  nested .ziasm — Additive v27. */
+  role?: PanelRole | 'drawerFront' | 'drawerBox' | 'drawerHandle' | 'drawerSlide' | 'doorStile' | 'doorRail' | 'doorCenterPanel';
   /** Door overlay/hinge spec; present only on role:'door' components. Additive v22. */
   doorSpec?: DoorSpec;
   /** Drawer bank spec; present only on role:'drawerFront'|'drawerBox' components. Additive v24. */

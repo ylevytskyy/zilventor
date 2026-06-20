@@ -14,9 +14,12 @@ export type { UvProjection } from './uv-projection';
 export { panelUvProjection } from './uv-projection';
 export * from './cabinets';
 export * from './bore';
+export * from './groove';
+export * from './grooveMath';
 export * from './prisadkaFaceConventions';
 export * from './shelfPinGrid';
 export * from './doorMath';
+export * from './framedDoorMath';
 export * from './hingeMath';
 export * from './connectorCatalog';
 export * from './jointMath';
@@ -38,6 +41,9 @@ export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nest
 export { ISO_SIZES_MM } from './drawing/types';
 export type { DrawingDocument, DrawingSource, DrawingSheet, SheetSize, DrawingView, BaseView, ProjectedView, IsoView, ViewScale, DrawingDimension, DrawingAnnotation, HoleTableAnnotation, PartsListAnnotation, PartsListRow, TitleBlockOverrides, SectionView, HatchSegment, Vec2, DetailView, RegionParent, BreakRegion, DimensionGroup, EdgeRef, StepSegment, UnderlayEntity, DxfUnderlay } from './drawing/types';
 export type { ProjectedGeometry, Edge2D } from './drawing/projectedGeometry';
+// Drawing templates (Milestone 3.3)
+export type { DrawingTemplate } from './drawing/template';
+export { DRAWING_TEMPLATE_FORMAT_VERSION, exportDrawingTemplate, importDrawingTemplate, applyTemplateToNewSheet } from './drawing/template';
 
 // drawing module (Sub-project 6)
 export type { Mat4, ViewOrientation } from './drawing/viewMatrix';

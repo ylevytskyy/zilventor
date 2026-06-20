@@ -10,6 +10,7 @@ export interface MaterialEntry {
   readonly hatchAngleDeg?: number;   // default 45 — degrees from horizontal
   readonly hatchSpacingMm?: number;  // default 3 — spacing between hatch lines
   readonly textureId?: string;
+  readonly bandThicknessMm?: number; // default 0.4 — edge-band tape thickness for gross sizing
 }
 
 export type MaterialRegistry = readonly MaterialEntry[];
@@ -49,5 +50,6 @@ export function isMaterialEntry(v: unknown): v is MaterialEntry {
   if (m.textureId !== undefined) {
     if (typeof m.textureId !== 'string' || m.textureId.length === 0) return false;
   }
+  if (m.bandThicknessMm !== undefined && !isPositiveFiniteNumber(m.bandThicknessMm)) return false;
   return true;
 }

@@ -11,7 +11,7 @@ const result: CutListResult = {
       materialId: 'm-birch', materialName: 'Birch 18mm',
       grain: 'length',
       edgeBands: {
-        front: { materialId: 'm-pvc', materialName: 'PVC 1mm white' },
+        front: { materialId: 'm-pvc', materialName: 'PVC 1mm white', thickness: 0.4 },
         back: null, left: null, right: null,
       },
       partPath: 'parts/side.zipt', partName: 'Side',

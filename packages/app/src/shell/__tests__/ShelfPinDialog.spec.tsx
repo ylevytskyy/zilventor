@@ -47,6 +47,17 @@ describe('ShelfPinDialog — structural', () => {
     expect(useAppStore.getState().shelfPinDialog).toBeNull();
   });
 
+  it('renders a start offset field defaulting to 0 and submits it', () => {
+    const onSubmit = vi.fn();
+    useAppStore.getState().setShelfPinDialog({ mode: 'auto', onSubmit, onCancel: vi.fn() });
+    render(<ShelfPinDialog />);
+    const field = screen.getByLabelText('Start offset (mm)') as HTMLInputElement;
+    expect(field.value).toBe('0'); // default 0 = current centered behavior
+    fireEvent.change(field, { target: { value: '16' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ startOffset: 16 });
+  });
+
   it('Cancel calls onCancel and closes', () => {
     const onCancel = vi.fn();
     useAppStore.getState().setShelfPinDialog({ mode: 'auto', onSubmit: vi.fn(), onCancel });

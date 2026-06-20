@@ -5,6 +5,7 @@ export async function computeNestFingerprint(
   rows: readonly CutListRow[],
   materials: MaterialRegistry,
   kerfMm: number,
+  oversize?: { lengthMm: number; widthMm: number },
 ): Promise<string> {
   const payload = JSON.stringify({
     rows: rows
@@ -19,6 +20,7 @@ export async function computeNestFingerprint(
       .map((m) => [m.id, m.sheetLengthMm!, m.sheetWidthMm!] as [string, number, number])
       .sort((a, b) => a[0].localeCompare(b[0])),
     kerfMm,
+    oversize: oversize ? [oversize.lengthMm, oversize.widthMm] : null,
   });
   const buf = new TextEncoder().encode(payload);
   const hash = await crypto.subtle.digest('SHA-256', buf);

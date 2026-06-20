@@ -1,4 +1,5 @@
 import type { CutListEdgeBandCell, CutListResult, CutListRow, EdgeBandTotal } from '@zilventor/shared/src/cutListRow';
+import { grossLength, grossWidth } from '@zilventor/shared/src/cutListRow';
 import type { HardwareRow } from '../assembly/walkers/aggregateHardwareRecursive';
 import type { ConnectorBomRow } from '../shell/ConnectorBomTable';
 
@@ -12,6 +13,11 @@ function num(n: number): string {
   return Number.isInteger(n) ? String(n) : String(n);
 }
 
+/** Round summed (gross) sizes to clean off binary-float noise (e.g. 0.4+0.4 → 0.8). */
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
 function bandLabel(c: CutListEdgeBandCell): string {
   return c ? c.materialName : '';
 }
@@ -23,6 +29,8 @@ function rowLine(r: CutListRow): string {
     csvCell(r.materialName),
     num(r.length),
     num(r.width),
+    num(round3(grossLength(r))),
+    num(round3(grossWidth(r))),
     num(r.thickness),
     r.grain,
     csvCell(bandLabel(r.edgeBands.front)),
@@ -64,7 +72,7 @@ export function buildCutListCsv(
   connectorRows: ConnectorBomRow[] = [],
 ): string {
   const out: string[] = [];
-  out.push('Item#,QTY,Material,L (mm),W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
+  out.push('Item#,QTY,Material,L (mm),W (mm),Gross L (mm),Gross W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
   for (const r of result.rows) out.push(rowLine(r));
   out.push('');
   out.push('Edge Band Material,Total Length (mm),Total Length (m)');

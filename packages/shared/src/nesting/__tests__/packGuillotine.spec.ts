@@ -108,6 +108,29 @@ describe('packGuillotine', () => {
     out.sheets[0]!.panels.forEach((p) => expect(p.itemNumber).toBe(1));
   });
 
+  it('oversize expands the placed panel footprint (raw = net + oversize)', () => {
+    const r = row({ length: 300, width: 200, grain: 'length', oversize: { lengthMm: 50, widthMm: 30 } });
+    const out = packGuillotine([r], 2440, 1220, 3, 'm1');
+    expect(out.sheets[0]!.panels[0]).toMatchObject({ x: 0, y: 0, length: 350, width: 230, rotated: false });
+  });
+
+  it('kerf is applied after the raw (oversized) footprint between two parts', () => {
+    const r = row({ length: 300, width: 200, qty: 2, grain: 'length', oversize: { lengthMm: 50, widthMm: 0 } });
+    const out = packGuillotine([r], 2440, 1220, 3, 'm1');
+    const xs = out.sheets[0]!.panels.map((p) => p.x).sort((a, b) => a - b);
+    // raw length 350; second part at 350 + 3 kerf = 353.
+    expect(xs[0]).toBe(0);
+    expect(xs[1]).toBe(353);
+  });
+
+  it('a part that fits net but whose raw size exceeds the sheet is excluded as oversized', () => {
+    // net 2400×400 fits sheet 2440×1220; oversize +100 length → raw 2500 > 2440.
+    const r = row({ length: 2400, width: 400, grain: 'length', oversize: { lengthMm: 100, widthMm: 0 } });
+    const out = packGuillotine([r], 2440, 1220, 3, 'm1');
+    expect(out.sheets).toHaveLength(0);
+    expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1' }]);
+  });
+
   it("grain='none' tie-break prefers rotated=false when scores are equal (square panel)", () => {
     // Square panel: rotation has no geometric effect (L=W), so both orientations
     // produce identical free-rect scores. Spec §3.1 requires rotated=false to win.

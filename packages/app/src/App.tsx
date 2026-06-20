@@ -36,8 +36,12 @@ import type { Feature, DimensionConstraint, FaceName, FilletEdgeSpec, FilletSele
 import { ParameterRegistry } from './parameters/ParameterRegistry';
 import type { EvaluationError } from './parameters/types';
 import { useParameterValues } from './parameters/useParameterValues';
+import { RuleEngine, RuleCycleError } from './rules/RuleEngine';
 import { DimensionDialog } from './shell/DimensionDialog';
 import { ParametersPanel } from './shell/ParametersPanel';
+import { ConfigurationsPanel } from './shell/ConfigurationsPanel';
+import { activateConfiguration } from './configurations/activateConfiguration';
+import { configurationFromParameters } from './configurations/configurationFromParameters';
 import { RevolveDialog, type AxisRef, type ProfileRef, type RevolveDialogValue } from './shell/RevolveDialog';
 import { AxisPickController } from './model/AxisPickController';
 import { ProfilePickController } from './model/ProfilePickController';
@@ -63,9 +67,9 @@ import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
 import { PanelDialog } from './shell/PanelDialog';
-import type { MaterialEntry, PanelFeature } from '@zilventor/shared';
+import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, TessellatedFace } from '@zilventor/shared';
+import type { BoreOp, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -147,6 +151,13 @@ import { restoreLastOpenDocument, type KernelForRestore } from './drawing/restor
 
 // Module-level singleton. Registry loads from activePart.parameters on every part change.
 export const parameterRegistry = new ParameterRegistry();
+
+// Conditional parameter rules (Milestone 2). Started at module level so the engine
+// subscribes ahead of the in-component cascade subscriber — rule-applied params are
+// then present before the cascade pushes values to the kernel and re-executes.
+// Rules for the active part are (re)loaded on every part change below.
+export const ruleEngine = new RuleEngine(parameterRegistry);
+ruleEngine.start();
 
 /**
  * T29-T30: Resolve a `ParamOrLiteral` to a numeric value for the panel
@@ -419,6 +430,9 @@ export default function App() {
   const activeToolKind = useAppStore((s) => s.activeToolKind);
   const parametersPanelOpen = useAppStore((s) => s.parametersPanelOpen);
   const setParametersPanelOpen = useAppStore((s) => s.setParametersPanelOpen);
+  const configurationsPanelOpen = useAppStore((s) => s.configurationsPanelOpen);
+  const setConfigurationsPanelOpen = useAppStore((s) => s.setConfigurationsPanelOpen);
+  const [activeConfigName, setActiveConfigName] = useState<string | null>(null);
   const importFromInventorDialogOpen = useAppStore((s) => s.importFromInventorDialogOpen);
   const setImportFromInventorDialogOpen = useAppStore((s) => s.setImportFromInventorDialogOpen);
   const [importStatus, setImportStatus] = useState<ImportDialogStatus>({ kind: 'idle' });
@@ -447,6 +461,7 @@ export default function App() {
       w.__zilventorWorldToScreen3d = (wx: number, wy: number, wz: number) =>
         viewportRef.current?.worldToScreen3d(wx, wy, wz) ?? { x: 0, y: 0 };
       w.__zilventorParameterRegistry = parameterRegistry;
+      w.__zilventorRuleEngine = ruleEngine;
       w.__zilventorPackProject = packProject;
       w.__zilventorUnpackProject = unpackProject;
       w.__zilventorPackAssembly = packAssembly;
@@ -1493,13 +1508,70 @@ export default function App() {
   // Sync ParameterRegistry with the active part's parameters on every part change.
   useEffect(() => {
     if (!activePart) return;
+    // Silence rule firing while we bulk-repopulate parameters below.
+    ruleEngine.load([]);
     // Reset and repopulate on every activePart change.
     const names = parameterRegistry.getAll().map((p) => p.name);
     for (const n of names) parameterRegistry.removeParameter(n);
     for (const p of Object.values(activePart.parameters ?? {})) {
       parameterRegistry.setParameter({ name: p.name, expression: p.expression, unit: p.unit });
     }
+    // Load this part's rules (runs cycle detection). A cyclic rule set is reported
+    // and ignored rather than crashing the app.
+    try {
+      ruleEngine.load(activePart.rules ?? []);
+    } catch (e) {
+      if (e instanceof RuleCycleError) {
+        useAppStore.getState().setStatus(`Rule cycle ignored: ${e.cycle.join(' → ')}`);
+      } else {
+        throw e;
+      }
+    }
   }, [activePart?.id]);
+
+  // Wire the rule engine's feature-suppression toggles to the kernel: when a rule
+  // fires thenSuppress, push the suppress/un-suppress to the kernel's part, mirror
+  // it onto the store part (absent-not-empty, so saves persist), then re-execute so
+  // the viewport reflects the regenerated body. Installed once; reads live state via
+  // getState/refs so it stays valid across part changes.
+  useEffect(() => {
+    ruleEngine.setSuppressionHandler((featureId, suppressed) => {
+      void (async () => {
+        const store = useAppStore.getState();
+        const kernelClient = store.kernel;
+        const part = store.activePart;
+        if (!kernelClient || !part) return;
+        await kernelClient.suppressFeature(part.id, featureId, suppressed);
+        // Mirror onto the store part (absent-not-empty contract).
+        const fresh = useAppStore.getState().activePart;
+        if (!fresh || fresh.id !== part.id) return;
+        const ids = new Set(fresh.suppressedFeatureIds ?? []);
+        if (suppressed) ids.add(featureId); else ids.delete(featureId);
+        if (ids.size === 0) {
+          const { suppressedFeatureIds: _drop, ...rest } = fresh;
+          store.setActivePart(rest as PartDocument);
+        } else {
+          store.setActivePart({ ...fresh, suppressedFeatureIds: [...ids] });
+        }
+        // Regenerate geometry without the suppressed feature.
+        if (useAppStore.getState().sketchMode) return;
+        const res = await kernelClient.execute(part.id);
+        if (res.ok && viewportRef.current) {
+          const partHex = fresh.color?.kind === 'hex' ? fresh.color.hex : undefined;
+          const panelFeat = fresh.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
+          const panelMat = panelFeat ? fresh.materials.find((m) => m.id === panelFeat.materialId) : undefined;
+          viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+          tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
+          setAvailableFaceNames(res.value.faceNames ?? []);
+          facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
+          useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
+          applyWorkFeaturesToViewport(res.value.workFeatures, fresh.featureTree);
+        } else if (!res.ok) {
+          useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
+        }
+      })();
+    });
+  }, []);
 
   // Cascade parameter changes to the solver + kernel + store.
   // Fires on any successful ParameterRegistry mutation (setParameter / rename /
@@ -3134,8 +3206,8 @@ export default function App() {
   // geometryCacheRef / partBoresCacheRef so stale face tables are never served.
   const partTessellatedFacesCacheRef = useRef<Map<string, TessellatedFace[]>>(new Map());
   // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
-  // Holds the full {bores?, suppressedConnectorIds?} object so commands can mutate in place.
-  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[] }>>(new Map());
+  // Holds the full {bores?, suppressedConnectorIds?, shelfPinParams?} object so commands can mutate in place.
+  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // Bumped after each resolvePartInfo population pass so consumers re-render.
@@ -4067,6 +4139,7 @@ export default function App() {
       // the section plane (y=0, normal +Y → cuts through each box at mid-height).
       const components = Array.from({ length: leafCount }, (_, i) => ({
         partId: activePart.id,
+        componentPath: String(i),
         pose: {
           translation: { x: i * 30, y: 0, z: 0 },
           quaternion: [0, 0, 0, 1] as [number, number, number, number],
@@ -4318,7 +4391,7 @@ export default function App() {
               // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
               partTessellatedFacesCacheRef.current.set(partPath, res.value.tessellatedFaces ?? []);
               // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
-              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[] });
+              loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
               // hand so bore markers render without requiring the Cut List tab to be visited.
               // Guard: only write if absent — resolvePanelSpec sets null for non-panels, so
@@ -5316,6 +5389,28 @@ export default function App() {
         <ParametersPanel
           registry={parameterRegistry}
           onClose={() => setParametersPanelOpen(false)}
+        />
+      )}
+      {configurationsPanelOpen && (
+        <ConfigurationsPanel
+          configurations={activePart?.configurations ?? []}
+          activeName={activeConfigName}
+          onActivate={(name) => {
+            const configs = useAppStore.getState().activePart?.configurations ?? [];
+            if (activateConfiguration(parameterRegistry, configs, name)) {
+              setActiveConfigName(name);
+            }
+          }}
+          onAddRow={() => {
+            const configs = useAppStore.getState().activePart?.configurations ?? [];
+            let n = configs.length + 1;
+            let name = `Config ${n}`;
+            while (configs.some((c) => c.name === name)) name = `Config ${++n}`;
+            const cfg = configurationFromParameters(name, parameterRegistry.getAll());
+            useAppStore.getState().setConfigurations([...configs, cfg]);
+          }}
+          onImport={(configs) => useAppStore.getState().setConfigurations(configs)}
+          onClose={() => setConfigurationsPanelOpen(false)}
         />
       )}
       {filletDialogOpen && (

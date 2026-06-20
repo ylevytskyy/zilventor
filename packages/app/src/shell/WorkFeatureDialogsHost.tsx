@@ -4,6 +4,7 @@ import { WorkPlaneDialog, type WorkPlaneCommit } from './WorkPlaneDialog';
 import { WorkAxisDialog, type WorkAxisCommit } from './WorkAxisDialog';
 import { WorkPointDialog, type WorkPointCommit } from './WorkPointDialog';
 import { CabinetDialog } from './CabinetDialog';
+import { CornerCabinetDialog } from './CornerCabinetDialog';
 import { HardwareDialog } from './HardwareDialog';
 import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
@@ -12,6 +13,7 @@ import { DrawerBankDialog } from './DrawerBankDialog';
 import { DrawerHandleDialog } from './DrawerHandleDialog';
 import { ShelfPinDialog } from './ShelfPinDialog';
 import { FaceFrameDialog } from './FaceFrameDialog';
+import { GrooveDialog } from './GrooveDialog';
 
 export type WorkFeatureDialogsHostProps = {
   onWorkPlaneCommit: (c: WorkPlaneCommit) => void;
@@ -55,6 +57,7 @@ export function WorkFeatureDialogsHost({
         />
       )}
       <CabinetDialog />
+      <CornerCabinetDialog />
       <HardwareDialog />
       <NestDialog />
       <BoringDialog />
@@ -63,6 +66,7 @@ export function WorkFeatureDialogsHost({
       <DrawerHandleDialog />
       <ShelfPinDialog />
       <FaceFrameDialog />
+      <GrooveDialog />
     </>
   );
 }

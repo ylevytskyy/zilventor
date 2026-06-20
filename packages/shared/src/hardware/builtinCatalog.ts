@@ -129,4 +129,79 @@ export const BUILTIN_CATALOG: readonly CatalogEntry[] = [
       { name: 'screw-1', position: { x:  80, y: 0, z: 0 } },
     ],
   },
+  // ── Drawer slides (sold as a pair; bbox w = front-to-back run) ──────────────
+  {
+    id: 'drawer-slide-450-fullext',
+    name: 'Full-Extension Slide 450mm (pair)',
+    category: 'drawerSlides',
+    vendor: 'Generic',
+    notes: 'Side-mount full-extension ball-bearing slide; 450mm; sold as pair',
+    bboxMm: { l: 12.5, w: 450, h: 45 },
+    attachPoints: [
+      { name: 'front', position: { x: 0, y:  225, z: 0 } },
+      { name: 'back',  position: { x: 0, y: -225, z: 0 } },
+    ],
+  },
+  {
+    id: 'drawer-slide-500-fullext',
+    name: 'Full-Extension Slide 500mm (pair)',
+    category: 'drawerSlides',
+    vendor: 'Generic',
+    notes: 'Side-mount full-extension ball-bearing slide; 500mm; sold as pair',
+    bboxMm: { l: 12.5, w: 500, h: 45 },
+    attachPoints: [
+      { name: 'front', position: { x: 0, y:  250, z: 0 } },
+      { name: 'back',  position: { x: 0, y: -250, z: 0 } },
+    ],
+  },
+  {
+    id: 'drawer-slide-500-softclose',
+    name: 'Soft-Close Full-Extension Slide 500mm (pair)',
+    category: 'drawerSlides',
+    vendor: 'Blum',
+    notes: 'Soft-close full-extension slide; 500mm; integrated dampers; sold as pair',
+    bboxMm: { l: 12.5, w: 500, h: 45 },
+    attachPoints: [
+      { name: 'front', position: { x: 0, y:  250, z: 0 } },
+      { name: 'back',  position: { x: 0, y: -250, z: 0 } },
+    ],
+  },
+  // ── Leg leveler ─────────────────────────────────────────────────────────────
+  {
+    id: 'leg-leveler-100',
+    name: 'Adjustable Cabinet Leg 100–120mm',
+    category: 'legLevelers',
+    vendor: 'Generic',
+    notes: 'Plastic adjustable leveler foot; M10 stem; 100–120mm height range',
+    bboxMm: { l: 50, w: 50, h: 120 },
+    attachPoints: [
+      { name: 'stem', position: { x: 0, y: 0, z: 120 } },
+      { name: 'foot', position: { x: 0, y: 0, z: 0 } },
+    ],
+  },
+  // ── Soft-close hinges (Ø35 cup; integrated BLUMOTION damper) ─────────────────
+  {
+    id: 'hinge-softclose-110',
+    name: '35mm Soft-Close Hinge — 110°',
+    category: 'softCloseHinges',
+    vendor: 'Blum',
+    notes: 'CLIP top BLUMOTION; full overlay; integrated soft-close; requires 35mm Forstner bit',
+    bboxMm: { l: 48, w: 35, h: 14 },
+    attachPoints: [
+      { name: 'cup-center', position: { x: 0,  y: 17.5, z: 0 } },
+      { name: 'arm-mount',  position: { x: 48, y: 17.5, z: 0 } },
+    ],
+  },
+  {
+    id: 'hinge-softclose-155',
+    name: '35mm Soft-Close Hinge — 155°',
+    category: 'softCloseHinges',
+    vendor: 'Blum',
+    notes: 'CLIP top BLUMOTION; wide-angle 155°; integrated soft-close; requires 35mm Forstner bit',
+    bboxMm: { l: 52, w: 35, h: 14 },
+    attachPoints: [
+      { name: 'cup-center', position: { x: 0,  y: 17.5, z: 0 } },
+      { name: 'arm-mount',  position: { x: 52, y: 17.5, z: 0 } },
+    ],
+  },
 ];

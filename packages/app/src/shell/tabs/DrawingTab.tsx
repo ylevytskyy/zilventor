@@ -5,6 +5,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { useToolModeStore } from '../../drawing/toolMode';
 import { pickFile } from '../fsaFallback';
 import { AddSheetCommand } from '../../commands/AddSheetCommand';
+import { AddSheetFromTemplateCommand } from '../../commands/AddSheetFromTemplateCommand';
+import { AutoBalloonCommand } from '../../commands/AutoBalloonCommand';
+import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { exportDrawingTemplate } from '@zilventor/shared';
+import { saveTemplate, listTemplates, loadTemplate } from '../../drawing/templateStorage';
+import { autoBalloonSheet } from '../../drawing/autoBalloonSheet';
 import { ExportDrawingPdfCommand } from '../../commands/ExportDrawingPdfCommand';
 import { ExportDrawingSvgCommand } from '../../commands/ExportDrawingSvgCommand';
 import { ExportDrawingPngCommand } from '../../commands/ExportDrawingPngCommand';
@@ -18,7 +24,11 @@ export default function DrawingTab(): JSX.Element {
   const { t } = useTranslation();
   const activeDocument = useAppStore((s) => s.activeDocument);
   const bus = useAppStore((s) => s.bus);
+  const autoRegen = useAppStore((s) => s.autoRegen);
+  const setAutoRegen = useAppStore((s) => s.setAutoRegen);
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly ?? s.activeDrawingSourceDocument);
+  const [templatePickerOpen, setTemplatePickerOpen] = React.useState(false);
+  const [templatePaths, setTemplatePaths] = React.useState<string[]>([]);
 
   if (activeDocument?.kind !== 'drawing') {
     return <StubTab subProject={6} what="Drawing generation" />;
@@ -40,7 +50,37 @@ export default function DrawingTab(): JSX.Element {
         v.projection != null,
     ) ?? false;
 
+  const handleSaveAsTemplate = (): void => {
+    void (async () => {
+      const drw = useAppStore.getState().activeDrawing;
+      const sheet = drw ? (drw.sheets.find((s) => s.id === drw.activeSheetId) ?? drw.sheets[0]) : undefined;
+      if (!sheet) return;
+      const name = window.prompt(t('ribbon.drawing.templateNamePrompt'), sheet.name);
+      if (!name || name.trim().length === 0) return;
+      const opfs = await Opfs.forNavigator();
+      await saveTemplate(opfs, exportDrawingTemplate(sheet, name.trim()));
+    })();
+  };
+
+  const handleOpenTemplatePicker = (): void => {
+    void (async () => {
+      const opfs = await Opfs.forNavigator();
+      setTemplatePaths(await listTemplates(opfs));
+      setTemplatePickerOpen(true);
+    })();
+  };
+
+  const handlePickTemplate = (path: string): void => {
+    void (async () => {
+      const opfs = await Opfs.forNavigator();
+      const template = await loadTemplate(opfs, path);
+      await bus.execute(new AddSheetFromTemplateCommand({ template }));
+      setTemplatePickerOpen(false);
+    })();
+  };
+
   return (
+    <>
     <div className="flex gap-2 px-3 py-2">
       {/* Sheet panel */}
       <RibbonPanel title={t('ribbon.drawing.sheet')}>
@@ -247,6 +287,48 @@ export default function DrawingTab(): JSX.Element {
         >
           {t('ribbon.drawing.balloon')}
         </button>
+        {/* Auto-balloon: Task 8 — one balloon per BOM row, anchored to component bbox center */}
+        <button
+          type="button"
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          aria-label={t('ribbon.drawing.autoBalloon')}
+          disabled={!isAssembly}
+          aria-disabled={!isAssembly}
+          title={!isAssembly ? t('ribbon.drawing.autoBalloonTip') : undefined}
+          onClick={() => {
+            const drw = useAppStore.getState().activeDrawing;
+            const sheet = drw
+              ? (drw.sheets.find((s) => s.id === drw.activeSheetId) ?? drw.sheets[0])
+              : undefined;
+            const srcDoc = useAppStore.getState().activeDrawingSourceDocument;
+            const asm = (srcDoc && 'components' in srcDoc ? srcDoc : null)
+              ?? useAppStore.getState().activeAssembly
+              ?? undefined;
+            if (!sheet || !asm) return;
+            const subAsmDocs = useAppStore.getState().subAssemblyDocs;
+            const cache = {
+              get: (p: string) =>
+                subAsmDocs[p]
+                  ? { kind: 'ok' as const, doc: subAsmDocs[p]!, partPath: p }
+                  : undefined,
+            };
+            // Empty partInfo/panelSpecs Maps are intentional: they only affect display
+            // name/dimensions in the parts list, not balloon count or placement
+            // (item numbers come from bomItemNumbers, anchoring from projected edges).
+            const balloons = autoBalloonSheet({
+              sheet,
+              asm,
+              cache,
+              partInfo: new Map(),
+              panelSpecs: new Map(),
+            });
+            if (balloons.length > 0) {
+              void bus.execute(new AutoBalloonCommand({ sheetId: sheet.id, balloons }));
+            }
+          }}
+        >
+          {t('ribbon.drawing.autoBalloon')}
+        </button>
         {/* Hole Table: Drawing F6 */}
         <button
           type="button"
@@ -272,6 +354,17 @@ export default function DrawingTab(): JSX.Element {
 
       {/* Reference panel */}
       <RibbonPanel title={t('ribbon.drawing.reference')}>
+        {/* Auto-update views toggle: M3.2 — auto-regen stale views when source changes */}
+        <button
+          type="button"
+          aria-pressed={autoRegen}
+          className={`text-xs hover:text-white${autoRegen ? ' text-white' : ''}`}
+          aria-label={t('ribbon.drawing.autoUpdateViews')}
+          title={t('ribbon.drawing.autoUpdateViewsTip')}
+          onClick={() => setAutoRegen(!autoRegen)}
+        >
+          {t('ribbon.drawing.autoUpdateViews')}
+        </button>
         <button
           type="button"
           className="text-xs hover:text-white"
@@ -305,6 +398,28 @@ export default function DrawingTab(): JSX.Element {
           }}
         >
           {t('ribbon.drawing.removeUnderlay')}
+        </button>
+      </RibbonPanel>
+
+      {/* Templates panel: M3.3 — save sheet chrome as a reusable template */}
+      <RibbonPanel title={t('ribbon.drawing.templates')}>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label={t('ribbon.drawing.saveAsTemplate')}
+          title={t('ribbon.drawing.saveAsTemplateTip')}
+          onClick={handleSaveAsTemplate}
+        >
+          {t('ribbon.drawing.saveAsTemplate')}
+        </button>
+        <button
+          type="button"
+          className="text-xs hover:text-white"
+          aria-label={t('ribbon.drawing.newFromTemplate')}
+          title={t('ribbon.drawing.newFromTemplateTip')}
+          onClick={handleOpenTemplatePicker}
+        >
+          {t('ribbon.drawing.newFromTemplate')}
         </button>
       </RibbonPanel>
 
@@ -415,5 +530,41 @@ export default function DrawingTab(): JSX.Element {
         )}
       </RibbonPanel>
     </div>
+    {templatePickerOpen && (
+      <div
+        role="dialog"
+        aria-label={t('ribbon.drawing.templatePickerTitle')}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      >
+        <div className="min-w-[260px] rounded bg-neutral-800 p-4 text-neutral-100 shadow-lg">
+          <h2 className="mb-2 text-sm font-semibold">{t('ribbon.drawing.templatePickerTitle')}</h2>
+          {templatePaths.length === 0 ? (
+            <p className="text-xs text-neutral-400">{t('ribbon.drawing.noTemplates')}</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {templatePaths.map((p) => (
+                <li key={p}>
+                  <button
+                    type="button"
+                    className="w-full text-left text-xs hover:text-white"
+                    onClick={() => handlePickTemplate(p)}
+                  >
+                    {p.replace('templates/', '').replace('.zitpl', '')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="mt-3 text-xs hover:text-white"
+            onClick={() => setTemplatePickerOpen(false)}
+          >
+            {t('ribbon.drawing.templateCancel')}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

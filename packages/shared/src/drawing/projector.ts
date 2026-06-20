@@ -11,6 +11,7 @@ export type EdgeMesh3D = {
   readonly id: string;
   readonly points: ReadonlyArray<[number, number, number]>;
   readonly adjacentFaces?: readonly string[];
+  readonly componentPath?: string;
 };
 
 export type ProjectorInput = {
@@ -47,6 +48,7 @@ export function projectView(
       return [v.x, v.y, v.z] as [number, number, number];
     }),
     adjacentFaces: e.adjacentFaces ? [...e.adjacentFaces] : [],
+    ...(e.componentPath !== undefined && { componentPath: e.componentPath }),
   }));
 
   const pitch = adaptivePixelPitch(source.bbox);

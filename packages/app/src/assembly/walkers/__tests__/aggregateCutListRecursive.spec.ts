@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { aggregateCutListRecursive } from '../aggregateCutListRecursive';
+import { grossLength, grossWidth } from '@zilventor/shared/src/cutListRow';
 import type { AssemblyDocument, ComponentInstance } from '@zilventor/shared';
 import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
 import type { MaterialEntry } from '@zilventor/shared/src/material';
@@ -61,6 +62,26 @@ describe('aggregateCutListRecursive', () => {
     expect(result.rows.find(r => r.length === 600)!.qty).toBe(2);
     expect(result.rows.find(r => r.length === 800)!.qty).toBe(1);
     expect(result.excluded).toEqual({ componentCount: 1, partCount: 1 });
+  });
+
+  it('carries band thickness into the row cell so gross sizes reflect banding', () => {
+    const a = asm('a', [cmp('c1', 'p/banded.zipt')]);
+    const specs = new Map<string, PanelSpec | null>([
+      ['p/banded.zipt', SPEC({
+        length: 600, width: 400,
+        edgeBands: {
+          front: { materialId: 'm-birch', thickness: 2 },
+          back: null,
+          left: { materialId: 'm-birch', thickness: 2 },
+          right: null,
+        },
+      })],
+    ]);
+    const result = aggregateCutListRecursive(a, cacheOf([]), specs, MAT, partInfoOf([]));
+    const row = result.rows[0]!;
+    expect(row.edgeBands.front).toEqual({ materialId: 'm-birch', materialName: 'Birch 18mm', thickness: 2 });
+    expect(grossLength(row)).toBe(602); // left band 2mm adds to length
+    expect(grossWidth(row)).toBe(402);  // front band 2mm adds to width
   });
 
   it('two-level recursion: outer with 2 inner instances; inner has 2 panels', () => {

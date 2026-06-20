@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -82,6 +82,12 @@ export type CabinetDialogState = {
   onCancel: () => void;
 };
 
+export type CornerCabinetDialogState = {
+  initial?: import('@zilventor/shared').CornerCabinetParams;
+  onSubmit: (params: import('@zilventor/shared').CornerCabinetParams) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 export type HardwareDialogState = {
   onSubmit: (skuId: string, qty: number) => void;
   onCancel: () => void;
@@ -105,6 +111,8 @@ export type AddDoorDialogState = {
     reveal: number;
     clearance: number;
     centerReveal: number;
+    style: 'slab' | 'shaker' | 'raisedPanel';
+    frameWidth: number;
   }) => Promise<void> | void;
   onCancel: () => void;
 };
@@ -136,6 +144,14 @@ export type AddFaceFrameDialogState = {
   onCancel: () => void;
 };
 
+/** Groove (dado/rabbet) dialog: targets one picked panel. */
+export type GrooveDialogState = {
+  panelPath: string;
+  defaultFace: 'Top' | 'Bottom';
+  onSubmit: (spec: import('@zilventor/shared').GrooveSpec) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 /**
  * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
  * assembly's side panels; `manual` targets one picked panel + chosen broad face.
@@ -152,6 +168,7 @@ export type ShelfPinDialogState = {
     backSetback: number;
     topMargin: number;
     bottomMargin: number;
+    startOffset: number;
     columns: 1 | 2;
   }) => void;
   onCancel: () => void;
@@ -225,6 +242,10 @@ type AppState = {
   selectedPrimitiveId: string | null;
   sketchDof: DofStatus | null;
   parametersPanelOpen: boolean;
+  configurationsPanelOpen: boolean;
+  setConfigurationsPanelOpen(v: boolean): void;
+  /** Replaces the active part document's iPart configurations (part-only). */
+  setConfigurations(configs: Configuration[]): void;
   revolveDialogOpen: boolean;
   filletDialogOpen: boolean;
   filletEdges: FilletEdgeSpec[];
@@ -350,6 +371,7 @@ type AppState = {
   showComponentColors: boolean;
   showEdgeBands: boolean;
   showBores: boolean;
+  autoRegen: boolean;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -365,6 +387,7 @@ type AppState = {
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
   setShowBores: (v: boolean) => void;
+  setAutoRegen: (v: boolean) => void;
   setColorOverride: (path: ComponentPath, color: ComponentColor | null) => void;
   setComponentFlexible: (componentId: string, flag: boolean) => void;
 
@@ -394,6 +417,8 @@ type AppState = {
   setPanelDialog(s: PanelDialogState | null): void;
   cabinetDialog: CabinetDialogState | null;
   setCabinetDialog(s: CabinetDialogState | null): void;
+  cornerCabinetDialog: CornerCabinetDialogState | null;
+  setCornerCabinetDialog(s: CornerCabinetDialogState | null): void;
   hardwareDialog: HardwareDialogState | null;
   setHardwareDialog(s: HardwareDialogState | null): void;
   nestingTabActive: boolean;
@@ -412,6 +437,8 @@ type AppState = {
   setAddDrawerHandleDialog: (s: AddDrawerHandleDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
+  grooveDialog: GrooveDialogState | null;
+  setGrooveDialog: (s: GrooveDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
   oneComponentPickHandle: OneComponentPickHandle | null;
   setOneComponentPickHandle: (h: OneComponentPickHandle | null) => void;
@@ -519,6 +546,7 @@ export const useAppStore = create<AppState>((set) => ({
   activeToolKind: null,
   selectedPrimitiveId: null,
   parametersPanelOpen: false,
+  configurationsPanelOpen: false,
   revolveDialogOpen: false,
   filletDialogOpen: false,
   setKernel: (k) => set({ kernel: k, kernelReady: true, statusMessage: 'Ready' }),
@@ -594,6 +622,12 @@ export const useAppStore = create<AppState>((set) => ({
   sketchDof: null,
   setSketchDof: (v) => set({ sketchDof: v }),
   setParametersPanelOpen: (v) => set({ parametersPanelOpen: v }),
+  setConfigurationsPanelOpen: (v) => set({ configurationsPanelOpen: v }),
+  setConfigurations: (configs) => set((s) => {
+    if (!s.activePart) return s;
+    const next: PartDocument = { ...s.activePart, configurations: configs };
+    return { activeDocument: { kind: 'part', document: next }, activePart: next };
+  }),
   setRevolveDialogOpen: (v) => set({ revolveDialogOpen: v }),
   setFilletDialogOpen: (v) => set({ filletDialogOpen: v }),
   filletEdges: [],
@@ -728,6 +762,7 @@ export const useAppStore = create<AppState>((set) => ({
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
+  autoRegen: typeof localStorage !== 'undefined' ? localStorage.getItem('autoRegen') !== 'false' : true,
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -761,6 +796,10 @@ export const useAppStore = create<AppState>((set) => ({
   setShowBores: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showBores', String(v));
     set({ showBores: v });
+  },
+  setAutoRegen: (v) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('autoRegen', String(v));
+    set({ autoRegen: v });
   },
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
@@ -956,6 +995,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPanelDialog: (s) => set({ panelDialog: s }),
   cabinetDialog: null,
   setCabinetDialog: (s) => set({ cabinetDialog: s }),
+  cornerCabinetDialog: null,
+  setCornerCabinetDialog: (s) => set({ cornerCabinetDialog: s }),
   hardwareDialog: null,
   setHardwareDialog: (s) => set({ hardwareDialog: s }),
   nestingTabActive: false,
@@ -974,6 +1015,8 @@ export const useAppStore = create<AppState>((set) => ({
   setAddDrawerHandleDialog: (s) => set({ addDrawerHandleDialog: s }),
   shelfPinDialog: null,
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
+  grooveDialog: null,
+  setGrooveDialog: (s) => set({ grooveDialog: s }),
   oneComponentPickHandle: null,
   setOneComponentPickHandle: (h) => set({ oneComponentPickHandle: h }),
   boreCacheInvalidator: null,

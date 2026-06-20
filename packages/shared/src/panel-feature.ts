@@ -7,6 +7,8 @@ export type GrainDirection = 'length' | 'width' | 'none';
 
 export interface EdgeBand {
   readonly materialId: MaterialId;
+  /** Applied band tape thickness (mm). Adds to the panel's gross cut size. */
+  readonly thickness: number;
 }
 
 export interface PanelFeature {
@@ -36,7 +38,9 @@ function isParamOrLiteral(v: unknown): v is ParamOrLiteral {
 function isEdgeBandSlot(v: unknown): boolean {
   if (v === null) return true;
   if (!v || typeof v !== 'object') return false;
-  return typeof (v as { materialId?: unknown }).materialId === 'string';
+  const b = v as { materialId?: unknown; thickness?: unknown };
+  return typeof b.materialId === 'string'
+    && typeof b.thickness === 'number' && Number.isFinite(b.thickness) && b.thickness > 0;
 }
 
 export interface PanelSpec {
@@ -45,7 +49,7 @@ export interface PanelSpec {
   readonly thickness: number;
   readonly materialId: MaterialId;
   readonly grain: GrainDirection;
-  readonly edgeBands: { readonly [K in PanelEdgeKey]: { readonly materialId: MaterialId } | null };
+  readonly edgeBands: { readonly [K in PanelEdgeKey]: { readonly materialId: MaterialId; readonly thickness: number } | null };
 }
 
 function resolveDim(v: ParamOrLiteral, parameters: Record<string, SketchParameter>): number | null {
@@ -72,10 +76,10 @@ export function resolvePanelSpecFromFeature(
     materialId: feature.materialId,
     grain: feature.grain,
     edgeBands: {
-      front: feature.edgeBands.front ? { materialId: feature.edgeBands.front.materialId } : null,
-      back: feature.edgeBands.back ? { materialId: feature.edgeBands.back.materialId } : null,
-      left: feature.edgeBands.left ? { materialId: feature.edgeBands.left.materialId } : null,
-      right: feature.edgeBands.right ? { materialId: feature.edgeBands.right.materialId } : null,
+      front: feature.edgeBands.front ? { materialId: feature.edgeBands.front.materialId, thickness: feature.edgeBands.front.thickness } : null,
+      back: feature.edgeBands.back ? { materialId: feature.edgeBands.back.materialId, thickness: feature.edgeBands.back.thickness } : null,
+      left: feature.edgeBands.left ? { materialId: feature.edgeBands.left.materialId, thickness: feature.edgeBands.left.thickness } : null,
+      right: feature.edgeBands.right ? { materialId: feature.edgeBands.right.materialId, thickness: feature.edgeBands.right.thickness } : null,
     },
   };
 }

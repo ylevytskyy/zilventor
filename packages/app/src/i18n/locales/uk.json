@@ -66,12 +66,14 @@
     "ribbon": "Стрічка",
     "setback": "Відступ",
     "shelf_pin_dialog": "Діалог Система-32 (полицетримачі)",
+    "groove": "Діалог паза",
     "sheetContextMenu": "Контекстне меню аркуша",
     "start_radius": "Початковий радіус",
     "termination": "Завершення",
     "text_input": "Текст",
     "circular_pattern": "Круговий масив",
-    "visible": "видимий"
+    "visible": "видимий",
+    "cornerCabinet": "Кутова шафа"
   },
   "browser": {
     "assembly_label": "Збірка: {{name}}",
@@ -169,9 +171,11 @@
     "along_joint": "Вздовж стику",
     "axis_u": "U (мм)",
     "axis_v": "V (мм)",
+    "column_start_offset": "Початковий відступ колонки (мм)",
     "diameter_mm": "Ø (мм)",
     "height": "Висота",
-    "regenerate_to_enable_move": "Регенеруйте присадку для переміщення"
+    "regenerate_to_enable_move": "Регенеруйте присадку для переміщення",
+    "start_offset_kept_edits": "Початковий відступ перегенерував сітку полицетримачів; вручну переміщені отвори залишилися на старих місцях."
   },
   "dialog": {
     "addBreak": {
@@ -228,6 +232,11 @@
       "overlayHalf": "Напівнакладна",
       "overlayInset": "Вкладна",
       "thickness": "Товщина (мм)",
+      "style": "Стиль",
+      "styleSlab": "Суцільні",
+      "styleShaker": "Філенчасті (шейкер)",
+      "styleRaisedPanel": "Філенка з фаскою",
+      "frameWidth": "Ширина рамки (мм)",
       "reveal": "Зазор (мм)",
       "clearance": "Зазор вкладної (мм)",
       "centerReveal": "Центральний зазор (мм)",
@@ -272,7 +281,12 @@
       "shelf_count": "Кількість полиць",
       "shelves_section": "Полиці",
       "title": "Нижня шафа",
-      "toekick_section": "Цоколь (мм)"
+      "toekick_section": "Цоколь (мм)",
+      "type_base": "Нижня (підлогова)",
+      "type_label": "Тип",
+      "type_section": "Тип шафи",
+      "type_tall": "Висока",
+      "type_wall": "Навісна (верхня)"
     },
     "chamfer": {
       "distance": "Відстань",
@@ -280,6 +294,14 @@
       "no_edges": "Ребра не вибрані.",
       "pick_mode": "Режим вибору",
       "title": "Фаска"
+    },
+    "cornerCabinet": {
+      "depth1": "Глибина 1 (мм)",
+      "depth2": "Глибина 2 (мм)",
+      "height": "Висота (мм)",
+      "title": "Кутова шафа",
+      "width1": "Ширина 1 (мм)",
+      "width2": "Ширина 2 (мм)"
     },
     "dimension": {
       "name": "Назва",
@@ -444,6 +466,11 @@
       "kerf": "Ширина пропилу (мм)",
       "kerfAriaLabel": "Ширина пропилу",
       "kerfError": "Ширина пропилу має бути позитивним числом.",
+      "oversizeLength": "Припуск Д (мм)",
+      "oversizeLengthAriaLabel": "Припуск довжини",
+      "oversizeWidth": "Припуск Ш (мм)",
+      "oversizeWidthAriaLabel": "Припуск ширини",
+      "oversizeError": "Припуск має бути нулем або позитивним числом.",
       "summary": "{{count}} панелей за {{materials}} матеріалами буде розкладено",
       "title": "Генерувати розкладку"
     },
@@ -569,9 +596,18 @@
       "backSetback": "Відступ ззаду (мм)",
       "topMargin": "Відступ зверху (мм)",
       "bottomMargin": "Відступ знизу (мм)",
+      "startOffset": "Початковий відступ (мм)",
       "columns": "Колонки",
       "columnsOne": "1 (передня)",
       "columnsTwo": "2 (передня + задня)"
+    },
+    "groove": {
+      "title": "Паз",
+      "face": "Грань",
+      "axis": "Вісь",
+      "position": "Положення (мм)",
+      "width": "Ширина (мм)",
+      "depth": "Глибина (мм)"
     },
     "sketchRect": {
       "ariaLabel": "Діалог прямокутника",
@@ -722,6 +758,15 @@
       "stale": "Список розкрою змінився з часу останньої розкладки.",
       "staleAriaLabel": "Розкладка застаріла"
     },
+    "configurations": {
+      "addRow": "Додати рядок",
+      "ariaLabel": "Конфігурації",
+      "colName": "Конфігурація",
+      "colValues": "Значення",
+      "empty": "Конфігурацій ще немає. Натисніть «Додати рядок», щоб зберегти поточний дизайн.",
+      "importCsv": "Імпорт CSV",
+      "title": "Конфігурації"
+    },
     "parameters": {
       "ariaLabel": "Параметри",
       "colExpression": "Вираз",
@@ -751,6 +796,10 @@
       "annotate": "Анотація",
       "autoDim": "Авторозмір",
       "autoDimTip": "Розмістіть параметричні розміри з параметрів ескізу — клацніть вид після ввімкнення",
+      "autoBalloon": "Авто-виноска",
+      "autoBalloonTip": "Автоматично розмістити позиційні виноски для всіх деталей збірки",
+      "autoUpdateViews": "Авто-оновлення видів",
+      "autoUpdateViewsTip": "Автоматично оновлювати застарілі види при зміні джерела",
       "balloon": "Позиційна виноска",
       "balloonTip": "Позиційні виноски потребують збіркового креслення",
       "baseline": "Базовий",
@@ -804,7 +853,16 @@
       "section": "Переріз",
       "sheet": "Аркуш",
       "sheetSettings": "Аркуш…",
-      "steppedSection": "Ступінчастий переріз"
+      "steppedSection": "Ступінчастий переріз",
+      "templates": "Шаблони",
+      "saveAsTemplate": "Зберегти як шаблон…",
+      "saveAsTemplateTip": "Зберегти основний напис і підкладку активного аркуша як багаторазовий шаблон",
+      "newFromTemplate": "Новий із шаблону…",
+      "newFromTemplateTip": "Створити новий аркуш із збереженого шаблону",
+      "templateNamePrompt": "Назва шаблону",
+      "templatePickerTitle": "Новий із шаблону",
+      "noTemplates": "Ще немає збережених шаблонів.",
+      "templateCancel": "Скасувати"
     },
     "furniture": {
       "addDoor": "Двері",
@@ -814,6 +872,7 @@
       "addHardware": "Додати фурнітуру",
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
+      "cornerCabinet": "Кутова шафа",
       "cabinetsPanel": "Панель шаф",
       "clearPresadku": "Очистити присадку",
       "create": "Створити",
@@ -833,7 +892,8 @@
       "presadka": "Присадка",
       "showBores": "Показати присадку",
       "system32Auto": "Система-32",
-      "system32Manual": "Система-32 (вибір)"
+      "system32Manual": "Система-32 (вибір)",
+      "groove": "Паз"
     },
     "model": {
       "axis": "Вісь",
@@ -848,6 +908,7 @@
       "linearPattern": "Лінійний масив (L)",
       "mirror": "Дзеркало (M)",
       "modify": "Змінити",
+      "configurationsBtn": "Конфігурації…",
       "parameters": "Параметри",
       "parametersBtn": "Параметри…",
       "pattern": "Масив",

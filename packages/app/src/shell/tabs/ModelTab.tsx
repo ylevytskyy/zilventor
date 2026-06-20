@@ -183,6 +183,7 @@ export default function ModelTab() {
       </RibbonPanel>
       <RibbonPanel title={t('ribbon.model.parameters')}>
         <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setParametersPanelOpen(true)}>{t('ribbon.model.parametersBtn')}</button>
+        <button className="text-xs hover:text-white" onClick={() => useAppStore.getState().setConfigurationsPanelOpen(true)}>{t('ribbon.model.configurationsBtn')}</button>
       </RibbonPanel>
       {extrudeOpen && (
         <ExtrudeDialog

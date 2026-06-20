@@ -16,11 +16,11 @@ describe('migration v11→v12', () => {
       },
     };
     const result = migrateManifest(manifest);
-    expect(result.formatVersion).toBe(26);
+    expect(result.formatVersion).toBe(30);
     expect((result.document as { hardware?: unknown }).hardware).toEqual([]);
   });
 
-  it('v11 AssemblyDocument gains hardware with 10 built-in entries', () => {
+  it('v11 AssemblyDocument gains hardware with all built-in entries', () => {
     const manifest = {
       formatVersion: 11,
       kind: 'assembly',
@@ -32,9 +32,9 @@ describe('migration v11→v12', () => {
       },
     };
     const result = migrateManifest(manifest);
-    expect(result.formatVersion).toBe(26);
+    expect(result.formatVersion).toBe(30);
     const hw = (result.document as { hardware?: unknown[] }).hardware;
-    expect(hw).toHaveLength(10);
+    expect(hw).toHaveLength(BUILTIN_CATALOG.length);
     expect(hw!.map((e: unknown) => (e as { id: string }).id)).toEqual(
       BUILTIN_CATALOG.map((e) => e.id),
     );
@@ -72,9 +72,9 @@ describe('migration v11→v12', () => {
     };
     const result = migrateManifest(manifest);
     const hw = (result.document as { hardware?: unknown[] }).hardware;
-    // Should have all 10, not 1 + 10.
-    expect(hw).toHaveLength(10);
+    // Should have all catalog entries, not 1 + catalog (no duplication).
+    expect(hw).toHaveLength(BUILTIN_CATALOG.length);
     const ids = hw!.map((e: unknown) => (e as { id: string }).id);
-    expect(new Set(ids).size).toBe(10);
+    expect(new Set(ids).size).toBe(BUILTIN_CATALOG.length);
   });
 });

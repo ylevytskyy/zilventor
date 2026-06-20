@@ -6,6 +6,7 @@ import { quatRotateVec } from '../../assembly/quat';
 
 export type AssemblyComponentInput = {
   partId: string;
+  componentPath: string;
   pose: {
     translation: { x: number; y: number; z: number };
     quaternion: readonly [number, number, number, number];
@@ -162,6 +163,7 @@ function getAssemblyProjectorInput(
       allEdges.push({
         ...edge,
         id: `${compIdx}::${comp.partId}::${edge.id}`,
+        componentPath: comp.componentPath,
         points: edge.points.map((p) => applyPose(p, comp.pose)),
       });
     }

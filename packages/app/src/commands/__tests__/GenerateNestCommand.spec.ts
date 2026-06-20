@@ -78,6 +78,42 @@ describe('GenerateNestCommand', () => {
     expect(sheets1).toEqual(sheets2);
   });
 
+  it('applies oversize to the packed footprint and persists it in nest.params', async () => {
+    const cmd = new GenerateNestCommand({
+      kerfMm: 3,
+      oversize: { lengthMm: 10, widthMm: 6 },
+      result: fakeResult([{
+        rowKey: 'r1', itemNumber: 1, qty: 1, length: 600, width: 400, thickness: 18,
+        materialId: 'm1', materialName: 'Birch', grain: 'length',
+        edgeBands: { front: null, back: null, left: null, right: null },
+        partPath: 'p.zipt', partName: 'P', componentPathKeys: ['c1'],
+      }]),
+      materials: matRegistry(),
+    });
+    await cmd.apply();
+    const nest = useAppStore.getState().activeAssembly!.nest!;
+    // Oversize persisted on params.
+    expect(nest.params.oversize).toEqual({ lengthMm: 10, widthMm: 6 });
+    // Packed panel is raw-sized (net + oversize): 610 × 406.
+    expect(nest.sheets[0]!.panels[0]).toMatchObject({ length: 610, width: 406 });
+  });
+
+  it('different oversize yields a different fingerprint (staleness detection)', async () => {
+    const result = fakeResult([{
+      rowKey: 'r1', itemNumber: 1, qty: 1, length: 600, width: 400, thickness: 18,
+      materialId: 'm1', materialName: 'Birch', grain: 'length',
+      edgeBands: { front: null, back: null, left: null, right: null },
+      partPath: 'p.zipt', partName: 'P', componentPathKeys: ['c1'],
+    }]);
+    const a = new GenerateNestCommand({ kerfMm: 3, oversize: { lengthMm: 0, widthMm: 0 }, result, materials: matRegistry() });
+    await a.apply();
+    const fp0 = useAppStore.getState().activeAssembly!.nest!.inputFingerprint;
+    const b = new GenerateNestCommand({ kerfMm: 3, oversize: { lengthMm: 10, widthMm: 0 }, result, materials: matRegistry() });
+    await b.apply();
+    const fp1 = useAppStore.getState().activeAssembly!.nest!.inputFingerprint;
+    expect(fp0).not.toBe(fp1);
+  });
+
   it('apply with no active assembly is a no-op (does not throw)', async () => {
     useAppStore.setState({ activeAssembly: null } as never);
     const cmd = new GenerateNestCommand({ kerfMm: 3, result: fakeResult([]), materials: matRegistry() });
