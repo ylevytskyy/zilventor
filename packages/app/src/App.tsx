@@ -136,6 +136,7 @@ import type { Pose } from './assembly/walkers/flattenForSolver';
 import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
+import { shouldReflowAfterInvalidate, partPathForKernelId } from './assembly/reflowDirty';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
@@ -1634,6 +1635,19 @@ export default function App() {
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
             applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree);
+            // If an assembly is open and this part was loaded as a sub-component,
+            // invalidate its ref-cache so constrained dependents reflow with fresh geometry.
+            // freshPart.id is a kernel UUID, not an OPFS path — invert assemblyPartIdCacheRef.
+            const storeNow = useAppStore.getState();
+            if (shouldReflowAfterInvalidate(storeNow.activeDocument)) {
+              const partPathForId = partPathForKernelId(
+                assemblyPartIdCacheRef.current.entries(), freshPart.id,
+              );
+              // undefined ⇒ part edited standalone (not an assembly component) ⇒ skip silently.
+              if (partPathForId) {
+                void invalidatePartPaths([partPathForId]);
+              }
+            }
           } else if (!res.ok) {
             useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
             useAppStore.getState().setFeatureErrors(new Map());
@@ -5237,11 +5251,14 @@ export default function App() {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
       }
     }
-    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects.
+    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects,
+    // and mark the solver dirty so constrained dependents reflow with fresh refs.
     const s = useAppStore.getState();
     const doc = s.activeDocument;
-    if (doc?.kind === 'assembly') {
-      s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
+    if (shouldReflowAfterInvalidate(doc)) {
+      const asmDoc = doc as { kind: 'assembly'; document: AssemblyDocument };
+      s.setActiveDocument({ kind: 'assembly', document: { ...asmDoc.document } });
+      s.setSolverDirty(true);   // NEW: geometry reflow after cache invalidation
     }
   }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef]);
 
