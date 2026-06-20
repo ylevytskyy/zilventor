@@ -11,6 +11,7 @@ import {
   buildAngleResiduals, buildAngleJacobian,
   buildInsertResiduals, buildInsertJacobian,
   buildTangentCylPlaneResiduals, buildTangentCylPlaneJacobian,
+  buildTangentCylCylResiduals, buildTangentCylCylJacobian,
 } from './Residuals';
 import { choleskySolve, jacobiSVD } from './linalg';
 import { quatNormalize } from './quat';
@@ -90,10 +91,14 @@ function buildSingleResidual(
   if (k.kind === 'angle') return buildAngleResiduals(refA, refB, pA.q, pB.q, resolveOffset(k.angle, paramValues));
   if (k.kind === 'tangent') {
     const radius = k.radius ? resolveOffset(k.radius, paramValues) : 0;
+    const r1val = k.r1 ? resolveOffset(k.r1, paramValues) : 0;
+    const r2val = k.r2 ? resolveOffset(k.r2, paramValues) : 0;
     if (refA.kind === 'axis' && refB.kind === 'plane')
       return buildTangentCylPlaneResiduals(refA, refB, pA.T, pA.q, pB.T, pB.q, radius);
     if (refA.kind === 'plane' && refB.kind === 'axis')
       return buildTangentCylPlaneResiduals(refB, refA, pB.T, pB.q, pA.T, pA.q, radius);
+    if (refA.kind === 'axis' && refB.kind === 'axis')
+      return buildTangentCylCylResiduals(refA, refB, pA.T, pA.q, pB.T, pB.q, r1val, r2val);
     throw new Error(`tangent: unsupported ref pairing ${refA.kind}/${refB.kind}`);
   }
   return buildInsertResiduals(refA, refB, pA.T, pA.q, pB.T, pB.q, resolveOffset(k.offset, paramValues));
@@ -131,12 +136,16 @@ function buildSingleJacobianBlock(
   if (k.kind === 'angle') return buildAngleJacobian(refA, refB, pA.q, pB.q, resolveOffset(k.angle, paramValues));
   if (k.kind === 'tangent') {
     const radius = k.radius ? resolveOffset(k.radius, paramValues) : 0;
+    const r1val = k.r1 ? resolveOffset(k.r1, paramValues) : 0;
+    const r2val = k.r2 ? resolveOffset(k.r2, paramValues) : 0;
     if (refA.kind === 'axis' && refB.kind === 'plane')
       return buildTangentCylPlaneJacobian(refA, refB, pA.T, pA.q, pB.T, pB.q, radius);
     if (refA.kind === 'plane' && refB.kind === 'axis') {
       const J = buildTangentCylPlaneJacobian(refB, refA, pB.T, pB.q, pA.T, pA.q, radius);
       return swapAB(J);
     }
+    if (refA.kind === 'axis' && refB.kind === 'axis')
+      return buildTangentCylCylJacobian(refA, refB, pA.T, pA.q, pB.T, pB.q, r1val, r2val);
     throw new Error(`tangent Jacobian: unsupported ref pairing ${refA.kind}/${refB.kind}`);
   }
   return buildInsertJacobian(refA, refB, pA.T, pA.q, pB.T, pB.q, resolveOffset(k.offset, paramValues));
@@ -342,7 +351,7 @@ export type AssemblySolveResult = {
 };
 
 function constraintResidualCount(k: AssemblyConstraint, refA: PartLocalGeometry, refB: PartLocalGeometry): number {
-  if (k.kind === 'tangent') return 2;
+  if (k.kind === 'tangent') return (refA.kind === 'axis' && refB.kind === 'axis') ? 1 : 2;
   if (k.kind === 'flush')  return 3;
   if (k.kind === 'angle')  return 1;
   if (k.kind === 'insert') return 7;
