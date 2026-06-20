@@ -37,6 +37,22 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       return { type: 'MTEXT', layer,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
         value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
+    case 'LWPOLYLINE': {
+      const verts: Array<{ x: number; y: number; bulge: number }> = [];
+      let cur: { x: number; y: number; bulge: number } | null = null;
+      for (const q of raw.pairs) {
+        if (q.code === 10) {
+          if (cur) verts.push(cur);
+          cur = { x: Number.parseFloat(q.value) || 0, y: 0, bulge: 0 };
+        } else if (q.code === 20 && cur) {
+          cur.y = Number.parseFloat(q.value) || 0;
+        } else if (q.code === 42 && cur) {
+          cur.bulge = Number.parseFloat(q.value) || 0;
+        }
+      }
+      if (cur) verts.push(cur);
+      return { type: 'LWPOLYLINE', layer, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts };
+    }
     default:
       return null;
   }
@@ -54,9 +70,21 @@ export function parseDxf(text: string): ParsedDxf {
   let section = '';
   let currentBlock: string | null = null;
   let raw: RawEntity | null = null;
+  let polyline: { layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> } | null = null;
 
   const flush = (): void => {
     if (!raw) return;
+    if (raw.type === '__POLYHDR__' && polyline) {
+      polyline.layer = str(raw.pairs, 8, '0');
+      polyline.closed = (num(raw.pairs, 70) & 1) === 1;
+      raw = null;
+      return;
+    }
+    if (raw.type === '__VERTEX__' && polyline) {
+      polyline.vertices.push({ x: num(raw.pairs, 10), y: num(raw.pairs, 20), bulge: num(raw.pairs, 42) });
+      raw = null;
+      return;
+    }
     const ent = readEntity(raw);
     if (ent) {
       if (section === 'BLOCKS' && currentBlock) {
@@ -86,6 +114,18 @@ export function parseDxf(text: string): ParsedDxf {
         currentBlock = null;
       } else if (kind === 'EOF') {
         break;
+      } else if (kind === 'POLYLINE') {
+        polyline = { layer: '0', closed: false, vertices: [] };
+        raw = { type: '__POLYHDR__', pairs: [] };
+      } else if (kind === 'VERTEX') {
+        raw = { type: '__VERTEX__', pairs: [] };
+      } else if (kind === 'SEQEND') {
+        if (polyline) {
+          const ent: DxfEntity = { type: 'POLYLINE', layer: polyline.layer, closed: polyline.closed, vertices: polyline.vertices };
+          if (section === 'ENTITIES') result.entities.push(ent);
+          else if (section === 'BLOCKS' && currentBlock) (result.blocks[currentBlock] ??= []).push(ent);
+          polyline = null;
+        }
       } else {
         raw = { type: kind, pairs: [] };
       }

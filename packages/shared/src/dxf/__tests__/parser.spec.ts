@@ -80,3 +80,41 @@ describe('parseDxf — ARC, TEXT, MTEXT', () => {
     }
   });
 });
+
+describe('parseDxf — polylines', () => {
+  it('parses an open LWPOLYLINE with vertices and zero bulges', () => {
+    const dxf = entitiesDxf(['  0', 'LWPOLYLINE', '  8', '0', ' 90', '3', ' 70', '0',
+      ' 10', '0.0', ' 20', '0.0', ' 10', '10.0', ' 20', '0.0', ' 10', '10.0', ' 20', '10.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('LWPOLYLINE');
+    if (e.type === 'LWPOLYLINE') {
+      expect(e.closed).toBe(false);
+      expect(e.vertices.map((v) => [v.x, v.y])).toEqual([[0, 0], [10, 0], [10, 10]]);
+      expect(e.vertices.every((v) => v.bulge === 0)).toBe(true);
+    }
+  });
+
+  it('captures per-vertex bulge on LWPOLYLINE and closed flag', () => {
+    const dxf = entitiesDxf(['  0', 'LWPOLYLINE', '  8', '0', ' 70', '1',
+      ' 10', '0.0', ' 20', '0.0', ' 42', '0.5', ' 10', '10.0', ' 20', '0.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    if (e.type === 'LWPOLYLINE') {
+      expect(e.closed).toBe(true);
+      expect(e.vertices[0]!.bulge).toBeCloseTo(0.5);
+      expect(e.vertices[1]!.bulge).toBe(0);
+    }
+  });
+
+  it('parses a legacy POLYLINE with VERTEX sub-entities and SEQEND', () => {
+    const dxf = entitiesDxf(['  0', 'POLYLINE', '  8', '0', ' 70', '0',
+      '  0', 'VERTEX', '  8', '0', ' 10', '1.0', ' 20', '2.0',
+      '  0', 'VERTEX', '  8', '0', ' 10', '3.0', ' 20', '4.0', ' 42', '0.25',
+      '  0', 'SEQEND', '  8', '0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('POLYLINE');
+    if (e.type === 'POLYLINE') {
+      expect(e.vertices.map((v) => [v.x, v.y])).toEqual([[1, 2], [3, 4]]);
+      expect(e.vertices[1]!.bulge).toBeCloseTo(0.25);
+    }
+  });
+});

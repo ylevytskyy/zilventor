@@ -6,7 +6,9 @@ export type DxfEntity =
   | { type: 'CIRCLE'; layer: string; cx: number; cy: number; r: number }
   | { type: 'ARC'; layer: string; cx: number; cy: number; r: number; startAngle: number; endAngle: number }
   | { type: 'TEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
-  | { type: 'MTEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number };
+  | { type: 'MTEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
+  | { type: 'LWPOLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
+  | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> };
 
 export type ParsedDxf = {
   entities: DxfEntity[];
