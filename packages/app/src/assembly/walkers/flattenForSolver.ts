@@ -41,6 +41,8 @@ function prefixConstraint(c: AssemblyConstraint, prefix: ComponentPath): Assembl
         refA: { ...c.refA, componentPath: [...prefix, ...c.refA.componentPath] },
         refB: { ...c.refB, componentPath: [...prefix, ...c.refB.componentPath] },
       };
+    case 'tangent':
+      return { ...c, refA: prefixRef(c.refA, prefix), refB: prefixRef(c.refB, prefix) };
     default: {
       const _exhaustive: never = c;
       return _exhaustive;

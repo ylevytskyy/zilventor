@@ -463,7 +463,7 @@ type AppState = {
 
   // 4b additions
   placeConstraintDialogOpen: boolean;
-  placeConstraintMode: 'mate' | 'flush' | 'angle' | 'insert';
+  placeConstraintMode: 'mate' | 'flush' | 'angle' | 'insert' | 'coincident' | 'tangent';
   editConstraintDialogOpen: boolean;
   editingConstraintId: string | null;
   editConstraintInitialValues: import('@zilventor/shared').AssemblyConstraint | null;
@@ -477,7 +477,7 @@ type AppState = {
     message?: string;
   };
   freeDofBasis: Float64Array | null;
-  openPlaceConstraintDialog: (mode: 'mate' | 'flush' | 'angle' | 'insert') => void;
+  openPlaceConstraintDialog: (mode: 'mate' | 'flush' | 'angle' | 'insert' | 'coincident' | 'tangent') => void;
   resetPlaceConstraintDialog: () => void;
   openEditConstraintDialog: (id: string) => void;
   resetEditConstraintDialog: () => void;

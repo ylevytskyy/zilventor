@@ -104,6 +104,7 @@ import { AssemblyRefPickController } from './model/AssemblyRefPickController';
 import { AddAssemblyConstraintCommand } from './commands/AddAssemblyConstraintCommand';
 import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraintCommand';
 import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
+import { buildAssemblyConstraint } from './assembly/constraintFromMode';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -136,6 +137,8 @@ import type { Pose } from './assembly/walkers/flattenForSolver';
 import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
+import { shouldReflowAfterInvalidate, partPathForKernelId } from './assembly/reflowDirty';
+import { paramRefValuesOf } from './assembly/constraintParamRefs';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
@@ -1634,6 +1637,19 @@ export default function App() {
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
             useAppStore.getState().setFeatureErrors(res.value.featureErrors ?? new Map());
             applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree);
+            // If an assembly is open and this part was loaded as a sub-component,
+            // invalidate its ref-cache so constrained dependents reflow with fresh geometry.
+            // freshPart.id is a kernel UUID, not an OPFS path — invert assemblyPartIdCacheRef.
+            const storeNow = useAppStore.getState();
+            if (shouldReflowAfterInvalidate(storeNow.activeDocument)) {
+              const partPathForId = partPathForKernelId(
+                assemblyPartIdCacheRef.current.entries(), freshPart.id,
+              );
+              // undefined ⇒ part edited standalone (not an assembly component) ⇒ skip silently.
+              if (partPathForId) {
+                void invalidatePartPaths([partPathForId]);
+              }
+            }
           } else if (!res.ok) {
             useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
             useAppStore.getState().setFeatureErrors(new Map());
@@ -1789,7 +1805,9 @@ export default function App() {
           }
           return k0;
         };
-          if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle') {
+          // Both arms are runtime-identical; the if-guard exists solely for TS
+          // discriminant narrowing (insert.refA is not AssemblyConstraintRef).
+          if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle' || k.kind === 'tangent') {
             return {
               ...k,
               refA: { ...k.refA, componentPath: [kernelSynthFor(k.refA.componentPath)] },
@@ -1852,10 +1870,9 @@ export default function App() {
     const unsub = parameterRegistry.subscribe(() => {
       const aa = useAppStore.getState().activeAssembly;
       if (!aa) return;
-      const hasParamRef = aa.constraints.some((k) => {
-        const v = k.kind === 'angle' ? (k as any).angle : (k as any).offset;
-        return v?.kind === 'param';
-      });
+      const hasParamRef = aa.constraints.some((k) =>
+        paramRefValuesOf(k).some((v) => v.kind === 'param'),
+      );
       if (hasParamRef) useAppStore.getState().setSolverDirty(true);
     });
     return unsub;
@@ -2653,9 +2670,79 @@ export default function App() {
           return; // consume the event even if no hit
         }
 
-        // Non-face modes (edge/axis/point/circularEdge): not yet resolved at
-        // this layer (T38 future work). Consume the event to avoid fall-through.
-        return;
+        // axis / circularEdge / edge: resolve via partTessellatedEdgesCacheRef +
+        // EdgePickController, then route to handleEdgeHit / handleCylindricalFaceHit.
+        if (pickerMode === 'axis' || pickerMode === 'circularEdge' || pickerMode === 'edge') {
+          const refHit = viewportRef.current.raycastAssemblyRef(pickerMode, ev.clientX, ev.clientY);
+          if (refHit && refHit.kind === 'edge') {
+            const componentPath = refHit.componentPath;
+
+            // Resolve the OPFS partPath for this component (same pattern as face pick).
+            const storeState = useAppStore.getState();
+            const activeAssemblyNow = storeState.activeAssembly;
+            const subAsmDocsNow = storeState.subAssemblyDocs;
+            const subAsmInnerPosesNow = storeState.subAssemblyInnerPoses;
+            const subAsmCacheNow = {
+              get: (p: string) => subAsmDocsNow[p]
+                ? ({ kind: 'ok' as const, doc: subAsmDocsNow[p]!, partPath: p,
+                     ...(subAsmInnerPosesNow[p] ? { innerStaticPoses: subAsmInnerPosesNow[p] } : {}) })
+                : undefined,
+            };
+            const partPath = activeAssemblyNow
+              ? resolveLeafPartPath(componentPath, activeAssemblyNow, subAsmCacheNow)
+              : null;
+
+            // Primary: edge pick via per-component tessellated edge cache.
+            const componentEdges = partPath ? partTessellatedEdgesCacheRef.current.get(partPath) : undefined;
+            if (componentEdges && componentEdges.length > 0) {
+              const ep = new EdgePickController();
+              ep.setCandidates(componentEdges);
+              const pickedNames = ep.pickFromRay(refHit.origin, refHit.direction);
+              if (pickedNames && pickedNames.length > 0) {
+                const edgeName = pickedNames[0]!;
+                const pickedEdge = componentEdges.find((e) => {
+                  const a = e.edgeName.faceA, ea = edgeName.faceA;
+                  const b = e.edgeName.faceB, eb = edgeName.faceB;
+                  // FaceName.instance is optional; treat undefined as 0 for equality.
+                  return a.featureId === ea.featureId && a.role === ea.role && (a.instance ?? 0) === (ea.instance ?? 0)
+                      && b.featureId === eb.featureId && b.role === eb.role && (b.instance ?? 0) === (eb.instance ?? 0);
+                });
+                // TessellatedEdge has no isCircular field — infer from closed-loop geometry.
+                const isCircular = pickedEdge ? (() => {
+                  const first = pickedEdge.segments[0]; const last = pickedEdge.segments[pickedEdge.segments.length - 1];
+                  if (!first || !last) return false;
+                  const p0 = first[0]; const p1 = last[1];
+                  return Math.hypot(p0.x - p1.x, p0.y - p1.y, p0.z - p1.z) < 1e-3;
+                })() : false;
+                assemblyPickerRef.current.handleEdgeHit(componentPath, edgeName, isCircular);
+                return;
+              }
+            }
+
+            // Fallback for axis mode: re-raycast in face mode and use handleCylindricalFaceHit.
+            // This is sufficient for Insert/Angle and the S-B e2e scenario.
+            if (pickerMode === 'axis' && partPath) {
+              const tessellatedFaces = partTessellatedFacesCacheRef.current.get(partPath);
+              if (tessellatedFaces) {
+                const faceHit = viewportRef.current.raycastAssemblyRef('face', ev.clientX, ev.clientY);
+                if (faceHit && faceHit.kind === 'face') {
+                  const fp = new FacePickController();
+                  fp.setCandidates(tessellatedFaces);
+                  const faceName = fp.pickByTriangleIndex(faceHit.triangleIndex);
+                  if (faceName) {
+                    assemblyPickerRef.current.handleCylindricalFaceHit(componentPath, faceName);
+                    return;
+                  }
+                }
+              }
+            }
+
+            if (import.meta.env.DEV) {
+              console.warn('[T38] axis/circularEdge pick: no hit for', pickerMode, 'at partPath', partPath);
+            }
+          }
+        }
+        return; // consume the event
       }
       return;
     }
@@ -3205,6 +3292,8 @@ export default function App() {
   // FacePickController.pickByTriangleIndex. Invalidated at the same sites as
   // geometryCacheRef / partBoresCacheRef so stale face tables are never served.
   const partTessellatedFacesCacheRef = useRef<Map<string, TessellatedFace[]>>(new Map());
+  // T38: tessellated edges per partPath for axis/circularEdge pick in assembly mode.
+  const partTessellatedEdgesCacheRef = useRef<Map<string, TessellatedEdge[]>>(new Map());
   // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
   // Holds the full {bores?, suppressedConnectorIds?, shelfPinParams?} object so commands can mutate in place.
   const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams }>>(new Map());
@@ -3231,6 +3320,7 @@ export default function App() {
   const [pickedRefA, setPickedRefA] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
   const [pickedRefB, setPickedRefB] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
   const [valueExpression, setValueExpression] = useState('0');
+  const [value2Expression, setValue2Expression] = useState('0');
 
   // Assembly E2E dev hooks (T38): expose solver result, poses, and picker simulate.
   useEffect(() => {
@@ -4182,7 +4272,10 @@ export default function App() {
 
   const onPickSlot = useCallback((slot: 'A' | 'B') => {
     const mode = placeConstraintMode;
-    const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
+    const pickerMode = mode === 'insert' ? 'circularEdge'
+                     : mode === 'angle'   ? 'axis'
+                     : mode === 'tangent' ? 'axis'
+                     : 'face';
     assemblyPickerRef.current.activate(pickerMode, slot, (hit) => {
       let ref: AssemblyConstraint['refA'] | { componentPath: ComponentPath; circularEdge: import('@zilventor/shared').EdgeName };
       let label: string;
@@ -4216,19 +4309,21 @@ export default function App() {
     if (!pickedRefA || !pickedRefB) return;
     const id = `K${Date.now()}`;
     const offsetOrAngle = parseParamOrLiteral(valueExpression);
-    let constraint: AssemblyConstraint;
-    if (placeConstraintMode === 'insert') {
-      constraint = {
-        id, kind: 'insert',
-        refA: pickedRefA.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
-        refB: pickedRefB.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
-        offset: offsetOrAngle, suppressed: false
-      };
-    } else if (placeConstraintMode === 'angle') {
-      constraint = { id, kind: 'angle', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, angle: offsetOrAngle, suppressed: false };
-    } else {
-      constraint = { id, kind: placeConstraintMode, refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: offsetOrAngle, suppressed: false };
-    }
+    const refAKind = 'kind' in pickedRefA.ref ? pickedRefA.ref.kind : undefined;
+    const refBKind = 'kind' in pickedRefB.ref ? pickedRefB.ref.kind : undefined;
+    const isCylCyl = placeConstraintMode === 'tangent'
+      && refAKind === 'axis'
+      && refBKind === 'axis';
+    const constraint: AssemblyConstraint = buildAssemblyConstraint({
+      id,
+      mode: placeConstraintMode,
+      refA: pickedRefA.ref,
+      refB: pickedRefB.ref,
+      offset: offsetOrAngle,
+      angle: offsetOrAngle,
+      ...(placeConstraintMode === 'tangent' && !isCylCyl ? { radius: offsetOrAngle } : {}),
+      ...(placeConstraintMode === 'tangent' && isCylCyl ? { r1: offsetOrAngle, r2: parseParamOrLiteral(value2Expression) } : {}),
+    });
     if (editingConstraintId) {
       await new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }).apply();
     } else {
@@ -4237,9 +4332,9 @@ export default function App() {
     if (close) {
       useAppStore.getState().resetPlaceConstraintDialog();
       useAppStore.getState().resetEditConstraintDialog();
-      setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+      setPickedRefA(null); setPickedRefB(null); setValueExpression('0'); setValue2Expression('0');
     }
-  }, [pickedRefA, pickedRefB, valueExpression, placeConstraintMode, editingConstraintId]);
+  }, [pickedRefA, pickedRefB, valueExpression, value2Expression, placeConstraintMode, editingConstraintId]);
 
   // Lazy OPFS singleton + tile list for the Place dialog.
   const [tiles, setTiles] = useState<AssemblyTile[]>([]);
@@ -4312,6 +4407,7 @@ export default function App() {
         partTextureIdCacheRef.current.clear();
         partBoresCacheRef.current.clear();
         partTessellatedFacesCacheRef.current.clear();
+        partTessellatedEdgesCacheRef.current.clear();
         loadedPartDocsRef.current.clear();
         partInfoCacheRef.current.clear();
         // panelSpecCacheRef writes are guarded by `if (!has(partPath))`, so a
@@ -4390,6 +4486,9 @@ export default function App() {
               // T36: persist tessellated faces so the assembly face-pick handler can resolve
               // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
               partTessellatedFacesCacheRef.current.set(partPath, res.value.tessellatedFaces ?? []);
+              // T38: persist tessellated edges so axis/circularEdge pick handler can resolve
+              // a ray hit → EdgeName via EdgePickController.pickFromRay.
+              partTessellatedEdgesCacheRef.current.set(partPath, res.value.tessellatedEdges ?? []);
               // Slice-3: persist live doc reference so BorePropertiesPanel.getLiveDoc works.
               loadedPartDocsRef.current.set(partPath, partDoc as { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams });
               // Phase 5 (fresh-session fix): warm panelSpecCacheRef from the partDoc already in
@@ -5232,18 +5331,22 @@ export default function App() {
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
       partTessellatedFacesCacheRef.current.delete(partPath);
+      partTessellatedEdgesCacheRef.current.delete(partPath);
       loadedPartDocsRef.current.delete(partPath);
       if (stalePartId && kernelClient) {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
       }
     }
-    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects.
+    // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects,
+    // and mark the solver dirty so constrained dependents reflow with fresh refs.
     const s = useAppStore.getState();
     const doc = s.activeDocument;
-    if (doc?.kind === 'assembly') {
-      s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
+    if (shouldReflowAfterInvalidate(doc)) {
+      const asmDoc = doc as { kind: 'assembly'; document: AssemblyDocument };
+      s.setActiveDocument({ kind: 'assembly', document: { ...asmDoc.document } });
+      s.setSolverDirty(true);   // NEW: geometry reflow after cache invalidation
     }
-  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef]);
+  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef, partTessellatedEdgesCacheRef]);
 
   // Register invalidatePartPaths into the store so bore commands can self-invalidate
   // caches on both apply() AND revert() (fixing undo/redo visual staleness).
@@ -5614,14 +5717,16 @@ export default function App() {
           pickedRefA={pickedRefA && { label: pickedRefA.label }}
           pickedRefB={pickedRefB && { label: pickedRefB.label }}
           valueExpression={valueExpression}
+          {...(placeConstraintMode === 'tangent' ? { value2Expression, onValue2Change: setValue2Expression } : {})}
           onPick={onPickSlot}
           onValueChange={setValueExpression}
           onCommit={() => { void onCommitConstraint(true); }}
           onApply={() => { void onCommitConstraint(false); }}
+          onModeChange={(m) => useAppStore.setState({ placeConstraintMode: m })}
           onCancel={() => {
             useAppStore.getState().resetPlaceConstraintDialog();
             useAppStore.getState().resetEditConstraintDialog();
-            setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+            setPickedRefA(null); setPickedRefB(null); setValueExpression('0'); setValue2Expression('0');
           }}
         />
       )}

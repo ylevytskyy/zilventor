@@ -767,3 +767,309 @@ export function buildFlushFaceFaceJacobian(
   }
   return J;
 }
+
+// ─── Tangent cylinder↔cylinder (external) ─────────────────────────────────
+
+/** Skew-line closest distance between two lines (P1, D1) and (P2, D2).
+ *  Uses full skew-line formula for non-parallel case; falls back to
+ *  point-to-line projection for parallel (degenerate) case. */
+function skewLineDist(P1: Vec3, D1: Vec3, P2: Vec3, D2: Vec3): number {
+  const w: Vec3 = { x: P2.x - P1.x, y: P2.y - P1.y, z: P2.z - P1.z };
+  const bDot = D1.x * D2.x + D1.y * D2.y + D1.z * D2.z;
+  const denom = 1 - bDot * bDot;
+  if (Math.abs(denom) < 1e-10) {
+    // Parallel/anti-parallel: distance via point-to-line projection
+    const wdD1 = w.x * D1.x + w.y * D1.y + w.z * D1.z;
+    const vx = w.x - wdD1 * D1.x, vy = w.y - wdD1 * D1.y, vz = w.z - wdD1 * D1.z;
+    return Math.sqrt(vx * vx + vy * vy + vz * vz);
+  }
+  const wdD1 = w.x * D1.x + w.y * D1.y + w.z * D1.z;
+  const wdD2 = w.x * D2.x + w.y * D2.y + w.z * D2.z;
+  const sA = (wdD1 - bDot * wdD2) / denom;
+  const sB = (bDot * wdD1 - wdD2) / denom;
+  const cx = P2.x + sB * D2.x - (P1.x + sA * D1.x);
+  const cy = P2.y + sB * D2.y - (P1.y + sA * D1.y);
+  const cz = P2.z + sB * D2.z - (P1.z + sA * D1.z);
+  return Math.sqrt(cx * cx + cy * cy + cz * cz);
+}
+
+/**
+ * 1 residual: r = closestDist(axisA_world, axisB_world) − (r1 + r2)
+ * External tangency: zero when the two cylinders touch externally.
+ */
+export function buildTangentCylCylResiduals(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, r1: number, r2: number,
+): number[] {
+  if (localA.kind !== 'axis' || localB.kind !== 'axis')
+    throw new Error('tangentCylCyl requires axis refs for both A and B');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'axis') throw new Error('unreachable');
+  return [skewLineDist(a.P, a.D, b.P, b.D) - (r1 + r2)];
+}
+
+/**
+ * Analytic Jacobian for buildTangentCylCylResiduals. Returns 1×14 matrix.
+ * Columns 0-6: d/d(Ta[0..2], qa[0..3])  (component A)
+ * Columns 7-13: d/d(Tb[0..2], qb[0..3]) (component B)
+ *
+ * Raw dR/dq quaternion derivatives (no tangent-space projection),
+ * consistent with the solver's raw-additive update + all other constraint Jacobians.
+ */
+export function buildTangentCylCylJacobian(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat, _r1: number, _r2: number,
+): number[][] {
+  if (localA.kind !== 'axis' || localB.kind !== 'axis')
+    throw new Error('tangentCylCyl Jacobian requires axis refs for both A and B');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'axis') throw new Error('unreachable');
+
+  const dPaQ = quatRotateVecJacobian(qa, localA.P);  // 3×4
+  const dDaQ = quatRotateVecJacobian(qa, localA.D);  // 3×4
+  const dPbQ = quatRotateVecJacobian(qb, localB.P);  // 3×4
+  const dDbQ = quatRotateVecJacobian(qb, localB.D);  // 3×4
+
+  const Pa = a.P, Da = a.D, Pb = b.P, Db = b.D;
+  const w: Vec3 = { x: Pb.x - Pa.x, y: Pb.y - Pa.y, z: Pb.z - Pa.z };
+  const bDot = Da.x * Db.x + Da.y * Db.y + Da.z * Db.z;
+  const denom = 1 - bDot * bDot;
+  const J0 = new Array(14).fill(0) as number[];
+
+  if (Math.abs(denom) < 1e-10) {
+    // ── Parallel / anti-parallel axes ────────────────────────────────────────
+    // sep = w − (w·Da)*Da  (projection of w perp to Da)
+    const wdDa = w.x * Da.x + w.y * Da.y + w.z * Da.z;
+    const sepX = w.x - wdDa * Da.x;
+    const sepY = w.y - wdDa * Da.y;
+    const sepZ = w.z - wdDa * Da.z;
+    const dist = Math.sqrt(sepX * sepX + sepY * sepY + sepZ * sepZ);
+    if (dist < 1e-12) return [J0];  // degenerate: axes coincide
+    const invDist = 1 / dist;
+
+    // d/dTa: d(sep)/d(Ta_j) = -(I - Da*Da^T) * e_j
+    // dr/d(Ta_j) = -(sep − (sep·Da)*Da)_j / dist
+    // Since sep⊥Da at eval point, sep·Da=0, so dr/d(Ta_j) = -sep_j/dist
+    // (keep full projection for correctness when not exactly orthogonal)
+    const sepDotDa = sepX * Da.x + sepY * Da.y + sepZ * Da.z;
+    J0[0] = -(sepX - sepDotDa * Da.x) * invDist;
+    J0[1] = -(sepY - sepDotDa * Da.y) * invDist;
+    J0[2] = -(sepZ - sepDotDa * Da.z) * invDist;
+    // d/dTb: opposite sign (dw/dTb = +I)
+    J0[7] = -J0[0]; J0[8] = -J0[1]; J0[9] = -J0[2];
+
+    // d/dqa_k: d(sep_i)/dqa_k = -dPak[i] - (d(w·Da)/dqa_k)*Da_i - wdDa*dDak[i]
+    for (let k = 0; k < 4; k++) {
+      const dPak = [dPaQ[0]![k]!, dPaQ[1]![k]!, dPaQ[2]![k]!];
+      const dDak = [dDaQ[0]![k]!, dDaQ[1]![k]!, dDaQ[2]![k]!];
+      // d(w·Da)/dqa_k = (dw/dqa_k)·Da + w·(dDa/dqa_k) = -dPak·Da + w·dDak
+      const dwdDa_k = -(dPak[0]! * Da.x + dPak[1]! * Da.y + dPak[2]! * Da.z)
+                     + (w.x * dDak[0]! + w.y * dDak[1]! + w.z * dDak[2]!);
+      const dsepX = -dPak[0]! - dwdDa_k * Da.x - wdDa * dDak[0]!;
+      const dsepY = -dPak[1]! - dwdDa_k * Da.y - wdDa * dDak[1]!;
+      const dsepZ = -dPak[2]! - dwdDa_k * Da.z - wdDa * dDak[2]!;
+      J0[3 + k] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+
+    // d/dqb_k: d(sep_i)/dqb_k = dPbk[i] - (dPbk·Da)*Da_i  (Da doesn't depend on qb)
+    for (let k = 0; k < 4; k++) {
+      const dPbk = [dPbQ[0]![k]!, dPbQ[1]![k]!, dPbQ[2]![k]!];
+      const dwdDa_k2 = dPbk[0]! * Da.x + dPbk[1]! * Da.y + dPbk[2]! * Da.z;
+      const dsepX = dPbk[0]! - dwdDa_k2 * Da.x;
+      const dsepY = dPbk[1]! - dwdDa_k2 * Da.y;
+      const dsepZ = dPbk[2]! - dwdDa_k2 * Da.z;
+      J0[10 + k] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+  } else {
+    // ── Non-parallel (skew lines) ─────────────────────────────────────────────
+    const wdDa = w.x * Da.x + w.y * Da.y + w.z * Da.z;
+    const wdDb = w.x * Db.x + w.y * Db.y + w.z * Db.z;
+    const sA = (wdDa - bDot * wdDb) / denom;
+    const sB = (bDot * wdDa - wdDb) / denom;
+    const cAx = Pa.x + sA * Da.x, cAy = Pa.y + sA * Da.y, cAz = Pa.z + sA * Da.z;
+    const cBx = Pb.x + sB * Db.x, cBy = Pb.y + sB * Db.y, cBz = Pb.z + sB * Db.z;
+    const sepX = cBx - cAx, sepY = cBy - cAy, sepZ = cBz - cAz;
+    const dist = Math.sqrt(sepX * sepX + sepY * sepY + sepZ * sepZ);
+    if (dist < 1e-12) return [J0];  // axes intersect / are too close
+    const invDist = 1 / dist;
+
+    // d/dTa_j: dw/dTa = -I, Da & Db & Pb fixed
+    // d(sA)/d(Ta_j) = (-Da_j + bDot*Db_j) / denom
+    // d(sB)/d(Ta_j) = (-bDot*Da_j + Db_j) / denom
+    // d(sep_i)/d(Ta_j) = d(sB)/d(Ta_j)*Db_i - δ_{ij} - d(sA)/d(Ta_j)*Da_i
+    for (let j = 0; j < 3; j++) {
+      const Daj = j === 0 ? Da.x : j === 1 ? Da.y : Da.z;
+      const Dbj = j === 0 ? Db.x : j === 1 ? Db.y : Db.z;
+      const dsA = (-Daj + bDot * Dbj) / denom;
+      const dsB = (-bDot * Daj + Dbj) / denom;
+      const dsepX = dsB * Db.x - (j === 0 ? 1 : 0) - dsA * Da.x;
+      const dsepY = dsB * Db.y - (j === 1 ? 1 : 0) - dsA * Da.y;
+      const dsepZ = dsB * Db.z - (j === 2 ? 1 : 0) - dsA * Da.z;
+      J0[j] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+
+    // d/dTb_j: dw/dTb = +I
+    // d(sA)/d(Tb_j) = (Da_j - bDot*Db_j) / denom
+    // d(sB)/d(Tb_j) = (bDot*Da_j - Db_j) / denom
+    // d(sep_i)/d(Tb_j) = d(sB)/d(Tb_j)*Db_i + δ_{ij} - d(sA)/d(Tb_j)*Da_i
+    for (let j = 0; j < 3; j++) {
+      const Daj = j === 0 ? Da.x : j === 1 ? Da.y : Da.z;
+      const Dbj = j === 0 ? Db.x : j === 1 ? Db.y : Db.z;
+      const dsA = (Daj - bDot * Dbj) / denom;
+      const dsB = (bDot * Daj - Dbj) / denom;
+      const dsepX = dsB * Db.x + (j === 0 ? 1 : 0) - dsA * Da.x;
+      const dsepY = dsB * Db.y + (j === 1 ? 1 : 0) - dsA * Da.y;
+      const dsepZ = dsB * Db.z + (j === 2 ? 1 : 0) - dsA * Da.z;
+      J0[7 + j] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+
+    // d/dqa_k:
+    // Quantities depending on qa: Pa, Da, and through w = Pb - Pa also sA, sB.
+    // d(cA)/dqa_k = dPa/dqa_k + dsA_k * Da + sA * dDa/dqa_k
+    // d(cB)/dqa_k = dsB_k * Db  (Pb & Db don't depend on qa)
+    // d(sep)/dqa_k = d(cB) - d(cA) = dsB_k * Db - dPa/dqa_k - dsA_k * Da - sA * dDa/dqa_k
+    for (let k = 0; k < 4; k++) {
+      const dPak = [dPaQ[0]![k]!, dPaQ[1]![k]!, dPaQ[2]![k]!];
+      const dDak = [dDaQ[0]![k]!, dDaQ[1]![k]!, dDaQ[2]![k]!];
+      // dw/dqa_k = -dPa/dqa_k
+      const dwdDa_k = -(dPak[0]! * Da.x + dPak[1]! * Da.y + dPak[2]! * Da.z)
+                     + (w.x * dDak[0]! + w.y * dDak[1]! + w.z * dDak[2]!);
+      const dwdDb_k = -(dPak[0]! * Db.x + dPak[1]! * Db.y + dPak[2]! * Db.z);
+      const dbDot_k = dDak[0]! * Db.x + dDak[1]! * Db.y + dDak[2]! * Db.z;
+      const ddenom_k = -2 * bDot * dbDot_k;
+      const dsA_k = ((dwdDa_k - dbDot_k * wdDb - bDot * dwdDb_k) * denom
+                    - (wdDa - bDot * wdDb) * ddenom_k) / (denom * denom);
+      const dsB_k = ((dbDot_k * wdDa + bDot * dwdDa_k - dwdDb_k) * denom
+                    - (bDot * wdDa - wdDb) * ddenom_k) / (denom * denom);
+      // d(sep)/dqa_k = dsB_k*Db - dPak - dsA_k*Da - sA*dDak
+      const dsepX = dsB_k * Db.x - dPak[0]! - dsA_k * Da.x - sA * dDak[0]!;
+      const dsepY = dsB_k * Db.y - dPak[1]! - dsA_k * Da.y - sA * dDak[1]!;
+      const dsepZ = dsB_k * Db.z - dPak[2]! - dsA_k * Da.z - sA * dDak[2]!;
+      J0[3 + k] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+
+    // d/dqb_k:
+    // d(cA)/dqb_k = dsA_k2 * Da  (Pa & Da don't depend on qb, but sA does through w & Db)
+    // d(cB)/dqb_k = dPb/dqb_k + dsB_k2 * Db + sB * dDb/dqb_k
+    // d(sep)/dqb_k = dPbk + dsB_k2 * Db + sB * dDbk - dsA_k2 * Da
+    for (let k = 0; k < 4; k++) {
+      const dPbk = [dPbQ[0]![k]!, dPbQ[1]![k]!, dPbQ[2]![k]!];
+      const dDbk = [dDbQ[0]![k]!, dDbQ[1]![k]!, dDbQ[2]![k]!];
+      // dw/dqb_k = dPb/dqb_k
+      const dwdDa_k2 = dPbk[0]! * Da.x + dPbk[1]! * Da.y + dPbk[2]! * Da.z;
+      const dwdDb_k2 = dPbk[0]! * Db.x + dPbk[1]! * Db.y + dPbk[2]! * Db.z
+                     + w.x * dDbk[0]! + w.y * dDbk[1]! + w.z * dDbk[2]!;
+      const dbDot_k2 = Da.x * dDbk[0]! + Da.y * dDbk[1]! + Da.z * dDbk[2]!;
+      const ddenom_k2 = -2 * bDot * dbDot_k2;
+      const dsA_k2 = ((dwdDa_k2 - dbDot_k2 * wdDb - bDot * dwdDb_k2) * denom
+                     - (wdDa - bDot * wdDb) * ddenom_k2) / (denom * denom);
+      const dsB_k2 = ((dbDot_k2 * wdDa + bDot * dwdDa_k2 - dwdDb_k2) * denom
+                     - (bDot * wdDa - wdDb) * ddenom_k2) / (denom * denom);
+      const dsepX = dsB_k2 * Db.x + sB * dDbk[0]! + dPbk[0]! - dsA_k2 * Da.x;
+      const dsepY = dsB_k2 * Db.y + sB * dDbk[1]! + dPbk[1]! - dsA_k2 * Da.y;
+      const dsepZ = dsB_k2 * Db.z + sB * dDbk[2]! + dPbk[2]! - dsA_k2 * Da.z;
+      J0[10 + k] = (sepX * dsepX + sepY * dsepY + sepZ * dsepZ) * invDist;
+    }
+  }
+
+  return [J0];
+}
+
+// ─── Tangent cylinder↔plane ───────────────────────────────────────────────
+
+/**
+ * 2 residuals:
+ *  r[0] = Nb_w · (Pa_w − Pb_w) − radius   (signed distance from axis origin to plane = radius)
+ *  r[1] = Nb_w · Da_w                       (axis parallel to plane: dot = 0)
+ *
+ * localA: { kind: 'axis'; P, D }  (cylinder axis origin P, unit direction D)
+ * localB: { kind: 'plane'; P, N } (plane point P, unit normal N)
+ */
+export function buildTangentCylPlaneResiduals(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat,
+  radius: number,
+): number[] {
+  if (localA.kind !== 'axis' || localB.kind !== 'plane')
+    throw new Error('tangentCylPlane: localA must be axis, localB must be plane');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'plane') throw new Error('unreachable');
+  const dx = a.P.x - b.P.x, dy = a.P.y - b.P.y, dz = a.P.z - b.P.z;
+  const r0 = b.N.x * dx + b.N.y * dy + b.N.z * dz - radius;
+  const r1 = b.N.x * a.D.x + b.N.y * a.D.y + b.N.z * a.D.z;
+  return [r0, r1];
+}
+
+/**
+ * Analytic Jacobian for buildTangentCylPlaneResiduals. Returns 2×14 matrix.
+ * Columns 0-6: d/d(Ta[0..2], qa[0..3])  (component A)
+ * Columns 7-13: d/d(Tb[0..2], qb[0..3]) (component B)
+ *
+ * The quaternion columns (3-6, 10-13) are raw dR/dq derivatives (no tangent-space projection),
+ * consistent with every other constraint Jacobian. The solver updates quaternions raw-additively
+ * and renormalizes afterward, so raw derivatives are correct here.
+ */
+export function buildTangentCylPlaneJacobian(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat,
+  _radius: number,
+): number[][] {
+  if (localA.kind !== 'axis' || localB.kind !== 'plane')
+    throw new Error('tangentCylPlane Jacobian: localA must be axis, localB must be plane');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'plane') throw new Error('unreachable');
+
+  const dPaQ = quatRotateVecJacobian(qa, localA.P);  // 3×4
+  const dDaQ = quatRotateVecJacobian(qa, localA.D);  // 3×4
+  const dPbQ = quatRotateVecJacobian(qb, localB.P);  // 3×4
+  const dNbQ = quatRotateVecJacobian(qb, localB.N);  // 3×4
+
+  const Nb = b.N, Da = a.D;
+  const dP = { x: a.P.x - b.P.x, y: a.P.y - b.P.y, z: a.P.z - b.P.z };
+
+  // Compute raw quaternion derivatives (before tangent-space projection)
+  const raw0qa = new Array(4).fill(0) as number[];
+  const raw0qb = new Array(4).fill(0) as number[];
+  const raw1qa = new Array(4).fill(0) as number[];
+  const raw1qb = new Array(4).fill(0) as number[];
+
+  // r[0] = Nb · (Pa - Pb) - radius
+  // d/dqa_raw: Nb · dPa/dqa
+  for (let k = 0; k < 4; k++) {
+    raw0qa[k] = Nb.x * dPaQ[0]![k]! + Nb.y * dPaQ[1]![k]! + Nb.z * dPaQ[2]![k]!;
+  }
+  // d/dqb_raw: dNb/dqb · dP - Nb · dPb/dqb
+  for (let k = 0; k < 4; k++) {
+    raw0qb[k] = dNbQ[0]![k]! * dP.x + dNbQ[1]![k]! * dP.y + dNbQ[2]![k]! * dP.z
+              - (Nb.x * dPbQ[0]![k]! + Nb.y * dPbQ[1]![k]! + Nb.z * dPbQ[2]![k]!);
+  }
+
+  // r[1] = Nb · Da
+  // d/dqa_raw: Nb · dDa/dqa
+  for (let k = 0; k < 4; k++) {
+    raw1qa[k] = Nb.x * dDaQ[0]![k]! + Nb.y * dDaQ[1]![k]! + Nb.z * dDaQ[2]![k]!;
+  }
+  // d/dqb_raw: dNb/dqb · Da
+  for (let k = 0; k < 4; k++) {
+    raw1qb[k] = dNbQ[0]![k]! * Da.x + dNbQ[1]![k]! * Da.y + dNbQ[2]![k]! * Da.z;
+  }
+
+  const J0 = new Array(14).fill(0) as number[];
+  const J1 = new Array(14).fill(0) as number[];
+
+  // r[0] translation columns
+  J0[0] = Nb.x; J0[1] = Nb.y; J0[2] = Nb.z;
+  J0[7] = -Nb.x; J0[8] = -Nb.y; J0[9] = -Nb.z;
+  // r[0] quaternion columns (raw — consistent with all other constraint Jacobians)
+  for (let k = 0; k < 4; k++) { J0[3 + k] = raw0qa[k]!; J0[10 + k] = raw0qb[k]!; }
+
+  // r[1] translation columns = 0
+  // r[1] quaternion columns (raw)
+  for (let k = 0; k < 4; k++) { J1[3 + k] = raw1qa[k]!; J1[10 + k] = raw1qb[k]!; }
+
+  return [J0, J1];
+}
