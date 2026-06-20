@@ -102,12 +102,16 @@ describe('DrawingCanvas auto-regen effect', () => {
     expect(regenSpy).not.toHaveBeenCalled();
   });
 
-  it('does not re-dispatch a still-stale view on re-render (attempted-ref guard)', () => {
+  it('does not re-dispatch a still-stale view when the effect re-runs (attempted-ref guard)', () => {
     seedStaleDrawing(true);
-    const { rerender } = renderCanvas();
+    renderCanvas();
     expect(regenSpy).toHaveBeenCalledTimes(1);
-    // Force re-render with same props — guard must block second dispatch
-    rerender(<DrawingCanvas />);
+    // Force the auto-regen effect to re-run by toggling autoRegen off then on.
+    // staleViews still contains v1 (regenSpy never calls clearStaleView/setStaleViews),
+    // so without the ref guard a second dispatch would occur and count would be 2.
+    // The ref guard must block it, keeping count at 1.
+    act(() => { useAppStore.setState({ autoRegen: false } as never); });
+    act(() => { useAppStore.setState({ autoRegen: true } as never); });
     expect(regenSpy).toHaveBeenCalledTimes(1);
   });
 
