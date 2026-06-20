@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildTangentCylPlaneResiduals, buildTangentCylPlaneJacobian } from '../Residuals';
+import { buildAllJacobian, type SolverInput } from '../AssemblyConstraintSolver';
 import type { PartLocalGeometry } from '../AssemblyConstraintRefs';
 import type { Quat } from '../quat';
-import type { Vec3 } from '@zilventor/shared';
+import type { Vec3, AssemblyConstraint } from '@zilventor/shared';
 
 const ID_Q: Quat = [0, 0, 0, 1];
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
@@ -12,7 +13,9 @@ function quatNorm(q: Quat): Quat {
   return [q[0]/n, q[1]/n, q[2]/n, q[3]/n];
 }
 
-/** Finite-difference Jacobian with quaternion renormalization after each perturbation. */
+/** Finite-difference Jacobian with raw (un-normalized) quaternion perturbations.
+ *  Matches the raw analytic Jacobian emitted by buildTangentCylPlaneJacobian,
+ *  consistent with all other constraint FD tests in the solver. */
 function fdJacobianTangent(
   buildResid: (xa: number[], xb: number[]) => number[],
   xa: number[], xb: number[],
@@ -26,11 +29,7 @@ function fdJacobianTangent(
       xp[k]! += eps;
       const xm = side === 'a' ? xa.slice() : xb.slice();
       xm[k]! -= eps;
-      // Renormalize quaternion components (indices 3-6)
-      if (k >= 3) {
-        const qp = quatNorm([xp[3]!, xp[4]!, xp[5]!, xp[6]!]); xp[3]=qp[0]; xp[4]=qp[1]; xp[5]=qp[2]; xp[6]=qp[3];
-        const qm = quatNorm([xm[3]!, xm[4]!, xm[5]!, xm[6]!]); xm[3]=qm[0]; xm[4]=qm[1]; xm[5]=qm[2]; xm[6]=qm[3];
-      }
+      // No renormalization — perturbed quaternion stays raw, matching raw analytic derivatives
       const rp = side === 'a' ? buildResid(xp, xb) : buildResid(xa, xp);
       const rm = side === 'a' ? buildResid(xm, xb) : buildResid(xa, xm);
       const col = side === 'a' ? k : k + 7;
@@ -40,6 +39,15 @@ function fdJacobianTangent(
     }
   }
   return J;
+}
+
+/** Swap cols 0-6 ↔ 7-13 (mirrors swapAB in the solver). */
+function swapAB(J: number[][]): number[][] {
+  return J.map((row) => {
+    const out = new Array(14).fill(0) as number[];
+    for (let c = 0; c < 7; c++) { out[c] = row[c + 7]!; out[c + 7] = row[c]!; }
+    return out;
+  });
 }
 
 describe('buildTangentCylPlaneResiduals', () => {
@@ -58,6 +66,71 @@ describe('buildTangentCylPlaneResiduals', () => {
     const planeRef: PartLocalGeometry = { kind: 'plane', P: ZERO, N: { x: 1, y: 0, z: 0 } };
     const r = buildTangentCylPlaneResiduals(axisRef, planeRef, ZERO, ID_Q, ZERO, ID_Q, 5);
     expect(Math.abs(r[0]!)).toBeGreaterThan(0.1);  // dist=8, radius=5 → r=3
+  });
+});
+
+describe('reversed dispatch: plane-first tangent constraint', () => {
+  /**
+   * Gate for FIX 1: when refA=plane and refB=axis, buildAllJacobian must apply swapAB so
+   * that cols 0-6 belong to the PLANE component (refA) and cols 7-13 to the AXIS (refB).
+   *
+   * Invariant: Jacobian(plane-first)[row][c] === swapAB(Jacobian(axis-first))[row][c]
+   *
+   * Before the fix (missing swapAB), the un-swapped block would place axis derivatives
+   * in the plane's columns, so this test would FAIL.
+   */
+  it('plane-first dispatch Jacobian equals swapAB of axis-first Jacobian block', () => {
+    const axisRef: PartLocalGeometry = { kind: 'axis', P: { x: 1, y: 2, z: 0 }, D: { x: 0, y: 0, z: 1 } };
+    const planeRef: PartLocalGeometry = { kind: 'plane', P: { x: 0, y: 0, z: 0 }, N: { x: 1, y: 0, z: 0 } };
+    const qa: Quat = quatNorm([0.1, 0.2, 0.3, 0.9]);
+    const qb: Quat = quatNorm([0.2, -0.1, 0.4, 0.8]);
+    const Ta: Vec3 = { x: 3, y: 1, z: -2 };
+    const Tb: Vec3 = { x: -1, y: 2, z: 1 };
+    const radius = 4;
+
+    // Axis-first analytic Jacobian (directly from Residuals.ts, cols 0-6 = axis, 7-13 = plane)
+    const JaxisFirst = buildTangentCylPlaneJacobian(axisRef, planeRef, Ta, qa, Tb, qb, radius);
+    // Expected for plane-first: swap the column blocks
+    const JexpectedPlaneFirst = swapAB(JaxisFirst);
+
+    // Build the Jacobian via the full solver dispatch with refA=plane, refB=axis.
+    // The solver places cols at offA (plane component = id 'P') and offB (axis component = id 'A').
+    // Both components are free (not grounded), so offA=0, offB=7 in a 14-wide x vector.
+    // The solver only reads componentPath[0] from the refs (for component IDs) and resolvedRefs
+    // for the actual geometry, so the face/axis sub-shapes can be cast for test purposes.
+    const solverInput: SolverInput = {
+      components: [
+        { id: 'P', T: Tb, q: qb },   // refA = plane component
+        { id: 'A', T: Ta, q: qa },   // refB = axis component
+      ],
+      grounded: new Set(),
+      constraints: [{
+        id: 'c1',
+        kind: 'tangent',
+        refA: { kind: 'face', componentPath: ['P'], face: { featureId: 'f', role: 'plane' } },
+        refB: { kind: 'axis', componentPath: ['A'], axis: { source: 'cylindricalFace', face: { featureId: 'f', role: 'axis' } } },
+        radius: { kind: 'literal', value: radius },
+        suppressed: false,
+      } as AssemblyConstraint],
+      resolvedRefs: new Map<string, PartLocalGeometry>([
+        ['c1#P', planeRef],
+        ['c1#A', axisRef],
+      ]),
+      paramValues: {},
+    };
+
+    // x vector: [Tb(0-2), qb(3-6), Ta(7-9), qa(10-13)]
+    const x = [Tb.x, Tb.y, Tb.z, ...qb, Ta.x, Ta.y, Ta.z, ...qa];
+    const Jfull = buildAllJacobian(solverInput, x);
+
+    // Jfull has 2 constraint rows (+ 2 soft-norm rows — skip those).
+    // The constraint block in Jfull[0..1] should match JexpectedPlaneFirst.
+    expect(Jfull).toHaveLength(4);  // 2 constraint + 2 soft-norm (one per free component)
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 14; c++) {
+        expect(Jfull[r]![c]!).toBeCloseTo(JexpectedPlaneFirst[r]![c]!, 10);
+      }
+    }
   });
 });
 

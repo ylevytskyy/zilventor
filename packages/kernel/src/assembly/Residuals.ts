@@ -799,10 +799,9 @@ export function buildTangentCylPlaneResiduals(
  * Columns 0-6: d/d(Ta[0..2], qa[0..3])  (component A)
  * Columns 7-13: d/d(Tb[0..2], qb[0..3]) (component B)
  *
- * The quaternion columns (3-6, 10-13) are projected onto the unit-quaternion tangent space:
- *   J_proj[row][3+k] = sum_j J_raw[row][3+j] * (delta_jk - qa_j * qa_k)
- * This matches a finite-difference test that renormalizes the perturbed quaternion, and is
- * the correct derivative when the solver enforces ||q||=1 (renormalizes after each step).
+ * The quaternion columns (3-6, 10-13) are raw dR/dq derivatives (no tangent-space projection),
+ * consistent with every other constraint Jacobian. The solver updates quaternions raw-additively
+ * and renormalizes afterward, so raw derivatives are correct here.
  */
 export function buildTangentCylPlaneJacobian(
   localA: PartLocalGeometry, localB: PartLocalGeometry,
@@ -850,37 +849,18 @@ export function buildTangentCylPlaneJacobian(
     raw1qb[k] = dNbQ[0]![k]! * Da.x + dNbQ[1]![k]! * Da.y + dNbQ[2]![k]! * Da.z;
   }
 
-  /** Project a 4-vector J_raw onto the unit-quaternion tangent space at q:
-   *  J_proj[k] = sum_j J_raw[j] * (delta_jk - q_j * q_k) */
-  function projectQuat(Jraw: number[], q: Quat): number[] {
-    const proj = new Array(4).fill(0) as number[];
-    for (let k = 0; k < 4; k++) {
-      let sum = 0;
-      for (let j = 0; j < 4; j++) {
-        sum += Jraw[j]! * ((j === k ? 1 : 0) - q[j]! * q[k]!);
-      }
-      proj[k] = sum;
-    }
-    return proj;
-  }
-
-  const proj0qa = projectQuat(raw0qa, qa);
-  const proj0qb = projectQuat(raw0qb, qb);
-  const proj1qa = projectQuat(raw1qa, qa);
-  const proj1qb = projectQuat(raw1qb, qb);
-
   const J0 = new Array(14).fill(0) as number[];
   const J1 = new Array(14).fill(0) as number[];
 
   // r[0] translation columns
   J0[0] = Nb.x; J0[1] = Nb.y; J0[2] = Nb.z;
   J0[7] = -Nb.x; J0[8] = -Nb.y; J0[9] = -Nb.z;
-  // r[0] quaternion columns (projected)
-  for (let k = 0; k < 4; k++) { J0[3 + k] = proj0qa[k]!; J0[10 + k] = proj0qb[k]!; }
+  // r[0] quaternion columns (raw — consistent with all other constraint Jacobians)
+  for (let k = 0; k < 4; k++) { J0[3 + k] = raw0qa[k]!; J0[10 + k] = raw0qb[k]!; }
 
   // r[1] translation columns = 0
-  // r[1] quaternion columns (projected)
-  for (let k = 0; k < 4; k++) { J1[3 + k] = proj1qa[k]!; J1[10 + k] = proj1qb[k]!; }
+  // r[1] quaternion columns (raw)
+  for (let k = 0; k < 4; k++) { J1[3 + k] = raw1qa[k]!; J1[10 + k] = raw1qb[k]!; }
 
   return [J0, J1];
 }

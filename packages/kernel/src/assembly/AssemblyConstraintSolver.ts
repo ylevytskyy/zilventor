@@ -133,8 +133,10 @@ function buildSingleJacobianBlock(
     const radius = k.radius ? resolveOffset(k.radius, paramValues) : 0;
     if (refA.kind === 'axis' && refB.kind === 'plane')
       return buildTangentCylPlaneJacobian(refA, refB, pA.T, pA.q, pB.T, pB.q, radius);
-    if (refA.kind === 'plane' && refB.kind === 'axis')
-      return buildTangentCylPlaneJacobian(refB, refA, pB.T, pB.q, pA.T, pA.q, radius);
+    if (refA.kind === 'plane' && refB.kind === 'axis') {
+      const J = buildTangentCylPlaneJacobian(refB, refA, pB.T, pB.q, pA.T, pA.q, radius);
+      return swapAB(J);
+    }
     throw new Error(`tangent Jacobian: unsupported ref pairing ${refA.kind}/${refB.kind}`);
   }
   return buildInsertJacobian(refA, refB, pA.T, pA.q, pB.T, pB.q, resolveOffset(k.offset, paramValues));
