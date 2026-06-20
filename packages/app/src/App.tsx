@@ -104,6 +104,7 @@ import { AssemblyRefPickController } from './model/AssemblyRefPickController';
 import { AddAssemblyConstraintCommand } from './commands/AddAssemblyConstraintCommand';
 import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraintCommand';
 import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
+import { buildAssemblyConstraint } from './assembly/constraintFromMode';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -4302,22 +4303,14 @@ export default function App() {
     if (!pickedRefA || !pickedRefB) return;
     const id = `K${Date.now()}`;
     const offsetOrAngle = parseParamOrLiteral(valueExpression);
-    let constraint: AssemblyConstraint;
-    if (placeConstraintMode === 'insert') {
-      constraint = {
-        id, kind: 'insert',
-        refA: pickedRefA.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
-        refB: pickedRefB.ref as { componentPath: import('@zilventor/shared').ComponentPath; circularEdge: import('@zilventor/shared').EdgeName },
-        offset: offsetOrAngle, suppressed: false
-      };
-    } else if (placeConstraintMode === 'angle') {
-      constraint = { id, kind: 'angle', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, angle: offsetOrAngle, suppressed: false };
-    } else if (placeConstraintMode === 'coincident') {
-      // Coincident = mate at offset 0, locked. Persisted as mate (no new kind).
-      constraint = { id, kind: 'mate', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: { kind: 'literal', value: 0 }, suppressed: false };
-    } else {
-      constraint = { id, kind: placeConstraintMode, refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: offsetOrAngle, suppressed: false };
-    }
+    const constraint: AssemblyConstraint = buildAssemblyConstraint({
+      id,
+      mode: placeConstraintMode,
+      refA: pickedRefA.ref,
+      refB: pickedRefB.ref,
+      offset: offsetOrAngle,
+      angle: offsetOrAngle,
+    });
     if (editingConstraintId) {
       await new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }).apply();
     } else {
