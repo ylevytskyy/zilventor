@@ -470,8 +470,14 @@ export function extractEdgeLine(
       FirstParameter: () => number;
       LastParameter: () => number;
       Value: (t: number) => { X: () => number; Y: () => number; Z: () => number };
+      GetType: () => unknown;
+      Circle: () => {
+        Location: () => { X: () => number; Y: () => number; Z: () => number };
+        Axis: () => { Direction: () => { X: () => number; Y: () => number; Z: () => number } };
+      };
       delete?: () => void;
     };
+    GeomAbs_CurveType: { GeomAbs_Circle: unknown };
   };
   const typedEdge = ocAny.TopoDS.Edge_1(edge);
   const adaptor = new ocAny.BRepAdaptor_Curve_2(typedEdge);
@@ -482,7 +488,22 @@ export function extractEdgeLine(
     const p1 = adaptor.Value(t1);
     const origin: Vec3 = { x: p0.X(), y: p0.Y(), z: p0.Z() };
     const raw: Vec3 = { x: p1.X() - p0.X(), y: p1.Y() - p0.Y(), z: p1.Z() - p0.Z() };
-    if (length(raw) < 1e-12) return null;
+    if (length(raw) < 1e-12) {
+      // Coincident endpoints → closed edge (circle/ellipse). Extract the circle
+      // axis from the BRepAdaptor so axis-from-edge refs resolve for circular edges
+      // (the primary axis pick path for cylindrical parts).
+      if (adaptor.GetType() !== ocAny.GeomAbs_CurveType.GeomAbs_Circle) {
+        // Not a circle — cannot extract axis from this edge type.
+        return null;
+      }
+      const circle = adaptor.Circle();
+      const loc = circle.Location();
+      const dir = circle.Axis().Direction();
+      return {
+        origin: { x: loc.X(), y: loc.Y(), z: loc.Z() },
+        direction: { x: dir.X(), y: dir.Y(), z: dir.Z() },
+      };
+    }
     return { origin, direction: normalize(raw) };
   } finally {
     adaptor.delete?.();
