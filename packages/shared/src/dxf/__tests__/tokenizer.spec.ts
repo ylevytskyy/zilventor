@@ -36,4 +36,9 @@ describe('tokenize', () => {
     const text = ['  0', 'EOF', '  9'].join('\n');
     expect(tokenize(text)).toEqual([{ code: 0, value: 'EOF' }]);
   });
+
+  it('skips a code line that parseInt would truncate (e.g. "1-3")', () => {
+    const text = ['1-3', 'JUNK', '  0', 'EOF'].join('\n');
+    expect(tokenize(text)).toEqual([{ code: 0, value: 'EOF' }]);
+  });
 });

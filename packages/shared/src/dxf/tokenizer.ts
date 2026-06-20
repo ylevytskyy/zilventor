@@ -12,7 +12,7 @@ export function tokenize(text: string): DxfPair[] {
   for (let i = 0; i + 1 < lines.length; ) {
     const codeStr = lines[i]!.trim();
     const code = Number.parseInt(codeStr, 10);
-    if (!Number.isInteger(code) || codeStr === '' || /[^\d-]/.test(codeStr)) {
+    if (!Number.isInteger(code) || !/^-?\d+$/.test(codeStr)) {
       i += 1;
       continue;
     }
