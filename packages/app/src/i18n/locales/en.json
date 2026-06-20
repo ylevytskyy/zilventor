@@ -559,8 +559,11 @@
       "mate": "Mate",
       "noneSelected": "(none)",
       "offsetLabel": "Offset:",
+      "radiusLabel": "Radius r:",
+      "radius2Label": "Radius r2:",
       "selection1": "Selection 1:",
       "selection2": "Selection 2:",
+      "tangent": "Tangent",
       "title": "Place Constraint",
       "type": "Type:"
     },

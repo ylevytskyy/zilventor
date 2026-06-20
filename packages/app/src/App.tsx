@@ -3318,6 +3318,7 @@ export default function App() {
   const [pickedRefA, setPickedRefA] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
   const [pickedRefB, setPickedRefB] = useState<{ ref: AssemblyConstraint['refA']; label: string } | null>(null);
   const [valueExpression, setValueExpression] = useState('0');
+  const [value2Expression, setValue2Expression] = useState('0');
 
   // Assembly E2E dev hooks (T38): expose solver result, poses, and picker simulate.
   useEffect(() => {
@@ -4269,7 +4270,10 @@ export default function App() {
 
   const onPickSlot = useCallback((slot: 'A' | 'B') => {
     const mode = placeConstraintMode;
-    const pickerMode = mode === 'insert' ? 'circularEdge' : (mode === 'angle' ? 'axis' : 'face');
+    const pickerMode = mode === 'insert' ? 'circularEdge'
+                     : mode === 'angle'   ? 'axis'
+                     : mode === 'tangent' ? 'axis'
+                     : 'face';
     assemblyPickerRef.current.activate(pickerMode, slot, (hit) => {
       let ref: AssemblyConstraint['refA'] | { componentPath: ComponentPath; circularEdge: import('@zilventor/shared').EdgeName };
       let label: string;
@@ -4303,6 +4307,11 @@ export default function App() {
     if (!pickedRefA || !pickedRefB) return;
     const id = `K${Date.now()}`;
     const offsetOrAngle = parseParamOrLiteral(valueExpression);
+    const refAKind = 'kind' in pickedRefA.ref ? pickedRefA.ref.kind : undefined;
+    const refBKind = 'kind' in pickedRefB.ref ? pickedRefB.ref.kind : undefined;
+    const isCylCyl = placeConstraintMode === 'tangent'
+      && refAKind === 'axis'
+      && refBKind === 'axis';
     const constraint: AssemblyConstraint = buildAssemblyConstraint({
       id,
       mode: placeConstraintMode,
@@ -4310,6 +4319,8 @@ export default function App() {
       refB: pickedRefB.ref,
       offset: offsetOrAngle,
       angle: offsetOrAngle,
+      ...(placeConstraintMode === 'tangent' && !isCylCyl ? { radius: offsetOrAngle } : {}),
+      ...(placeConstraintMode === 'tangent' && isCylCyl ? { r1: offsetOrAngle, r2: parseParamOrLiteral(value2Expression) } : {}),
     });
     if (editingConstraintId) {
       await new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }).apply();
@@ -4319,9 +4330,9 @@ export default function App() {
     if (close) {
       useAppStore.getState().resetPlaceConstraintDialog();
       useAppStore.getState().resetEditConstraintDialog();
-      setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+      setPickedRefA(null); setPickedRefB(null); setValueExpression('0'); setValue2Expression('0');
     }
-  }, [pickedRefA, pickedRefB, valueExpression, placeConstraintMode, editingConstraintId]);
+  }, [pickedRefA, pickedRefB, valueExpression, value2Expression, placeConstraintMode, editingConstraintId]);
 
   // Lazy OPFS singleton + tile list for the Place dialog.
   const [tiles, setTiles] = useState<AssemblyTile[]>([]);
@@ -5704,6 +5715,7 @@ export default function App() {
           pickedRefA={pickedRefA && { label: pickedRefA.label }}
           pickedRefB={pickedRefB && { label: pickedRefB.label }}
           valueExpression={valueExpression}
+          {...(placeConstraintMode === 'tangent' ? { value2Expression, onValue2Change: setValue2Expression } : {})}
           onPick={onPickSlot}
           onValueChange={setValueExpression}
           onCommit={() => { void onCommitConstraint(true); }}
@@ -5711,7 +5723,7 @@ export default function App() {
           onCancel={() => {
             useAppStore.getState().resetPlaceConstraintDialog();
             useAppStore.getState().resetEditConstraintDialog();
-            setPickedRefA(null); setPickedRefB(null); setValueExpression('0');
+            setPickedRefA(null); setPickedRefB(null); setValueExpression('0'); setValue2Expression('0');
           }}
         />
       )}

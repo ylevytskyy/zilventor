@@ -559,8 +559,11 @@
       "mate": "Зіставлення",
       "noneSelected": "(не вибрано)",
       "offsetLabel": "Зміщення:",
+      "radiusLabel": "Радіус r:",
+      "radius2Label": "Радіус r2:",
       "selection1": "Вибір 1:",
       "selection2": "Вибір 2:",
+      "tangent": "Дотик",
       "title": "Задати залежність",
       "type": "Тип:"
     },

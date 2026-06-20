@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-type Mode = 'mate' | 'flush' | 'angle' | 'insert' | 'coincident';
+type Mode = 'mate' | 'flush' | 'angle' | 'insert' | 'coincident' | 'tangent';
 type PickedRefDescription = { label: string };
 
 type Props = {
@@ -14,6 +14,9 @@ type Props = {
   onCommit: () => void;
   onApply: () => void;
   onCancel: () => void;
+  /** For tangent cyl↔cyl: expression for the second cylinder's radius (r2). When defined, the r2 input is shown. */
+  value2Expression?: string;
+  onValue2Change?: (v: string) => void;
 };
 
 const panel: React.CSSProperties = {
@@ -32,7 +35,9 @@ const row: React.CSSProperties = {
 export function PlaceConstraintDialog(p: Props): JSX.Element {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>(p.mode);
-  const valueLabel = mode === 'angle' ? t('dialog.placeConstraint.angleLabel') : t('dialog.placeConstraint.offsetLabel');
+  const valueLabel = mode === 'angle'   ? t('dialog.placeConstraint.angleLabel')
+                   : mode === 'tangent' ? t('dialog.placeConstraint.radiusLabel')
+                   : t('dialog.placeConstraint.offsetLabel');
   const valueUnit = mode === 'angle' ? '°' : 'mm';
   const okEnabled = p.pickedRefA !== null && p.pickedRefB !== null;
 
@@ -47,6 +52,7 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
           <option value="angle">{t('dialog.placeConstraint.angle')}</option>
           <option value="insert">{t('dialog.placeConstraint.insert')}</option>
           <option value="coincident">{t('dialog.placeConstraint.coincident')}</option>
+          <option value="tangent">{t('dialog.placeConstraint.tangent')}</option>
         </select>
       </div>
       <div style={row}>
@@ -64,6 +70,13 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
           <span style={{ width: 60 }}>{valueLabel}</span>
           <input value={p.valueExpression} onChange={(e) => p.onValueChange(e.target.value)} style={{ ...btn, width: 80 }} />
           <span>{valueUnit}</span>
+        </div>
+      )}
+      {mode === 'tangent' && p.value2Expression !== undefined && (
+        <div style={row}>
+          <span style={{ width: 60 }}>{t('dialog.placeConstraint.radius2Label')}</span>
+          <input value={p.value2Expression} onChange={(e) => p.onValue2Change?.(e.target.value)} style={{ ...btn, width: 80 }} />
+          <span>mm</span>
         </div>
       )}
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
