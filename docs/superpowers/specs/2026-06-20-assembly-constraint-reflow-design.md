@@ -62,9 +62,9 @@ Both scenarios must reflow using **fresh** geometry (the moved face/axis), not c
   (`Viewport.tsx:81`), unblocking Insert/Angle/Tangent authoring from the viewport.
 - **C — Coincident type:** a selectable `coincident` constraint, implemented as a **mate preset at
   offset 0** (see §4.3 — no new residual math), exposed in `PlaceConstraintDialog`.
-- **T — Tangent type:** a new `tangent` constraint with real residual + analytic Jacobian.
-  Core: **cylinder↔plane** (`dist(axis, plane) = radius`, 1 scalar residual, S). Stretch within the
-  same milestone: **cylinder↔cylinder** external tangency (skew-line distance = r1+r2, M).
+- **T — Tangent type:** a new `tangent` constraint with real residual + analytic Jacobian, both
+  pairings in this milestone (ratified): **cylinder↔plane** (`dist(axis, plane) = radius`, 1 scalar
+  residual, S) **and** **cylinder↔cylinder** external tangency (skew-line distance = r1+r2, M).
 - Two real-browser e2e scenarios (S-A, S-B) as the completion gate.
 
 ### Out of scope
@@ -116,11 +116,9 @@ The solver already routes a `(point, plane)` ref pair to `buildMatePointFaceResi
 therefore mate at offset 0.** Implement `coincident` as a UI type that constructs a `mate` constraint
 with `offset: 0` locked (offset field hidden/disabled). No residual or Jacobian changes.
 
-> **Design decision (flagged for review):** the user requested coincident as a distinct *type*.
-> We honor that in the authoring UI while avoiding redundant residual math by mapping it to mate.
-> If the user wants coincident persisted as its own `kind` in the document model (not aliased),
-> that is a small additive change but adds a manifest-version bump and migration; default is the
-> alias approach (no migration).
+> **Design decision (RATIFIED 2026-06-20):** coincident is implemented as a **mate alias at
+> offset 0** — selectable as its own UI type, persisted as `mate`. No new `kind`, no manifest bump,
+> no migration.
 
 ### 4.4 Tangent (new residual)
 
@@ -129,8 +127,8 @@ switch (`AssemblyConstraintSolver.ts:65`), and `buildTangentResiduals` in `Resid
 - **cylinder↔plane:** `r = Nplane · (Paxis_origin − Pplane) − radius` (1 scalar). Jacobian is a new
   derivation but borrows the normal-dot structure from `buildMatePointFaceResiduals`. Effort S.
 - **cylinder↔cylinder (external):** `r = closestDist(axis1, axis2) − (r1 + r2)`. Requires skew-line
-  closest-distance; genuinely new analytic Jacobian. Effort M. May ship behind the same milestone or
-  defer if the slice runs long (cylinder↔plane alone satisfies a furniture tangent use).
+  closest-distance; genuinely new analytic Jacobian. Effort M. **In scope this milestone (ratified).**
+  The analytic Jacobian must be validated against a finite-difference check in its unit test (R4).
 
 Expose `tangent` in `PlaceConstraintDialog` (`:44–49`), reusing the axis/circularEdge pick from §4.2.
 
@@ -193,11 +191,11 @@ R (reflow trigger + freshness) → P (axis/circularEdge pick) → C (coincident 
 T (tangent cyl↔plane, then cyl↔cyl) → E2E (S-A, S-B). R is the highest-value, lowest-effort core and
 is independently shippable; P unblocks T and S-B; C is cheap; T is the largest new math.
 
-## 9. Open Questions for Ratification
+## 9. Ratified Decisions (2026-06-20)
 
-1. Coincident as **mate-alias** (no migration, recommended) vs distinct persisted `kind` (manifest
-   bump + migration)?
-2. Is **cylinder↔cylinder tangent** required this milestone, or is cylinder↔plane sufficient with
-   cyl↔cyl deferred?
-3. Target **branch**: continue on `feat/wall-tall-cabinets` (where milestones 1–3 live, unmerged) or
-   branch fresh from `master`?
+1. **Coincident:** mate alias at offset 0 — selectable UI type, persisted as `mate`, no manifest
+   bump, no migration.
+2. **Tangent:** both **cylinder↔plane** and **cylinder↔cylinder** ship this milestone; the cyl↔cyl
+   analytic Jacobian is finite-difference-validated in its unit test.
+3. **Branch:** implementation continues on `feat/wall-tall-cabinets` (alongside Milestones 1–3,
+   unmerged). The solver code is present there as on `master`.
