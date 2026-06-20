@@ -322,7 +322,7 @@ export default function DrawingTab(): JSX.Element {
         <button
           type="button"
           aria-pressed={autoRegen}
-          className="text-xs hover:text-white"
+          className={`text-xs hover:text-white${autoRegen ? ' text-white' : ''}`}
           aria-label={t('ribbon.drawing.autoUpdateViews')}
           title={t('ribbon.drawing.autoUpdateViewsTip')}
           onClick={() => setAutoRegen(!autoRegen)}

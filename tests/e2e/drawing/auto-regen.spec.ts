@@ -125,22 +125,9 @@ test('auto-regen: stale view clears without a manual click when autoRegen is on'
   await page.evaluate(
     ({ newFingerprint }: { newFingerprint: string }) => {
       const w = window as unknown as {
-        __zilventorStore: {
-          getState(): {
-            activeDrawingSourcePartId: string | null;
-            activeDocument: { kind: string; document: unknown } | null;
-          };
-          setState(p: unknown): void;
-        };
+        __zilventorStore: { setState(p: unknown): void };
       };
-      const s = w.__zilventorStore.getState();
-      w.__zilventorStore.setState({
-        activeDrawingSourceFingerprint: newFingerprint,
-        // Keep the rest intact
-        activeDrawingSourcePartId: s.activeDrawingSourcePartId,
-        activeDocument: s.activeDocument,
-        activeDrawing: s.activeDocument?.kind === 'drawing' ? s.activeDocument.document : undefined,
-      });
+      w.__zilventorStore.setState({ activeDrawingSourceFingerprint: newFingerprint });
     },
     { newFingerprint: newFp },
   );
