@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../parser';
+import { tokenize as tk } from '../index';
+import { parseDxf as pd } from '../index';
 
 function entitiesDxf(body: string): string {
   return ['  0', 'SECTION', '  2', 'ENTITIES', body.trim(), '  0', 'ENDSEC', '  0', 'EOF'].join('\n');
@@ -177,8 +179,6 @@ describe('parseDxf — SPLINE & ELLIPSE', () => {
   });
 });
 
-import { tokenize as tk } from '../index';
-import { parseDxf as pd } from '../index';
 describe('dxf barrel', () => {
   it('re-exports tokenize and parseDxf', () => {
     expect(typeof tk).toBe('function');
