@@ -60,6 +60,20 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         xscale: num(raw.pairs, 41, 1), yscale: num(raw.pairs, 42, 1),
         rotation: num(raw.pairs, 50) };
+    case 'SPLINE': {
+      const cps: Array<{ x: number; y: number }> = [];
+      let cx: number | null = null;
+      for (const q of raw.pairs) {
+        if (q.code === 10) cx = Number.parseFloat(q.value) || 0;
+        else if (q.code === 20 && cx !== null) { cps.push({ x: cx, y: Number.parseFloat(q.value) || 0 }); cx = null; }
+      }
+      return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1, controlPoints: cps };
+    }
+    case 'ELLIPSE':
+      return { type: 'ELLIPSE', layer,
+        cx: num(raw.pairs, 10), cy: num(raw.pairs, 20),
+        majorX: num(raw.pairs, 11), majorY: num(raw.pairs, 21),
+        ratio: num(raw.pairs, 40), startParam: num(raw.pairs, 41), endParam: num(raw.pairs, 42, 2 * Math.PI) };
     default:
       return null;
   }

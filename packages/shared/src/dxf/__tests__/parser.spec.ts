@@ -147,3 +147,41 @@ describe('parseDxf — BLOCKS & INSERT', () => {
     }
   });
 });
+
+describe('parseDxf — SPLINE & ELLIPSE', () => {
+  it('parses a SPLINE degree + control points + closed flag', () => {
+    const dxf = entitiesDxf(['  0', 'SPLINE', '  8', '0', ' 70', '1', ' 71', '3',
+      ' 10', '0.0', ' 20', '0.0', ' 10', '1.0', ' 20', '2.0', ' 10', '3.0', ' 20', '0.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('SPLINE');
+    if (e.type === 'SPLINE') {
+      expect(e.degree).toBe(3);
+      expect(e.closed).toBe(true);
+      expect(e.controlPoints.map((p) => [p.x, p.y])).toEqual([[0, 0], [1, 2], [3, 0]]);
+    }
+  });
+
+  it('parses an ELLIPSE with center, major-axis vector, ratio, params', () => {
+    const dxf = entitiesDxf(['  0', 'ELLIPSE', '  8', '0',
+      ' 10', '5.0', ' 20', '5.0', ' 11', '10.0', ' 21', '0.0', ' 40', '0.5',
+      ' 41', '0.0', ' 42', '6.283185'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('ELLIPSE');
+    if (e.type === 'ELLIPSE') {
+      expect([e.cx, e.cy]).toEqual([5, 5]);
+      expect([e.majorX, e.majorY]).toEqual([10, 0]);
+      expect(e.ratio).toBeCloseTo(0.5);
+      expect(e.startParam).toBeCloseTo(0);
+      expect(e.endParam).toBeCloseTo(6.283185);
+    }
+  });
+});
+
+import { tokenize as tk } from '../index';
+import { parseDxf as pd } from '../index';
+describe('dxf barrel', () => {
+  it('re-exports tokenize and parseDxf', () => {
+    expect(typeof tk).toBe('function');
+    expect(typeof pd).toBe('function');
+  });
+});

@@ -9,7 +9,9 @@ export type DxfEntity =
   | { type: 'MTEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
   | { type: 'LWPOLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
   | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
-  | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number };
+  | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number }
+  | { type: 'SPLINE'; layer: string; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }> }
+  | { type: 'ELLIPSE'; layer: string; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number };
 
 export type ParsedDxf = {
   entities: DxfEntity[];
