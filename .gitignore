@@ -17,3 +17,6 @@ tmp/
 
 # Vendored OCCT glue+wasm — regenerated from node_modules by copy-occt.mjs (postinstall/prebuild)
 packages/app/public/occt/
+
+# Firebase deploy cache
+.firebase/
