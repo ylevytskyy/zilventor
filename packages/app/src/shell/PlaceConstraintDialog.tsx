@@ -17,6 +17,8 @@ type Props = {
   /** For tangent cyl↔cyl: expression for the second cylinder's radius (r2). When defined, the r2 input is shown. */
   value2Expression?: string;
   onValue2Change?: (v: string) => void;
+  /** Called when the user changes the constraint type via the <select>. Parent must sync its picker/commit logic. */
+  onModeChange?: (mode: Mode) => void;
 };
 
 const panel: React.CSSProperties = {
@@ -46,7 +48,7 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
       <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('dialog.placeConstraint.title')}</div>
       <div style={row}>
         <span style={{ width: 60 }}>{t('dialog.placeConstraint.type')}</span>
-        <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} style={btn}>
+        <select value={mode} onChange={(e) => { const m = e.target.value as Mode; setMode(m); p.onModeChange?.(m); }} style={btn}>
           <option value="mate">{t('dialog.placeConstraint.mate')}</option>
           <option value="flush">{t('dialog.placeConstraint.flush')}</option>
           <option value="angle">{t('dialog.placeConstraint.angle')}</option>

@@ -138,6 +138,7 @@ import { flattenForSolver } from './assembly/walkers/flattenForSolver';
 import { resolveLeafPartPath } from './assembly/walkers/resolveLeafPartPath';
 import { transformPartLocalGeometry } from './assembly/transformPartLocalGeometry';
 import { shouldReflowAfterInvalidate, partPathForKernelId } from './assembly/reflowDirty';
+import { paramRefValuesOf } from './assembly/constraintParamRefs';
 import { pathKey, type ComponentPath } from '@zilventor/shared';
 import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
 import { packAllMaterials } from '@zilventor/shared';
@@ -1804,6 +1805,8 @@ export default function App() {
           }
           return k0;
         };
+          // Both arms are runtime-identical; the if-guard exists solely for TS
+          // discriminant narrowing (insert.refA is not AssemblyConstraintRef).
           if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle' || k.kind === 'tangent') {
             return {
               ...k,
@@ -1867,10 +1870,9 @@ export default function App() {
     const unsub = parameterRegistry.subscribe(() => {
       const aa = useAppStore.getState().activeAssembly;
       if (!aa) return;
-      const hasParamRef = aa.constraints.some((k) => {
-        const v = k.kind === 'angle' ? (k as any).angle : (k as any).offset;
-        return v?.kind === 'param';
-      });
+      const hasParamRef = aa.constraints.some((k) =>
+        paramRefValuesOf(k).some((v) => v.kind === 'param'),
+      );
       if (hasParamRef) useAppStore.getState().setSolverDirty(true);
     });
     return unsub;
@@ -5720,6 +5722,7 @@ export default function App() {
           onValueChange={setValueExpression}
           onCommit={() => { void onCommitConstraint(true); }}
           onApply={() => { void onCommitConstraint(false); }}
+          onModeChange={(m) => useAppStore.setState({ placeConstraintMode: m })}
           onCancel={() => {
             useAppStore.getState().resetPlaceConstraintDialog();
             useAppStore.getState().resetEditConstraintDialog();
