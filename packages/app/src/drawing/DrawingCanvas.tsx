@@ -137,9 +137,12 @@ export function DrawingCanvas() {
 
   // Per-view stale flags
   const [staleViews, setStaleViews] = useState<Set<string>>(new Set());
+  // Auto-regen: track which stale views we've already auto-dispatched this source-change episode.
+  const autoRegenAttemptedRef = useRef<Set<string>>(new Set());
 
   const source = useAppStore((s) => s.activePart ?? s.activeAssembly);
   const activeDrawingSourceFingerprint = useAppStore((s) => s.activeDrawingSourceFingerprint);
+  const autoRegen = useAppStore((s) => s.autoRegen);
   const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
 
   if (!drawing) {
@@ -161,6 +164,7 @@ export function DrawingCanvas() {
   // NOTE: do NOT use fingerprintPartState(activePart) here — activePart is null in the live
   // drawing context (reset by drawingDocState). The bytes-based fingerprint slot is correct.
   useEffect(() => {
+    autoRegenAttemptedRef.current = new Set(); // new episode → allow fresh auto-attempts
     setStaleViews(computeStaleViewIds(sheet.views, activeDrawingSourceFingerprint));
   }, [drawing.id, sheet.id, activeDrawingSourceFingerprint]);
 
@@ -1027,6 +1031,19 @@ export function DrawingCanvas() {
     });
     void dispatcher(viewId);
   }, [sheet, bus, staleViews]);
+
+  // M3.2: live associativity — auto-regenerate stale views when enabled.
+  // Guarded by autoRegenAttemptedRef so a view that stays stale (regen failed) is not
+  // re-dispatched every render; the ref resets on each source-change episode (above).
+  useEffect(() => {
+    if (!autoRegen) return;
+    for (const id of staleViews) {
+      if (!autoRegenAttemptedRef.current.has(id)) {
+        autoRegenAttemptedRef.current.add(id);
+        handleRegenerate(id);
+      }
+    }
+  }, [autoRegen, staleViews, handleRegenerate]);
 
   // viewBox incorporating pan/zoom (at zero pan/zoom = "0 0 sheetW sheetH")
   const vbX = -pan.x / zoom;
