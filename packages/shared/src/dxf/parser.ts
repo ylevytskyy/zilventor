@@ -61,11 +61,12 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         xscale: num(raw.pairs, 41, 1), yscale: num(raw.pairs, 42, 1),
         rotation: num(raw.pairs, 50) };
     case 'SPLINE': {
+      const f = (s: string): number => { const n = Number.parseFloat(s); return Number.isFinite(n) ? n : 0; };
       const cps: Array<{ x: number; y: number }> = [];
       let cx: number | null = null;
       for (const q of raw.pairs) {
-        if (q.code === 10) cx = Number.parseFloat(q.value) || 0;
-        else if (q.code === 20 && cx !== null) { cps.push({ x: cx, y: Number.parseFloat(q.value) || 0 }); cx = null; }
+        if (q.code === 10) cx = f(q.value);
+        else if (q.code === 20 && cx !== null) { cps.push({ x: cx, y: f(q.value) }); cx = null; }
       }
       return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1, controlPoints: cps };
     }

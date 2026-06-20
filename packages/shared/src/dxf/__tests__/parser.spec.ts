@@ -79,6 +79,7 @@ describe('parseDxf — ARC, TEXT, MTEXT', () => {
     if (e.type === 'MTEXT') {
       expect([e.x, e.y, e.height]).toEqual([1, 2, 3]);
       expect(e.value).toBe('Multi');
+      expect(e.rotation).toBeCloseTo(0);
     }
   });
 });
@@ -146,6 +147,10 @@ describe('parseDxf — BLOCKS & INSERT', () => {
     if (ins && ins.type === 'INSERT') {
       expect(ins.name).toBe('MYBLK');
       expect([ins.x, ins.y]).toEqual([100, 200]);
+      expect(ins.xscale).toBe(1);
+      expect(ins.yscale).toBe(1);
+      expect(ins.rotation).toBe(0);
+      expect(ins.layer).toBe('0');
     }
   });
 });

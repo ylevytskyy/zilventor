@@ -25,7 +25,7 @@ function mapEntity(e: DxfEntity, dx: number, dy: number): UnderlayEntity | null 
     case 'TEXT':
     case 'MTEXT':
       return { kind: 'text', x: e.x + dx, y: e.y + dy, height: e.height, value: e.value, rotation: e.rotation };
-    // SPLINE, ELLIPSE, INSERT handled elsewhere / skipped.
+    // INSERT is intercepted in the entity loop; SPLINE/ELLIPSE are intentionally dropped for the underlay.
     default:
       return null;
   }
@@ -73,6 +73,13 @@ function computeBBox(entities: ReadonlyArray<UnderlayEntity>): BBox | undefined 
   return bb;
 }
 
+/**
+ * Parse DXF text into a flat DxfUnderlay for rendering as a sheet backdrop.
+ * Coordinates are preserved in the DXF unit (assumed mm). INSERT/BLOCK references
+ * are flattened (translation only; rotation/scale deferred). LWPOLYLINE/POLYLINE
+ * bulge segments are approximated as straight chords. Malformed input → empty
+ * underlay; never throws.
+ */
 export function parseDxfUnderlay(dxfText: string, fileName: string): DxfUnderlay {
   const lastDot = fileName.lastIndexOf('.');
   const name = lastDot > 0 ? fileName.slice(0, lastDot) : fileName;
