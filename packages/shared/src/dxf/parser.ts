@@ -54,6 +54,12 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       if (cur) verts.push(cur);
       return { type: 'LWPOLYLINE', layer, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts };
     }
+    case 'INSERT':
+      return { type: 'INSERT', layer,
+        name: str(raw.pairs, 2),
+        x: num(raw.pairs, 10), y: num(raw.pairs, 20),
+        xscale: num(raw.pairs, 41, 1), yscale: num(raw.pairs, 42, 1),
+        rotation: num(raw.pairs, 50) };
     default:
       return null;
   }

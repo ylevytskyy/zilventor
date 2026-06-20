@@ -8,7 +8,8 @@ export type DxfEntity =
   | { type: 'TEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
   | { type: 'MTEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
   | { type: 'LWPOLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
-  | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> };
+  | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
+  | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number };
 
 export type ParsedDxf = {
   entities: DxfEntity[];

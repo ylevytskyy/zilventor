@@ -119,3 +119,31 @@ describe('parseDxf — polylines', () => {
     }
   });
 });
+
+function blocksDxf(name: string, body: string, ix: number, iy: number): string {
+  return ['  0', 'SECTION', '  2', 'BLOCKS',
+    '  0', 'BLOCK', '  2', name, ' 70', '0', ' 10', '0.0', ' 20', '0.0',
+    body.trim(),
+    '  0', 'ENDBLK', '  0', 'ENDSEC',
+    '  0', 'SECTION', '  2', 'ENTITIES',
+    '  0', 'INSERT', '  2', name, ' 10', String(ix), ' 20', String(iy),
+    '  0', 'ENDSEC', '  0', 'EOF'].join('\n');
+}
+
+describe('parseDxf — BLOCKS & INSERT', () => {
+  it('collects block entities under blocks[name] and emits an INSERT record', () => {
+    const dxf = blocksDxf('MYBLK',
+      ['  0', 'LINE', '  8', '0', ' 10', '1.0', ' 20', '2.0', ' 11', '11.0', ' 21', '2.0'].join('\n'),
+      100, 200);
+    const r = parseDxf(dxf);
+    expect(r.blocks['MYBLK']).toBeDefined();
+    expect(r.blocks['MYBLK']!).toHaveLength(1);
+    expect(r.blocks['MYBLK']![0]!.type).toBe('LINE');
+    const ins = r.entities.find((e) => e.type === 'INSERT');
+    expect(ins).toBeDefined();
+    if (ins && ins.type === 'INSERT') {
+      expect(ins.name).toBe('MYBLK');
+      expect([ins.x, ins.y]).toEqual([100, 200]);
+    }
+  });
+});
