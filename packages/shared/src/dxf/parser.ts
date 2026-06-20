@@ -25,6 +25,18 @@ function readEntity(raw: RawEntity): DxfEntity | null {
     case 'CIRCLE':
       return { type: 'CIRCLE', layer,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40) };
+    case 'ARC':
+      return { type: 'ARC', layer,
+        cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40),
+        startAngle: num(raw.pairs, 50), endAngle: num(raw.pairs, 51) };
+    case 'TEXT':
+      return { type: 'TEXT', layer,
+        x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
+        value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
+    case 'MTEXT':
+      return { type: 'MTEXT', layer,
+        x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
+        value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
     default:
       return null;
   }

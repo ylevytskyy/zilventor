@@ -43,3 +43,40 @@ describe('parseDxf — LINE & CIRCLE', () => {
     expect(parseDxf('garbage @@@').entities).toEqual([]);
   });
 });
+
+describe('parseDxf — ARC, TEXT, MTEXT', () => {
+  it('parses an ARC with angles preserved in DEGREES (no radian conversion)', () => {
+    const dxf = entitiesDxf(['  0', 'ARC', '  8', '0',
+      ' 10', '30.0', ' 20', '40.0', ' 40', '15.0', ' 50', '45.0', ' 51', '135.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('ARC');
+    if (e.type === 'ARC') {
+      expect([e.cx, e.cy, e.r]).toEqual([30, 40, 15]);
+      expect(e.startAngle).toBeCloseTo(45);
+      expect(e.endAngle).toBeCloseTo(135);
+    }
+  });
+
+  it('parses a TEXT entity (value, height, rotation in degrees)', () => {
+    const dxf = entitiesDxf(['  0', 'TEXT', '  8', '0',
+      ' 10', '20.0', ' 20', '30.0', ' 40', '5.0', '  1', 'Hello', ' 50', '15.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('TEXT');
+    if (e.type === 'TEXT') {
+      expect([e.x, e.y, e.height]).toEqual([20, 30, 5]);
+      expect(e.value).toBe('Hello');
+      expect(e.rotation).toBeCloseTo(15);
+    }
+  });
+
+  it('parses an MTEXT entity using group 40 for height', () => {
+    const dxf = entitiesDxf(['  0', 'MTEXT', '  8', '0',
+      ' 10', '1.0', ' 20', '2.0', ' 40', '3.0', '  1', 'Multi', ' 50', '0.0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('MTEXT');
+    if (e.type === 'MTEXT') {
+      expect([e.x, e.y, e.height]).toEqual([1, 2, 3]);
+      expect(e.value).toBe('Multi');
+    }
+  });
+});
