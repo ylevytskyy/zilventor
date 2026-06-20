@@ -1571,7 +1571,6 @@ export default function App() {
         }
       })();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cascade parameter changes to the solver + kernel + store.
