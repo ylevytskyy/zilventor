@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
 import { PlaceComponentCommand } from '../PlaceComponentCommand';
+import i18n from '../../i18n';
 import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import type { AssemblyDocument } from '@zilventor/shared';
 
@@ -59,7 +60,11 @@ describe('PlaceComponentCommand', () => {
     await cmd.apply();
     const s = useAppStore.getState();
     expect(s.activeAssembly?.components).toHaveLength(0);
-    expect(s.statusMessage.toLowerCase()).toContain('cycle');
+    // Assert against the same i18n resolution the command produces, so the test
+    // is locale-independent (the English word "cycle" does not survive translation).
+    expect(s.statusMessage).toBe(
+      i18n.t('status.placeComponent.cycle', { partPath: 'candidate.ziasm' }),
+    );
   });
 
   it('places a non-cyclic .ziasm normally', async () => {
