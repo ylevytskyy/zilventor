@@ -78,8 +78,9 @@ export type ViewportRef = {
    *   'face' → { kind:'face', componentPath, triangleIndex } — caller resolves FaceName
    *   'edge' → { kind:'edge', componentPath, origin, direction } — caller resolves EdgeName
    *
-   * Unsupported modes ('axis', 'point', 'circularEdge') always return null.
-   * TODO: axis/point/circularEdge pick in T34/T38.
+   * 'point' always returns null (not resolvable at this layer).
+   * 'axis' and 'circularEdge' fall through to the edge-ray path (T38).
+   * App.tsx classifies the hit via EdgePickController on partTessellatedEdgesCacheRef.
    */
   raycastAssemblyRef(
     mode: 'face' | 'edge' | 'axis' | 'point' | 'circularEdge',
@@ -356,9 +357,11 @@ const Viewport = forwardRef<ViewportRef, Props>(function Viewport(props, ref) {
     raycastAssemblyRef: (mode, clientX, clientY) => {
       if (!sceneRef.current || !canvasRef.current) return null;
 
-      // axis / point / circularEdge are not resolvable at the Viewport layer.
-      // TODO: axis/point/circularEdge pick in T34/T38.
-      if (mode === 'axis' || mode === 'point' || mode === 'circularEdge') return null;
+      // point is not resolvable at the Viewport layer.
+      if (mode === 'point') return null;
+      // axis and circularEdge fall through to the edge-ray path at lines 396-404.
+      // App.tsx classifies the hit via EdgePickController.pickFromRay on the
+      // per-component tessellated edge cache (partTessellatedEdgesCacheRef).
 
       const sm = sceneRef.current;
       const canvas = canvasRef.current;
