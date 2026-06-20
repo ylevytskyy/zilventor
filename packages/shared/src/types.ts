@@ -221,7 +221,14 @@ export type AssemblyConstraint =
   | { id: string; kind: 'insert';
       refA: { componentPath: ComponentPath; circularEdge: EdgeName };
       refB: { componentPath: ComponentPath; circularEdge: EdgeName };
-      offset: ParamOrLiteral; suppressed: boolean };
+      offset: ParamOrLiteral; suppressed: boolean }
+  | { id: string; kind: 'tangent';
+      refA: AssemblyConstraintRef;
+      refB: AssemblyConstraintRef;
+      radius?: ParamOrLiteral;   // cyl↔plane: cylinder radius
+      r1?: ParamOrLiteral;       // cyl↔cyl: radius of cylinder A
+      r2?: ParamOrLiteral;       // cyl↔cyl: radius of cylinder B
+      suppressed: boolean };
 
 // Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
 // bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.

@@ -1804,7 +1804,7 @@ export default function App() {
           }
           return k0;
         };
-          if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle') {
+          if (k.kind === 'mate' || k.kind === 'flush' || k.kind === 'angle' || k.kind === 'tangent') {
             return {
               ...k,
               refA: { ...k.refA, componentPath: [kernelSynthFor(k.refA.componentPath)] },

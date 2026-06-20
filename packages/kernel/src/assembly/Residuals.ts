@@ -767,3 +767,120 @@ export function buildFlushFaceFaceJacobian(
   }
   return J;
 }
+
+// ─── Tangent cylinder↔plane ───────────────────────────────────────────────
+
+/**
+ * 2 residuals:
+ *  r[0] = Nb_w · (Pa_w − Pb_w) − radius   (signed distance from axis origin to plane = radius)
+ *  r[1] = Nb_w · Da_w                       (axis parallel to plane: dot = 0)
+ *
+ * localA: { kind: 'axis'; P, D }  (cylinder axis origin P, unit direction D)
+ * localB: { kind: 'plane'; P, N } (plane point P, unit normal N)
+ */
+export function buildTangentCylPlaneResiduals(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat,
+  radius: number,
+): number[] {
+  if (localA.kind !== 'axis' || localB.kind !== 'plane')
+    throw new Error('tangentCylPlane: localA must be axis, localB must be plane');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'plane') throw new Error('unreachable');
+  const dx = a.P.x - b.P.x, dy = a.P.y - b.P.y, dz = a.P.z - b.P.z;
+  const r0 = b.N.x * dx + b.N.y * dy + b.N.z * dz - radius;
+  const r1 = b.N.x * a.D.x + b.N.y * a.D.y + b.N.z * a.D.z;
+  return [r0, r1];
+}
+
+/**
+ * Analytic Jacobian for buildTangentCylPlaneResiduals. Returns 2×14 matrix.
+ * Columns 0-6: d/d(Ta[0..2], qa[0..3])  (component A)
+ * Columns 7-13: d/d(Tb[0..2], qb[0..3]) (component B)
+ *
+ * The quaternion columns (3-6, 10-13) are projected onto the unit-quaternion tangent space:
+ *   J_proj[row][3+k] = sum_j J_raw[row][3+j] * (delta_jk - qa_j * qa_k)
+ * This matches a finite-difference test that renormalizes the perturbed quaternion, and is
+ * the correct derivative when the solver enforces ||q||=1 (renormalizes after each step).
+ */
+export function buildTangentCylPlaneJacobian(
+  localA: PartLocalGeometry, localB: PartLocalGeometry,
+  Ta: Vec3, qa: Quat, Tb: Vec3, qb: Quat,
+  _radius: number,
+): number[][] {
+  if (localA.kind !== 'axis' || localB.kind !== 'plane')
+    throw new Error('tangentCylPlane Jacobian: localA must be axis, localB must be plane');
+  const a = worldFromLocal(localA, Ta, qa);
+  const b = worldFromLocal(localB, Tb, qb);
+  if (a.kind !== 'axis' || b.kind !== 'plane') throw new Error('unreachable');
+
+  const dPaQ = quatRotateVecJacobian(qa, localA.P);  // 3×4
+  const dDaQ = quatRotateVecJacobian(qa, localA.D);  // 3×4
+  const dPbQ = quatRotateVecJacobian(qb, localB.P);  // 3×4
+  const dNbQ = quatRotateVecJacobian(qb, localB.N);  // 3×4
+
+  const Nb = b.N, Da = a.D;
+  const dP = { x: a.P.x - b.P.x, y: a.P.y - b.P.y, z: a.P.z - b.P.z };
+
+  // Compute raw quaternion derivatives (before tangent-space projection)
+  const raw0qa = new Array(4).fill(0) as number[];
+  const raw0qb = new Array(4).fill(0) as number[];
+  const raw1qa = new Array(4).fill(0) as number[];
+  const raw1qb = new Array(4).fill(0) as number[];
+
+  // r[0] = Nb · (Pa - Pb) - radius
+  // d/dqa_raw: Nb · dPa/dqa
+  for (let k = 0; k < 4; k++) {
+    raw0qa[k] = Nb.x * dPaQ[0]![k]! + Nb.y * dPaQ[1]![k]! + Nb.z * dPaQ[2]![k]!;
+  }
+  // d/dqb_raw: dNb/dqb · dP - Nb · dPb/dqb
+  for (let k = 0; k < 4; k++) {
+    raw0qb[k] = dNbQ[0]![k]! * dP.x + dNbQ[1]![k]! * dP.y + dNbQ[2]![k]! * dP.z
+              - (Nb.x * dPbQ[0]![k]! + Nb.y * dPbQ[1]![k]! + Nb.z * dPbQ[2]![k]!);
+  }
+
+  // r[1] = Nb · Da
+  // d/dqa_raw: Nb · dDa/dqa
+  for (let k = 0; k < 4; k++) {
+    raw1qa[k] = Nb.x * dDaQ[0]![k]! + Nb.y * dDaQ[1]![k]! + Nb.z * dDaQ[2]![k]!;
+  }
+  // d/dqb_raw: dNb/dqb · Da
+  for (let k = 0; k < 4; k++) {
+    raw1qb[k] = dNbQ[0]![k]! * Da.x + dNbQ[1]![k]! * Da.y + dNbQ[2]![k]! * Da.z;
+  }
+
+  /** Project a 4-vector J_raw onto the unit-quaternion tangent space at q:
+   *  J_proj[k] = sum_j J_raw[j] * (delta_jk - q_j * q_k) */
+  function projectQuat(Jraw: number[], q: Quat): number[] {
+    const proj = new Array(4).fill(0) as number[];
+    for (let k = 0; k < 4; k++) {
+      let sum = 0;
+      for (let j = 0; j < 4; j++) {
+        sum += Jraw[j]! * ((j === k ? 1 : 0) - q[j]! * q[k]!);
+      }
+      proj[k] = sum;
+    }
+    return proj;
+  }
+
+  const proj0qa = projectQuat(raw0qa, qa);
+  const proj0qb = projectQuat(raw0qb, qb);
+  const proj1qa = projectQuat(raw1qa, qa);
+  const proj1qb = projectQuat(raw1qb, qb);
+
+  const J0 = new Array(14).fill(0) as number[];
+  const J1 = new Array(14).fill(0) as number[];
+
+  // r[0] translation columns
+  J0[0] = Nb.x; J0[1] = Nb.y; J0[2] = Nb.z;
+  J0[7] = -Nb.x; J0[8] = -Nb.y; J0[9] = -Nb.z;
+  // r[0] quaternion columns (projected)
+  for (let k = 0; k < 4; k++) { J0[3 + k] = proj0qa[k]!; J0[10 + k] = proj0qb[k]!; }
+
+  // r[1] translation columns = 0
+  // r[1] quaternion columns (projected)
+  for (let k = 0; k < 4; k++) { J1[3 + k] = proj1qa[k]!; J1[10 + k] = proj1qb[k]!; }
+
+  return [J0, J1];
+}
