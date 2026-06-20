@@ -36,6 +36,7 @@ import { EditDetailRegionCommand } from '../commands/EditDetailRegionCommand';
 import { AddBaseViewCommand } from '../commands/AddBaseViewCommand';
 import { AddProjectedViewCommand } from '../commands/AddProjectedViewCommand';
 import { AddIsoViewCommand } from '../commands/AddIsoViewCommand';
+import { MoveViewCommand } from '../commands/MoveViewCommand';
 import type { Region } from './toolMode';
 import { allocateCalloutLabel } from '@zilventor/shared/src/drawing/sectionLabel';
 import type { DrawingSheet, SectionView, DetailView, BaseView, ProjectedView, IsoView } from '@zilventor/shared';
@@ -115,6 +116,10 @@ export function DrawingCanvas() {
   const [cursorMm, setCursorMm] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const middleDragRef = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null);
+  // Left-button view drag (M3.4): a view (and any projected views aligned to it)
+  // is dragged to a new sheet position; committed as MoveViewCommand on release.
+  const viewDragRef = useRef<{ viewId: string; startSheet: { x: number; y: number }; startPos: { x: number; y: number } } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ viewId: string; dx: number; dy: number } | null>(null);
 
   // F5 session refs — useRef to avoid triggering re-render on phase transitions
   type BaselineSession =
@@ -293,17 +298,50 @@ export function DrawingCanvas() {
     setZoom((z) => Math.max(0.1, Math.min(20, z * delta)));
   }, []);
 
+  // Client pixel coords → sheet-space mm (matches the conversion used by tool clicks;
+  // falls back to raw client coords when the SVG has no measured size, e.g. in jsdom).
+  const clientToSheet = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    const hasSize = rect && rect.width > 0 && rect.height > 0;
+    return {
+      x: hasSize ? (clientX - rect.left) / (rect.width / sheetW) : clientX,
+      y: hasSize ? (clientY - rect.top) / (rect.height / sheetH) : clientY,
+    };
+  }, [sheetW, sheetH]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (e.button === 1) {
       middleDragRef.current = { startX: e.clientX, startY: e.clientY, startPan: pan };
+      return;
     }
-  }, [pan]);
+    // Left button in idle mode begins a view drag if a view is under the cursor.
+    if (e.button === 0 && toolMode === 'idle') {
+      // Resolve the grabbed view from the nearest ancestor carrying data-view-id
+      // (edge paths and the view group all tag it) so grabbing any rendered edge works.
+      const tagged = (e.target as Element).closest?.('[data-view-id]') ?? null;
+      const targetViewId = tagged?.getAttribute('data-view-id') ?? undefined;
+      const sheetPt = clientToSheet(e.clientX, e.clientY);
+      const hitId = getViewAtPoint(sheet.views, sheetPt, targetViewId);
+      if (hitId) {
+        const view = sheet.views.find((v) => v.id === hitId)!;
+        viewDragRef.current = { viewId: hitId, startSheet: sheetPt, startPos: { ...view.positionMm } };
+      }
+    }
+  }, [pan, toolMode, sheet, clientToSheet]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (middleDragRef.current) {
       const dx = e.clientX - middleDragRef.current.startX;
       const dy = e.clientY - middleDragRef.current.startY;
       setPan({ x: middleDragRef.current.startPan.x + dx, y: middleDragRef.current.startPan.y + dy });
+    }
+    if (viewDragRef.current) {
+      const cur = clientToSheet(e.clientX, e.clientY);
+      setDragPreview({
+        viewId: viewDragRef.current.viewId,
+        dx: cur.x - viewDragRef.current.startSheet.x,
+        dy: cur.y - viewDragRef.current.startSheet.y,
+      });
     }
     // Track cursor for live preview
     const svg = svgRef.current;
@@ -318,11 +356,25 @@ export function DrawingCanvas() {
       // In test environment, use client coords directly as mm
       setCursorMm({ x: e.clientX, y: e.clientY });
     }
-  }, [pan, sheetW, sheetH]);
+  }, [pan, sheetW, sheetH, clientToSheet]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     middleDragRef.current = null;
-  }, []);
+    const drag = viewDragRef.current;
+    viewDragRef.current = null;
+    setDragPreview(null);
+    if (drag) {
+      const cur = clientToSheet(e.clientX, e.clientY);
+      const nextPos = {
+        x: drag.startPos.x + (cur.x - drag.startSheet.x),
+        y: drag.startPos.y + (cur.y - drag.startSheet.y),
+      };
+      // Skip no-op drags (a plain click) so the undo stack stays clean.
+      if (nextPos.x !== drag.startPos.x || nextPos.y !== drag.startPos.y) {
+        void bus.execute(new MoveViewCommand({ sheetId: sheet.id, viewId: drag.viewId, positionMm: nextPos }));
+      }
+    }
+  }, [bus, sheet, clientToSheet]);
 
   // Tool-mode click dispatch
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -1094,14 +1146,24 @@ export function DrawingCanvas() {
       })()}
 
       {/* Views */}
-      {sheet.views.map((v) => (
-        <ViewElement
-          key={v.id}
-          view={v}
-          isStale={staleViews.has(v.id)}
-          onRegenerate={handleRegenerate}
-        />
-      ))}
+      {sheet.views.map((v) => {
+        // Live drag preview: offset the dragged view and any projected views that
+        // align to it, mirroring the committed MoveViewCommand cascade.
+        const follows = dragPreview &&
+          (v.id === dragPreview.viewId ||
+            (v.kind === 'projected' && v.baseViewId === dragPreview.viewId));
+        const view = follows
+          ? { ...v, positionMm: { x: v.positionMm.x + dragPreview!.dx, y: v.positionMm.y + dragPreview!.dy } }
+          : v;
+        return (
+          <ViewElement
+            key={v.id}
+            view={view}
+            isStale={staleViews.has(v.id)}
+            onRegenerate={handleRegenerate}
+          />
+        );
+      })}
 
       {/* Section line overlays — one per section view over its parent */}
       {sheet.views
