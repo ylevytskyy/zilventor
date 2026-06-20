@@ -28,18 +28,23 @@ ls packages/app/dist/occt/
 
 ## 48 MB WASM — Host-Limit Analysis
 
-**Finding (researched 2026-06-12):**
+The build ships one **~48 MiB** static file (`occt/opencascade.full.wasm`, exactly 50,305,130 bytes). That single file is the deciding constraint when picking a host. A host must (a) accept a ~48 MB static file, (b) let us set `Content-Type: application/wasm` + cache headers, (c) support an SPA rewrite to `/index.html`, and (d) serve HTTPS (the app needs a secure context for OPFS).
 
-| Host | Per-file static asset limit | Source |
-|---|---|---|
-| **Cloudflare Pages** | **25 MiB** hard limit | [developers.cloudflare.com/pages/platform/limits/](https://developers.cloudflare.com/pages/platform/limits/) — "The maximum file size for a single Cloudflare Pages site asset is 25 MiB." (April 2026) |
-| **Vercel** | No per-file static limit; total source upload is 100 MB (Hobby) / 1 GB (Pro) — individual static files are not subject to a per-file cap | [vercel.com/docs/limits](https://vercel.com/docs/limits) (last updated 2026-05-20) |
+**Findings (free static hosts, re-researched 2026-06-20):**
 
-`opencascade.full.wasm` is **~48 MiB**. This exceeds the Cloudflare Pages 25 MiB per-file limit and **will be rejected at deploy time**.
+| Host | 48 MB single file? | Custom headers / SPA? | Free bandwidth/mo | Verdict for this app |
+|---|---|---|---|---|
+| **Firebase Hosting (Spark)** | ✅ 2 GB/file (confirmed) | ✅ via `firebase.json` | 10 GB (~200 cold loads) | **Recommended free host** — confirmed file size, full control, no commercial-use restriction. Bandwidth is ample for internal use (the SW caches the wasm after first load). |
+| **Render (static site)** | ⚠️ per-file limit undocumented — verify with a throwaway deploy | ✅ via `render.yaml` | 100 GB | Viable; most bandwidth headroom, but the 48 MB file is unconfirmed. |
+| **Vercel (Hobby)** | ⚠️ ~100 MB total deploy; wasm eats half | ✅ via `vercel.json` | 100 GB | **ToS caveat:** the Hobby free tier *bans commercial use* — an internal shop tool counts. Use only on a paid Vercel plan, or accept the ToS risk. |
+| **Cloudflare Pages** | ❌ **25 MiB/file hard cap** | ✅ | unlimited | **Disqualified** unless the wasm is offloaded to R2 (see workaround below). [CF limits](https://developers.cloudflare.com/pages/platform/limits/) |
+| GitHub / GitLab Pages, Surge, Neocities | file size OK | ❌ no custom headers | — | **Disqualified** — cannot force `Content-Type: application/wasm`, which breaks `WebAssembly.instantiateStreaming`. |
 
-### Recommended primary host: Vercel
+### Recommended host: Firebase Hosting (Spark / free)
 
-Vercel serves the 48 MB WASM directly with no per-file restriction. Vercel is the recommended production target.
+Firebase serves the 48 MB WASM with a confirmed 2 GB/file limit, gives full header + SPA-rewrite control via `firebase.json` (committed at repo root), runs HTTPS automatically, and has no commercial-use restriction. The 10 GB/mo free bandwidth is plenty for an internal tool because the service worker precaches the wasm after the first cold load (repeat visits cost ~0 bandwidth). See **Firebase Hosting Deploy** below.
+
+> The previous "Vercel primary" recommendation (2026-06-12) still works technically, but the Hobby free tier's commercial-use ban makes it a poor fit for an internal shop tool. `vercel.json` is retained for paid-plan / non-commercial use.
 
 ### Cloudflare Pages — requires R2 workaround
 
@@ -102,6 +107,55 @@ The `vercel.json` at repo root configures:
 - **Cache headers** — immutable 1-year for `/assets/*` and `/occt/*`; `no-cache` for `sw.js` and `index.html`; `Content-Type: application/wasm` for `.wasm` files.
 
 > **Live deploy preview is human-gated.** Run: `vercel --prod`
+
+---
+
+## Firebase Hosting Deploy (Recommended free host)
+
+Firebase Hosting accepts the 48 MB wasm (2 GB/file limit), serves HTTPS, and is configured entirely by **`firebase.json`** (committed at repo root). It mirrors the `vercel.json` rules: SPA rewrite → `/index.html`, `application/wasm` + 1-year-immutable on `.wasm`, immutable on `/assets/**` and `/occt/**`, `no-cache` on `sw.js` and `index.html`.
+
+> Firebase Hosting reads **only `firebase.json`** — the `_headers`/`_redirects` files (used by Cloudflare/Netlify/Render) are ignored here; they ship harmlessly as static files.
+
+### One-time setup
+
+```bash
+# 1. Install the CLI
+npm install -g firebase-tools
+
+# 2. Log in (opens a browser — must be run by you)
+firebase login
+
+# 3. Create a Hosting site in the Firebase console (https://console.firebase.google.com),
+#    then link this repo to it (writes .firebaserc — do NOT commit secrets, the project id is fine):
+firebase use --add        # pick your project, give it an alias e.g. "prod"
+```
+
+### Build + deploy
+
+```bash
+# Build the artifact (from repo root):
+pnpm install --frozen-lockfile && pnpm --filter @zilventor/app build
+
+# Deploy only Hosting:
+firebase deploy --only hosting
+# (or target a specific project without an alias:)
+firebase deploy --only hosting --project <your-project-id>
+```
+
+`firebase deploy` uploads `packages/app/dist/` (the `public` dir in `firebase.json`) and prints the live `https://<project>.web.app` URL.
+
+### Post-deploy smoke (§6 — do this once live)
+
+In Chrome **and** Firefox at the deployed URL:
+1. Confirm the status bar leaves "Loading CAD kernel…" and reaches ready (the worker fetched the 48 MB wasm).
+2. DevTools → Network: `opencascade.full.wasm` is `200`, `Content-Type: application/wasm`, ~48 MB.
+3. Create a base cabinet → a solid renders.
+4. DevTools → Application → Service Workers shows "activated"; go **Offline**, hard-reload → app still boots and the kernel initializes.
+5. No console `SyntaxError` / `data:` worker errors.
+
+### Bandwidth note
+
+Each *cold* visitor downloads ~48 MB once; the service worker then serves it from cache. 10 GB/mo free ≈ 200 cold loads — for a handful of internal users this is not a constraint. If you outgrow it, bump to Firebase Blaze (pay-as-you-go, ~$0.15/GB) or switch to Render (100 GB/mo free).
 
 ---
 
