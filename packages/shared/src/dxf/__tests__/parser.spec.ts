@@ -98,6 +98,7 @@ describe('parseDxf — polylines', () => {
     const dxf = entitiesDxf(['  0', 'LWPOLYLINE', '  8', '0', ' 70', '1',
       ' 10', '0.0', ' 20', '0.0', ' 42', '0.5', ' 10', '10.0', ' 20', '0.0'].join('\n'));
     const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('LWPOLYLINE');
     if (e.type === 'LWPOLYLINE') {
       expect(e.closed).toBe(true);
       expect(e.vertices[0]!.bulge).toBeCloseTo(0.5);

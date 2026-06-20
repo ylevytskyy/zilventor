@@ -38,16 +38,17 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
         value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
     case 'LWPOLYLINE': {
+      const f = (s: string): number => { const n = Number.parseFloat(s); return Number.isFinite(n) ? n : 0; };
       const verts: Array<{ x: number; y: number; bulge: number }> = [];
       let cur: { x: number; y: number; bulge: number } | null = null;
       for (const q of raw.pairs) {
         if (q.code === 10) {
           if (cur) verts.push(cur);
-          cur = { x: Number.parseFloat(q.value) || 0, y: 0, bulge: 0 };
+          cur = { x: f(q.value), y: 0, bulge: 0 };
         } else if (q.code === 20 && cur) {
-          cur.y = Number.parseFloat(q.value) || 0;
+          cur.y = f(q.value);
         } else if (q.code === 42 && cur) {
-          cur.bulge = Number.parseFloat(q.value) || 0;
+          cur.bulge = f(q.value);
         }
       }
       if (cur) verts.push(cur);
