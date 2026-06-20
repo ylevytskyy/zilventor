@@ -853,7 +853,16 @@
       "section": "Переріз",
       "sheet": "Аркуш",
       "sheetSettings": "Аркуш…",
-      "steppedSection": "Ступінчастий переріз"
+      "steppedSection": "Ступінчастий переріз",
+      "templates": "Шаблони",
+      "saveAsTemplate": "Зберегти як шаблон…",
+      "saveAsTemplateTip": "Зберегти основний напис і підкладку активного аркуша як багаторазовий шаблон",
+      "newFromTemplate": "Новий із шаблону…",
+      "newFromTemplateTip": "Створити новий аркуш із збереженого шаблону",
+      "templateNamePrompt": "Назва шаблону",
+      "templatePickerTitle": "Новий із шаблону",
+      "noTemplates": "Ще немає збережених шаблонів.",
+      "templateCancel": "Скасувати"
     },
     "furniture": {
       "addDoor": "Двері",

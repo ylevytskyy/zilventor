@@ -853,7 +853,16 @@
       "section": "Section",
       "sheet": "Sheet",
       "sheetSettings": "Sheet…",
-      "steppedSection": "Stepped Section"
+      "steppedSection": "Stepped Section",
+      "templates": "Templates",
+      "saveAsTemplate": "Save as Template…",
+      "saveAsTemplateTip": "Save the active sheet's title block and underlay as a reusable template",
+      "newFromTemplate": "New from Template…",
+      "newFromTemplateTip": "Create a new sheet from a saved template",
+      "templateNamePrompt": "Template name",
+      "templatePickerTitle": "New from template",
+      "noTemplates": "No saved templates yet.",
+      "templateCancel": "Cancel"
     },
     "furniture": {
       "addDoor": "Add Door",
