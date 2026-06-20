@@ -553,6 +553,7 @@
       "angle": "Angle",
       "angleLabel": "Angle:",
       "ariaLabel": "Place Constraint",
+      "coincident": "Coincident",
       "flush": "Flush",
       "insert": "Insert",
       "mate": "Mate",

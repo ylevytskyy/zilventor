@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-type Mode = 'mate' | 'flush' | 'angle' | 'insert';
+type Mode = 'mate' | 'flush' | 'angle' | 'insert' | 'coincident';
 type PickedRefDescription = { label: string };
 
 type Props = {
@@ -46,6 +46,7 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
           <option value="flush">{t('dialog.placeConstraint.flush')}</option>
           <option value="angle">{t('dialog.placeConstraint.angle')}</option>
           <option value="insert">{t('dialog.placeConstraint.insert')}</option>
+          <option value="coincident">{t('dialog.placeConstraint.coincident')}</option>
         </select>
       </div>
       <div style={row}>
@@ -58,11 +59,13 @@ export function PlaceConstraintDialog(p: Props): JSX.Element {
         <button style={btn} onClick={() => p.onPick('B')}>{t('common.pick_ellipsis')}</button>
         <span style={{ marginLeft: 6, color: '#aaa' }}>{p.pickedRefB?.label ?? t('dialog.placeConstraint.noneSelected')}</span>
       </div>
-      <div style={row}>
-        <span style={{ width: 60 }}>{valueLabel}</span>
-        <input value={p.valueExpression} onChange={(e) => p.onValueChange(e.target.value)} style={{ ...btn, width: 80 }} />
-        <span>{valueUnit}</span>
-      </div>
+      {mode !== 'coincident' && (
+        <div style={row}>
+          <span style={{ width: 60 }}>{valueLabel}</span>
+          <input value={p.valueExpression} onChange={(e) => p.onValueChange(e.target.value)} style={{ ...btn, width: 80 }} />
+          <span>{valueUnit}</span>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
         <button onClick={p.onApply} disabled={!okEnabled} style={btn}>{t('common.apply')}</button>
         <button onClick={p.onCancel} style={btn}>{t('common.cancel')}</button>

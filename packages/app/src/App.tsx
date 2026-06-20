@@ -4312,6 +4312,9 @@ export default function App() {
       };
     } else if (placeConstraintMode === 'angle') {
       constraint = { id, kind: 'angle', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, angle: offsetOrAngle, suppressed: false };
+    } else if (placeConstraintMode === 'coincident') {
+      // Coincident = mate at offset 0, locked. Persisted as mate (no new kind).
+      constraint = { id, kind: 'mate', refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: { kind: 'literal', value: 0 }, suppressed: false };
     } else {
       constraint = { id, kind: placeConstraintMode, refA: pickedRefA.ref as AssemblyConstraintRef, refB: pickedRefB.ref as AssemblyConstraintRef, offset: offsetOrAngle, suppressed: false };
     }
