@@ -94,42 +94,72 @@ describe('buildTangentCylCylJacobian', () => {
       const anaJ = analytic[0]![j]!;
       const absDiff = Math.abs(fdJ - anaJ);
       const scale = Math.max(Math.abs(fdJ), Math.abs(anaJ), 1e-8);
-      expect(absDiff / scale).toBeLessThan(1e-3);
+      expect(absDiff / scale).toBeLessThan(1e-4);
     }
   });
 
-  it('analytic Jacobian matches FD — parallel degenerate pose', () => {
-    // Parallel axes: B along Z, offset by (6,0,0). Use non-trivial quaternions.
+  it('analytic Jacobian matches FD — parallel axes (exercises the parallel Jacobian branch)', () => {
+    // IMPORTANT: this test must exercise the parallel branch (denom < 1e-10).
+    // Both axes are local Z in their respective part frames. With identity quaternions,
+    // both world-space axis directions = (0,0,1), so bDot = 1, denom = 0 → parallel branch.
+    // Under a raw quaternion perturbation of h=1e-6, denom ≈ 4h² ≈ 4e-12 < 1e-10,
+    // so all 14 FD columns stay in the parallel branch.
+    //
+    // Component A: local axis origin (0,0,0), local dir (0,0,1), identity pose.
+    // Component B: local axis origin (8,4,0), local dir (0,0,1), identity pose.
+    // World-space Pa=(0,0,0), Da=(0,0,1); Pb=(8,4,0), Db=(0,0,1).
+    // w=(8,4,0), wdDa=0, sep=w=(8,4,0), dist=sqrt(80) ≈ 8.944, r1+r2=2+6.944≈8.944.
+    // Residual = 0 at this config (externally tangent).
+    const r1 = 2;
+    const r2 = Math.sqrt(80) - r1; // exactly tangent: dist = r1+r2
     const axisA: PartLocalGeometry = { kind: 'axis', P: ZERO, D: { x: 0, y: 0, z: 1 } };
-    const axisB: PartLocalGeometry = { kind: 'axis', P: { x: 6, y: 0, z: 0 }, D: { x: 0, y: 0, z: 1 } };
-    const Ta: Vec3 = { x: 1, y: 0, z: 0 };
-    const qa: Quat = normalizeQ([0.05, 0, 0, Math.sqrt(1 - 0.0025)]);
-    const Tb: Vec3 = { x: 0, y: 1, z: 0 };
-    const qb: Quat = normalizeQ([0, 0.05, 0, Math.sqrt(1 - 0.0025)]);
-    const r1 = 2, r2 = 3;
+    const axisB: PartLocalGeometry = { kind: 'axis', P: { x: 8, y: 4, z: 0 }, D: { x: 0, y: 0, z: 1 } };
+    const Ta: Vec3 = ZERO;
+    const qa: Quat = ID_Q; // identity → Da_world = (0,0,1), Pa_world = (0,0,0)
+    const Tb: Vec3 = ZERO;
+    const qb: Quat = ID_Q; // identity → Db_world = (0,0,1), Pb_world = (8,4,0)
     const h = 1e-6;
 
+    // Confirm parallel branch is active at the base evaluation.
+    // Da_world = (0,0,1), Db_world = (0,0,1); bDot = 1, denom = 0 < 1e-10 ✓
     const analytic = buildTangentCylCylJacobian(axisA, axisB, Ta, qa, Tb, qb, r1, r2);
     const r0 = buildTangentCylCylResiduals(axisA, axisB, Ta, qa, Tb, qb, r1, r2);
+    expect(Math.abs(r0[0]!)).toBeLessThan(1e-9); // confirm tangent config
 
     const unknowns: number[] = [
       Ta.x, Ta.y, Ta.z, qa[0]!, qa[1]!, qa[2]!, qa[3]!,
       Tb.x, Tb.y, Tb.z, qb[0]!, qb[1]!, qb[2]!, qb[3]!,
     ];
 
+    // Use central differences so that FD error is O(h²) rather than O(h).
+    // This matters for the quaternion columns where the analytic derivative is
+    // exactly 0 (residual changes only at second order under axis tilt when
+    // localAP = 0). Forward FD would give O(h) ≈ 1e-6 against a true 0,
+    // making relative error = 1 regardless of tolerance. Central FD gives
+    // O(h²) ≈ 1e-12 ≈ 0, keeping the relative check meaningful.
     for (let j = 0; j < 14; j++) {
-      const perturbed = [...unknowns];
-      perturbed[j] = perturbed[j]! + h;
-      const pTa: Vec3 = { x: perturbed[0]!, y: perturbed[1]!, z: perturbed[2]! };
-      const pQa: Quat = [perturbed[3]!, perturbed[4]!, perturbed[5]!, perturbed[6]!];
-      const pTb: Vec3 = { x: perturbed[7]!, y: perturbed[8]!, z: perturbed[9]! };
-      const pQb: Quat = [perturbed[10]!, perturbed[11]!, perturbed[12]!, perturbed[13]!];
-      const rPerturbed = buildTangentCylCylResiduals(axisA, axisB, pTa, pQa, pTb, pQb, r1, r2);
-      const fdJ = (rPerturbed[0]! - r0[0]!) / h;
+      const fwd = [...unknowns];
+      fwd[j] = fwd[j]! + h;
+      const bwd = [...unknowns];
+      bwd[j] = bwd[j]! - h;
+      // Raw perturbation — no renormalization (matches solver raw-additive convention).
+      // Quaternion perturbation of h=1e-6 yields denom ≈ 4h² ≈ 4e-12 < 1e-10,
+      // so both ±h evaluations stay in the parallel branch.
+      const pTaF: Vec3 = { x: fwd[0]!, y: fwd[1]!, z: fwd[2]! };
+      const pQaF: Quat = [fwd[3]!, fwd[4]!, fwd[5]!, fwd[6]!];
+      const pTbF: Vec3 = { x: fwd[7]!, y: fwd[8]!, z: fwd[9]! };
+      const pQbF: Quat = [fwd[10]!, fwd[11]!, fwd[12]!, fwd[13]!];
+      const pTaB: Vec3 = { x: bwd[0]!, y: bwd[1]!, z: bwd[2]! };
+      const pQaB: Quat = [bwd[3]!, bwd[4]!, bwd[5]!, bwd[6]!];
+      const pTbB: Vec3 = { x: bwd[7]!, y: bwd[8]!, z: bwd[9]! };
+      const pQbB: Quat = [bwd[10]!, bwd[11]!, bwd[12]!, bwd[13]!];
+      const rFwd = buildTangentCylCylResiduals(axisA, axisB, pTaF, pQaF, pTbF, pQbF, r1, r2);
+      const rBwd = buildTangentCylCylResiduals(axisA, axisB, pTaB, pQaB, pTbB, pQbB, r1, r2);
+      const fdJ = (rFwd[0]! - rBwd[0]!) / (2 * h);
       const anaJ = analytic[0]![j]!;
       const absDiff = Math.abs(fdJ - anaJ);
       const scale = Math.max(Math.abs(fdJ), Math.abs(anaJ), 1e-8);
-      expect(absDiff / scale).toBeLessThan(1e-3);
+      expect(absDiff / scale).toBeLessThan(1e-4);
     }
   });
 
