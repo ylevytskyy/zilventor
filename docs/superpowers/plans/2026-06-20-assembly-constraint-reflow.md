@@ -39,82 +39,96 @@ For axis/circularEdge pick: `Viewport.tsx:361` has an early-return `null` for th
 
 **Steps:**
 
-- [ ] **Step 1: Write the real red integration test.**
+> **GATE STRENGTHENED (ratified 2026-06-20):** Task 1's reflow fix is the milestone's
+> headline feature, so it must have a unit test that FAILS if the fix is removed. The original
+> plan's test inlined the fixed logic (hollow — passed regardless of the fix) and S-A's
+> `__zilventorAssemblyInvalidatePart` dev hook sets `solverDirty` independently of
+> `invalidatePartPaths` (so S-A also could not gate it). Fix: extract the two decisions into
+> pure, module-level functions and unit-test THOSE for a real red→green. `invalidatePartPaths`
+> and the param→re-execute path call them. S-A (Task 7) stays a reflow-CORRECTNESS check, not
+> the wiring gate.
 
-  Create `packages/app/src/assembly/__tests__/reflowTrigger.spec.ts`:
+- [ ] **Step 1: Write the failing unit test for the two pure decision functions.**
+
+  Create `packages/app/src/assembly/__tests__/reflowDirty.spec.ts`:
 
   ```typescript
   import { describe, it, expect } from 'vitest';
-  import { useAppStore } from '../../store/useAppStore';
+  import { shouldReflowAfterInvalidate, partPathForKernelId } from '../reflowDirty';
 
-  /**
-   * RED test for Task 1.
-   *
-   * Proves that calling setSolverDirty(true) on the store actually sets solverDirty.
-   * This test passes immediately — it verifies the store setter contract that
-   * invalidatePartPaths will use after Task 1's fix.
-   *
-   * The REAL red-green gate is the S-A e2e in Task 7, which drives
-   * __zilventorAssemblyInvalidatePart and asserts solverDirty becomes true
-   * BEFORE Task 1's fix is applied (the hook sets it directly; the real gap
-   * is that invalidatePartPaths doesn't — proven by the test below).
-   */
-  describe('invalidatePartPaths — setSolverDirty gate', () => {
-    it('setSolverDirty(true) sets solverDirty on the store', () => {
-      useAppStore.setState({ solverDirty: false });
-      useAppStore.getState().setSolverDirty(true);
-      expect(useAppStore.getState().solverDirty).toBe(true);
+  describe('shouldReflowAfterInvalidate', () => {
+    it('returns true when the active document is an assembly', () => {
+      expect(shouldReflowAfterInvalidate({ kind: 'assembly' })).toBe(true);
     });
-
-    it('setSolverDirty(false) clears solverDirty', () => {
-      useAppStore.setState({ solverDirty: true });
-      useAppStore.getState().setSolverDirty(false);
-      expect(useAppStore.getState().solverDirty).toBe(false);
+    it('returns false for a part document', () => {
+      expect(shouldReflowAfterInvalidate({ kind: 'part' })).toBe(false);
     });
+    it('returns false for null/undefined', () => {
+      expect(shouldReflowAfterInvalidate(null)).toBe(false);
+      expect(shouldReflowAfterInvalidate(undefined)).toBe(false);
+    });
+  });
 
-    /**
-     * REAL red test: simulate the pre-fix invalidatePartPaths logic (no setSolverDirty call)
-     * and confirm solverDirty stays false. After Step 3's fix adds the call, this
-     * updated version of the test would pass.
-     *
-     * We reconstruct the fixed logic inline to make the test self-contained.
-     */
-    it('invalidatePartPaths logic sets solverDirty when assembly is active', () => {
-      useAppStore.setState({ solverDirty: false });
-
-      // Simulate what invalidatePartPaths does AFTER the fix.
-      const s = useAppStore.getState();
-      const doc = s.activeDocument;
-      // In the test env activeDocument may be null; force it.
-      useAppStore.setState({
-        activeDocument: {
-          kind: 'assembly',
-          document: {
-            components: [], constraints: [], groundedComponentPaths: [],
-            materials: [], bomItemNumbers: {}, cutListItemNumbers: {}, colors: {},
-            name: 'test',
-          },
-        } as Parameters<typeof useAppStore.setState>[0]['activeDocument'],
-      });
-
-      const s2 = useAppStore.getState();
-      const doc2 = s2.activeDocument;
-      if (doc2?.kind === 'assembly') {
-        s2.setActiveDocument({ kind: 'assembly', document: { ...doc2.document } });
-        s2.setSolverDirty(true);   // THE NEW LINE — this is what Task 1 adds
-      }
-
-      expect(useAppStore.getState().solverDirty).toBe(true);
+  describe('partPathForKernelId', () => {
+    const entries: Array<[string, string]> = [
+      ['parts/box.zipt', 'uuid-box'],
+      ['parts/lid.zipt', 'uuid-lid'],
+    ];
+    it('inverts the partPath→kernelId map to recover the OPFS path', () => {
+      expect(partPathForKernelId(entries, 'uuid-lid')).toBe('parts/lid.zipt');
+    });
+    it('returns undefined when the kernel id was never loaded in assembly context', () => {
+      expect(partPathForKernelId(entries, 'uuid-standalone')).toBeUndefined();
     });
   });
   ```
 
-  Run: `pnpm --filter @zilventor/app test -- --reporter=verbose --run reflowTrigger`
-  **Expected RED reason:** The third test (`invalidatePartPaths logic`) will PASS here because it inlines the *fixed* logic — this documents the intended post-fix behaviour. The test is RED in the sense that the real `invalidatePartPaths` callback in `App.tsx:5224` does NOT contain that `setSolverDirty` call yet. The S-A e2e (Task 7) is the binding gate.
+  Run: `pnpm --filter @zilventor/app test -- --run reflowDirty`
+  **Expected RED reason:** `Failed to resolve import "../reflowDirty"` — the module does not exist yet. This test genuinely gates Steps 2-4: if either function's logic is wrong or removed, these assertions fail.
 
-- [ ] **Step 2: Apply the one-line fix to `invalidatePartPaths`.**
+- [ ] **Step 2: Create the pure decision module (minimal impl to go green).**
 
-  In `packages/app/src/App.tsx`, the current block at lines 5240-5245 reads:
+  Create `packages/app/src/assembly/reflowDirty.ts`:
+
+  ```typescript
+  /**
+   * Pure decisions extracted from invalidatePartPaths / the param→re-execute path so the
+   * reflow-trigger logic (the milestone's headline feature) is unit-testable in isolation.
+   */
+
+  /** True when invalidating part caches should mark the assembly solver dirty (reflow). */
+  export function shouldReflowAfterInvalidate(
+    activeDocument: { kind: string } | null | undefined,
+  ): boolean {
+    return activeDocument?.kind === 'assembly';
+  }
+
+  /**
+   * Invert assemblyPartIdCacheRef (partPath → kernelId) to recover the OPFS partPath for a
+   * kernel part UUID. Returns undefined when the id was never loaded as an assembly component.
+   */
+  export function partPathForKernelId(
+    entries: Iterable<readonly [string, string]>,
+    kernelId: string,
+  ): string | undefined {
+    for (const [partPath, id] of entries) {
+      if (id === kernelId) return partPath;
+    }
+    return undefined;
+  }
+  ```
+
+  Run: `pnpm --filter @zilventor/app test -- --run reflowDirty` → **Expected: PASS (5/5).**
+
+- [ ] **Step 3: Wire `invalidatePartPaths` to use `shouldReflowAfterInvalidate` + setSolverDirty.**
+
+  In `packages/app/src/App.tsx`, add the import near the other `./assembly/*` imports:
+
+  ```typescript
+  import { shouldReflowAfterInvalidate, partPathForKernelId } from './assembly/reflowDirty';
+  ```
+
+  The current block at lines 5240-5245 reads:
 
   ```typescript
     // Bump assembly identity to re-trigger the mesh-sync + bore-marker effects.
@@ -133,53 +147,50 @@ For axis/circularEdge pick: `Viewport.tsx:361` has an early-return `null` for th
     // and mark the solver dirty so constrained dependents reflow with fresh refs.
     const s = useAppStore.getState();
     const doc = s.activeDocument;
-    if (doc?.kind === 'assembly') {
-      s.setActiveDocument({ kind: 'assembly', document: { ...doc.document } });
+    if (shouldReflowAfterInvalidate(doc)) {
+      s.setActiveDocument({ kind: 'assembly', document: { ...doc!.document } });
       s.setSolverDirty(true);   // NEW: geometry reflow after cache invalidation
     }
   }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef]);
   ```
 
-  **Exact location:** After line 5244 (`s.setActiveDocument(...)`), before the closing `}` of the `if` block, before the `}, [...]` dependency array.
+  **Exact location:** the `if` block at the tail of `invalidatePartPaths` (App.tsx:5243-5245). `doc!` is safe because `shouldReflowAfterInvalidate(doc)` is only true when `doc.kind === 'assembly'`.
 
-- [ ] **Step 3: Wire param→re-execute path to call `invalidatePartPaths` when an assembly is active.**
+- [ ] **Step 4: Wire the param→re-execute path to call `invalidatePartPaths` via `partPathForKernelId`.**
 
-  The `parameterRegistry.subscribe` effect at `App.tsx:1587` runs `kernelClient.execute(freshPart.id)` at line 1626. After `applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree)` at line 1636 (inside the `if (res.ok && viewportRef.current)` branch), insert the following block before the closing `}`:
+  The `parameterRegistry.subscribe` effect at `App.tsx:1587` runs `kernelClient.execute(freshPart.id)` at line 1626. After `applyWorkFeaturesToViewport(res.value.workFeatures, freshPart.featureTree)` at line 1636 (inside the `if (res.ok && viewportRef.current)` branch), insert before the closing `}`:
 
   ```typescript
             // If an assembly is open and this part was loaded as a sub-component,
             // invalidate its ref-cache so constrained dependents reflow with fresh geometry.
-            //
-            // PARTPATH RESOLUTION: freshPart.id (App.tsx:1619) is the kernel UUID assigned
-            // by the worker's loadFromBytes — it is NOT the OPFS path. assemblyPartIdCacheRef
-            // maps partPath → kernelId, so invert it to recover the OPFS path:
+            // freshPart.id is a kernel UUID, not an OPFS path — invert assemblyPartIdCacheRef.
             const storeNow = useAppStore.getState();
-            if (storeNow.activeDocument?.kind === 'assembly') {
-              const partPathForId = Array.from(assemblyPartIdCacheRef.current.entries())
-                .find(([, v]) => v === freshPart.id)?.[0];
-              // partPathForId is undefined when the part was loaded standalone (not as assembly
-              // component) — skip silently in that case; invalidation is not needed.
+            if (shouldReflowAfterInvalidate(storeNow.activeDocument)) {
+              const partPathForId = partPathForKernelId(
+                assemblyPartIdCacheRef.current.entries(), freshPart.id,
+              );
+              // undefined ⇒ part edited standalone (not an assembly component) ⇒ skip silently.
               if (partPathForId) {
                 void invalidatePartPaths([partPathForId]);
               }
             }
   ```
 
-  **Why `freshPart.id` ≠ `partPath` (FACT-5 + code verification):** `assemblyPartIdCacheRef` is keyed by `partPath` (OPFS path string, e.g. `'parts/box.zipt'`), populated at `App.tsx:1748` via `partIdCache.set(leafPartPath, partId)`. The `freshPart.id` at line 1619 is the UUIDv4 assigned by `kernelClient.loadFromBytes` — a different namespace. There is no `activePart.partPath` field on the store; the correct inversion is the `entries().find()` above. If `partPathForId` is undefined, the part is being edited standalone and no assembly invalidation is needed.
+  **Why `freshPart.id` ≠ `partPath`:** `assemblyPartIdCacheRef` is keyed by `partPath` (OPFS path, populated at `App.tsx:1748`); `freshPart.id` (line 1619) is the UUID from `kernelClient.loadFromBytes`. `partPathForKernelId` (tested in Step 1) is the correct inversion.
 
-- [ ] **Step 4: Run the unit test and typecheck.**
+- [ ] **Step 5: Run the unit test and typecheck.**
 
   ```
-  pnpm --filter @zilventor/app test -- --reporter=verbose --run reflowTrigger
+  pnpm --filter @zilventor/app test -- --run reflowDirty
   pnpm -r typecheck
   ```
-  Expected: PASS, 0 tsc errors.
+  Expected: PASS (5/5), 0 tsc errors.
 
-- [ ] **Step 5: Commit.**
+- [ ] **Step 6: Commit.**
 
   ```
-  git add packages/app/src/App.tsx packages/app/src/assembly/__tests__/reflowTrigger.spec.ts
-  git commit -m "feat(assembly): setSolverDirty in invalidatePartPaths for geometry reflow"
+  git add packages/app/src/App.tsx packages/app/src/assembly/reflowDirty.ts packages/app/src/assembly/__tests__/reflowDirty.spec.ts
+  git commit -m "feat(assembly): setSolverDirty on geometry invalidation for reflow (testable seam)"
   ```
 
 ---
