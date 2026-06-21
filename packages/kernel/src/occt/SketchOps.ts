@@ -195,6 +195,79 @@ export function makeArcEdge(
   return { __brand: 'EdgeHandle', edge };
 }
 
+export type EllipseParams = {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rotation: number;
+  startAngle?: number;
+  endAngle?: number;
+};
+
+/**
+ * Builds a real elliptical edge (full ellipse or elliptical arc) in the
+ * sketch frame.
+ *
+ * OCCT's `gp_Elips` requires `majorRadius >= minorRadius`. When `ry > rx`
+ * we "swap" by making `ry` the major axis:
+ *   - The major-axis direction = `frame.u` rotated by `rotation + π/2` (the
+ *     ry direction in local UV).
+ *   - Arc parameter offset: user angles are measured from the `rx` direction;
+ *     in the swapped OCCT frame the `rx` direction is at angle `−π/2` from
+ *     the major axis, so we subtract `π/2` from each user angle.
+ *
+ * Overload notes:
+ *   - `gp_Elips_2(ax2, majorRadius, minorRadius)` — requires major ≥ minor.
+ *   - `BRepBuilderAPI_MakeEdge_12(gp_Elips)` — full closed ellipse.
+ *   - `BRepBuilderAPI_MakeEdge_13(gp_Elips, p1, p2)` — elliptical arc by
+ *     parameter.
+ */
+export function makeEllipseEdge(
+  oc: OcctInstance,
+  e: EllipseParams,
+  frame: SketchFrame = XY_FRAME,
+): EdgeHandle {
+  const swap = e.ry > e.rx;
+  const major = swap ? e.ry : e.rx;
+  const minor = swap ? e.rx : e.ry;
+  const baseAngle = e.rotation + (swap ? Math.PI / 2 : 0);
+
+  // Major-axis direction expressed in 3D via the frame's u/v basis vectors.
+  const ca = Math.cos(baseAngle);
+  const sa = Math.sin(baseAngle);
+  const ux = frame.u.x * ca + frame.v.x * sa;
+  const uy = frame.u.y * ca + frame.v.y * sa;
+  const uz = frame.u.z * ca + frame.v.z * sa;
+
+  const c3 = frameTo3D(frame, e.cx, e.cy);
+  const center = new oc.gp_Pnt_3(c3.x, c3.y, c3.z);
+  const axisDir = new oc.gp_Dir_4(frame.n.x, frame.n.y, frame.n.z);
+  const xDir = new oc.gp_Dir_4(ux, uy, uz);
+  const ax2 = new oc.gp_Ax2_2(center, axisDir, xDir);
+  const elips = new oc.gp_Elips_2(ax2, major, minor);
+
+  let edge: unknown;
+  if (e.startAngle !== undefined && e.endAngle !== undefined) {
+    // Arc parameters must be shifted by −π/2 in the swap branch because the
+    // OCCT major axis is the ry direction, placing the rx direction at −π/2.
+    const off = swap ? -Math.PI / 2 : 0;
+    const mk = new oc.BRepBuilderAPI_MakeEdge_13(elips, e.startAngle + off, e.endAngle + off);
+    edge = mk.Edge();
+    mk.delete();
+  } else {
+    const mk = new oc.BRepBuilderAPI_MakeEdge_12(elips);
+    edge = mk.Edge();
+    mk.delete();
+  }
+  elips.delete();
+  ax2.delete();
+  xDir.delete();
+  axisDir.delete();
+  center.delete();
+  return { __brand: 'EdgeHandle', edge };
+}
+
 /**
  * Extracts the first and last vertex positions of an edge.
  *
@@ -235,7 +308,7 @@ export function disposeEdge(e: EdgeHandle): void {
 export type CircleParams = { cx: number; cy: number; r: number };
 export type SplineParams = {
   controlPoints: ReadonlyArray<Point2>;
-  degree: 2 | 3;
+  degree: number;
   closed: boolean;
 };
 export type RectangleParams = { x: number; y: number; w: number; h: number };
@@ -310,7 +383,7 @@ export function makeSplineEdge(
     poles.SetValue(i + 1, p);
     allocated.push(p);
   }
-  const degree = Math.min(s.degree, nbPoles - 1) as 2 | 3;
+  const degree = Math.min(s.degree, nbPoles - 1);
   const approx = new oc.GeomAPI_PointsToBSpline_2(
     poles,
     degree,

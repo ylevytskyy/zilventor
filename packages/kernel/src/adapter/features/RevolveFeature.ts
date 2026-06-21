@@ -7,6 +7,7 @@ import {
   disposeWire,
   makeArcEdge,
   makeCircleEdge,
+  makeEllipseEdge,
   makeLineEdge,
   makeRectangleEdges,
   makeSplineEdge,
@@ -267,6 +268,8 @@ function buildEdgesFor(oc: OcctInstance, p: SketchPrimitive): EdgeHandle[] {
       return makeRectangleEdges(oc, p);
     case 'spline':
       return [makeSplineEdge(oc, p)];
+    case 'ellipse':
+      return [makeEllipseEdge(oc, p)];
   }
 }
 
