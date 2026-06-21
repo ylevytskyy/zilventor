@@ -67,12 +67,15 @@ describe('inferFromGeometry', () => {
     expect(coinc.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('infers endpoints for a full ellipse (center only)', () => {
+  it('infers endpoints for a full ellipse (center only, no coincident with itself)', () => {
     const out = inferFromGeometry([
       { id: 'e1', kind: 'ellipse', cx: 10, cy: 20, rx: 5, ry: 3, rotation: 0 },
     ]);
-    // full ellipse contributes a coincidence-eligible center anchor and never crashes
-    expect(out).toBeInstanceOf(Array);
+    // A full ellipse (no startAngle/endAngle) contributes only a center anchor.
+    // With a single primitive and nothing to coincide with, no coincident constraints are inferred.
+    expect(out.filter((c) => c.kind === 'coincident')).toHaveLength(0);
+    // And no spurious horizontal/vertical inferences either.
+    expect(out).toHaveLength(0);
   });
 
   it('infers start/end + center endpoints for an elliptical arc', () => {

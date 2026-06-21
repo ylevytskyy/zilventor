@@ -397,7 +397,7 @@ export class GcsSystem {
         return { ...original, controlPoints };
       }
       case 'ellipse': {
-        // Ellipse is decomposed to solver points only; read back center coords.
+        // points-only decomposition: only the solved center is read back; rx/ry/rotation are not solver-constrained
         const center = pts.get(d.pointIds['center']!);
         if (!center) return original;
         return { ...original, cx: center.x, cy: center.y };
