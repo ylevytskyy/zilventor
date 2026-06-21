@@ -1,6 +1,6 @@
 // packages/app/src/drawing/dxfWriter.ts
 /**
- * Minimal AutoCAD R12 (AC1009) ASCII DXF builder.
+ * AutoCAD R2000 (AC1015) ASCII DXF builder.
  * All entity emitters accept already-transformed, already-Y-flipped coordinates.
  * Caller (renderDrawingDxf) owns the coordinate transform.
  */
@@ -72,13 +72,13 @@ export function hexToAci(hex: string): number {
 }
 
 export function createDxfDocument(): DxfDocument {
-  const header: string[] = [];
-  const tables: string[] = [];
+  // ── Handle allocator (AC1015 requires handles on all named records) ───────
+  // Starts at 0x100 so low handles are reserved for well-known table records.
+  let handleSeq = 0x100;
+  const nextHandle = (): string => (handleSeq++).toString(16).toUpperCase();
 
-  // ── HEADER section (minimal: only version variable) ──────────────────────
-  header.push('  0', 'SECTION', '  2', 'HEADER');
-  header.push('  9', '$ACADVER', '  1', 'AC1009');
-  header.push('  0', 'ENDSEC');
+  // HEADER is assembled lazily in toString() so $HANDSEED reflects all handles.
+  const tables: string[] = [];
 
   // ── TABLES section ────────────────────────────────────────────────────────
   tables.push('  0', 'SECTION', '  2', 'TABLES');
@@ -143,6 +143,7 @@ export function createDxfDocument(): DxfDocument {
     line(layer, x1, y1, x2, y2, aci) {
       sink.push(
         '  0', 'LINE',
+        '  5', nextHandle(),
         '  8', layer,
         ...(aci !== undefined ? [' 62', String(aci)] : []),
         ' 10', fmt(x1), ' 20', fmt(y1),
@@ -154,6 +155,7 @@ export function createDxfDocument(): DxfDocument {
       if (points.length < 2) return;
       sink.push(
         '  0', 'POLYLINE',
+        '  5', nextHandle(),
         '  8', layer,
         ' 66', '     1',  // vertices follow flag
         ' 10', '0.0', ' 20', '0.0',  // dummy coords (R12 POLYLINE origin)
@@ -162,16 +164,18 @@ export function createDxfDocument(): DxfDocument {
       for (const [x, y] of points) {
         sink.push(
           '  0', 'VERTEX',
+          '  5', nextHandle(),
           '  8', layer,
           ' 10', fmt(x), ' 20', fmt(y),
         );
       }
-      sink.push('  0', 'SEQEND', '  8', layer);
+      sink.push('  0', 'SEQEND', '  5', nextHandle(), '  8', layer);
     },
 
     circle(layer, cx, cy, r) {
       sink.push(
         '  0', 'CIRCLE',
+        '  5', nextHandle(),
         '  8', layer,
         ' 10', fmt(cx), ' 20', fmt(cy),
         ' 40', fmt(r),
@@ -181,6 +185,7 @@ export function createDxfDocument(): DxfDocument {
     text(layer, x, y, height, value, rotation = 0) {
       sink.push(
         '  0', 'TEXT',
+        '  5', nextHandle(),
         '  8', layer,
         ' 10', fmt(x), ' 20', fmt(y),
         ' 40', fmt(height),
@@ -216,6 +221,7 @@ export function createDxfDocument(): DxfDocument {
       };
       ents.push(
         '  0', 'DIMENSION',
+        '  5', nextHandle(),
         '  8', opts.layer,
         '  2', opts.blockName,
         ' 10', fmt(opts.defPoint[0]), ' 20', fmt(opts.defPoint[1]), ' 30', '0.0',
@@ -245,11 +251,32 @@ export function createDxfDocument(): DxfDocument {
         ...ents,
         '  0', 'ENDSEC',
       ];
+
+      // Allocate the OBJECTS dictionary handle BEFORE reading handleSeq for
+      // $HANDSEED, so that the seed value exceeds ALL allocated handles.
+      const dictHandle = nextHandle();
+      const objectsSection = [
+        '  0', 'SECTION', '  2', 'OBJECTS',
+        '  0', 'DICTIONARY', '  5', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
+        '  0', 'ENDSEC',
+      ];
+
+      // Assemble HEADER last so $HANDSEED reflects every handle allocated above.
+      const headerSection = [
+        '  0', 'SECTION', '  2', 'HEADER',
+        '  9', '$ACADVER', '  1', 'AC1015',
+        '  9', '$HANDSEED', '  5', handleSeq.toString(16).toUpperCase(),
+        '  0', 'ENDSEC',
+      ];
+      const classesSection = ['  0', 'SECTION', '  2', 'CLASSES', '  0', 'ENDSEC'];
+
       return [
-        ...header,
+        ...headerSection,
+        ...classesSection,
         ...tables,
         ...blockSection,
         ...entSection,
+        ...objectsSection,
         '  0', 'EOF',
       ].join('\n') + '\n';
     },
