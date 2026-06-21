@@ -141,6 +141,24 @@ Units: `$INSUNITS` → mm on import; mm on export.
 output — a deliberate, reviewed regression gate, not silent drift. The underlay reader
 (`parseDxfUnderlay`) is rerouted onto the new shared parser and its tests kept green.
 
+**Phase-2 decisions (2026-06-21, from grounding the writer in the actual exporters):**
+- **Strictness — STRICT AC1015.** The writer emits real AutoCAD-2000 structure: `$ACADVER=AC1015`
+  + `$HANDSEED` in HEADER; a handle allocator giving every entity and table record a unique
+  group-`5` hex handle; the required tables incl. `APPID` (ACAD) and `BLOCK_RECORD`
+  (`*Model_Space`/`*Paper_Space` + one per block); per-entity `AcDbEntity` + `AcDb<Type>`
+  subclass markers (group `100`) and owner refs (group `330`). Rationale: the milestone's
+  "read AND write modern AutoCAD" intent — a version-string bump on R12-shaped entities would
+  mislabel the format. *Verification caveat:* true AutoCAD-open is human-gated (no AutoCAD/Teigha
+  in CI); the automated strictness gate is structural — unique handles, `$HANDSEED` ≥ max handle,
+  required subclass markers/owner refs present — plus round-trip through our own parser.
+- **Scope — FULL native entity set now.** Phase 2 adds `arc()`, `ellipse()`, `spline()`,
+  `lwpolyline()` writer methods even though only `arc()` has a consumer today (the angular-dimension
+  picture in `renderDrawingDxf.ts:546`, replacing its 32-seg tessellation). The other three are
+  covered by writer-level unit + round-trip tests now; Phase 4 (`fromSketch`) / Phase 5 (round-trip)
+  become method calls. *Finding that motivated the questions:* the 3 exporters emit projected
+  POLYLINEs (views), CIRCLEs + rect POLYLINEs (boring), and DIMENSIONs — NOT arc/ellipse/spline
+  primitives — so the only existing tessellated-arc consumer is the angular dimension.
+
 ## 5. Testing strategy
 
 TDD red→green per slice.
