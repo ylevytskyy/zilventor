@@ -12,7 +12,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
  */
 describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/jointDir, suppressedConnectorIds — additive no-op)', () => {
   it('CURRENT_FORMAT_VERSION is 25', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(30);
+    expect(CURRENT_FORMAT_VERSION).toBe(31);
   });
 
   it('a v22 part manifest migrates to current without adding edited/jointDir/suppressedConnectorIds', () => {
@@ -32,7 +32,7 @@ describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/j
       },
     };
     const out = migrateManifest(v22);
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(31);
     const doc = out.document as {
       bores?: Array<Record<string, unknown>>;
       suppressedConnectorIds?: unknown;
@@ -60,7 +60,7 @@ describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/j
       },
     };
     const out = migrateManifest(v22);
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(31);
     const doc = out.document as Record<string, unknown>;
     expect('suppressedConnectorIds' in doc).toBe(false);
   });
@@ -72,7 +72,7 @@ describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/j
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [], hardware: [] },
     };
     const out = migrateManifest(v23);
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(31);
   });
 
   it('a v23 manifest without a kind field does NOT throw in normalizeKind', () => {
@@ -82,7 +82,7 @@ describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/j
       document: { properties: {}, materials: [] },
     };
     expect(() => migrateManifest(v23)).not.toThrow();
-    expect(migrateManifest(v23).formatVersion).toBe(30);
+    expect(migrateManifest(v23).formatVersion).toBe(31);
   });
 
   it('leaves drawing documents untouched (advances version only)', () => {
@@ -92,7 +92,7 @@ describe('migrateManifest v22 → v23 (присадка slice 3: BoreOp.edited/j
       document: { id: 'd', name: 'D', units: 'mm', sheets: [], properties: {} },
     };
     const out = migrateManifest(v22);
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(31);
   });
 
   it('a v22 part with an explicitly-set edited bore field preserves it after migration', () => {

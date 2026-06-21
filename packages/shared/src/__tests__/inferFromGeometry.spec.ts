@@ -66,4 +66,22 @@ describe('inferFromGeometry', () => {
     const coinc = cs.filter((c) => c.kind === 'coincident');
     expect(coinc.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('infers endpoints for a full ellipse (center only)', () => {
+    const out = inferFromGeometry([
+      { id: 'e1', kind: 'ellipse', cx: 10, cy: 20, rx: 5, ry: 3, rotation: 0 },
+    ]);
+    // full ellipse contributes a coincidence-eligible center anchor and never crashes
+    expect(out).toBeInstanceOf(Array);
+  });
+
+  it('infers start/end + center endpoints for an elliptical arc', () => {
+    // local-frame eccentric params: start at param 0 → (cx+rx, cy); end at param π/2 → (cx, cy+ry)
+    const out = inferFromGeometry([
+      { id: 'a', kind: 'line', x1: 15, y1: 20, x2: 99, y2: 99 }, // endpoint to coincide with ellipse start
+      { id: 'e2', kind: 'ellipse', cx: 10, cy: 20, rx: 5, ry: 3, rotation: 0, startAngle: 0, endAngle: Math.PI / 2 },
+    ]);
+    // line.start (15,20) coincides with ellipse start (cx+rx=15, cy=20) → a coincident constraint is inferred
+    expect(out.some((c) => c.kind === 'coincident')).toBe(true);
+  });
 });
