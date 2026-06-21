@@ -93,3 +93,16 @@ describe('dxfWriter arc()', () => {
     expect(seg).toMatch(/\n\s*51\n\s*135\.0000/); // end angle deg
   });
 });
+
+describe('dxfWriter ellipse()', () => {
+  it('emits a native ELLIPSE with center, major-axis vector, ratio, params', () => {
+    const doc = createDxfDocument();
+    doc.ellipse('VISIBLE', 5, 5, 10, 0, 0.5);
+    const out = doc.toString();
+    expect(out).toContain('\nELLIPSE\n');
+    expect(out).toContain('AcDbEllipse');
+    const seg = out.slice(out.indexOf('\nELLIPSE\n'));
+    expect(seg).toMatch(/\n\s*40\n\s*0\.5000/);              // ratio
+    expect(seg).toMatch(/\n\s*42\n\s*6\.2832/);              // default endParam 2π (toFixed(4) rounds up)
+  });
+});

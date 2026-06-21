@@ -14,6 +14,8 @@ export type DxfDocument = {
   circle(layer: string, cx: number, cy: number, r: number): void;
   /** Emit a native ARC entity. Angles in degrees (DXF group 50/51 convention). */
   arc(layer: string, cx: number, cy: number, r: number, startDeg: number, endDeg: number): void;
+  /** Emit a native ELLIPSE. majorX/majorY are the major-axis endpoint RELATIVE to center; ratio = minor/major; params in radians. */
+  ellipse(layer: string, cx: number, cy: number, majorX: number, majorY: number, ratio: number, startParam?: number, endParam?: number): void;
   /** Emit a TEXT entity. rotation defaults to 0. */
   text(layer: string, x: number, y: number, height: number, value: string, rotation?: number): void;
   /** Capture all geometry emitted inside `build` into an anonymous BLOCK; returns its *D name. */
@@ -180,6 +182,10 @@ export function createDxfDocument(): DxfDocument {
 
     arc(layer, cx, cy, r, startDeg, endDeg) {
       sink.push('  0', 'ARC', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 40', fmt(r), '100', 'AcDbArc', ' 50', fmt(startDeg), ' 51', fmt(endDeg));
+    },
+
+    ellipse(layer, cx, cy, majorX, majorY, ratio, startParam = 0, endParam = 2 * Math.PI) {
+      sink.push('  0', 'ELLIPSE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbEllipse', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 11', fmt(majorX), ' 21', fmt(majorY), ' 31', '0.0', ' 40', fmt(ratio), ' 41', fmt(startParam), ' 42', fmt(endParam));
     },
 
     text(layer, x, y, height, value, rotation = 0) {
