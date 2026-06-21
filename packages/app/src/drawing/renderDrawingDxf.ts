@@ -542,6 +542,8 @@ function emitDimension(
     const vScale = view.scale.numerator / view.scale.denominator;
     const vx = view.positionMm.x; const vy = view.positionMm.y;
     const ref = dim.ref;
+    // Shared helper: convert radians to DXF angle in [0,360).
+    const toDeg = (rad: number) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
 
     if (ref.kind === 'arc') {
       const arcEdge = view.projection.visibleEdges.find((e) => e.id === ref.edge.edgeId)
@@ -566,18 +568,20 @@ function emitDimension(
       let sweep = ((endAngle - startAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
       if (dim.arcSide === 'outside') sweep = 2 * Math.PI - sweep;
       // Native ARC: after Y-flip the angle sense inverts (θ_dxf = −a).
-      // The tessellation swept a from a_start to a_end; in DXF we reverse: startDeg=−a_end, endDeg=−a_start.
-      const toDeg1 = (rad: number) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
-      const signedSweep1 = (dim.arcSide === 'outside' ? -1 : 1) * sweep;
+      // Choose start/end based on sweep direction so CCW DXF arc covers the intended side.
+      const s1 = dim.arcSide === 'outside' ? -1 : 1;
+      const signedSweep1 = s1 * sweep;
       const a1Start = startAngle;
       const a1End   = startAngle + signedSweep1;
-      const arc1StartDeg = toDeg1(-a1End);
-      const arc1EndDeg   = toDeg1(-a1Start);
+      const thetaA1 = toDeg(-a1Start);
+      const thetaB1 = toDeg(-a1End);
       const cxDxf1 = vx + ccx * vScale;
       const cyDxf1 = flipY(vy + ccy * vScale);
       const rDxf1  = arcR * vScale;
       const blockName = doc.block(() => {
-        doc.arc('DIMENSIONS', cxDxf1, cyDxf1, rDxf1, arc1StartDeg, arc1EndDeg);
+        doc.arc('DIMENSIONS', cxDxf1, cyDxf1, rDxf1,
+          s1 >= 0 ? thetaB1 : thetaA1,
+          s1 >= 0 ? thetaA1 : thetaB1);
         const midA = startAngle + (dim.arcSide === 'outside' ? -1 : 1) * sweep / 2;
         const tx4 = vx + (ccx + (arcR + 1.5) * Math.cos(midA)) * vScale;
         const sy4 = vy + (ccy + (arcR + 1.5) * Math.sin(midA)) * vScale;
@@ -620,17 +624,18 @@ function emitDimension(
     const sweepSign = dim.arcSide === 'inside' ? (cross > 0 ? 1 : -1) : (cross > 0 ? -1 : 1);
     const arcR2 = dim.offsetMm * vScale;
     const apexSvgX = vx + apex.x * vScale; const apexSvgY = vy + apex.y * vScale;
-    // Native ARC: after Y-flip θ_dxf = −a; reverse start/end to keep CCW sweep correct.
-    const toDeg2 = (rad: number) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
+    // Native ARC: after Y-flip θ_dxf = −a; choose start/end by sweepSign so CCW DXF arc covers the intended side.
     const a2Start = startAngle2;
     const a2End   = startAngle2 + sweepSign * sweepRad;
-    const arc2StartDeg = toDeg2(-a2End);
-    const arc2EndDeg   = toDeg2(-a2Start);
+    const thetaA2 = toDeg(-a2Start);
+    const thetaB2 = toDeg(-a2End);
     const cxDxf2 = apexSvgX;
     const cyDxf2 = flipY(apexSvgY);
     const rDxf2  = arcR2;
     const blockName = doc.block(() => {
-      doc.arc('DIMENSIONS', cxDxf2, cyDxf2, rDxf2, arc2StartDeg, arc2EndDeg);
+      doc.arc('DIMENSIONS', cxDxf2, cyDxf2, rDxf2,
+        sweepSign >= 0 ? thetaB2 : thetaA2,
+        sweepSign >= 0 ? thetaA2 : thetaB2);
       const midA2b = startAngle2 + sweepSign * sweepRad / 2;
       const textR2b = (dim.offsetMm + 1.5) * vScale;
       doc.text('DIMENSIONS', apexSvgX + textR2b * Math.cos(midA2b), flipY(apexSvgY + textR2b * Math.sin(midA2b)), 3.5, formatAngleDeg(sweepRad));
