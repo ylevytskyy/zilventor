@@ -178,6 +178,26 @@ export class GcsSystem {
         this.decomp.set(p.id, { pointIds, primitiveId: p.id });
         break;
       }
+      case 'ellipse': {
+        const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+        const at = (lx: number, ly: number) => ({
+          x: p.cx + lx * cr - ly * sr,
+          y: p.cy + lx * sr + ly * cr,
+        });
+        const c  = pId('center');
+        const xp = pId('xpos'), xn = pId('xneg'), yp = pId('ypos'), yn = pId('yneg');
+        const pxp = at(p.rx, 0), pxn = at(-p.rx, 0), pyp = at(0, p.ry), pyn = at(0, -p.ry);
+        into.push({ id: c,  type: 'point', x: p.cx,  y: p.cy,  fixed: false });
+        into.push({ id: xp, type: 'point', x: pxp.x, y: pxp.y, fixed: false });
+        into.push({ id: xn, type: 'point', x: pxn.x, y: pxn.y, fixed: false });
+        into.push({ id: yp, type: 'point', x: pyp.x, y: pyp.y, fixed: false });
+        into.push({ id: yn, type: 'point', x: pyn.x, y: pyn.y, fixed: false });
+        this.decomp.set(p.id, {
+          pointIds: { center: c, xpos: xp, xneg: xn, ypos: yp, yneg: yn },
+          primitiveId: p.id,
+        });
+        break;
+      }
     }
   }
 
@@ -375,6 +395,12 @@ export class GcsSystem {
           return { x: p.x, y: p.y };
         });
         return { ...original, controlPoints };
+      }
+      case 'ellipse': {
+        // Ellipse is decomposed to solver points only; read back center coords.
+        const center = pts.get(d.pointIds['center']!);
+        if (!center) return original;
+        return { ...original, cx: center.x, cy: center.y };
       }
     }
   }

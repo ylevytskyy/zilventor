@@ -7,6 +7,21 @@ const makeLine = (id: string, x1: number, y1: number, x2: number, y2: number): S
   ({ id, kind: 'line', x1, y1, x2, y2 });
 
 describe('GcsSystem lifecycle (integration)', () => {
+  it('decomposes an ellipse into 5 solver points (center + 4 axis endpoints)', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    // loadSketch calls pushPrimitiveDecomposition internally
+    await sys.loadSketch({
+      primitives: [
+        { id: 'el1', kind: 'ellipse', cx: 4, cy: 5, rx: 6, ry: 2, rotation: 0 } as SketchPrimitive,
+      ],
+      constraints: [],
+    });
+    // DOF: 5 points × 2 coords = 10 degrees of freedom (all free, no constraints)
+    expect(sys.currentDof().count).toBe(10);
+    await sys.unloadSketch();
+  });
+
   it('loadSketch on empty input gives dof 0 fully-constrained', async () => {
     const { createWrapper } = await loadPlanegcs();
     const sys = new GcsSystem(createWrapper());
