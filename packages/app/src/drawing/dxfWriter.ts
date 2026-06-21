@@ -32,6 +32,8 @@ export type DxfDocument = {
     rotation?: number;                                // group 50 (rotated linear only)
     extraPoints?: ReadonlyArray<readonly [number, number, number]>; // [code, x, y] → code/code+10/code+20
   }): void;
+  /** Emit a native SPLINE from control points. Generates a clamped uniform knot vector. */
+  spline(layer: string, controlPoints: ReadonlyArray<{ x: number; y: number }>, degree: number, closed: boolean): void;
   /** Serialize to DXF string. */
   toString(): string;
 };
@@ -243,6 +245,23 @@ export function createDxfDocument(): DxfDocument {
           pad(code + 20), '0.0',
         );
       }
+    },
+
+    spline(layer, controlPoints, degree, closed) {
+      const n = controlPoints.length;
+      const deg = Math.min(degree, Math.max(1, n - 1));
+      // clamped uniform knot vector: (deg+1) zeros, ascending interior, (deg+1) of max
+      const knotCount = n + deg + 1;
+      const interior = knotCount - 2 * (deg + 1);
+      const knots: number[] = [];
+      for (let i = 0; i <= deg; i++) knots.push(0);
+      for (let i = 1; i <= interior; i++) knots.push(i);
+      for (let i = 0; i <= deg; i++) knots.push(interior + 1);
+      const flags = (closed ? 1 : 0) | 8; // 8 = planar
+      sink.push('  0', 'SPLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbSpline',
+        ' 70', `     ${flags}`, ' 71', `     ${deg}`, ' 72', `     ${knots.length}`, ' 73', `     ${n}`);
+      for (const k of knots) sink.push(' 40', fmt(k));
+      for (const p of controlPoints) sink.push(' 10', fmt(p.x), ' 20', fmt(p.y), ' 30', '0.0');
     },
 
     toString() {

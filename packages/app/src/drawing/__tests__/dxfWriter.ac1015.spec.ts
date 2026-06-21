@@ -106,3 +106,17 @@ describe('dxfWriter ellipse()', () => {
     expect(seg).toMatch(/\n\s*42\n\s*6\.2832/);              // default endParam 2π (toFixed(4) rounds up)
   });
 });
+
+describe('dxfWriter spline()', () => {
+  it('emits a native SPLINE with degree, control points, and a knot vector', () => {
+    const doc = createDxfDocument();
+    doc.spline('VISIBLE', [{ x: 0, y: 0 }, { x: 1, y: 2 }, { x: 3, y: 0 }], 2, false);
+    const out = doc.toString();
+    expect(out).toContain('\nSPLINE\n');
+    expect(out).toContain('AcDbSpline');
+    const seg = out.slice(out.indexOf('\nSPLINE\n'));
+    expect(seg).toMatch(/\n\s*71\n\s*2/);  // degree 2
+    expect(seg).toMatch(/\n\s*73\n\s*3/);  // 3 control points
+    expect((seg.match(/\n\s*40\n/g) ?? []).length).toBeGreaterThanOrEqual(1); // knots present
+  });
+});
