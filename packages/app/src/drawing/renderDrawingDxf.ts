@@ -543,9 +543,6 @@ function emitDimension(
     const vx = view.positionMm.x; const vy = view.positionMm.y;
     const ref = dim.ref;
 
-    // Tessellate arc into 32-segment POLYLINE (DXF R12 — no native arc in ENTITIES for Y-flipped arcs)
-    const SEGS = 32;
-
     if (ref.kind === 'arc') {
       const arcEdge = view.projection.visibleEdges.find((e) => e.id === ref.edge.edgeId)
         ?? view.projection.hiddenEdges.find((e) => e.id === ref.edge.edgeId);
@@ -568,15 +565,19 @@ function emitDimension(
       const endAngle   = Math.atan2(cy - ccy, cx - ccx);
       let sweep = ((endAngle - startAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
       if (dim.arcSide === 'outside') sweep = 2 * Math.PI - sweep;
-      const arcPts: Array<readonly [number, number]> = [];
-      for (let i = 0; i <= SEGS; i++) {
-        const a = startAngle + (dim.arcSide === 'outside' ? -1 : 1) * (sweep * i / SEGS);
-        const sx = vx + (ccx + arcR * Math.cos(a)) * vScale;
-        const sy = vy + (ccy + arcR * Math.sin(a)) * vScale;
-        arcPts.push([sx, flipY(sy)]);
-      }
+      // Native ARC: after Y-flip the angle sense inverts (θ_dxf = −a).
+      // The tessellation swept a from a_start to a_end; in DXF we reverse: startDeg=−a_end, endDeg=−a_start.
+      const toDeg1 = (rad: number) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
+      const signedSweep1 = (dim.arcSide === 'outside' ? -1 : 1) * sweep;
+      const a1Start = startAngle;
+      const a1End   = startAngle + signedSweep1;
+      const arc1StartDeg = toDeg1(-a1End);
+      const arc1EndDeg   = toDeg1(-a1Start);
+      const cxDxf1 = vx + ccx * vScale;
+      const cyDxf1 = flipY(vy + ccy * vScale);
+      const rDxf1  = arcR * vScale;
       const blockName = doc.block(() => {
-        doc.polyline('DIMENSIONS', arcPts);
+        doc.arc('DIMENSIONS', cxDxf1, cyDxf1, rDxf1, arc1StartDeg, arc1EndDeg);
         const midA = startAngle + (dim.arcSide === 'outside' ? -1 : 1) * sweep / 2;
         const tx4 = vx + (ccx + (arcR + 1.5) * Math.cos(midA)) * vScale;
         const sy4 = vy + (ccy + (arcR + 1.5) * Math.sin(midA)) * vScale;
@@ -619,13 +620,17 @@ function emitDimension(
     const sweepSign = dim.arcSide === 'inside' ? (cross > 0 ? 1 : -1) : (cross > 0 ? -1 : 1);
     const arcR2 = dim.offsetMm * vScale;
     const apexSvgX = vx + apex.x * vScale; const apexSvgY = vy + apex.y * vScale;
-    const arcPts2: Array<readonly [number, number]> = [];
-    for (let i = 0; i <= SEGS; i++) {
-      const a = startAngle2 + sweepSign * sweepRad * i / SEGS;
-      arcPts2.push([apexSvgX + arcR2 * Math.cos(a), flipY(apexSvgY + arcR2 * Math.sin(a))]);
-    }
+    // Native ARC: after Y-flip θ_dxf = −a; reverse start/end to keep CCW sweep correct.
+    const toDeg2 = (rad: number) => ((rad * 180 / Math.PI) % 360 + 360) % 360;
+    const a2Start = startAngle2;
+    const a2End   = startAngle2 + sweepSign * sweepRad;
+    const arc2StartDeg = toDeg2(-a2End);
+    const arc2EndDeg   = toDeg2(-a2Start);
+    const cxDxf2 = apexSvgX;
+    const cyDxf2 = flipY(apexSvgY);
+    const rDxf2  = arcR2;
     const blockName = doc.block(() => {
-      doc.polyline('DIMENSIONS', arcPts2);
+      doc.arc('DIMENSIONS', cxDxf2, cyDxf2, rDxf2, arc2StartDeg, arc2EndDeg);
       const midA2b = startAngle2 + sweepSign * sweepRad / 2;
       const textR2b = (dim.offsetMm + 1.5) * vScale;
       doc.text('DIMENSIONS', apexSvgX + textR2b * Math.cos(midA2b), flipY(apexSvgY + textR2b * Math.sin(midA2b)), 3.5, formatAngleDeg(sweepRad));

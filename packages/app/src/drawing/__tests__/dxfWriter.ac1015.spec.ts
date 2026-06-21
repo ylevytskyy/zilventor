@@ -80,3 +80,16 @@ describe('dxfWriter AC1015 entity subclass markers', () => {
     expect(out).toContain('AcDbVertex');
   });
 });
+
+describe('dxfWriter arc()', () => {
+  it('emits a native ARC entity with center/radius/angles in degrees', () => {
+    const doc = createDxfDocument();
+    doc.arc('VISIBLE', 30, 40, 15, 45, 135);
+    const out = doc.toString();
+    expect(out).toContain('\nARC\n');
+    expect(out).toContain('AcDbArc');
+    const seg = out.slice(out.indexOf('\nARC\n'));
+    expect(seg).toMatch(/\n\s*50\n\s*45\.0000/);  // start angle deg
+    expect(seg).toMatch(/\n\s*51\n\s*135\.0000/); // end angle deg
+  });
+});
