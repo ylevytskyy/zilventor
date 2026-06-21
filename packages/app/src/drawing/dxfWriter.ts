@@ -34,6 +34,8 @@ export type DxfDocument = {
   }): void;
   /** Emit a native SPLINE from control points. Generates a clamped uniform knot vector. */
   spline(layer: string, controlPoints: ReadonlyArray<{ x: number; y: number }>, degree: number, closed: boolean): void;
+  /** Emit a native LWPOLYLINE. Optional per-vertex bulge for arc segments. */
+  lwpolyline(layer: string, points: ReadonlyArray<{ x: number; y: number; bulge?: number }>, closed: boolean): void;
   /** Serialize to DXF string. */
   toString(): string;
 };
@@ -244,6 +246,16 @@ export function createDxfDocument(): DxfDocument {
           pad(code + 10), fmt(y),
           pad(code + 20), '0.0',
         );
+      }
+    },
+
+    lwpolyline(layer, points, closed) {
+      if (points.length < 2) return;
+      sink.push('  0', 'LWPOLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbPolyline',
+        ' 90', `     ${points.length}`, ' 70', `     ${closed ? 1 : 0}`);
+      for (const p of points) {
+        sink.push(' 10', fmt(p.x), ' 20', fmt(p.y));
+        if (p.bulge !== undefined && p.bulge !== 0) sink.push(' 42', fmt(p.bulge));
       }
     },
 

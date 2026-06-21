@@ -120,3 +120,17 @@ describe('dxfWriter spline()', () => {
     expect((seg.match(/\n\s*40\n/g) ?? []).length).toBeGreaterThanOrEqual(1); // knots present
   });
 });
+
+describe('dxfWriter lwpolyline()', () => {
+  it('emits a native LWPOLYLINE with vertex count, closed flag, and bulge', () => {
+    const doc = createDxfDocument();
+    doc.lwpolyline('VISIBLE', [{ x: 0, y: 0, bulge: 0.5 }, { x: 10, y: 0 }, { x: 10, y: 10 }], true);
+    const out = doc.toString();
+    expect(out).toContain('\nLWPOLYLINE\n');
+    expect(out).toContain('AcDbPolyline');
+    const seg = out.slice(out.indexOf('\nLWPOLYLINE\n'));
+    expect(seg).toMatch(/\n\s*90\n\s*3/);   // 3 vertices
+    expect(seg).toMatch(/\n\s*70\n\s*1/);   // closed
+    expect(seg).toMatch(/\n\s*42\n\s*0\.5000/); // bulge on first vertex
+  });
+});
