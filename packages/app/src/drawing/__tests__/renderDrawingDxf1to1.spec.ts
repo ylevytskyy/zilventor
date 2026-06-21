@@ -109,7 +109,7 @@ describe('renderDrawingDxf1to1 — per-view true size', () => {
   it('DXF1-5: empty sheet → valid DXF with sections', () => {
     const sheet = makeSheet([]);
     const out = renderDrawingDxf1to1(makeDrawing(sheet), sheet);
-    expect(out).toContain('AC1009');
+    expect(out).toContain('AC1015');
     expect(out).toContain('ENTITIES');
     expect(out).toContain('EOF');
   });

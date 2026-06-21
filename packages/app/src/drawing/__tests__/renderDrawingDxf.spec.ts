@@ -38,7 +38,7 @@ describe('renderDrawingDxf — base view edges (DXF-EDGES)', () => {
   it('DXF-EDGES-1: empty sheet produces valid DXF string with sections', () => {
     const sheet = makeSheet();
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
-    expect(out).toContain('AC1009');
+    expect(out).toContain('AC1015');
     expect(out).toContain('ENTITIES');
     expect(out).toContain('EOF');
   });
@@ -361,7 +361,14 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     expect(block).toMatch(/ 70\n\s*70/);
   });
 
-  it('DXF-NDIM-ANGULAR-1: angular (two-edges) dimension → DIMENSION entity (type 2) + block', () => {
+  it('DXF-NDIM-ANGULAR-1: angular (two-edges) dimension → DIMENSION entity (type 2) + block with native ARC', () => {
+    // Geometry: edge g1 = [[0,0],[20,0]] (X-axis), edge g2 = [[0,0],[0,20]] (Y-axis).
+    // apex = (0,0). d1 = (1,0), d2 = (0,1). cross = 1 > 0. arcSide='inside' → sweepSign=1.
+    // insideRad = π/2 = 90°. startAngle2 = atan2(0,1) = 0.
+    // a2Start=0, a2End=π/2. thetaA2=toDeg(-0)=0°. thetaB2=toDeg(-π/2)=270°.
+    // sweepSign≥0 → ARC startDeg=thetaB2=270°, endDeg=thetaA2=0°.
+    // CCW DXF sweep from 270→0 = 90° = labeled angle. Radius = offsetMm * scale = 8.
+    // center (DXF): apexSvgX=0, cyDxf=flipY(0)=sheetH-0=210 (A4 landscape sheetH=210).
     const sheet = makeSheet({
       views: [{
         id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
@@ -383,12 +390,39 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
       }],
     });
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+
+    // Native DIMENSION entity emitted with angular type 2
     expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
     expect(out).toMatch(/\*D\d+/);
     const lines = out.split('\n');
     const dimIdx = lines.findIndex((l) => l.trim() === 'DIMENSION');
-    const block = lines.slice(dimIdx, dimIdx + 30).join('\n');
-    expect(block).toMatch(/ 70\n\s*2/);   // angular type 2
+    const dimBlock = lines.slice(dimIdx, dimIdx + 30).join('\n');
+    expect(dimBlock).toMatch(/ 70\n\s*2/);   // angular type 2
+
+    // The anonymous block picture must contain a native ARC (not a POLYLINE).
+    // ARC structure: entity 'ARC', on DIMENSIONS layer, with center/radius/angles.
+    expect(out).toContain('\n  0\nARC\n');     // native ARC entity present
+    expect(out).not.toMatch(/POLYLINE[\s\S]{0,100}DIMENSIONS[\s\S]{0,200}ARC/);  // ARC in block, not POLYLINE
+    const arcIdx = lines.findIndex((l) => l.trim() === 'ARC');
+    expect(arcIdx).toBeGreaterThan(-1);
+    // ARC entity block (wider window for AC1015 handle/owner/subclass markers)
+    const arcBlock = lines.slice(arcIdx, arcIdx + 30).join('\n');
+    expect(arcBlock).toContain('DIMENSIONS');  // on DIMENSIONS layer
+    // Radius = offsetMm * scale = 8 * 1 = 8
+    expect(arcBlock).toContain('8.0000');      // group 40 = radius
+
+    // Angle assertions:
+    // startDeg = 270°, endDeg = 0°. CCW sweep = (0 - 270 + 360) % 360 = 90° = labeled angle.
+    // Verify start (group 50) and end (group 51) are 270 and 0 respectively.
+    const g50Idx = lines.findIndex((l, i) => i > arcIdx && l.trim() === '50');
+    const g51Idx = lines.findIndex((l, i) => i > arcIdx && l.trim() === '51');
+    expect(g50Idx).toBeGreaterThan(-1);
+    expect(g51Idx).toBeGreaterThan(-1);
+    const startDeg = parseFloat(lines[g50Idx + 1]!.trim());
+    const endDeg   = parseFloat(lines[g51Idx + 1]!.trim());
+    // CCW sweep from startDeg to endDeg must equal the labeled angle (90°), NOT 270° (its complement).
+    const ccwSweep = ((endDeg - startDeg) % 360 + 360) % 360;
+    expect(ccwSweep).toBeCloseTo(90, 2);  // 90° = inside angle between the two perpendicular edges
   });
 });
 
@@ -533,9 +567,10 @@ describe('renderDrawingDxf — title-block approvedBy + notes (CHUNK-D)', () => 
     // Verify a TEXT entity on TITLE contains the notes value
     // The TEXT entity should appear after a TITLE layer reference
     const lines = dxf.split('\n');
+    // AC1015 TEXT entity has handle/owner/subclass markers — use a wider window (30 lines)
     const textEntityBodies = lines.reduce<string[]>((acc, line, i) => {
       if (line.trim() === 'TEXT') {
-        acc.push(lines.slice(i, i + 20).join('\n'));
+        acc.push(lines.slice(i, i + 30).join('\n'));
       }
       return acc;
     }, []);
@@ -623,9 +658,10 @@ describe('renderDrawingDxf — first-angle projection symbol (CHUNK-B2)', () => 
 
     // Find the TITLE CIRCLE entity center X
     let titleCircleCx: number | null = null;
+    // AC1015 CIRCLE has handle/owner/subclass markers; use 20-line window to reach group 10
     for (let i = 0; i < lines.length; i++) {
       if (lines[i]!.trim() === 'CIRCLE') {
-        const body = lines.slice(i, i + 12);
+        const body = lines.slice(i, i + 20);
         const isTitleCircle = body.some((l, j) => j > 0 && body[j - 1]?.trim() === '8' && l.trim() === 'TITLE');
         if (!isTitleCircle) continue;
         const g10ValIdx = body.findIndex((_l, j) => j > 0 && body[j - 1]?.trim() === '10');
@@ -807,8 +843,9 @@ describe('renderDrawingDxf — center-mark annotation draws a cross (Slice-7b)',
     let annotationsLineCount = 0;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i]!.trim() === 'LINE') {
-        // Look ahead up to 6 lines for layer group-8 = ANNOTATIONS
-        const body = lines.slice(i, i + 8).join('\n');
+        // AC1015: layer (group 8) is at offset ~8 from entity start due to handle/owner/subclass markers.
+        // Search in a wider window (15 lines) for the layer name.
+        const body = lines.slice(i, i + 15).join('\n');
         if (body.includes('ANNOTATIONS')) {
           annotationsLineCount++;
         }
