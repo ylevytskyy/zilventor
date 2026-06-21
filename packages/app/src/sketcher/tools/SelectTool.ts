@@ -37,6 +37,8 @@ export class SelectTool {
           const cp = prim.controlPoints[i]!;
           candidates.push({ ref: { primitiveId: prim.id, anchor: `cp${i}` as const }, x: cp.x, y: cp.y });
         }
+      } else if (prim.kind === 'ellipse') {
+        candidates.push({ ref: { primitiveId: prim.id, anchor: 'center' }, x: prim.cx, y: prim.cy });
       }
       for (const c of candidates) {
         const dx = c.x - p.x, dy = c.y - p.y;

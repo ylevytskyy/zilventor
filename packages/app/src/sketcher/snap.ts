@@ -33,6 +33,18 @@ function primitiveEndpoints(p: SketchPrimitive): Point2[] {
     case 'spline':
       if (p.controlPoints.length === 0) return [];
       return [p.controlPoints[0]!, p.controlPoints[p.controlPoints.length - 1]!];
+    case 'ellipse': {
+      const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+      const pt = (lx: number, ly: number) => ({ x: p.cx + lx * cr - ly * sr, y: p.cy + lx * sr + ly * cr });
+      if (p.startAngle !== undefined && p.endAngle !== undefined) {
+        return [
+          pt(p.rx * Math.cos(p.startAngle), p.ry * Math.sin(p.startAngle)),
+          pt(p.rx * Math.cos(p.endAngle), p.ry * Math.sin(p.endAngle)),
+        ];
+      }
+      // Full ellipse: expose major-axis endpoint (mirrors circle's single snap point)
+      return [{ x: p.cx + p.rx * cr, y: p.cy + p.rx * sr }];
+    }
   }
 }
 

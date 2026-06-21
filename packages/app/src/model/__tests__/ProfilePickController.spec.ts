@@ -55,4 +55,43 @@ describe('ProfilePickController', () => {
     ]);
     expect(ctrl.pick({ x: 100, y: 100 })).toBeNull();
   });
+
+  it('picks a sketch whose only primitive is an axis-aligned ellipse (rotation=0)', () => {
+    // ellipse cx=0,cy=0,rx=8,ry=3,rotation=0 → bbox [-8,-3,8,3]; tolerance=5 default
+    const ctrl = new ProfilePickController();
+    ctrl.setTolerance(0);
+    ctrl.setCandidates([
+      {
+        sketchId: 'E1',
+        primitives: [
+          { id: 'e1', kind: 'ellipse', cx: 0, cy: 0, rx: 8, ry: 3, rotation: 0 }
+        ]
+      }
+    ]);
+    // Point at (0,0) is inside bbox
+    expect(ctrl.pick({ x: 0, y: 0 })).toBe('E1');
+    // Point well outside bbox (no tolerance) → null
+    expect(ctrl.pick({ x: 20, y: 0 })).toBeNull();
+  });
+
+  it('ellipse bbox extents match the rotated-ellipse formula', () => {
+    // rotation=0 → hx=rx=8, hy=ry=3
+    const ctrl = new ProfilePickController();
+    ctrl.setTolerance(0);
+    ctrl.setCandidates([
+      {
+        sketchId: 'E2',
+        primitives: [
+          { id: 'e2', kind: 'ellipse', cx: 0, cy: 0, rx: 8, ry: 3, rotation: 0 }
+        ]
+      }
+    ]);
+    // xmax edge: pick at exactly x=8 should be inside (on boundary)
+    expect(ctrl.pick({ x: 8, y: 0 })).toBe('E2');
+    // Just outside xmax
+    expect(ctrl.pick({ x: 8.1, y: 0 })).toBeNull();
+    // ymax edge
+    expect(ctrl.pick({ x: 0, y: 3 })).toBe('E2');
+    expect(ctrl.pick({ x: 0, y: 3.1 })).toBeNull();
+  });
 });

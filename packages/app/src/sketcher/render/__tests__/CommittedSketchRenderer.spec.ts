@@ -33,4 +33,22 @@ describe('CommittedSketchRenderer construction styling', () => {
     expect(toggledBackMat).toBeInstanceOf(THREE.LineBasicMaterial);
     expect(toggledBackMat).not.toBeInstanceOf(THREE.LineDashedMaterial);
   });
+
+  it('renders an ellipse as a THREE.Line object', () => {
+    const r = new CommittedSketchRenderer();
+    r.update([
+      { id: 'e1', kind: 'ellipse', cx: 0, cy: 0, rx: 4, ry: 2, rotation: 0 },
+    ]);
+    expect(r.group.children).toHaveLength(1);
+    expect(r.group.children[0]).toBeInstanceOf(THREE.Line);
+  });
+
+  it('renders a partial ellipse (with startAngle/endAngle) as a THREE.Line', () => {
+    const r = new CommittedSketchRenderer();
+    r.update([
+      { id: 'e2', kind: 'ellipse', cx: 5, cy: 5, rx: 10, ry: 3, rotation: 0, startAngle: 0, endAngle: Math.PI },
+    ]);
+    expect(r.group.children).toHaveLength(1);
+    expect(r.group.children[0]).toBeInstanceOf(THREE.Line);
+  });
 });

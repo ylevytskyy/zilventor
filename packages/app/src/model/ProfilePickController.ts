@@ -91,6 +91,15 @@ function primitivesBbox(prims: SketchPrimitive[]): Bbox | null {
         }
         touched = true;
         break;
+      case 'ellipse': {
+        const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+        const hx = Math.hypot(p.rx * cr, p.ry * sr);
+        const hy = Math.hypot(p.rx * sr, p.ry * cr);
+        xmin = Math.min(xmin, p.cx - hx); xmax = Math.max(xmax, p.cx + hx);
+        ymin = Math.min(ymin, p.cy - hy); ymax = Math.max(ymax, p.cy + hy);
+        touched = true;
+        break;
+      }
     }
   }
   return touched ? { xmin, ymin, xmax, ymax } : null;

@@ -60,6 +60,21 @@ export class CommittedSketchRenderer {
       const segs = Math.max(12, Math.ceil(Math.abs(p.endAngle - p.startAngle) * 32 / Math.PI));
       return this.buildArcLike(p.cx, p.cy, p.r, p.startAngle, p.endAngle, segs, mat);
     }
+    if (p.kind === 'ellipse') {
+      const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+      const t0 = p.startAngle ?? 0;
+      const t1 = p.endAngle ?? Math.PI * 2;
+      const segs = 64;
+      const verts: number[] = [];
+      for (let i = 0; i <= segs; i++) {
+        const t = t0 + (t1 - t0) * (i / segs);
+        const lx = p.rx * Math.cos(t), ly = p.ry * Math.sin(t);
+        verts.push(p.cx + lx * cr - ly * sr, p.cy + lx * sr + ly * cr, SKETCH_Z);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+      return new THREE.Line(g, mat);
+    }
     // spline
     return this.buildSpline(p.controlPoints, mat);
   }

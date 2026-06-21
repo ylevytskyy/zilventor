@@ -69,4 +69,26 @@ describe('resolveSnap', () => {
     expect(r.point).toEqual({ x: 30, y: 0 });
     expect(r.kind).toBe('endpoint');
   });
+
+  it('full ellipse (rotation=0) contributes a major-axis endpoint that snaps', () => {
+    // ellipse cx=2,cy=3,rx=5,ry=1,rotation=0 → major-axis endpoint at (7,3)
+    const ellipse: SketchPrimitive = { id: 'e1', kind: 'ellipse', cx: 2, cy: 3, rx: 5, ry: 1, rotation: 0 };
+    const r = resolveSnap({ x: 7.5, y: 3 }, { primitives: [ellipse], pixelTolerance: 5 });
+    expect(r.point.x).toBeCloseTo(7, 3);
+    expect(r.point.y).toBeCloseTo(3, 3);
+    expect(r.kind).toBe('endpoint');
+  });
+
+  it('arc-ellipse (with startAngle/endAngle) contributes start and end endpoints', () => {
+    // partial ellipse: cx=0,cy=0,rx=10,ry=5,rotation=0,startAngle=0,endAngle=π/2
+    // start → (10,0), end → (0,5)
+    const ellipse: SketchPrimitive = {
+      id: 'e2', kind: 'ellipse', cx: 0, cy: 0, rx: 10, ry: 5, rotation: 0,
+      startAngle: 0, endAngle: Math.PI / 2
+    };
+    const r = resolveSnap({ x: 0.5, y: 5 }, { primitives: [ellipse], pixelTolerance: 5 });
+    expect(r.point.x).toBeCloseTo(0, 3);
+    expect(r.point.y).toBeCloseTo(5, 3);
+    expect(r.kind).toBe('endpoint');
+  });
 });
