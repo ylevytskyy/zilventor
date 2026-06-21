@@ -402,7 +402,20 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     // The anonymous block picture must contain a native ARC (not a POLYLINE).
     // ARC structure: entity 'ARC', on DIMENSIONS layer, with center/radius/angles.
     expect(out).toContain('\n  0\nARC\n');     // native ARC entity present
-    expect(out).not.toMatch(/POLYLINE[\s\S]{0,100}DIMENSIONS[\s\S]{0,200}ARC/);  // ARC in block, not POLYLINE
+
+    // Block-scoped negative guard: find the dim's anonymous picture block (*D<n>),
+    // slice it out from BLOCK...ENDBLK, then assert it has ARC and NO POLYLINE.
+    // This is true now (ARC-based writer) and would be false under the old
+    // POLYLINE-tessellation path that put a 32-segment POLYLINE in the block body.
+    const blockMatch = /\n  0\nBLOCK\n([\s\S]*?)\n  0\nENDBLK\n/g;
+    let dimPictureBlock: string | null = null;
+    for (const m of out.matchAll(blockMatch)) {
+      if (m[0].includes('ARC')) { dimPictureBlock = m[0]; break; }
+    }
+    expect(dimPictureBlock).not.toBeNull();  // must find the block containing the ARC
+    expect(dimPictureBlock).toContain('ARC');
+    expect(dimPictureBlock).not.toContain('POLYLINE');
+
     const arcIdx = lines.findIndex((l) => l.trim() === 'ARC');
     expect(arcIdx).toBeGreaterThan(-1);
     // ARC entity block (wider window for AC1015 handle/owner/subclass markers)
