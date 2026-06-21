@@ -55,3 +55,28 @@ describe('dxfWriter AC1015 tables', () => {
     expect(/\n\s*0\nLAYER\n\s*5\n\s*[0-9A-F]+/.test(layerBlock)).toBe(true);
   });
 });
+
+describe('dxfWriter AC1015 entity subclass markers', () => {
+  it('LINE carries AcDbEntity + AcDbLine + a 330 owner', () => {
+    const doc = createDxfDocument();
+    doc.line('VISIBLE', 0, 0, 10, 10);
+    const out = doc.toString();
+    expect(out).toContain('AcDbLine');
+    // the LINE entity block contains AcDbEntity, a 330 owner, and AcDbLine
+    const lineSeg = out.slice(out.indexOf('\nLINE\n'));
+    expect(lineSeg).toContain('AcDbEntity');
+    expect(/\n\s*330\n/.test(lineSeg)).toBe(true);
+  });
+
+  it('CIRCLE→AcDbCircle, TEXT→AcDbText, POLYLINE→AcDb2dPolyline', () => {
+    const doc = createDxfDocument();
+    doc.circle('VISIBLE', 1, 1, 2);
+    doc.text('ANNOTATIONS', 0, 0, 3, 'Hi');
+    doc.polyline('VISIBLE', [[0, 0], [1, 1], [2, 0]]);
+    const out = doc.toString();
+    expect(out).toContain('AcDbCircle');
+    expect(out).toContain('AcDbText');
+    expect(out).toContain('AcDb2dPolyline');
+    expect(out).toContain('AcDbVertex');
+  });
+});

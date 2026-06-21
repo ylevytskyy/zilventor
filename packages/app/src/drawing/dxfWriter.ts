@@ -146,60 +146,38 @@ export function createDxfDocument(): DxfDocument {
   // Current emission target: ENTITIES by default, redirected into a block during block().
   let sink: string[] = ents;
   let anonCounter = 0;
+  let currentOwner = modelSpaceHandle; // entities reference their owning block record
 
   return {
     line(layer, x1, y1, x2, y2, aci) {
       sink.push(
         '  0', 'LINE',
         '  5', nextHandle(),
+        '330', currentOwner,
+        '100', 'AcDbEntity',
         '  8', layer,
         ...(aci !== undefined ? [' 62', String(aci)] : []),
-        ' 10', fmt(x1), ' 20', fmt(y1),
-        ' 11', fmt(x2), ' 21', fmt(y2),
+        '100', 'AcDbLine',
+        ' 10', fmt(x1), ' 20', fmt(y1), ' 30', '0.0',
+        ' 11', fmt(x2), ' 21', fmt(y2), ' 31', '0.0',
       );
     },
 
     polyline(layer, points) {
       if (points.length < 2) return;
-      sink.push(
-        '  0', 'POLYLINE',
-        '  5', nextHandle(),
-        '  8', layer,
-        ' 66', '     1',  // vertices follow flag
-        ' 10', '0.0', ' 20', '0.0',  // dummy coords (R12 POLYLINE origin)
-        ' 70', '     0',  // open polyline
-      );
+      sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDb2dPolyline', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', '     0');
       for (const [x, y] of points) {
-        sink.push(
-          '  0', 'VERTEX',
-          '  5', nextHandle(),
-          '  8', layer,
-          ' 10', fmt(x), ' 20', fmt(y),
-        );
+        sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDb2dVertex', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0');
       }
-      sink.push('  0', 'SEQEND', '  5', nextHandle(), '  8', layer);
+      sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
     circle(layer, cx, cy, r) {
-      sink.push(
-        '  0', 'CIRCLE',
-        '  5', nextHandle(),
-        '  8', layer,
-        ' 10', fmt(cx), ' 20', fmt(cy),
-        ' 40', fmt(r),
-      );
+      sink.push('  0', 'CIRCLE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 40', fmt(r));
     },
 
     text(layer, x, y, height, value, rotation = 0) {
-      sink.push(
-        '  0', 'TEXT',
-        '  5', nextHandle(),
-        '  8', layer,
-        ' 10', fmt(x), ' 20', fmt(y),
-        ' 40', fmt(height),
-        '  1', value,
-        ' 50', fmt(rotation),
-      );
+      sink.push('  0', 'TEXT', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbText', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0', ' 40', fmt(height), '  1', value, ' 50', fmt(rotation), '100', 'AcDbText');
     },
 
     block(build) {
@@ -230,7 +208,10 @@ export function createDxfDocument(): DxfDocument {
       ents.push(
         '  0', 'DIMENSION',
         '  5', nextHandle(),
+        '330', modelSpaceHandle,
+        '100', 'AcDbEntity',
         '  8', opts.layer,
+        '100', 'AcDbDimension',
         '  2', opts.blockName,
         ' 10', fmt(opts.defPoint[0]), ' 20', fmt(opts.defPoint[1]), ' 30', '0.0',
         ' 11', fmt(opts.textMid[0]), ' 21', fmt(opts.textMid[1]), ' 31', '0.0',
@@ -238,7 +219,11 @@ export function createDxfDocument(): DxfDocument {
         '  1', opts.text,
         '  3', opts.dimStyle,
       );
-      if (opts.rotation !== undefined) ents.push(' 50', fmt(opts.rotation));
+      if (opts.rotation !== undefined) {
+        ents.push('100', 'AcDbAlignedDimension', ' 50', fmt(opts.rotation));
+      } else {
+        ents.push('100', 'AcDbAlignedDimension');
+      }
       for (const [code, x, y] of opts.extraPoints ?? []) {
         ents.push(
           pad(code), fmt(x),
