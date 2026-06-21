@@ -80,52 +80,60 @@ export function createDxfDocument(): DxfDocument {
   // HEADER is assembled lazily in toString() so $HANDSEED reflects all handles.
   const tables: string[] = [];
 
-  // ── TABLES section ────────────────────────────────────────────────────────
+  // Allocate stable handles for *Model_Space and *Paper_Space BLOCK_RECORDs now
+  // (before tables are built) so they land before entity handles and remain
+  // stable — Task 3 consumes modelSpaceHandle as the entity owner (group 330).
+  const modelSpaceHandle = nextHandle();
+  const paperSpaceHandle = nextHandle();
+
+  // ── TABLES section (strict AC1015 set with handles) ───────────────────────
   tables.push('  0', 'SECTION', '  2', 'TABLES');
 
-  // LTYPE table — define CONTINUOUS and DASHED
-  tables.push('  0', 'TABLE', '  2', 'LTYPE', ' 70', '     2');
-  tables.push(
-    '  0', 'LTYPE', '  2', 'CONTINUOUS',
-    ' 70', '     0', '  3', 'Solid line',
-    ' 72', '    65', ' 73', '     0', ' 40', '0.0',
-  );
-  tables.push(
-    '  0', 'LTYPE', '  2', 'DASHED',
-    ' 70', '     0', '  3', 'Dashed line',
-    ' 72', '    65', ' 73', '     2',
-    ' 40', '6.0', ' 49', '4.0', ' 49', '-2.0',
-  );
+  // VPORT (one *Active viewport)
+  tables.push('  0', 'TABLE', '  2', 'VPORT', '  5', nextHandle(), ' 70', '     1');
+  tables.push('  0', 'VPORT', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbViewportTableRecord', '  2', '*Active', ' 70', '     0');
   tables.push('  0', 'ENDTAB');
 
-  // LAYER table
-  tables.push('  0', 'TABLE', '  2', 'LAYER', ' 70', `     ${LAYERS.length}`);
+  // LTYPE — define CONTINUOUS and DASHED
+  tables.push('  0', 'TABLE', '  2', 'LTYPE', '  5', nextHandle(), ' 70', '     3');
+  tables.push('  0', 'LTYPE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLinetypeTableRecord', '  2', 'CONTINUOUS', ' 70', '     0', '  3', 'Solid line', ' 72', '    65', ' 73', '     0', ' 40', '0.0');
+  tables.push('  0', 'LTYPE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLinetypeTableRecord', '  2', 'DASHED', ' 70', '     0', '  3', 'Dashed line', ' 72', '    65', ' 73', '     2', ' 40', '6.0', ' 49', '4.0', ' 49', '-2.0');
+  tables.push('  0', 'ENDTAB');
+
+  // LAYER
+  tables.push('  0', 'TABLE', '  2', 'LAYER', '  5', nextHandle(), ' 70', `     ${LAYERS.length}`);
   for (const name of LAYERS) {
     const ltype = name === 'HIDDEN' ? 'DASHED' : 'CONTINUOUS';
-    const color = name === 'HIDDEN' ? '     3' : '     7'; // 3=green hidden, 7=white/black visible
-    tables.push(
-      '  0', 'LAYER',
-      '  2', name,
-      ' 70', '     0',   // not frozen/off
-      ' 62', color,
-      '  6', ltype,
-    );
+    const color = name === 'HIDDEN' ? '     3' : '     7';
+    tables.push('  0', 'LAYER', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLayerTableRecord', '  2', name, ' 70', '     0', ' 62', color, '  6', ltype);
   }
   tables.push('  0', 'ENDTAB');
 
-  // DIMSTYLE table — one shared STANDARD style (drives native DIMENSION regen)
-  tables.push('  0', 'TABLE', '  2', 'DIMSTYLE', ' 70', '     1');
-  tables.push(
-    '  0', 'DIMSTYLE',
-    '  2', 'STANDARD',
-    ' 70', '     0',
-    '140', '3.5',     // DIMTXT  — text height (matches dim-label text height)
-    ' 41', '2.5',     // DIMASZ  — arrow size
-    '147', '0.625',   // DIMGAP
-    ' 77', '     1',  // DIMTAD  — text above the dimension line
-    ' 73', '     0',  // DIMTIH  — inside text aligned with dim line
-    ' 74', '     0',  // DIMTOH  — outside text aligned with dim line
-  );
+  // STYLE (STANDARD)
+  tables.push('  0', 'TABLE', '  2', 'STYLE', '  5', nextHandle(), ' 70', '     1');
+  tables.push('  0', 'STYLE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbTextStyleTableRecord', '  2', 'STANDARD', ' 70', '     0', ' 40', '0.0', ' 41', '1.0', ' 50', '0.0', ' 71', '     0', ' 42', '2.5', '  3', 'txt', '  4', '');
+  tables.push('  0', 'ENDTAB');
+
+  // VIEW (empty)
+  tables.push('  0', 'TABLE', '  2', 'VIEW', '  5', nextHandle(), ' 70', '     0', '  0', 'ENDTAB');
+  // UCS (empty)
+  tables.push('  0', 'TABLE', '  2', 'UCS', '  5', nextHandle(), ' 70', '     0', '  0', 'ENDTAB');
+
+  // APPID (ACAD)
+  tables.push('  0', 'TABLE', '  2', 'APPID', '  5', nextHandle(), ' 70', '     1');
+  tables.push('  0', 'APPID', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbRegAppTableRecord', '  2', 'ACAD', ' 70', '     0');
+  tables.push('  0', 'ENDTAB');
+
+  // DIMSTYLE — one shared STANDARD style (drives native DIMENSION regen)
+  // NOTE: DIMSTYLE records use group 105 for their handle (not 5) per DXF spec.
+  tables.push('  0', 'TABLE', '  2', 'DIMSTYLE', '  5', nextHandle(), ' 70', '     1');
+  tables.push('  0', 'DIMSTYLE', '105', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbDimStyleTableRecord', '  2', 'STANDARD', ' 70', '     0', '140', '3.5', ' 41', '2.5', '147', '0.625', ' 77', '     1', ' 73', '     0', ' 74', '     0');
+  tables.push('  0', 'ENDTAB');
+
+  // BLOCK_RECORD (*Model_Space, *Paper_Space)
+  tables.push('  0', 'TABLE', '  2', 'BLOCK_RECORD', '  5', nextHandle(), ' 70', '     2');
+  tables.push('  0', 'BLOCK_RECORD', '  5', modelSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Model_Space');
+  tables.push('  0', 'BLOCK_RECORD', '  5', paperSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Paper_Space');
   tables.push('  0', 'ENDTAB');
 
   tables.push('  0', 'ENDSEC');
@@ -243,6 +251,10 @@ export function createDxfDocument(): DxfDocument {
     toString() {
       const blockSection = [
         '  0', 'SECTION', '  2', 'BLOCKS',
+        '  0', 'BLOCK', '  5', nextHandle(), '100', 'AcDbEntity', '  8', '0', '100', 'AcDbBlockBegin', '  2', '*Model_Space', ' 70', '     0', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', '  3', '*Model_Space', '  1', '',
+        '  0', 'ENDBLK', '  5', nextHandle(), '100', 'AcDbEntity', '  8', '0', '100', 'AcDbBlockEnd',
+        '  0', 'BLOCK', '  5', nextHandle(), '100', 'AcDbEntity', '  8', '0', '100', 'AcDbBlockBegin', '  2', '*Paper_Space', ' 70', '     0', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', '  3', '*Paper_Space', '  1', '',
+        '  0', 'ENDBLK', '  5', nextHandle(), '100', 'AcDbEntity', '  8', '0', '100', 'AcDbBlockEnd',
         ...blockDefs,
         '  0', 'ENDSEC',
       ];

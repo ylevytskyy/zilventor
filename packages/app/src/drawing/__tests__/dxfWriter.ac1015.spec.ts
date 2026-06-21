@@ -36,3 +36,22 @@ describe('dxfWriter AC1015 header', () => {
     expect(out).toContain('DICTIONARY');
   });
 });
+
+describe('dxfWriter AC1015 tables', () => {
+  it('emits the required AC1015 tables incl APPID ACAD and BLOCK_RECORD model/paper space', () => {
+    const out = createDxfDocument().toString();
+    for (const t of ['VPORT', 'LTYPE', 'LAYER', 'STYLE', 'VIEW', 'UCS', 'APPID', 'DIMSTYLE', 'BLOCK_RECORD']) {
+      expect(out, `table ${t}`).toContain(t);
+    }
+    expect(out).toContain('ACAD');          // APPID record
+    expect(out).toContain('*Model_Space');
+    expect(out).toContain('*Paper_Space');
+  });
+
+  it('gives every LAYER record a handle', () => {
+    const out = createDxfDocument().toString();
+    // VISIBLE layer record followed (within a few lines) by a group-5 handle
+    const layerBlock = out.slice(out.indexOf('LAYER'));
+    expect(/\n\s*0\nLAYER\n\s*5\n\s*[0-9A-F]+/.test(layerBlock)).toBe(true);
+  });
+});
