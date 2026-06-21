@@ -103,7 +103,7 @@ import { ToggleConstraintSuppressionCommand } from './commands/ToggleConstraintS
 import { AssemblyRefPickController } from './model/AssemblyRefPickController';
 import { AddAssemblyConstraintCommand } from './commands/AddAssemblyConstraintCommand';
 import { EditAssemblyConstraintCommand } from './commands/EditAssemblyConstraintCommand';
-import type { AssemblyConstraint, AssemblyConstraintRef } from '@zilventor/shared';
+import type { AssemblyConstraint } from '@zilventor/shared';
 import { buildAssemblyConstraint } from './assembly/constraintFromMode';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
