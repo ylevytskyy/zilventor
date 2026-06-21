@@ -42,11 +42,19 @@ import { buildBox, waitForKernelReady } from '../helpers/buildBox';
 
 /** Parse DXF text into an array of [groupCode, value] pairs. */
 function parseDxf(text: string): Array<[number, string]> {
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  // AC1015 BLOCK definitions contain group-code 1 with an empty string value.
+  // A naive filter-empty-lines approach shifts the pair alignment after that point.
+  // Instead: skip blank separator lines, but when a valid group code is found consume
+  // the next line (even if empty) as the value.
+  const lines = text.split('\n').map((l) => l.trim());
   const pairs: Array<[number, string]> = [];
-  for (let i = 0; i + 1 < lines.length; i += 2) {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.length === 0) continue; // skip blank separator lines
     const code = parseInt(lines[i]!, 10);
-    if (!isNaN(code)) pairs.push([code, lines[i + 1]!]);
+    if (!isNaN(code) && i + 1 < lines.length) {
+      pairs.push([code, lines[i + 1]!]);
+      i++; // consume the value line (may be empty string for group-code 1)
+    }
   }
   return pairs;
 }
@@ -423,7 +431,7 @@ test('T-6-22: DXF export — real geometry download + parse', async ({ page }) =
   const sectionCount = code0Values.filter((v) => v === 'SECTION').length;
   const endsecCount  = code0Values.filter((v) => v === 'ENDSEC').length;
   expect(sectionCount, 'SECTION count must equal ENDSEC count').toBe(endsecCount);
-  expect(sectionCount, 'Must have exactly 4 sections (HEADER, TABLES, BLOCKS, ENTITIES)').toBe(4);
+  expect(sectionCount, 'Must have exactly 6 sections (HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS) — AC1015').toBe(6);
 
   // 13b. Required section names present
   expect(dxfText, 'HEADER section').toContain('HEADER');

@@ -19,7 +19,7 @@
  *  10.  Click "Export All Sheets (DXF)"; capture WYSIWYG zip download.
  *  11.  Click "Export All Sheets (1:1)"; capture 1:1 zip download.
  *  12.  Parse WYSIWYG zip: assert 2 entries named 01-*.dxf / 02-*.dxf, each contains
- *       AC1009 and ENTITIES.
+ *       AC1015 and ENTITIES.
  *  13.  Parse 1:1 zip: assert 2 entries named *-1to1.dxf; assert ≥1 entry has real
  *       true-mm geometry (x-extent > 30mm mirrors T-6-24's scale-indifference proof).
  *  14.  Assert no browser console errors (production gaps surface here first).
@@ -298,10 +298,10 @@ test('T-6-25: all-sheets DXF export — 2-sheet zip round-trip (WYSIWYG + 1:1)',
   expect(wysiwygNames[0], 'First WYSIWYG entry must match 01-*.dxf').toMatch(/^01-.*\.dxf$/);
   expect(wysiwygNames[1], 'Second WYSIWYG entry must match 02-*.dxf').toMatch(/^02-.*\.dxf$/);
 
-  // Each entry must be a valid R12 DXF.
+  // Each entry must be a valid AC1015 DXF.
   for (const name of wysiwygNames) {
     const content = strFromU8(wysiwygEntries[name]!);
-    expect(content, `${name} must contain AC1009 header`).toContain('AC1009');
+    expect(content, `${name} must contain AC1015 header`).toContain('AC1015');
     expect(content, `${name} must contain ENTITIES section`).toContain('ENTITIES');
   }
 
@@ -320,7 +320,7 @@ test('T-6-25: all-sheets DXF export — 2-sheet zip round-trip (WYSIWYG + 1:1)',
   // True-mm proof on first entry (Sheet 1 has 40×40 front face, scale forced 1:2 in step 7).
   // A renderer that applied view.scale would emit 20mm width — fails ≥ 38mm assertion.
   const firstEntry1to1 = strFromU8(oneToOneEntries[oneToOneNames[0]!]!);
-  expect(firstEntry1to1, 'First 1:1 entry must contain AC1009 header').toContain('AC1009');
+  expect(firstEntry1to1, 'First 1:1 entry must contain AC1015 header').toContain('AC1015');
   expect(firstEntry1to1, 'First 1:1 entry must contain ENTITIES section').toContain('ENTITIES');
 
   // Parse VERTEX x-coords from first 1:1 entry.
