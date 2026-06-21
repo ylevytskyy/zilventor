@@ -103,7 +103,7 @@ export function createDxfDocument(): DxfDocument {
   tables.push('  0', 'ENDTAB');
 
   // LTYPE — define CONTINUOUS and DASHED
-  tables.push('  0', 'TABLE', '  2', 'LTYPE', '  5', nextHandle(), ' 70', '     3');
+  tables.push('  0', 'TABLE', '  2', 'LTYPE', '  5', nextHandle(), ' 70', '     2');
   tables.push('  0', 'LTYPE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLinetypeTableRecord', '  2', 'CONTINUOUS', ' 70', '     0', '  3', 'Solid line', ' 72', '    65', ' 73', '     0', ' 40', '0.0');
   tables.push('  0', 'LTYPE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLinetypeTableRecord', '  2', 'DASHED', ' 70', '     0', '  3', 'Dashed line', ' 72', '    65', ' 73', '     2', ' 40', '6.0', ' 49', '4.0', ' 49', '-2.0');
   tables.push('  0', 'ENDTAB');
@@ -193,7 +193,7 @@ export function createDxfDocument(): DxfDocument {
     },
 
     text(layer, x, y, height, value, rotation = 0) {
-      sink.push('  0', 'TEXT', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbText', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0', ' 40', fmt(height), '  1', value, ' 50', fmt(rotation), '100', 'AcDbText');
+      sink.push('  0', 'TEXT', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbText', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0', ' 40', fmt(height), '  1', value, ' 50', fmt(rotation), '100', 'AcDbText', ' 73', '     0');
     },
 
     block(build) {

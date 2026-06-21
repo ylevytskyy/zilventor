@@ -437,6 +437,52 @@ describe('renderDrawingDxf — dimensions + annotations + title (DXF-DIM)', () =
     const ccwSweep = ((endDeg - startDeg) % 360 + 360) % 360;
     expect(ccwSweep).toBeCloseTo(90, 2);  // 90° = inside angle between the two perpendicular edges
   });
+
+  it('DXF-NDIM-ANGULAR-2: angular (two-edges) dimension with arcSide=outside → native ARC with CCW sweep ≈ 270°', () => {
+    // Same geometry as DXF-NDIM-ANGULAR-1 (perpendicular edges, apex=(0,0), 90° inside angle),
+    // but arcSide='outside' → the outside arc is the reflex complement: 360 - 90 = 270°.
+    // This locks the outside-case angle-sense fix (commit 84c99fb3).
+    const sheet = makeSheet({
+      views: [{
+        id: 'v1', kind: 'base', positionMm: { x: 0, y: 0 },
+        scale: { numerator: 1, denominator: 1 }, orientation: 'front', showHidden: false,
+        projection: {
+          visibleEdges: [
+            { id: 'g1', kind: 'outline', points: [[0, 0], [20, 0]] as ReadonlyArray<readonly [number, number]> },
+            { id: 'g2', kind: 'outline', points: [[0, 0], [0, 20]] as ReadonlyArray<readonly [number, number]> },
+          ],
+          hiddenEdges: [], bbox: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
+        },
+      }],
+      dimensions: [{
+        kind: 'angular', id: 'an2', viewId: 'v1',
+        ref: { kind: 'two-edges',
+          edge1: { viewId: 'v1', edgeId: 'g1' },
+          edge2: { viewId: 'v1', edgeId: 'g2' } },
+        arcSide: 'outside', offsetMm: 8,
+      }],
+    });
+    const out = renderDrawingDxf(makeDrawing(sheet), sheet, makePart());
+
+    expect(out).toMatch(/\n\s*0\nDIMENSION\n/);
+    expect(out).toContain('\n  0\nARC\n');
+
+    // Extract start/end angles from the native ARC entity
+    const lines = out.split('\n');
+    const arcIdx = lines.findIndex((l) => l.trim() === 'ARC');
+    expect(arcIdx).toBeGreaterThan(-1);
+
+    const g50Idx = lines.findIndex((l, i) => i > arcIdx && l.trim() === '50');
+    const g51Idx = lines.findIndex((l, i) => i > arcIdx && l.trim() === '51');
+    expect(g50Idx).toBeGreaterThan(-1);
+    expect(g51Idx).toBeGreaterThan(-1);
+    const startDeg = parseFloat(lines[g50Idx + 1]!.trim());
+    const endDeg   = parseFloat(lines[g51Idx + 1]!.trim());
+
+    // CCW sweep for the outside arc must be ≈ 270° (reflex complement of 90°), NOT ≈ 90°.
+    const ccwSweep = ((endDeg - startDeg) % 360 + 360) % 360;
+    expect(ccwSweep).toBeCloseTo(270, 2);  // 270° = outside (reflex) angle for perpendicular edges
+  });
 });
 
 // ── Radial + diametric dimensions ─────────────────────────────────────────────
