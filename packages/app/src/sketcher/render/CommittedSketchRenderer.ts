@@ -129,6 +129,8 @@ export class CommittedSketchRenderer {
     const fontPx = Math.max(8, Math.round(ann.height * PX_PER_UNIT));
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    // Set font BEFORE measureText so the measurement uses the real font size (default ~10px otherwise).
+    if (ctx) ctx.font = `${fontPx}px sans-serif`;
     // In jsdom/vitest ctx may be null; guard width/height so geometry remains valid.
     const textW = ctx ? Math.max(1, ctx.measureText(ann.value).width) : Math.max(1, ann.value.length * fontPx * 0.6);
     canvas.width = Math.ceil(textW);
