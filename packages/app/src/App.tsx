@@ -1948,7 +1948,7 @@ export default function App() {
     const sketch = activePart.featureTree.find(
       (f): f is Extract<Feature, { kind: 'sketch' }> => f.kind === 'sketch' && f.id === activeSketchId
     );
-    r.update(sketch?.primitives ?? []);
+    r.update(sketch?.primitives ?? [], sketch?.annotations ?? []);
   }, [activePart, activeSketchId]);
 
   // Global keyboard shortcuts. In sketch mode, Esc/Enter go to the active tool;
