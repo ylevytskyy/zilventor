@@ -32,7 +32,7 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
     this.prior = part;
     this.partId = part.id;
     const text = await this.ctx.file.text();
-    const { primitives, dropped } = toSketch(parseDxf(text));
+    const { primitives, annotations, dropped } = toSketch(parseDxf(text));
     this.added = [];
     try {
       for (const p of primitives) {
@@ -48,8 +48,8 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
     // subscribers (featureTree, sketcher primitives list) see the new entries.
     const updated = await this.ctx.kernel.getPart(this.partId);
     this.ctx.store.setActivePart(updated);
-    const skipped = dropped.reduce((a, d) => a + d.count, 0);
-    this.ctx.setStatus?.(i18n.t('status.dxfImport.done', { imported: primitives.length, skipped }));
+    const skipped = dropped.reduce((a, d) => a + d.count, 0) + annotations.length;
+    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, skipped ${skipped} entities`);
   }
 
   async revert(): Promise<void> {

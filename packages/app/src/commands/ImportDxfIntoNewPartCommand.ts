@@ -25,12 +25,12 @@ export class ImportDxfIntoNewPartCommand implements Command {
   async apply(): Promise<void> {
     this.prior = this.ctx.store.getActivePart();
     const text = await this.ctx.file.text();
-    const { primitives, dropped } = toSketch(parseDxf(text));
-    const part = buildSketchPartDocument(fileStem(this.ctx.file.name), primitives);
+    const { primitives, annotations, dropped } = toSketch(parseDxf(text));
+    const part = buildSketchPartDocument(fileStem(this.ctx.file.name), primitives, annotations);
     await this.ctx.kernel.registerPart(part);
     this.ctx.store.setActivePart(part);
     const skipped = dropped.reduce((a, d) => a + d.count, 0);
-    this.ctx.setStatus?.(i18n.t('status.dxfImport.done', { imported: primitives.length, skipped }));
+    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, ${annotations.length} annotations, skipped ${skipped} entities`);
   }
 
   async revert(): Promise<void> {

@@ -43,6 +43,24 @@ describe('ImportDxfIntoNewPartCommand', () => {
     expect(sketch.primitives).toHaveLength(2); // line + circle
   });
 
+  it('stores text annotations on the imported sketch', async () => {
+    const TEXT_DXF = ['  0','SECTION','  2','ENTITIES',
+      '  0','LINE','  8','0',' 10','0',' 20','0',' 11','1',' 21','0',
+      '  0','TEXT','  8','0',' 10','1',' 20','2',' 40','5',' 1','HI',' 50','0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    let active: unknown = null;
+    const cmd = new ImportDxfIntoNewPartCommand({
+      kernel: { registerPart: async () => {} } as never,
+      store: { getActivePart: () => active as never, setActivePart: (p: unknown) => { active = p; } },
+      file: { name: 't.dxf', text: async () => TEXT_DXF } as unknown as File,
+    });
+    await cmd.apply();
+    const doc = active as { featureTree: Array<{ kind: string; primitives?: unknown[]; annotations?: unknown[] }> };
+    const sketch = doc.featureTree.find((f) => f.kind === 'sketch')!;
+    expect(sketch.primitives).toHaveLength(1);
+    expect(sketch.annotations).toHaveLength(1);
+  });
+
   it('revert restores the prior active part', async () => {
     const prior = { id: 'prev' };
     let active: unknown = prior;

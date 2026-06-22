@@ -1,4 +1,4 @@
-import type { PartDocument, SketchPrimitive, Feature } from '@zilventor/shared';
+import type { PartDocument, SketchPrimitive, TextAnnotation, Feature } from '@zilventor/shared';
 import { ORIGIN_FEATURES } from './originFeatures';
 
 /**
@@ -8,13 +8,14 @@ import { ORIGIN_FEATURES } from './originFeatures';
  * Mirrors buildImportedPartDocument's shape: 7 ORIGIN_FEATURES + the payload
  * feature, minimal required fields only (exactOptionalPropertyTypes ON).
  */
-export function buildSketchPartDocument(name: string, primitives: SketchPrimitive[]): PartDocument {
+export function buildSketchPartDocument(name: string, primitives: SketchPrimitive[], annotations: TextAnnotation[] = []): PartDocument {
   const sketch: Feature = {
     kind: 'sketch',
     id: crypto.randomUUID(),
     plane: { source: 'workPlane', featureId: 'origin.XY' },
     primitives,
     constraints: [],
+    ...(annotations.length ? { annotations } : {}),
   };
   return {
     id: crypto.randomUUID(),
