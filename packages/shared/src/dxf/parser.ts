@@ -186,8 +186,31 @@ function parseHatchLoops(pairs: DxfPair[]): HatchLoop[] {
           const startAngle = f(take(50)), endAngle = f(take(51));
           const ccw = Math.trunc(f(take(73))) !== 0;
           edges.push({ kind: 'arc', cx, cy, r, startAngle, endAngle, ccw });
-        } else if (etype === 3 || etype === 4) {           // elliptic arc / spline: Task 3
-          break;
+        } else if (etype === 3) {                          // elliptic arc: 10 20 11 21 40 50 51 73
+          const cx = f(take(10)), cy = f(take(20));
+          const majorX = f(take(11)), majorY = f(take(21));
+          const ratio = f(take(40));
+          const startAngle = f(take(50)), endAngle = f(take(51));
+          const ccw = Math.trunc(f(take(73))) !== 0;
+          edges.push({ kind: 'ellipse', cx, cy, majorX, majorY, ratio, startAngle, endAngle, ccw });
+        } else if (etype === 4) {                          // spline: 94 73 74 95 96, then 40* knots, then (10 20 [42])* cps
+          const degree = Math.trunc(f(take(94)));
+          const rational = Math.trunc(f(take(73))) !== 0;  // read to keep cursor positional (74 follows)
+          take(74);                                        // periodic flag — consumed, unused
+          const knotCount = Math.trunc(f(take(95)));
+          const cpCount = Math.trunc(f(take(96)));
+          const knots: number[] = [];
+          for (let k = 0; k < knotCount; k++) { const v = take(40); if (v === undefined) break; knots.push(f(v)); }
+          const controlPoints: Array<{ x: number; y: number }> = [];
+          const weights: number[] = [];
+          for (let c = 0; c < cpCount; c++) {
+            const xs2 = take(10); if (xs2 === undefined) break;
+            controlPoints.push({ x: f(xs2), y: f(take(20)) });
+            const w = rational ? take(42) : undefined;     // optional per-cp weight
+            if (w !== undefined) weights.push(f(w));
+          }
+          edges.push({ kind: 'spline', degree, closed: false, controlPoints, knots,
+            ...(weights.length ? { weights } : {}) });
         } else {
           // unrecognised edge type → cannot know its code count; skip the rest of this loop's edges
           break;

@@ -504,4 +504,60 @@ describe('parseDxf — HATCH', () => {
       }
     }
   });
+
+  it('parses a HATCH edge loop with elliptic-arc + spline edges', () => {
+    const dxf = entitiesDxf([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1',
+      ' 92', '1',                              // edge list
+      ' 93', '2',                              // 2 edges
+      ' 72', '3',                              // edge 1: elliptic arc
+      ' 10', '0', ' 20', '0',                  // center
+      ' 11', '4', ' 21', '0',                  // major endpoint relative to center
+      ' 40', '0.5',                            // minor/major ratio
+      ' 50', '0', ' 51', '180', ' 73', '1',    // 0°→180° ccw
+      ' 72', '4',                              // edge 2: spline
+      ' 94', '2',                              // degree
+      ' 73', '0',                              // rational flag (non-rational)
+      ' 74', '0',                              // periodic flag
+      ' 95', '5',                              // knot count
+      ' 96', '3',                              // control-point count
+      ' 40', '0', ' 40', '0', ' 40', '0.5', ' 40', '1', ' 40', '1',   // 5 knots
+      ' 10', '0', ' 20', '0',
+      ' 10', '5', ' 20', '5',
+      ' 10', '10', ' 20', '0',                 // 3 control points
+      ' 97', '0',
+    ].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('HATCH');
+    if (e.type === 'HATCH') {
+      const loop = e.loops[0]!;
+      expect(loop.kind).toBe('edges');
+      if (loop.kind === 'edges') {
+        expect(loop.edges).toHaveLength(2);
+        const [el, sp] = loop.edges;
+        expect(el).toEqual({ kind: 'ellipse', cx: 0, cy: 0, majorX: 4, majorY: 0, ratio: 0.5,
+          startAngle: 0, endAngle: 180, ccw: true });
+        expect(sp!.kind).toBe('spline');
+        if (sp!.kind === 'spline') {
+          expect(sp!.degree).toBe(2);
+          expect(sp!.closed).toBe(false);
+          expect(sp!.knots).toEqual([0, 0, 0.5, 1, 1]);
+          expect(sp!.controlPoints).toEqual([{ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 0 }]);
+          expect(sp!.weights).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it('does not throw on a malformed HATCH (truncated edge loop)', () => {
+    const dxf = entitiesDxf([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1', ' 92', '1', ' 93', '2',
+      ' 72', '1', ' 10', '0', ' 20', '0',      // line edge truncated mid-way; stream ends
+    ].join('\n'));
+    expect(() => parseDxf(dxf)).not.toThrow();
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('HATCH');
+  });
 });
