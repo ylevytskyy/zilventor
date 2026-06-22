@@ -17,7 +17,10 @@ export type DxfEntity =
   | { type: 'POINT'; layer: string; x: number; y: number; extrusion?: DxfExtrusion }
   | { type: 'SOLID'; layer: string; corners: ReadonlyArray<{ x: number; y: number }>; extrusion?: DxfExtrusion }
   | { type: 'LEADER'; layer: string; vertices: ReadonlyArray<{ x: number; y: number }> }
-  | { type: 'DIMENSION'; layer: string; block?: string; textOverride: string; measurement: number; textMidX: number; textMidY: number };
+  | { type: 'DIMENSION'; layer: string; block?: string; textOverride: string; measurement: number; textMidX: number; textMidY: number }
+  | { type: 'MLEADER'; layer: string;
+      leaderLines: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>;
+      text?: { value: string; x: number; y: number; height: number; rotation: number } };
 
 export type DxfLayer = { name: string; color: number; linetype: string; flags: number };
 

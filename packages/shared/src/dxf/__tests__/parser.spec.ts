@@ -332,6 +332,45 @@ describe('parseDxf — DIMENSION', () => {
   });
 });
 
+describe('parseDxf — MLEADER', () => {
+  it('extracts one leader line and embedded mtext from CONTEXT_DATA', () => {
+    const dxf = entitiesDxf(['  0', 'MLEADER', '  8', '0',
+      '300', 'CONTEXT_DATA{',
+      '290', '1',          // has_mtext_content
+      '304', 'Note A',     // mtext content (NOT ending in '{', so it is content not a token)
+      ' 12', '20', ' 22', '30',  // text location
+      ' 41', '2.5',        // text height
+      ' 42', '0',          // text rotation
+      '302', 'LEADER{',
+      '304', 'LEADER_LINE{',
+      ' 10', '0', ' 20', '0',
+      ' 10', '5', ' 20', '5',
+      '305', '}',
+      '303', '}',
+      '301', '}'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('MLEADER');
+    if (e.type === 'MLEADER') {
+      expect(e.leaderLines).toHaveLength(1);
+      expect(e.leaderLines[0]!.map((v) => [v.x, v.y])).toEqual([[0, 0], [5, 5]]);
+      expect(e.text?.value).toBe('Note A');
+      expect([e.text?.x, e.text?.y]).toEqual([20, 30]);
+      expect(e.text?.height).toBeCloseTo(2.5);
+    }
+  });
+
+  it('returns an empty MLEADER for malformed/empty content (no throw)', () => {
+    const dxf = entitiesDxf(['  0', 'MLEADER', '  8', '0',
+      '300', 'CONTEXT_DATA{', '290', '0', '301', '}'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('MLEADER');
+    if (e.type === 'MLEADER') {
+      expect(e.leaderLines).toHaveLength(0);
+      expect(e.text).toBeUndefined();
+    }
+  });
+});
+
 describe('parseDxf — SOLID', () => {
   it('parses a quad SOLID in winding order P0,P1,P3,P2', () => {
     const dxf = entitiesDxf(['  0', 'SOLID', '  8', 'ARROWS',

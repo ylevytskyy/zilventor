@@ -5,7 +5,7 @@ export type DxfDropped = { kind: string; count: number; reason: string };
 export type ToSketchResult = { primitives: SketchPrimitive[]; annotations: TextAnnotation[]; dropped: DxfDropped[] };
 
 /** Strip MTEXT inline formatting: \P→newline, \f.../\F... font, \A\C\c\H\W\Q\T\p control words, braces. */
-function stripMText(raw: string): string {
+export function stripMText(raw: string): string {
   return raw
     .replace(/\\P/g, '\n')
     .replace(/\\[fF][^;]*;/g, '')

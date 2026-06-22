@@ -1,5 +1,6 @@
 import { tokenize } from './tokenizer';
 import type { DxfPair, DxfEntity, DxfLayer, ParsedDxf } from './types';
+import { stripMText } from './toSketch';
 
 /** A raw entity record: its type plus a code→values multimap of its attribute pairs. */
 type RawEntity = { type: string; pairs: DxfPair[] };
@@ -25,6 +26,64 @@ function extrusion(pairs: DxfPair[]): { x: number; y: number; z: number } | unde
   const has = pairs.some((q) => q.code === 210 || q.code === 220 || q.code === 230);
   if (!has) return undefined;
   return { x: num(pairs, 210, 0), y: num(pairs, 220, 0), z: num(pairs, 230, 1) };
+}
+
+// MLEADER CONTEXT_DATA is a nested brace structure inlined into the entity's group pairs.
+// LIMITATION: validated against the AutoDesk/ezdxf spec, NOT a real CAD-exported file —
+// re-verify on a real MLEADER DXF. Best-effort: any unrecognized content is ignored, never thrown.
+function parseMleader(pairs: DxfPair[]): {
+  leaderLines: Array<Array<{ x: number; y: number }>>;
+  text?: { value: string; x: number; y: number; height: number; rotation: number };
+} {
+  const leaderLines: Array<Array<{ x: number; y: number }>> = [];
+  let inContext = false, inLeader = false, inLine = false;
+  let curLine: Array<{ x: number; y: number }> = [];
+  let pendingX: number | null = null;
+  let hasMText = false;
+  let textValue = '', textX = 0, textY = 0, textH = 0, textRot = 0;
+
+  for (const p of pairs) {
+    const v = p.value;
+    // Structural tokens: match by literal STRING ending in '{', never by code number.
+    // Code 304 is overloaded: it carries BOTH the LEADER_LINE{ token AND plain mtext content.
+    if (v.endsWith('{')) {
+      if (v.startsWith('CONTEXT_DATA')) inContext = true;
+      else if (v.startsWith('LEADER_LINE')) { inLine = true; curLine = []; pendingX = null; }
+      else if (v.startsWith('LEADER')) inLeader = true;
+      continue;
+    }
+    if (v === '}') {
+      // Pop innermost open context first.
+      if (inLine) { if (curLine.length) leaderLines.push(curLine); inLine = false; }
+      else if (inLeader) inLeader = false;
+      else if (inContext) inContext = false;
+      continue;
+    }
+    if (inLine) {
+      if (p.code === 10) pendingX = Number.parseFloat(v);
+      else if (p.code === 20 && pendingX !== null) {
+        const y = Number.parseFloat(v);
+        if (Number.isFinite(pendingX) && Number.isFinite(y)) curLine.push({ x: pendingX, y });
+        pendingX = null;
+      }
+      continue; // code 30 (z) ignored
+    }
+    if (inContext && !inLeader) {
+      if (p.code === 290) hasMText = v.trim() === '1';
+      else if (p.code === 304) textValue = stripMText(v);
+      else if (p.code === 12) textX = Number.parseFloat(v);
+      else if (p.code === 22) textY = Number.parseFloat(v);
+      else if (p.code === 41) textH = Number.parseFloat(v);
+      else if (p.code === 42) textRot = Number.parseFloat(v);
+    }
+  }
+
+  return {
+    leaderLines,
+    ...(hasMText && textValue
+      ? { text: { value: textValue, x: textX, y: textY, height: textH, rotation: textRot } }
+      : {}),
+  };
 }
 
 /** Extracts HEADER variables: each `9 <name>` maps to the value of the next pair. */
@@ -184,6 +243,11 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         textOverride: str(raw.pairs, 1),
         measurement: num(raw.pairs, 42),
         textMidX: num(raw.pairs, 11), textMidY: num(raw.pairs, 21) };
+    }
+    case 'MLEADER':
+    case 'MULTILEADER': {
+      const ml = parseMleader(raw.pairs);
+      return { type: 'MLEADER', layer, leaderLines: ml.leaderLines, ...(ml.text ? { text: ml.text } : {}) };
     }
     default:
       return null;
