@@ -96,6 +96,10 @@ function insertMatrix(ins: { x: number; y: number; xscale: number; yscale: numbe
  *   geometry scaling is deferred to 4c.
  * - w/h of a rectangle are also not scaled (same reasoning).
  * - Block-internal entities ignore their own OCS extrusion under an insert (rare, deferred).
+ * - 4b LIMITATION (revisit 4c, same class as 4a OCS-bulge): arc startAngle/endAngle and
+ *   ellipse rotation are NOT rotated when the INSERT has a non-zero rotation (θ≠0).
+ *   The arc/ellipse CENTER is placed correctly; only the angular sweep / major-axis
+ *   orientation is wrong for rotated inserts containing arcs or ellipses.
  */
 function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
   switch (p.kind) {
@@ -305,6 +309,8 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
         controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed, ...cons };
     }
     case 'POINT':
+      // 4b LIMITATION (deferred to 4c): POINT OCS extrusion (group 210/220/230) is ignored;
+      // the point lands at raw OCS x/y rather than the correct WCS XY.
       return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s, ...cons };
     case 'TEXT': return null; // handled before mapEntity in toSketch loop
     case 'MTEXT': return null; // handled before mapEntity in toSketch loop
