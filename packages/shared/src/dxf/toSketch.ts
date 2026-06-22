@@ -52,6 +52,127 @@ function isFullEllipse(start: number, end: number): boolean {
   return Math.abs(start) < 1e-9 && Math.abs(end - TAU) < 1e-9;
 }
 
+// ── Affine-transform helpers for INSERT flattening ──────────────────────────
+// Column-major 2D affine matrix: [[a c e],[b d f]]
+type Affine = { a: number; b: number; c: number; d: number; e: number; f: number };
+const afApply = (m: Affine, x: number, y: number): { x: number; y: number } =>
+  ({ x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f });
+const afMul = (m: Affine, n: Affine): Affine => ({
+  a: m.a * n.a + m.c * n.b, b: m.b * n.a + m.d * n.b,
+  c: m.a * n.c + m.c * n.d, d: m.b * n.c + m.d * n.d,
+  e: m.a * n.e + m.c * n.f + m.e, f: m.b * n.e + m.d * n.f + m.f,
+});
+
+/**
+ * Build the composite affine for one INSERT cell:
+ *   T(ins) ∘ R(rotation) ∘ S(xscale,yscale) ∘ T(-base)
+ * Applied in order: subtract base, scale, rotate, translate to insertion point.
+ */
+function insertMatrix(ins: { x: number; y: number; xscale: number; yscale: number; rotation: number }, base: { x: number; y: number }): Affine {
+  const r = (ins.rotation * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+  // S ∘ T(-base): scale while shifting origin to base point
+  const scaleBase: Affine = { a: ins.xscale, b: 0, c: 0, d: ins.yscale, e: -base.x * ins.xscale, f: -base.y * ins.yscale };
+  const rot: Affine = { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 };
+  const trans: Affine = { a: 1, b: 0, c: 0, d: 1, e: ins.x, f: ins.y };
+  return afMul(trans, afMul(rot, scaleBase));
+}
+
+/**
+ * Apply an affine transform to a SketchPrimitive, assigning a fresh id.
+ *
+ * 4b SIMPLIFYING ASSUMPTIONS (revisit in 4c):
+ * - circle/arc/ellipse RADII are NOT scaled by xscale/yscale (only centers move).
+ *   This is correct for the dominant unit-scale (1,1) inserts; non-uniform curved
+ *   geometry scaling is deferred to 4c.
+ * - w/h of a rectangle are also not scaled (same reasoning).
+ * - Block-internal entities ignore their own OCS extrusion under an insert (rare, deferred).
+ */
+function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
+  switch (p.kind) {
+    case 'line': {
+      const a = afApply(m, p.x1, p.y1), b = afApply(m, p.x2, p.y2);
+      return { ...p, id: freshId(), x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    }
+    case 'circle': {
+      const c = afApply(m, p.cx, p.cy);
+      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // radius unchanged (4b)
+    }
+    case 'arc': {
+      const c = afApply(m, p.cx, p.cy);
+      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // radius/angles unchanged (4b)
+    }
+    case 'ellipse': {
+      const c = afApply(m, p.cx, p.cy);
+      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // rx/ry/rotation unchanged (4b)
+    }
+    case 'spline': {
+      return { ...p, id: freshId(), controlPoints: p.controlPoints.map((cp) => afApply(m, cp.x, cp.y)) };
+    }
+    case 'point': {
+      const c = afApply(m, p.x, p.y);
+      return { ...p, id: freshId(), x: c.x, y: c.y };
+    }
+    case 'rectangle': {
+      const c = afApply(m, p.x, p.y);
+      return { ...p, id: freshId(), x: c.x, y: c.y }; // w/h unchanged (4b)
+    }
+  }
+}
+
+/**
+ * Recursively expand one INSERT entity into a flat list of SketchPrimitives.
+ * Depth guard: max 16 levels to prevent infinite recursion on cyclic block references.
+ * Array (COLUMNS×ROWS): each cell's origin is offset by (col*colSpacing, row*rowSpacing)
+ * added to the INSERT insertion point before building the matrix (i.e., in WCS for rotation=0,
+ * matches DXF rectangular-pattern behaviour for the dominant axis-aligned case).
+ */
+function expandInsert(
+  ins: Extract<DxfEntity, { type: 'INSERT' }>,
+  parsed: ParsedDxf,
+  s: number,
+  depth: number,
+  drop: (k: string, r: string) => void,
+): SketchPrimitive[] {
+  if (depth > 16) { drop('INSERT', 'block nesting deeper than 16 levels'); return []; }
+  const body = parsed.blocks[ins.name];
+  if (!body) { drop('INSERT', `unknown block ${ins.name}`); return []; }
+  const base = parsed.blockBasePoints[ins.name] ?? { x: 0, y: 0 };
+
+  // Map the block body once at unit scale (the document scale s is applied
+  // to the final WCS coordinates below, not inside the block frame).
+  const blockPrims: SketchPrimitive[] = [];
+  for (const be of body) {
+    if (be.type === 'INSERT') {
+      // Nested INSERT: recurse; the outer matrix handles the final scale.
+      blockPrims.push(...expandInsert(be, parsed, 1, depth + 1, drop));
+    } else if (be.type === 'LWPOLYLINE' || be.type === 'POLYLINE') {
+      blockPrims.push(...expandPolyline(be, 1, false));
+    } else {
+      const p = mapEntity(be, 1, drop, false);
+      if (p) blockPrims.push(p);
+    }
+  }
+
+  const out: SketchPrimitive[] = [];
+  const cols = Math.max(1, ins.columns);
+  const rows = Math.max(1, ins.rows);
+  // Scale matrix applied once to move from unit-block-WCS to document units.
+  const scaleM: Affine = { a: s, b: 0, c: 0, d: s, e: 0, f: 0 };
+  for (let cI = 0; cI < cols; cI++) {
+    for (let rI = 0; rI < rows; rI++) {
+      // Offset the insertion point for each array cell, then build the insert matrix.
+      const placed = { ...ins, x: ins.x + cI * ins.colSpacing, y: ins.y + rI * ins.rowSpacing };
+      const m = insertMatrix(placed, base);
+      for (const bp of blockPrims) {
+        // Apply insert transform, then document unit scale.
+        out.push(transformPrimitive(scaleM, transformPrimitive(m, bp)));
+      }
+    }
+  }
+  return out;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export function toSketch(parsed: ParsedDxf): ToSketchResult {
   const s = unitFactor(parsed.header);
   const primitives: SketchPrimitive[] = [];
@@ -63,6 +184,10 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
   };
 
   for (const e of parsed.entities) {
+    if (e.type === 'INSERT') {
+      primitives.push(...expandInsert(e, parsed, s, 0, drop));
+      continue;
+    }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
@@ -159,7 +284,7 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s, ...cons };
     case 'TEXT': drop('TEXT', 'text annotation model is Phase 4b'); return null;
     case 'MTEXT': drop('MTEXT', 'text annotation model is Phase 4b'); return null;
-    case 'INSERT': drop('INSERT', 'block flatten is Phase 4b'); return null;
+    case 'INSERT': drop('INSERT', 'INSERT reached mapEntity — should be handled by expandInsert'); return null;
     default: drop((e as { type: string }).type, 'unsupported in Phase 4a'); return null;
   }
 }

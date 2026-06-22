@@ -233,3 +233,26 @@ describe('toSketch Phase 4a coverage', () => {
     } else throw new Error('expected circle');
   });
 });
+
+describe('toSketch INSERT flatten', () => {
+  const BLOCK_DXF = (insert: string): string => ['  0','SECTION','  2','BLOCKS',
+    '  0','BLOCK','  8','0','  2','BLK',' 70','0',' 10','0',' 20','0','  3','BLK',
+    '  0','LINE','  8','0',' 10','0',' 20','0',' 11','2',' 21','0',
+    '  0','ENDBLK','  0','ENDSEC',
+    '  0','SECTION','  2','ENTITIES', insert, '  0','ENDSEC','  0','EOF'].join('\n');
+
+  it('flattens a single INSERT with translation', () => {
+    const r = toSketch(parseDxf(BLOCK_DXF(['  0','INSERT','  2','BLK',' 10','10',' 20','5',' 41','1',' 42','1',' 50','0'].join('\n'))));
+    const line = r.primitives.find((p) => p.kind === 'line');
+    expect(line).toBeDefined();
+    if (line && line.kind === 'line') { expect([line.x1, line.y1]).toEqual([10, 5]); expect([line.x2, line.y2]).toEqual([12, 5]); }
+  });
+
+  it('expands a 2×1 INSERT array', () => {
+    const r = toSketch(parseDxf(BLOCK_DXF(['  0','INSERT','  2','BLK',' 10','0',' 20','0',' 41','1',' 42','1',' 50','0',
+      ' 70','2',' 71','1',' 44','20',' 45','0'].join('\n'))));
+    expect(r.primitives.filter((p) => p.kind === 'line')).toHaveLength(2); // 2 columns
+    const xs = r.primitives.filter((p) => p.kind === 'line').map((p) => (p as { x1: number }).x1).sort((a, b) => a - b);
+    expect(xs).toEqual([0, 20]); // second copy offset by colSpacing
+  });
+});
