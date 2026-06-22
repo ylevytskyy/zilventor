@@ -23,7 +23,21 @@ export type DxfEntity =
   | { type: 'DIMENSION'; layer: string; block?: string; textOverride: string; measurement: number; textMidX: number; textMidY: number }
   | { type: 'MLEADER'; layer: string;
       leaderLines: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>;
-      text?: { value: string; x: number; y: number; height: number; rotation: number } };
+      text?: { value: string; x: number; y: number; height: number; rotation: number } }
+  | { type: 'HATCH'; layer: string; loops: HatchLoop[]; extrusion?: DxfExtrusion };
+
+export type HatchEdge =
+  | { kind: 'line';    x1: number; y1: number; x2: number; y2: number }
+  | { kind: 'arc';     cx: number; cy: number; r: number;
+                       startAngle: number; endAngle: number; ccw: boolean }       // DEGREES
+  | { kind: 'ellipse'; cx: number; cy: number; majorX: number; majorY: number;
+                       ratio: number; startAngle: number; endAngle: number; ccw: boolean } // DEGREES
+  | { kind: 'spline';  degree: number; closed: boolean;
+                       controlPoints: Array<{ x: number; y: number }>; knots: number[]; weights?: number[] };
+
+export type HatchLoop =
+  | { kind: 'polyline'; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> }
+  | { kind: 'edges';    edges: HatchEdge[] };
 
 export type DxfLayer = { name: string; color: number; linetype: string; flags: number };
 

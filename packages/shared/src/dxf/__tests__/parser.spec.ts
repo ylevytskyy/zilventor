@@ -32,7 +32,7 @@ describe('parseDxf — LINE & CIRCLE', () => {
   });
 
   it('defaults missing layer to "0" and skips unknown entity types', () => {
-    const dxf = entitiesDxf(['  0', 'HATCH', ' 10', '1.0',
+    const dxf = entitiesDxf(['  0', 'VIEWPORT', ' 10', '1.0',
       '  0', 'LINE', ' 10', '0.0', ' 20', '0.0', ' 11', '1.0', ' 21', '1.0'].join('\n'));
     const r = parseDxf(dxf);
     expect(r.entities).toHaveLength(1);
@@ -441,5 +441,39 @@ describe('parseDxf — RAY & XLINE', () => {
     const e = parseDxf(dxf).entities[0]!;
     expect(e.type).toBe('XLINE');
     if (e.type === 'XLINE') expect([e.x, e.y, e.dx, e.dy]).toEqual([0, 0, 0, 1]);
+  });
+});
+
+describe('parseDxf — HATCH', () => {
+  it('parses a HATCH with a single closed polyline boundary loop (with bulge)', () => {
+    const dxf = entitiesDxf([
+      '  0', 'HATCH', '  8', 'H',
+      ' 91', '1',                              // 1 boundary path
+      ' 92', '3',                              // path type: bit1 (external) + bit2 (polyline) = 3
+      ' 72', '1',                              // has bulge
+      ' 73', '1',                              // is closed
+      ' 93', '3',                              // 3 vertices
+      ' 10', '0', ' 20', '0', ' 42', '0',
+      ' 10', '10', ' 20', '0', ' 42', '0.5',
+      ' 10', '10', ' 20', '10', ' 42', '0',
+      ' 97', '0',                              // 0 source objects (boundary section ends)
+    ].join('\n'));
+    const r = parseDxf(dxf);
+    expect(r.entities).toHaveLength(1);
+    const e = r.entities[0]!;
+    expect(e.type).toBe('HATCH');
+    if (e.type === 'HATCH') {
+      expect(e.layer).toBe('H');
+      expect(e.loops).toHaveLength(1);
+      const loop = e.loops[0]!;
+      expect(loop.kind).toBe('polyline');
+      if (loop.kind === 'polyline') {
+        expect(loop.closed).toBe(true);
+        expect(loop.vertices).toHaveLength(3);
+        expect(loop.vertices[0]).toEqual({ x: 0, y: 0, bulge: 0 });
+        expect(loop.vertices[1]).toEqual({ x: 10, y: 0, bulge: 0.5 });
+        expect(loop.vertices[2]).toEqual({ x: 10, y: 10, bulge: 0 });
+      }
+    }
   });
 });

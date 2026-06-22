@@ -1,5 +1,5 @@
 import { tokenize } from './tokenizer';
-import type { DxfPair, DxfEntity, DxfLayer, ParsedDxf } from './types';
+import type { DxfPair, DxfEntity, DxfLayer, ParsedDxf, HatchLoop, HatchEdge } from './types';
 import { stripMText } from './toSketch';
 
 /** A raw entity record: its type plus a code→values multimap of its attribute pairs. */
@@ -131,6 +131,52 @@ function parseLayers(pairs: DxfPair[]): Record<string, DxfLayer> {
   }
   commit();
   return layers;
+}
+
+/** Parse HATCH boundary loops via a forward cursor over the ordered group-code pairs.
+ * HATCH repeats codes 10/20/40/50/51/72/73 across loops & edges; structure is by order+count,
+ * so the bag helpers (num/nums) cannot parse it. Malformed loop/edge → skip, never throw. */
+function parseHatchLoops(pairs: DxfPair[]): HatchLoop[] {
+  const f = (s: string | undefined): number => { const n = Number.parseFloat(s ?? ''); return Number.isFinite(n) ? n : 0; };
+  let i = pairs.findIndex((p) => p.code === 91);          // boundary-path-count code
+  if (i < 0) return [];
+  const loopCount = Math.trunc(f(pairs[i]!.value));
+  i++;
+  /** If the current pair has `code`, return its value and advance; else return undefined (no advance). */
+  const take = (code: number): string | undefined => {
+    if (i < pairs.length && pairs[i]!.code === code) { const v = pairs[i]!.value; i++; return v; }
+    return undefined;
+  };
+  /** Advance until the current pair has one of `codes` (or end). */
+  const seek = (...codes: number[]): void => { while (i < pairs.length && !codes.includes(pairs[i]!.code)) i++; };
+
+  const loops: HatchLoop[] = [];
+  for (let li = 0; li < loopCount; li++) {
+    seek(92);                                              // each loop begins with path-type flag
+    const pt = take(92);
+    if (pt === undefined) break;                           // ran out of loops
+    const pathType = Math.trunc(f(pt));
+
+    if (pathType & 2) {
+      // ----- POLYLINE path: 72 has-bulge, 73 is-closed, 93 vertex count, then 10/20[/42]* -----
+      const hasBulge = Math.trunc(f(take(72))) === 1;
+      const closed = Math.trunc(f(take(73))) === 1;
+      const vcount = Math.trunc(f(take(93)));
+      const vertices: Array<{ x: number; y: number; bulge: number }> = [];
+      for (let v = 0; v < vcount; v++) {
+        const xs = take(10); if (xs === undefined) break;
+        const x = f(xs);
+        const y = f(take(20));
+        const bulge = hasBulge ? f(take(42)) : 0;
+        vertices.push({ x, y, bulge });
+      }
+      loops.push({ kind: 'polyline', closed, vertices });
+    } else {
+      // ----- EDGE list: stub for Task 2 -----
+      loops.push({ kind: 'edges', edges: [] });
+    }
+  }
+  return loops;
 }
 
 function readEntity(raw: RawEntity): DxfEntity | null {
@@ -269,6 +315,10 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       return { type: 'XLINE', layer,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         dx: num(raw.pairs, 11), dy: num(raw.pairs, 21) };
+    case 'HATCH': {
+      const ex = extrusion(raw.pairs);
+      return { type: 'HATCH', layer, loops: parseHatchLoops(raw.pairs), ...(ex ? { extrusion: ex } : {}) };
+    }
     default:
       return null;
   }
