@@ -213,6 +213,20 @@ describe('toSketch Phase 4b coverage', () => {
   });
 });
 
+describe('toSketch POINT OCS (4c)', () => {
+  it('mirrors a POINT under extrusion (0,0,-1)', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','POINT','  8','0',' 10','5',' 20','7','210','0','220','0','230','-1',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const p = toSketch(parseDxf(dxf)).primitives[0]!;
+    expect(p.kind).toBe('point');
+    if (p.kind === 'point') {
+      expect(p.x).toBeCloseTo(-5, 9);
+      expect(p.y).toBeCloseTo(7, 9);
+    } else throw new Error('expected point');
+  });
+});
+
 describe('toSketch Phase 4b layer→construction', () => {
   it('marks entities on DEFPOINTS / frozen layers as construction', () => {
     const tables = ['  0','SECTION','  2','TABLES','  0','TABLE','  2','LAYER',

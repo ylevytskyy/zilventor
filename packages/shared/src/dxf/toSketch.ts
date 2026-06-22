@@ -453,10 +453,10 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       return { id: freshId(), kind: 'spline',
         controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed, ...cons };
     }
-    case 'POINT':
-      // 4b LIMITATION (deferred to 4c): POINT OCS extrusion (group 210/220/230) is ignored;
-      // the point lands at raw OCS x/y rather than the correct WCS XY.
-      return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s, ...cons };
+    case 'POINT': {
+      const wp = ocsXY(e.extrusion, e.x, e.y);
+      return { id: freshId(), kind: 'point', x: wp.x * s, y: wp.y * s, ...cons };
+    }
     case 'TEXT': return null; // handled before mapEntity in toSketch loop
     case 'MTEXT': return null; // handled before mapEntity in toSketch loop
     case 'INSERT': drop('INSERT', 'INSERT reached mapEntity — should be handled by expandInsert'); return null;
