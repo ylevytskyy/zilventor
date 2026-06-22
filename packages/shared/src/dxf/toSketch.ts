@@ -45,6 +45,16 @@ function ocsReflected(ext: V3 | undefined): boolean {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
+function formatMeasurement(v: number): string {
+  // MVP formatting: 3-decimal, trailing zeros (and a bare trailing dot) trimmed.
+  // No unit suffix and no dimstyle precision/tolerances (out of scope).
+  return v.toFixed(3).replace(/\.?0+$/, '');
+}
+
+// MVP default text height (drawing units) for the no-block DIMENSION fallback; DIMENSION
+// carries no reliable text-height group code (dimstyle is out of scope this slice).
+const DIM_FALLBACK_TEXT_HEIGHT = 2.5;
+
 const INSUNITS_FACTOR: Record<string, number> = { '1': 25.4, '2': 304.8, '4': 1, '5': 10, '6': 1000 };
 function unitFactor(header: Record<string, string>): number {
   return INSUNITS_FACTOR[header['$INSUNITS'] ?? ''] ?? 1;
@@ -397,6 +407,37 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     }
     if (e.type === 'LEADER') {
       primitives.push(...expandLeader(e, s, drop));
+      continue;
+    }
+    if (e.type === 'DIMENSION') {
+      const body = e.block ? parsed.blocks[e.block] : undefined;
+      if (e.block && body) {
+        // Full fidelity: synthesize an identity INSERT and reuse expandInsert for the
+        // drawn geometry (extension/dimension lines, arc dims, SOLID arrowheads).
+        const synth: Extract<DxfEntity, { type: 'INSERT' }> = {
+          type: 'INSERT', layer: e.layer, name: e.block,
+          x: 0, y: 0, xscale: 1, yscale: 1, rotation: 0,
+          columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0,
+        };
+        primitives.push(...expandInsert(synth, parsed, s, 0, drop));
+        // expandInsert is geometry-only and drops block text. Scan the block body for
+        // TEXT/MTEXT and emit annotations under the same identity transform (subtract the
+        // block base point, then apply the document unit scale).
+        const base = parsed.blockBasePoints[e.block] ?? { x: 0, y: 0 };
+        for (const be of body) {
+          if (be.type === 'TEXT' || be.type === 'MTEXT') {
+            const value = be.type === 'MTEXT' ? stripMText(be.value) : be.value;
+            annotations.push({ id: freshId(), x: (be.x - base.x) * s, y: (be.y - base.y) * s,
+              height: be.height * s, value, rotation: (be.rotation * Math.PI) / 180 });
+          }
+        }
+      } else {
+        // Fallback (block absent/unresolvable): one annotation at the text midpoint.
+        const override = e.textOverride.trim();
+        const value = override && override !== '<>' ? override : formatMeasurement(e.measurement);
+        annotations.push({ id: freshId(), x: e.textMidX * s, y: e.textMidY * s,
+          height: DIM_FALLBACK_TEXT_HEIGHT * s, value, rotation: 0 });
+      }
       continue;
     }
     const construction = isConstructionLayer(parsed.layers, e.layer);

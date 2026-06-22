@@ -561,3 +561,48 @@ describe('toSketch — expandInsert flattens SOLID in block body', () => {
     expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
   });
 });
+
+describe('toSketch — DIMENSION', () => {
+  it('full fidelity: flattens block geometry + arrowhead and emits the block MTEXT', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'DIMENSION', layer: 'DIMENSIONS', block: '*D1',
+        textOverride: '<>', measurement: 100, textMidX: 5, textMidY: 1 }],
+      blocks: {
+        '*D1': [
+          { type: 'LINE', layer: '0', x1: 0, y1: 0, x2: 10, y2: 0 },
+          { type: 'SOLID', layer: '0', corners: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }] },
+          { type: 'MTEXT', layer: '0', x: 5, y: 1, height: 2.5, value: '100', rotation: 0 },
+        ],
+      },
+      header: {}, layers: {}, blockBasePoints: { '*D1': { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    // 1 dimension line + 4 arrowhead-loop lines = 5 primitives
+    expect(r.primitives.filter((p) => p.kind === 'line')).toHaveLength(5);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.value).toBe('100');
+    expect([r.annotations[0]!.x, r.annotations[0]!.y]).toEqual([5, 1]);
+  });
+
+  it('fallback: no block → single annotation with formatted measurement at text mid', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'DIMENSION', layer: '0',
+        textOverride: '<>', measurement: 123.5, textMidX: 7, textMidY: 8 }],
+      blocks: {}, header: {}, layers: {}, blockBasePoints: {},
+    };
+    const r = toSketch(parsed);
+    expect(r.primitives).toHaveLength(0);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.value).toBe('123.5');
+    expect([r.annotations[0]!.x, r.annotations[0]!.y]).toEqual([7, 8]);
+  });
+
+  it('fallback: non-empty override wins over measurement', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'DIMENSION', layer: '0',
+        textOverride: 'TYP.', measurement: 50, textMidX: 0, textMidY: 0 }],
+      blocks: {}, header: {}, layers: {}, blockBasePoints: {},
+    };
+    expect(toSketch(parsed).annotations[0]!.value).toBe('TYP.');
+  });
+});
