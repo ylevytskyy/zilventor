@@ -606,3 +606,24 @@ describe('toSketch — DIMENSION', () => {
     expect(toSketch(parsed).annotations[0]!.value).toBe('TYP.');
   });
 });
+
+describe('toSketch — MLEADER', () => {
+  it('maps one leader line + embedded mtext', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'MLEADER', '  8', '0',
+      '300', 'CONTEXT_DATA{', '290', '1', '304', 'Hi', ' 12', '9', ' 22', '9', ' 41', '2', ' 42', '0',
+      '302', 'LEADER{', '304', 'LEADER_LINE{', ' 10', '0', ' 20', '0', ' 10', '4', ' 20', '4',
+      '305', '}', '303', '}', '301', '}'].join('\n'))));
+    expect(r.primitives).toHaveLength(1);
+    expect(r.primitives[0]!.kind === 'line' && r.primitives[0]!.construction === true).toBe(true);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.value).toBe('Hi');
+  });
+
+  it('drops an empty MLEADER without crashing', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'MLEADER', '  8', '0',
+      '300', 'CONTEXT_DATA{', '290', '0', '301', '}'].join('\n'))));
+    expect(r.primitives).toHaveLength(0);
+    expect(r.annotations).toHaveLength(0);
+    expect(r.dropped.some((d) => d.kind === 'MLEADER')).toBe(true);
+  });
+});

@@ -440,6 +440,21 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       }
       continue;
     }
+    if (e.type === 'MLEADER') {
+      if (e.leaderLines.length === 0 && !e.text) { drop('MLEADER', 'no usable leader lines or text'); continue; }
+      for (const line of e.leaderLines) {
+        for (let i = 0; i < line.length - 1; i++) {
+          const a = line[i]!;
+          const b = line[i + 1]!;
+          primitives.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
+        }
+      }
+      if (e.text) {
+        annotations.push({ id: freshId(), x: e.text.x * s, y: e.text.y * s,
+          height: e.text.height * s, value: e.text.value, rotation: (e.text.rotation * Math.PI) / 180 });
+      }
+      continue;
+    }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
