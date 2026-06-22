@@ -251,9 +251,15 @@ function buildCurveFromEllipse(
     return { id: freshId(), kind: 'circle', cx: e.cx, cy: e.cy, r: e.rx, ...cons };
   }
   const base = { id: freshId(), kind: 'ellipse' as const, cx: e.cx, cy: e.cy, rx: e.rx, ry: e.ry, rotation: e.rotation };
-  return hadAngles
-    ? { ...base, startAngle: e.startAngle!, endAngle: e.endAngle!, ...cons }
-    : { ...base, ...cons };
+  if (hadAngles) {
+    const sa = e.startAngle!;
+    let ea = e.endAngle!;
+    // atan2 in mapParam wraps to (-π,π]; restore CCW ordering so ea ≥ sa (mod 2π).
+    // These are principal-frame params; rotation is applied separately by the consumer.
+    while (ea < sa) ea += 2 * Math.PI;
+    return { ...base, startAngle: sa, endAngle: ea, ...cons };
+  }
+  return { ...base, ...cons };
 }
 
 /**
@@ -465,8 +471,12 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       const full = isFullEllipse(e.startParam, e.endParam);
       // Known 4a limitation: trimmed ellipse under reflected OCS keeps raw start/end params.
       // Full ellipses (the common case) and all circles/arcs are correct. Revisited in 4c.
+      // Branch-cut fix: restore CCW ordering so endParam ≥ startParam (mod 2π), matching the
+      // arc producer convention. These are principal-frame params; rotation is applied separately.
+      let endParam = e.endParam;
+      while (endParam < e.startParam) endParam += 2 * Math.PI;
       return { id: freshId(), kind: 'ellipse', cx: c.x * s, cy: c.y * s, rx, ry, rotation,
-        ...(full ? {} : { startAngle: e.startParam, endAngle: e.endParam }), ...cons };
+        ...(full ? {} : { startAngle: e.startParam, endAngle: endParam }), ...cons };
     }
     case 'SPLINE': {
       const poles = e.controlPoints.length ? e.controlPoints : e.fitPoints;

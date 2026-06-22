@@ -377,6 +377,61 @@ describe('toSketch INSERT flatten', () => {
   });
 });
 
+describe('ellipse branch-cut normalization', () => {
+  // (a) Plain trimmed ELLIPSE whose CCW arc crosses the 2π param seam.
+  //   center (0,0), major endpoint (4,0) ⇒ rx=4, rotation=0; ratio 0.5 ⇒ ry=2.
+  //   startParam=5.5 (≈315°), endParam=0.5 (≈29°). The CORRECT CCW (increasing-param)
+  //   short arc sweeps 5.5 → 0.5+2π = 6.783, i.e. span 1.283 rad (< π) across the 2π seam.
+  //   mapEntity emits raw start/end ⇒ endAngle(0.5) < startAngle(5.5) today (BUG).
+  //   Post-fix invariant: endAngle ≥ startAngle (and the arc is the short one, span < π).
+  it('plain trimmed ELLIPSE crossing 2π seam has endAngle ≥ startAngle', () => {
+    const r = toSketch(parseDxf(ents(
+      ['  0','ELLIPSE','  8','0',' 10','0',' 20','0',' 11','4',' 21','0',' 40','0.5',' 41','5.5',' 42','0.5'].join('\n'),
+    )));
+    const p = r.primitives[0]!;
+    if (p.kind !== 'ellipse') throw new Error('expected ellipse');
+    expect(p.startAngle).toBeDefined();
+    expect(p.endAngle).toBeDefined();
+    // desired post-fix invariant — FAILS today (endAngle 0.5 < startAngle 5.5)
+    expect(p.endAngle!).toBeGreaterThanOrEqual(p.startAngle!);
+    // and it must remain the SHORT arc (≈1.283 rad), not the complementary one
+    expect(p.endAngle! - p.startAngle!).toBeLessThan(Math.PI);
+  });
+
+  // (b) Same kind of trimmed ellipse under an INSERT, so it flows through
+  //   transformPrimitive → transformEllipse(mapParam, atan2-based) → buildCurveFromEllipse
+  //   non-isotropic branch (which omits the arc branch's CCW while-loop).
+  //   Axis-aligned ellipse (rx=4, ry=2, rotation 0), startParam=2.5 (≈143°), endParam=3.8 (≈218°).
+  //   The CCW short arc 2.5→3.8 (span 1.3 rad < π) straddles the +π atan2 seam.
+  //   Under a unit-scale, unrotated INSERT, mapParam returns the param wrapped to (-π,π]:
+  //     mapParam(2.5)=2.5,  mapParam(3.8)=3.8−2π≈−2.483.
+  //   ⇒ startAngle 2.5, endAngle −2.483 ⇒ endAngle < startAngle today (BUG).
+  it('trimmed ELLIPSE under INSERT crossing π seam has endAngle ≥ startAngle', () => {
+    const blocks = [
+      '  0','SECTION','  2','BLOCKS',
+      '  0','BLOCK','  8','0','  2','ELB',' 70','0',' 10','0',' 20','0','  3','ELB',
+      // ELLIPSE: center (0,0), major endpoint (4,0), ratio 0.5, startParam 2.5, endParam 3.8
+      '  0','ELLIPSE','  8','0',' 10','0',' 20','0',' 11','4',' 21','0',' 40','0.5',' 41','2.5',' 42','3.8',
+      '  0','ENDBLK','  0','ENDSEC',
+    ].join('\n');
+    const entities = [
+      '  0','SECTION','  2','ENTITIES',
+      // INSERT: pos=(0,0), xscale=1, yscale=1, rotation=0
+      '  0','INSERT','  2','ELB',' 10','0',' 20','0',' 41','1',' 42','1',' 50','0',
+      '  0','ENDSEC','  0','EOF',
+    ].join('\n');
+    const r = toSketch(parseDxf([blocks, entities].join('\n')));
+    const p = r.primitives.find((q) => q.kind === 'ellipse');
+    if (!p || p.kind !== 'ellipse') throw new Error('expected ellipse');
+    expect(p.startAngle).toBeDefined();
+    expect(p.endAngle).toBeDefined();
+    // desired post-fix invariant — FAILS today (endAngle ≈ −2.483 < startAngle 2.5)
+    expect(p.endAngle!).toBeGreaterThanOrEqual(p.startAngle!);
+    // and it must remain the SHORT arc (≈1.3 rad), not the complementary one
+    expect(p.endAngle! - p.startAngle!).toBeLessThan(Math.PI);
+  });
+});
+
 describe('toSketch INSERT arc-angle under rotated INSERT (4c)', () => {
   it('rotates arc start/end angles under a 90° rotated INSERT', () => {
     const blocks = [
