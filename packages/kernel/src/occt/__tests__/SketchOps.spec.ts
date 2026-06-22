@@ -169,6 +169,44 @@ describe('SketchOps.makeEllipseEdge', () => {
   });
 });
 
+describe('makeEllipseEdge — branch-cut / end>2π', () => {
+  // WHY THIS MATTERS: the DXF→sketch producer (toSketch.ts) normalizes trimmed
+  // ellipse params so the end parameter is always >= start and the arc is taken
+  // CCW, which means endAngle can legitimately exceed 2π (here 6.7 > 2π ≈ 6.283).
+  // makeEllipseEdge passes these straight into BRepBuilderAPI_MakeEdge_13. This
+  // test locks that OCCT bakes such an over-2π trim as the SHORT CCW arc that
+  // wraps across the param-0 (+x) seam — NOT the complementary long arc. If OCCT
+  // ever rejected end>2π, or if someone "fixed" the producer to wrap endAngle
+  // back under 2π (producing endAngle < startAngle), this short-arc geometry
+  // would silently flip to the long arc and the DXF import would be wrong.
+  it('bakes a trimmed ellipse with endAngle > 2π as the correct short CCW arc across the seam', () => {
+    // rx=10, ry=5, start=5.5, end=6.7 (>2π): short CCW arc straddling angle 0.
+    const e = makeEllipseEdge(occt, {
+      cx: 0, cy: 0, rx: 10, ry: 5, rotation: 0, startAngle: 5.5, endAngle: 6.7,
+    });
+    // Make succeeded → a valid edge was returned (MakeEdge_13 IsDone()).
+    expect(e.edge).toBeDefined();
+
+    const tds = occt.TopoDS.Edge_1(e.edge as never);
+    const adaptor = new occt.BRepAdaptor_Curve_2(tds);
+    const u0 = adaptor.FirstParameter();
+    const u1 = adaptor.LastParameter();
+    const pnt = new occt.gp_Pnt_1();
+    adaptor.D0((u0 + u1) / 2, pnt);
+    const mx = pnt.X();
+    const my = pnt.Y();
+    pnt.delete();
+    adaptor.delete();
+
+    // Short arc near the +x seam: midpoint ≈ (10·cos6.1, 5·sin6.1) ≈ (9.83, -0.91).
+    // The complementary LONG arc's midpoint would sit at large negative x.
+    expect(mx).toBeGreaterThan(5);   // near +x seam, NOT the long arc (negative x)
+    expect(Math.abs(my)).toBeLessThan(2);
+
+    disposeEdge(e);
+  });
+});
+
 describe('SketchOps.makeSplineEdge degree-n', () => {
   it('accepts degree > 3 (degree-5 spline from 6 control points)', () => {
     const pts = [
