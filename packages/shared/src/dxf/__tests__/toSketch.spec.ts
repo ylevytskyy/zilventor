@@ -1,8 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../parser';
 import { toSketch } from '../toSketch';
-import { transformEllipse, transformPrimitive } from '../toSketch';
+import { transformEllipse, transformPrimitive, ellipseAxes } from '../toSketch';
 import type { ParsedDxf } from '../types';
+
+describe('ellipseAxes', () => {
+  it('ellipseAxes computes rx/ry/rotation from a mapped major endpoint', () => {
+    // major endpoint (3,4) → length 5; ratio 0.5 → ry 2.5; rotation atan2(4,3); unit scale 2 → rx 10, ry 5
+    const { rx, ry, rotation } = ellipseAxes(3, 4, 0.5, 2);
+    expect(rx).toBeCloseTo(10, 9);
+    expect(ry).toBeCloseTo(5, 9);
+    expect(rotation).toBeCloseTo(Math.atan2(4, 3), 9);
+  });
+});
 
 describe('transformEllipse', () => {
   // Pure 90° CCW rotation about origin: M = [[0,-1,0],[1,0,0]] (a=0,b=1,c=-1,d=0,e=0,f=0)

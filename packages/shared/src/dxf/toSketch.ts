@@ -72,6 +72,13 @@ function isFullEllipse(start: number, end: number): boolean {
   return Math.abs(start) < 1e-9 && Math.abs(end - TAU) < 1e-9;
 }
 
+/** Major-axis endpoint (OCS-mapped, relative to center) + ratio → sketch ellipse rx/ry/rotation.
+ * Shared by the standalone ELLIPSE path and the HATCH ellipse-edge path. */
+export function ellipseAxes(majX: number, majY: number, ratio: number, s: number): { rx: number; ry: number; rotation: number } {
+  const rx = Math.hypot(majX, majY) * s;
+  return { rx, ry: rx * ratio, rotation: Math.atan2(majY, majX) };
+}
+
 // ── Affine-transform helpers for INSERT flattening ──────────────────────────
 // Column-major 2D affine matrix: [[a c e],[b d f]]
 type Affine = { a: number; b: number; c: number; d: number; e: number; f: number };
@@ -669,9 +676,7 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       const c = ocsXY(e.extrusion, e.cx, e.cy);
       // Transform major-axis direction vector (linear part only; center maps separately).
       const maj = ocsXY(e.extrusion, e.majorX, e.majorY);
-      const rx = Math.hypot(maj.x, maj.y) * s;
-      const ry = rx * e.ratio;
-      const rotation = Math.atan2(maj.y, maj.x);
+      const { rx, ry, rotation } = ellipseAxes(maj.x, maj.y, e.ratio, s);
       const full = isFullEllipse(e.startParam, e.endParam);
       // Known 4a limitation: trimmed ellipse under reflected OCS keeps raw start/end params.
       // Full ellipses (the common case) and all circles/arcs are correct. Revisited in 4c.
