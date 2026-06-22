@@ -1,8 +1,18 @@
 import type { ParsedDxf, DxfEntity, DxfLayer } from './types';
-import type { SketchPrimitive } from '../types';
+import type { SketchPrimitive, TextAnnotation } from '../types';
 
 export type DxfDropped = { kind: string; count: number; reason: string };
-export type ToSketchResult = { primitives: SketchPrimitive[]; annotations: never[]; dropped: DxfDropped[] };
+export type ToSketchResult = { primitives: SketchPrimitive[]; annotations: TextAnnotation[]; dropped: DxfDropped[] };
+
+/** Strip MTEXT inline formatting: \P→newline, \f.../\F... font, \A\C\c\H\W\Q\T\p control words, braces. */
+function stripMText(raw: string): string {
+  return raw
+    .replace(/\\P/g, '\n')
+    .replace(/\\[fF][^;]*;/g, '')
+    .replace(/\\[ACcHWQTp][^;\\{}]*;?/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/\\(.)/g, '$1');
+}
 
 function freshId(): string { return `dxf-${crypto.randomUUID().slice(0, 8)}`; }
 
@@ -176,6 +186,7 @@ function expandInsert(
 export function toSketch(parsed: ParsedDxf): ToSketchResult {
   const s = unitFactor(parsed.header);
   const primitives: SketchPrimitive[] = [];
+  const annotations: TextAnnotation[] = [];
   const droppedMap = new Map<string, DxfDropped>();
   const drop = (kind: string, reason: string): void => {
     const cur = droppedMap.get(kind);
@@ -188,6 +199,11 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       primitives.push(...expandInsert(e, parsed, s, 0, drop));
       continue;
     }
+    if (e.type === 'TEXT' || e.type === 'MTEXT') {
+      const value = e.type === 'MTEXT' ? stripMText(e.value) : e.value;
+      annotations.push({ id: freshId(), x: e.x * s, y: e.y * s, height: e.height * s, value, rotation: (e.rotation * Math.PI) / 180 });
+      continue;
+    }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
@@ -196,7 +212,7 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     const prim = mapEntity(e, s, drop, construction);
     if (prim) primitives.push(prim);
   }
-  return { primitives, annotations: [], dropped: [...droppedMap.values()] };
+  return { primitives, annotations, dropped: [...droppedMap.values()] };
 }
 
 function expandPolyline(
@@ -282,8 +298,8 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
     }
     case 'POINT':
       return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s, ...cons };
-    case 'TEXT': drop('TEXT', 'text annotation model is Phase 4b'); return null;
-    case 'MTEXT': drop('MTEXT', 'text annotation model is Phase 4b'); return null;
+    case 'TEXT': return null; // handled before mapEntity in toSketch loop
+    case 'MTEXT': return null; // handled before mapEntity in toSketch loop
     case 'INSERT': drop('INSERT', 'INSERT reached mapEntity — should be handled by expandInsert'); return null;
     default: drop((e as { type: string }).type, 'unsupported in Phase 4a'); return null;
   }

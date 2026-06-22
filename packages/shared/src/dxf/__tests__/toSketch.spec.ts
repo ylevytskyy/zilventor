@@ -256,3 +256,19 @@ describe('toSketch INSERT flatten', () => {
     expect(xs).toEqual([0, 20]); // second copy offset by colSpacing
   });
 });
+
+describe('toSketch TEXT/MTEXT → annotations', () => {
+  it('maps TEXT to a text annotation (deg→rad rotation, unit-scaled)', () => {
+    const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','4','  0','ENDSEC'].join('\n');
+    const r = toSketch(parseDxf(ents(['  0','TEXT','  8','0',' 10','1',' 20','2',' 40','5',' 1','HELLO',' 50','90'].join('\n'), header)));
+    expect(r.primitives).toHaveLength(0);
+    expect(r.annotations).toHaveLength(1);
+    const a = r.annotations[0]!;
+    expect([a.x, a.y, a.height, a.value]).toEqual([1, 2, 5, 'HELLO']);
+    expect(a.rotation).toBeCloseTo(Math.PI / 2, 9);
+  });
+  it('strips MTEXT inline formatting codes', () => {
+    const r = toSketch(parseDxf(ents(['  0','MTEXT','  8','0',' 10','0',' 20','0',' 40','2',' 1','{\\fArial|b0;Line1}\\PLine2',' 50','0'].join('\n'))));
+    expect(r.annotations[0]!.value).toBe('Line1\nLine2');
+  });
+});
