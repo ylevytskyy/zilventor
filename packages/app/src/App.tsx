@@ -418,6 +418,20 @@ export default function App() {
     }, 3000);
   }, []);
 
+  const handleImportDxfIntoSketch = useCallback(async (file: File) => {
+    const { kernel, bus, activeSketchId, setStatus, setActivePart } = useAppStore.getState();
+    if (!kernel || !activeSketchId) return;
+    const { ImportDxfIntoActiveSketchCommand } = await import('./commands/ImportDxfIntoActiveSketchCommand');
+    await bus.execute(new ImportDxfIntoActiveSketchCommand({
+      kernel,
+      sketcherClient: sketcherClientRef.current ?? undefined,
+      store: { getActivePart: () => useAppStore.getState().activePart, setActivePart },
+      sketchId: activeSketchId,
+      setStatus,
+      file,
+    }));
+  }, []);
+
   // Per-slice subscriptions (avoid subscribing to the full store).
   const activeDocKind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
   const activePart = useAppStore((s) => s.activePart);
@@ -1233,6 +1247,23 @@ export default function App() {
           await bus.execute(new ImportDxfIntoNewPartCommand({
             kernel,
             store: { getActivePart: () => useAppStore.getState().activePart, setActivePart },
+            setStatus,
+            file,
+          }));
+        };
+
+      // DXF import into active sketch hook — used by the §6 e2e to exercise the real import path.
+      (w as unknown as { __zilventorImportDxfActiveSketch: (f: File) => Promise<void> }).__zilventorImportDxfActiveSketch =
+        async (file: File): Promise<void> => {
+          const { kernel, bus, activeSketchId, setStatus, setActivePart } = useAppStore.getState();
+          if (!kernel) throw new Error('__zilventorImportDxfActiveSketch: kernel not ready');
+          if (!activeSketchId) throw new Error('__zilventorImportDxfActiveSketch: no active sketch');
+          const { ImportDxfIntoActiveSketchCommand } = await import('./commands/ImportDxfIntoActiveSketchCommand');
+          await bus.execute(new ImportDxfIntoActiveSketchCommand({
+            kernel,
+            sketcherClient: sketcherClientRef.current ?? undefined,
+            store: { getActivePart: () => useAppStore.getState().activePart, setActivePart },
+            sketchId: activeSketchId,
             setStatus,
             file,
           }));
@@ -5406,7 +5437,7 @@ export default function App() {
           <div className="ml-auto px-3"><LanguageSwitcher /></div>
         </header>
         <div role="navigation" aria-label={t('aria.ribbon')} className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-          <Ribbon partInfo={partInfoSnapshot} />
+          <Ribbon partInfo={partInfoSnapshot} onImportDxfIntoSketch={handleImportDxfIntoSketch} />
         </div>
         <aside role="complementary" aria-label={t('aria.browser')} className="bg-shell-panel border-r border-shell-border" id="region-browser">
           {activeDocKind === 'drawing'

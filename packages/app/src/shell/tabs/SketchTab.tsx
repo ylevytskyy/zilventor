@@ -16,7 +16,11 @@ const BUTTONS: PrimitiveBtn[] = [
   { kind: 'spline', labelKey: 'ribbon.sketch.spline', shortcut: 'S' },
 ];
 
-export default function SketchTab() {
+interface SketchTabProps {
+  onImportDxfIntoSketch?: ((file: File) => Promise<void>) | undefined;
+}
+
+export default function SketchTab(props: SketchTabProps) {
   const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const sketchMode = useAppStore((s) => s.sketchMode);
@@ -51,12 +55,16 @@ export default function SketchTab() {
   const handleImportDxfIntoSketch = async () => {
     const file = await pickFile([{ description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } }]);
     if (!file) return;
+    if (props.onImportDxfIntoSketch) {
+      await props.onImportDxfIntoSketch(file);
+      return;
+    }
     const store = useAppStore.getState();
     if (!store.kernel || !store.activeSketchId) return;
     const { ImportDxfIntoActiveSketchCommand } = await import('../../commands/ImportDxfIntoActiveSketchCommand');
     await store.bus.execute(new ImportDxfIntoActiveSketchCommand({
       kernel: store.kernel,
-      store: { getActivePart: () => useAppStore.getState().activePart },
+      store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
       sketchId: store.activeSketchId,
       setStatus: store.setStatus,
       file,

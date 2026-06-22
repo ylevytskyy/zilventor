@@ -12,15 +12,18 @@ function fakeFile(text: string): File { return { name: 'x.dxf', text: async () =
 function harness() {
   const kernelAdds: string[] = []; const kernelRemoves: string[] = [];
   const sketcherAdds: string[] = []; const sketcherRemoves: string[] = [];
+  const setParts: unknown[] = [];
   const kernel = {
     addPrimitive: async (_p: string, _s: string, prim: { id: string }) => { kernelAdds.push(prim.id); },
     removePrimitive: async (_p: string, _s: string, id: string) => { kernelRemoves.push(id); },
+    getPart: async (_p: string) => ({ id: 'part1' } as never),
   };
   const sketcherClient = {
     addPrimitive: async (prim: { id: string }) => { sketcherAdds.push(prim.id); },
     removePrimitive: async (id: string) => { sketcherRemoves.push(id); },
   };
-  return { kernelAdds, kernelRemoves, sketcherAdds, sketcherRemoves, kernel, sketcherClient };
+  const store = { getActivePart: () => ({ id: 'part1' } as never), setActivePart: (p: unknown) => { setParts.push(p); } };
+  return { kernelAdds, kernelRemoves, sketcherAdds, sketcherRemoves, setParts, kernel, sketcherClient, store };
 }
 
 describe('ImportDxfIntoActiveSketchCommand', () => {
@@ -28,12 +31,13 @@ describe('ImportDxfIntoActiveSketchCommand', () => {
     const h = harness();
     const cmd = new ImportDxfIntoActiveSketchCommand({
       kernel: h.kernel as never, sketcherClient: h.sketcherClient as never,
-      store: { getActivePart: () => ({ id: 'part1' } as never) },
+      store: h.store,
       sketchId: 'sk1', file: fakeFile(DXF),
     });
     await cmd.apply();
     expect(h.kernelAdds).toHaveLength(2);
     expect(h.sketcherAdds).toEqual(h.kernelAdds);
+    expect(h.setParts).toHaveLength(1); // setActivePart called once after apply
     await cmd.revert();
     expect(h.kernelRemoves.sort()).toEqual([...h.kernelAdds].sort());
     expect(h.sketcherRemoves.sort()).toEqual([...h.sketcherAdds].sort());
@@ -47,7 +51,7 @@ describe('ImportDxfIntoActiveSketchCommand', () => {
     };
     const cmd = new ImportDxfIntoActiveSketchCommand({
       kernel: h.kernel as never, sketcherClient: h.sketcherClient as never,
-      store: { getActivePart: () => ({ id: 'part1' } as never) },
+      store: h.store,
       sketchId: 'sk1', file: fakeFile(DXF),
     });
     await expect(cmd.apply()).rejects.toThrow('boom');

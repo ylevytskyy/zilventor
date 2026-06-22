@@ -2,16 +2,17 @@ import { parseDxf, toSketch } from '@zilventor/shared';
 import type { PartDocument, SketchPrimitive } from '@zilventor/shared';
 import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { Command } from './Command';
+import i18n from '../i18n';
 
 type SketcherClient = {
-  addPrimitive: (p: SketchPrimitive) => Promise<void>;
-  removePrimitive: (id: string) => Promise<void>;
+  addPrimitive: (p: SketchPrimitive) => Promise<unknown>;
+  removePrimitive: (id: string) => Promise<unknown>;
 };
 
 type Ctx = {
-  kernel: Pick<KernelApi, 'addPrimitive' | 'removePrimitive'>;
-  sketcherClient?: SketcherClient;
-  store: { getActivePart: () => PartDocument | null };
+  kernel: Pick<KernelApi, 'addPrimitive' | 'removePrimitive' | 'getPart'>;
+  sketcherClient?: SketcherClient | undefined;
+  store: { getActivePart: () => PartDocument | null; setActivePart: (p: PartDocument | null) => void };
   sketchId: string;
   setStatus?: (msg: string) => void;
   file: File;
@@ -41,8 +42,12 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
       await this.revert();
       throw err;
     }
+    // Sync the updated PartDocument from the kernel into the store so that
+    // subscribers (featureTree, sketcher primitives list) see the new entries.
+    const updated = await this.ctx.kernel.getPart(this.partId);
+    this.ctx.store.setActivePart(updated);
     const skipped = dropped.reduce((a, d) => a + d.count, 0);
-    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, skipped ${skipped} entities`);
+    this.ctx.setStatus?.(i18n.t('status.dxfImport.done', { imported: primitives.length, skipped }));
   }
 
   async revert(): Promise<void> {

@@ -3,6 +3,7 @@ import type { PartDocument } from '@zilventor/shared';
 import type { KernelApi } from '@zilventor/kernel/src/api';
 import type { Command } from './Command';
 import { buildSketchPartDocument } from '../import/buildSketchPartDocument';
+import i18n from '../i18n';
 
 type Ctx = {
   kernel: Pick<KernelApi, 'registerPart'>;
@@ -29,7 +30,7 @@ export class ImportDxfIntoNewPartCommand implements Command {
     await this.ctx.kernel.registerPart(part);
     this.ctx.store.setActivePart(part);
     const skipped = dropped.reduce((a, d) => a + d.count, 0);
-    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, skipped ${skipped} entities`);
+    this.ctx.setStatus?.(i18n.t('status.dxfImport.done', { imported: primitives.length, skipped }));
   }
 
   async revert(): Promise<void> {

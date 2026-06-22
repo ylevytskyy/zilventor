@@ -72,3 +72,45 @@ test('DXF import into a new part creates a sketch with the imported primitives',
   expect(count).toBe(2);          // line + circle
   expect(errors).toEqual([]);
 });
+
+test('DXF import into active sketch adds primitives to the open sketch', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const errors: string[] = [];
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  // Enter sketch mode (labels confirmed from enter-sketch-mode.spec.ts)
+  await page.getByRole('tab', { name: 'Model' }).click();
+  await page.getByRole('button', { name: 'New Part' }).click();
+  await page.getByRole('tab', { name: 'Sketch' }).click();
+  await page.getByRole('button', { name: '2D Sketch' }).click();
+
+  // Wait for activeSketchId to be populated in the store
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __zilventorStore?: { getState(): { activeSketchId: string | null } } };
+    return !!w.__zilventorStore?.getState().activeSketchId;
+  });
+
+  // Drive ImportDxfIntoActiveSketchCommand through the DEV hook and read back primitive count
+  const primitiveCount = await page.evaluate(async (dxfText: string) => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { activeSketchId: string | null; activePart?: { featureTree: Array<{ kind: string; id: string; primitives?: unknown[] }> } } };
+      __zilventorImportDxfActiveSketch: (f: File) => Promise<void>;
+    };
+    const file = new File([dxfText], 'test.dxf', { type: 'image/vnd.dxf' });
+    await w.__zilventorImportDxfActiveSketch(file);
+    const state = w.__zilventorStore.getState();
+    const activeSketchId = state.activeSketchId;
+    const sketch = state.activePart?.featureTree?.find(
+      (f) => f.kind === 'sketch' && f.id === activeSketchId,
+    );
+    return sketch?.primitives?.length ?? -1;
+  }, DXF_FIXTURE);
+
+  expect(primitiveCount).toBe(2);  // line + circle
+  expect(errors).toEqual([]);
+});

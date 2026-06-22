@@ -312,7 +312,10 @@ export default function FileTab() {
     const file = await pickFile([{ description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } }]);
     if (!file) return;
     if (file.size > DXF_MAX_BYTES) {
-      setErrorDialog(`DXF file is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum supported size is ${(DXF_MAX_BYTES / 1024 / 1024).toFixed(0)} MB.`);
+      setErrorDialog(t('status.dxfFileTooLarge', {
+        sizeMb: (file.size / 1024 / 1024).toFixed(1),
+        maxMb: (DXF_MAX_BYTES / 1024 / 1024).toFixed(0),
+      }));
       return;
     }
     const { kernel, bus, setActivePart, setStatus } = useAppStore.getState();
