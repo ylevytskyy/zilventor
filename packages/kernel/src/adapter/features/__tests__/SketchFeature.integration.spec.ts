@@ -146,4 +146,23 @@ describe('SketchFeature — rectangle on XY', () => {
       disposeSketchResult(occt, r.value);
     }
   });
+
+  it('skips point primitives when building sketch edges (no edge contributed)', () => {
+    // A closed rectangle + a point: the point must contribute zero edges so the
+    // wire remains the same closed rectangle (not broken or rejected).
+    const withPoint = executeSketchFeature(occt, {
+      kind: 'sketch', id: 's_point', plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [
+        { id: 'r1', kind: 'rectangle', x: 0, y: 0, w: 50, h: 50 },
+        { id: 'pt1', kind: 'point', x: 25, y: 25 },
+      ],
+      constraints: []
+    });
+    // Must succeed with a closed wire — the point does not disrupt edge building.
+    expect(withPoint.ok).toBe(true);
+    if (withPoint.ok) {
+      expect(withPoint.value.closed).toBe(true);
+      disposeSketchResult(occt, withPoint.value);
+    }
+  });
 });

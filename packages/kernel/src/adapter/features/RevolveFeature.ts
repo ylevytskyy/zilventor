@@ -270,6 +270,8 @@ function buildEdgesFor(oc: OcctInstance, p: SketchPrimitive): EdgeHandle[] {
       return [makeSplineEdge(oc, p)];
     case 'ellipse':
       return [makeEllipseEdge(oc, p)];
+    case 'point':
+      return []; // points contribute no revolve-profile edge
   }
 }
 
