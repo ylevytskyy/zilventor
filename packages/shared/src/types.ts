@@ -38,6 +38,20 @@ export type SketchPrimitive =
 
 export type BooleanOperation = 'new' | 'join' | 'cut';
 
+/**
+ * A text annotation placed in sketch space (from DXF TEXT/MTEXT import).
+ * Not a SketchPrimitive — bypasses OCCT/planegcs/snap/pick entirely.
+ * Rotation is in radians.
+ */
+export type TextAnnotation = {
+  id: string;
+  x: number;
+  y: number;
+  height: number;
+  value: string;
+  rotation: number;
+};
+
 export type ImportedFeature = {
   kind: 'imported';
   id: string;
@@ -51,7 +65,7 @@ export type ImportedFeature = {
 };
 
 export type Feature =
-  | { kind: 'sketch'; id: string; plane: WorkPlaneRef; primitives: SketchPrimitive[]; constraints: SketchConstraint[] }
+  | { kind: 'sketch'; id: string; plane: WorkPlaneRef; primitives: SketchPrimitive[]; constraints: SketchConstraint[]; annotations?: TextAnnotation[] }
   | { kind: 'extrude'; id: string; sketchRef: string; distanceParam: string; direction: 'forward' | 'symmetric'; operation: BooleanOperation }
   | { kind: 'revolve'; id: string; sketchRef: string; axisPrimitiveId: string; angleParam: string; direction: 'normal' | 'symmetric' | 'flipped'; operation: BooleanOperation }
   | FilletFeature
