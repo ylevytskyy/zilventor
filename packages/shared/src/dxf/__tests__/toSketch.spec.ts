@@ -173,6 +173,24 @@ describe('toSketch Phase 4b coverage', () => {
   });
 });
 
+describe('toSketch Phase 4b layer→construction', () => {
+  it('marks entities on DEFPOINTS / frozen layers as construction', () => {
+    const tables = ['  0','SECTION','  2','TABLES','  0','TABLE','  2','LAYER',
+      '  0','LAYER','  2','DEFPOINTS','  6','CONTINUOUS',' 62','7',' 70','0',
+      '  0','LAYER','  2','FROZ','  6','CONTINUOUS',' 62','7',' 70','1',
+      '  0','LAYER','  2','NORMAL','  6','CONTINUOUS',' 62','7',' 70','0',
+      '  0','ENDTAB','  0','ENDSEC'].join('\n');
+    const body = ['  0','CIRCLE','  8','DEFPOINTS',' 10','0',' 20','0',' 40','1',
+      '  0','CIRCLE','  8','FROZ',' 10','5',' 20','0',' 40','1',
+      '  0','CIRCLE','  8','NORMAL',' 10','9',' 20','0',' 40','1'].join('\n');
+    const dxf = [tables,'  0','SECTION','  2','ENTITIES',body,'  0','ENDSEC','  0','EOF'].join('\n');
+    const ps = toSketch(parseDxf(dxf)).primitives;
+    expect(ps[0]!.construction).toBe(true);   // DEFPOINTS
+    expect(ps[1]!.construction).toBe(true);   // frozen
+    expect(ps[2]!.construction).toBeUndefined(); // normal layer
+  });
+});
+
 describe('toSketch Phase 4a coverage', () => {
   it('passes through trimmed ellipse startAngle/endAngle unscaled even when units scale coordinates', () => {
     // $INSUNITS=1 (inch→mm, ×25.4). rx must be scaled; startAngle/endAngle must be raw radians.

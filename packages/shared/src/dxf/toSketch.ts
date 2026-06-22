@@ -1,4 +1,4 @@
-import type { ParsedDxf, DxfEntity } from './types';
+import type { ParsedDxf, DxfEntity, DxfLayer } from './types';
 import type { SketchPrimitive } from '../types';
 
 export type DxfDropped = { kind: string; count: number; reason: string };
@@ -40,6 +40,13 @@ function unitFactor(header: Record<string, string>): number {
   return INSUNITS_FACTOR[header['$INSUNITS'] ?? ''] ?? 1;
 }
 
+/** Entities on DEFPOINTS (case-insensitive) or a frozen layer (flags bit 0 set) are construction geometry. */
+function isConstructionLayer(layers: Record<string, DxfLayer>, layer: string): boolean {
+  if (layer.toUpperCase() === 'DEFPOINTS') return true;
+  const l = layers[layer];
+  return !!l && (l.flags & 1) === 1;
+}
+
 const TAU = 2 * Math.PI;
 function isFullEllipse(start: number, end: number): boolean {
   return Math.abs(start) < 1e-9 && Math.abs(end - TAU) < 1e-9;
@@ -56,11 +63,12 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
   };
 
   for (const e of parsed.entities) {
+    const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
-      primitives.push(...expandPolyline(e, s));
+      primitives.push(...expandPolyline(e, s, construction));
       continue;
     }
-    const prim = mapEntity(e, s, drop);
+    const prim = mapEntity(e, s, drop, construction);
     if (prim) primitives.push(prim);
   }
   return { primitives, annotations: [], dropped: [...droppedMap.values()] };
@@ -69,6 +77,7 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
 function expandPolyline(
   e: { vertices: Array<{ x: number; y: number; bulge: number }>; closed: boolean; extrusion?: V3 },
   s: number,
+  construction: boolean,
 ): SketchPrimitive[] {
   const out: SketchPrimitive[] = [];
   const v = e.vertices;
@@ -81,13 +90,14 @@ function expandPolyline(
     const b = v[(i + 1) % n]!;
     const pa = ocsXY(e.extrusion, a.x, a.y);
     const pb = ocsXY(e.extrusion, b.x, b.y);
-    out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, refl ? -a.bulge : a.bulge));
+    out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, refl ? -a.bulge : a.bulge, construction));
   }
   return out;
 }
 
-function segment(x1: number, y1: number, x2: number, y2: number, bulge: number): SketchPrimitive {
-  if (bulge === 0) return { id: freshId(), kind: 'line', x1, y1, x2, y2 };
+function segment(x1: number, y1: number, x2: number, y2: number, bulge: number, construction: boolean): SketchPrimitive {
+  const cons = construction ? { construction: true as const } : {};
+  if (bulge === 0) return { id: freshId(), kind: 'line', x1, y1, x2, y2, ...cons };
   const theta = 4 * Math.atan(bulge);                  // signed included angle
   const dx = x2 - x1, dy = y2 - y1;
   const c = Math.hypot(dx, dy);
@@ -102,16 +112,17 @@ function segment(x1: number, y1: number, x2: number, y2: number, bulge: number):
   const a2 = Math.atan2(y2 - cy, x2 - cx);
   // sketch arc is CCW start→end; for bulge>0 the swept span is a2→a1 (swap), else a1→a2
   const [startAngle, endAngle] = bulge > 0 ? [a2, a1] : [a1, a2];
-  return { id: freshId(), kind: 'arc', cx, cy, r, startAngle, endAngle };
+  return { id: freshId(), kind: 'arc', cx, cy, r, startAngle, endAngle, ...cons };
 }
 
-function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void): SketchPrimitive | null {
+function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void, construction: boolean): SketchPrimitive | null {
+  const cons = construction ? { construction: true as const } : {};
   switch (e.type) {
     case 'LINE':
-      return { id: freshId(), kind: 'line', x1: e.x1 * s, y1: e.y1 * s, x2: e.x2 * s, y2: e.y2 * s };
+      return { id: freshId(), kind: 'line', x1: e.x1 * s, y1: e.y1 * s, x2: e.x2 * s, y2: e.y2 * s, ...cons };
     case 'CIRCLE': {
       const c = ocsXY(e.extrusion, e.cx, e.cy);
-      return { id: freshId(), kind: 'circle', cx: c.x * s, cy: c.y * s, r: e.r * s };
+      return { id: freshId(), kind: 'circle', cx: c.x * s, cy: c.y * s, r: e.r * s, ...cons };
     }
     case 'ARC': {
       const a0 = (e.startAngle * Math.PI) / 180, a1 = (e.endAngle * Math.PI) / 180;
@@ -122,7 +133,7 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       const sa = Math.atan2(sp.y - c.y, sp.x - c.x);
       const ea = Math.atan2(ep.y - c.y, ep.x - c.x);
       const [startAngle, endAngle] = ocsReflected(e.extrusion) ? [ea, sa] : [sa, ea];
-      return { id: freshId(), kind: 'arc', cx: c.x * s, cy: c.y * s, r: e.r * s, startAngle, endAngle };
+      return { id: freshId(), kind: 'arc', cx: c.x * s, cy: c.y * s, r: e.r * s, startAngle, endAngle, ...cons };
     }
     case 'ELLIPSE': {
       const c = ocsXY(e.extrusion, e.cx, e.cy);
@@ -135,17 +146,17 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       // Known 4a limitation: trimmed ellipse under reflected OCS keeps raw start/end params.
       // Full ellipses (the common case) and all circles/arcs are correct. Revisited in 4c.
       return { id: freshId(), kind: 'ellipse', cx: c.x * s, cy: c.y * s, rx, ry, rotation,
-        ...(full ? {} : { startAngle: e.startParam, endAngle: e.endParam }) };
+        ...(full ? {} : { startAngle: e.startParam, endAngle: e.endParam }), ...cons };
     }
     case 'SPLINE': {
       const poles = e.controlPoints.length ? e.controlPoints : e.fitPoints;
       if (poles.length < 2) { drop('SPLINE', 'fewer than 2 defining points'); return null; }
       const degree = Math.min(e.degree, poles.length - 1);
       return { id: freshId(), kind: 'spline',
-        controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed };
+        controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed, ...cons };
     }
     case 'POINT':
-      return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s };
+      return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s, ...cons };
     case 'TEXT': drop('TEXT', 'text annotation model is Phase 4b'); return null;
     case 'MTEXT': drop('MTEXT', 'text annotation model is Phase 4b'); return null;
     case 'INSERT': drop('INSERT', 'block flatten is Phase 4b'); return null;
