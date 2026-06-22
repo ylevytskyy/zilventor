@@ -150,6 +150,16 @@ describe('SketchFeature — rectangle on XY', () => {
   it('skips point primitives when building sketch edges (no edge contributed)', () => {
     // A closed rectangle + a point: the point must contribute zero edges so the
     // wire remains the same closed rectangle (not broken or rejected).
+    // Baseline: rectangle alone (no point) — establishes the expected edge count.
+    const baseline = executeSketchFeature(occt, {
+      kind: 'sketch', id: 's_baseline', plane: { source: 'workPlane', featureId: 'origin.XY' },
+      primitives: [
+        { id: 'r1', kind: 'rectangle', x: 0, y: 0, w: 50, h: 50 },
+      ],
+      constraints: []
+    });
+    expect(baseline.ok).toBe(true);
+
     const withPoint = executeSketchFeature(occt, {
       kind: 'sketch', id: 's_point', plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
@@ -160,9 +170,35 @@ describe('SketchFeature — rectangle on XY', () => {
     });
     // Must succeed with a closed wire — the point does not disrupt edge building.
     expect(withPoint.ok).toBe(true);
-    if (withPoint.ok) {
+
+    if (baseline.ok && withPoint.ok) {
       expect(withPoint.value.closed).toBe(true);
+
+      // Count edges in each wire via TopExp_Explorer — a rectangle has 4 edges.
+      // If point leaked as an edge the counts would differ (withPoint > baseline).
+      function countEdges(wireHandle: import('../SketchFeature').SketchResult['wire']): number {
+        const exp = new occt.TopExp_Explorer_2(
+          wireHandle.wire as never,
+          occt.TopAbs_ShapeEnum.TopAbs_EDGE as never,
+          occt.TopAbs_ShapeEnum.TopAbs_SHAPE as never,
+        );
+        let n = 0;
+        while (exp.More()) { n++; exp.Next(); }
+        exp.delete();
+        return n;
+      }
+
+      const baselineEdges = countEdges(baseline.value.wire);
+      const withPointEdges = countEdges(withPoint.value.wire);
+      // Both wires must carry exactly 4 edges (one per rectangle side).
+      expect(baselineEdges).toBe(4);
+      expect(withPointEdges).toBe(baselineEdges);
+
+      disposeSketchResult(occt, baseline.value);
       disposeSketchResult(occt, withPoint.value);
+    } else {
+      if (baseline.ok) disposeSketchResult(occt, baseline.value);
+      if (withPoint.ok) disposeSketchResult(occt, withPoint.value);
     }
   });
 });
