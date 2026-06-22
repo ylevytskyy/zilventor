@@ -87,4 +87,25 @@ describe('inferFromGeometry', () => {
     // line.start (15,20) coincides with ellipse start (cx+rx=15, cy=20) → a coincident constraint is inferred
     expect(out.some((c) => c.kind === 'coincident')).toBe(true);
   });
+
+  it('round-trips a point primitive through JSON', () => {
+    const prim: SketchPrimitive = { id: 'pt1', kind: 'point', x: 3, y: 4 };
+    const out = JSON.parse(JSON.stringify(prim)) as SketchPrimitive;
+    expect(out).toEqual(prim);
+  });
+
+  it('round-trips a point primitive with construction flag through JSON', () => {
+    const prim: SketchPrimitive = { id: 'pt2', kind: 'point', x: 1, y: 2, construction: true };
+    const out = JSON.parse(JSON.stringify(prim)) as SketchPrimitive;
+    expect(out).toEqual(prim);
+  });
+
+  it('anchors a point at its coordinate (coincides with a line endpoint at the same position)', () => {
+    // A point at (2,5) and a line starting at (2,5) — the point anchor coincides with line.start
+    const cs = inferFromGeometry([
+      { id: 'pt', kind: 'point' as const, x: 2, y: 5 },
+      { id: 'ln', kind: 'line' as const, x1: 2, y1: 5, x2: 10, y2: 10 },
+    ]);
+    expect(cs.some((c) => c.kind === 'coincident')).toBe(true);
+  });
 });

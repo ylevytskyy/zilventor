@@ -20,6 +20,7 @@ function endpointsOf(p: SketchPrimitive): Array<{ anchor: PointRef['anchor']; x:
     case 'circle':    return [{ anchor: 'center', x: p.cx, y: p.cy }];
     case 'rectangle': return [];
     case 'spline':    return p.controlPoints.map((cp, i) => ({ anchor: `cp${i}` as const, x: cp.x, y: cp.y }));
+    case 'point':   return [{ anchor: 'center', x: p.x, y: p.y }];
     case 'ellipse': {
       const out: Array<{ anchor: PointRef['anchor']; x: number; y: number }> = [
         { anchor: 'center', x: p.cx, y: p.cy },

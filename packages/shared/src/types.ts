@@ -33,7 +33,8 @@ export type SketchPrimitive =
   | { id: string; kind: 'circle'; cx: number; cy: number; r: number; construction?: boolean }
   | { id: string; kind: 'arc'; cx: number; cy: number; r: number; startAngle: number; endAngle: number; construction?: boolean }
   | { id: string; kind: 'spline'; controlPoints: ReadonlyArray<{ x: number; y: number }>; degree: number; closed: boolean; construction?: boolean }
-  | { id: string; kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number; rotation: number; startAngle?: number; endAngle?: number; construction?: boolean };
+  | { id: string; kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number; rotation: number; startAngle?: number; endAngle?: number; construction?: boolean }
+  | { id: string; kind: 'point'; x: number; y: number; construction?: boolean };
 
 export type BooleanOperation = 'new' | 'join' | 'cut';
 
