@@ -73,4 +73,34 @@ describe('GcsSystem lifecycle (integration)', () => {
     expect(sys.currentDof().count).toBe(4); // two free points → 4 DOF
     await sys.unloadSketch();
   });
+
+  it('point readback returns correct solved coordinates after drag (not just original)', async () => {
+    // This test guards that readDomainPrimitive's 'point' branch correctly reads
+    // the solved x/y from the GCS via the 'self' key in decomp.pointIds.
+    // If the key lookup silently falls through and returns `original`, the drag
+    // result finalCoords would be empty (no diff) — the test would FAIL.
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    await sys.loadSketch({
+      primitives: [{ id: 'pt1', kind: 'point', x: 2, y: 3 } as SketchPrimitive],
+      constraints: [],
+    });
+
+    // beginDrag resolves the point via decomp.pointIds['self']; the internal 'self'
+    // key is only accessible by casting since PointRef's public anchor union doesn't
+    // include it — this is intentional (point primitives are DXF-import-only).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await sys.beginDrag({ primitiveId: 'pt1', anchor: 'self' } as any);
+    await sys.dragTo(10, 20);
+    const { finalCoords } = await sys.endDrag();
+
+    // finalCoords diffs against load-time baseline — must contain pt1's patch.
+    const patch = finalCoords.find(d => d.primitiveId === 'pt1');
+    expect(patch).toBeDefined();
+    // The solved position must be close to where we dragged.
+    expect((patch!.patch as { x?: number }).x).toBeCloseTo(10, 1);
+    expect((patch!.patch as { y?: number }).y).toBeCloseTo(20, 1);
+
+    await sys.unloadSketch();
+  });
 });
