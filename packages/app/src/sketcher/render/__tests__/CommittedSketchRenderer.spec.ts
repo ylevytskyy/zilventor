@@ -51,4 +51,15 @@ describe('CommittedSketchRenderer construction styling', () => {
     expect(r.group.children).toHaveLength(1);
     expect(r.group.children[0]).toBeInstanceOf(THREE.Line);
   });
+
+  it('renders a point as a THREE.LineSegments cross marker', () => {
+    const r = new CommittedSketchRenderer();
+    r.update([{ id: 'pt1', kind: 'point', x: 5, y: 5 }]);
+    expect(r.group.children).toHaveLength(1);
+    expect(r.group.children[0]).toBeInstanceOf(THREE.LineSegments);
+    // Material must be LineBasicMaterial (non-construction point)
+    const mat = (r.group.children[0] as THREE.LineSegments).material as THREE.Material;
+    expect(mat).toBeInstanceOf(THREE.LineBasicMaterial);
+    expect(mat).not.toBeInstanceOf(THREE.LineDashedMaterial);
+  });
 });
