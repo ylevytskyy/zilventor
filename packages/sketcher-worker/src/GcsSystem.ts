@@ -167,6 +167,12 @@ export class GcsSystem {
         });
         break;
       }
+      case 'point': {
+        // A raw-imported point is a single free GCS point registered under its own id.
+        into.push({ id: p.id, type: 'point', x: p.x, y: p.y, fixed: false });
+        this.decomp.set(p.id, { pointIds: { self: p.id }, primitiveId: p.id });
+        break;
+      }
       case 'spline': {
         const pointIds: Record<string, string> = {};
         for (let i = 0; i < p.controlPoints.length; i++) {
@@ -401,6 +407,11 @@ export class GcsSystem {
         const center = pts.get(d.pointIds['center']!);
         if (!center) return original;
         return { ...original, cx: center.x, cy: center.y };
+      }
+      case 'point': {
+        const pt = pts.get(d.pointIds['self']!);
+        if (!pt) return original;
+        return { ...original, x: pt.x, y: pt.y };
       }
     }
   }

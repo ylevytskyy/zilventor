@@ -56,4 +56,21 @@ describe('GcsSystem lifecycle (integration)', () => {
       .rejects.toThrow(/already loaded/i);
     await sys.unloadSketch();
   });
+
+  it('decomposes and reads back a point primitive', async () => {
+    const { createWrapper } = await loadPlanegcs();
+    const sys = new GcsSystem(createWrapper());
+    // A single unconstrained point has 2 DOF (x and y are free).
+    const { dof } = await sys.loadSketch({
+      primitives: [{ id: 'pt1', kind: 'point', x: 2, y: 3 } as SketchPrimitive],
+      constraints: [],
+    });
+    expect(dof.count).toBe(2);
+    expect(dof.state).toBe('under');
+    // addPrimitive exercises readDomainPrimitive (via rebuildGcs + coordDiffForAll)
+    // without throwing, confirming the readback switch handles 'point'.
+    await sys.addPrimitive({ id: 'pt2', kind: 'point', x: 5, y: 7 } as SketchPrimitive);
+    expect(sys.currentDof().count).toBe(4); // two free points → 4 DOF
+    await sys.unloadSketch();
+  });
 });
