@@ -255,6 +255,56 @@ describe('toSketch INSERT flatten', () => {
     const xs = r.primitives.filter((p) => p.kind === 'line').map((p) => (p as { x1: number }).x1).sort((a, b) => a - b);
     expect(xs).toEqual([0, 20]); // second copy offset by colSpacing
   });
+
+  it('applies 2-column array offset in local frame before rotation (rotation=90°)', () => {
+    // $INSUNITS=4 (mm, scale factor=1, so unit-scale s=1 — coords match block values directly).
+    // Block BLK: line from (0,0) to (5,0) in block space. Base point (0,0).
+    // INSERT at (0,0), rotation=90°, xscale=yscale=1, columns=2, rows=1, colSpacing=10, rowSpacing=0.
+    //
+    // Copy 1 (cI=0, rI=0): local offset dx=0, dy=0 → WCS offset (0,0). Placed at (0,0).
+    //   Matrix = T(0,0) ∘ R(90°) ∘ S(1,1) ∘ T(-base(0,0)).
+    //   line start (0,0) → rotate 90° → (0,0) → translate (0,0) → WCS (0,0).
+    //   line end   (5,0) → rotate 90°: (cos90°·5−sin90°·0, sin90°·5+cos90°·0) = (0,5) → WCS (0,5).
+    //
+    // Copy 2 (cI=1, rI=0): local offset dx=10, dy=0.
+    //   Rotated into WCS: offWCS.x = cos90°·10 − sin90°·0 = 0,
+    //                     offWCS.y = sin90°·10 + cos90°·0 = 10.
+    //   Placed insertion point: (0+0, 0+10) = (0,10).
+    //   line start (0,0) → rotate 90° → (0,0) → translate (0,10) → WCS (0,10).
+    //   line end   (5,0) → rotate 90° → (0,5) → translate (0,10) → WCS (0,15).
+    //
+    // Old WCS-offset code (bug): placed copy 2 at ins.x+10=10, ins.y=0.
+    //   line start → WCS (10,0), line end → WCS (10,5). WRONG for rotated insert.
+    const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','4','  0','ENDSEC'].join('\n');
+    const blocks = ['  0','SECTION','  2','BLOCKS',
+      '  0','BLOCK','  8','0','  2','BLK',' 70','0',' 10','0',' 20','0','  3','BLK',
+      '  0','LINE','  8','0',' 10','0',' 20','0',' 11','5',' 21','0',
+      '  0','ENDBLK','  0','ENDSEC'].join('\n');
+    const entities = ['  0','SECTION','  2','ENTITIES',
+      // INSERT: pos=(0,0), xscale=1, yscale=1, rotation=90 (deg), columns=2, rows=1, colSpacing=10, rowSpacing=0
+      '  0','INSERT','  2','BLK',' 10','0',' 20','0',' 41','1',' 42','1',' 50','90',
+      ' 70','2',' 71','1',' 44','10',' 45','0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const dxf = [header, blocks, entities].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    const lines = r.primitives.filter((p) => p.kind === 'line');
+    expect(lines).toHaveLength(2);
+    // Sort by start-y so copy1 (y1≈0) comes first, copy2 (y1≈10) second.
+    const sorted = [...lines].sort((a, b) => (a as { y1: number }).y1 - (b as { y1: number }).y1);
+    type LLine = { kind: 'line'; x1: number; y1: number; x2: number; y2: number };
+    const copy1 = sorted[0] as LLine, copy2 = sorted[1] as LLine;
+    // Copy 1: line rotated 90° at origin — start (0,0), end (0,5).
+    expect(copy1.x1).toBeCloseTo(0, 9);
+    expect(copy1.y1).toBeCloseTo(0, 9);
+    expect(copy1.x2).toBeCloseTo(0, 9);
+    expect(copy1.y2).toBeCloseTo(5, 9);
+    // Copy 2: local-frame offset (10,0) rotated 90° → WCS (0,10) → insertion at (0,10).
+    // Old WCS-offset code (bug) would give start (10,0), end (10,5) — distinct failure.
+    expect(copy2.x1).toBeCloseTo(0, 9);
+    expect(copy2.y1).toBeCloseTo(10, 9);
+    expect(copy2.x2).toBeCloseTo(0, 9);
+    expect(copy2.y2).toBeCloseTo(15, 9);
+  });
 });
 
 describe('toSketch TEXT/MTEXT → annotations', () => {

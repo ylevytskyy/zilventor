@@ -132,9 +132,10 @@ function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
 /**
  * Recursively expand one INSERT entity into a flat list of SketchPrimitives.
  * Depth guard: max 16 levels to prevent infinite recursion on cyclic block references.
- * Array (COLUMNS×ROWS): each cell's origin is offset by (col*colSpacing, row*rowSpacing)
- * added to the INSERT insertion point before building the matrix (i.e., in WCS for rotation=0,
- * matches DXF rectangular-pattern behaviour for the dominant axis-aligned case).
+ * Array (COLUMNS×ROWS): each cell's local-frame offset (col*colSpacing, row*rowSpacing)
+ * is rotated into WCS by the INSERT rotation angle θ before being added to ins.x/ins.y.
+ * Per DXF spec, array spacing is defined in the block's local frame (not WCS), and is NOT
+ * scaled by xscale/yscale.
  */
 function expandInsert(
   ins: Extract<DxfEntity, { type: 'INSERT' }>,
@@ -166,12 +167,19 @@ function expandInsert(
   const out: SketchPrimitive[] = [];
   const cols = Math.max(1, ins.columns);
   const rows = Math.max(1, ins.rows);
+  // Pre-compute rotation sin/cos for rotating the local-frame array offset into WCS.
+  const θ = (ins.rotation * Math.PI) / 180;
+  const cosθ = Math.cos(θ), sinθ = Math.sin(θ);
   // Scale matrix applied once to move from unit-block-WCS to document units.
   const scaleM: Affine = { a: s, b: 0, c: 0, d: s, e: 0, f: 0 };
   for (let cI = 0; cI < cols; cI++) {
     for (let rI = 0; rI < rows; rI++) {
-      // Offset the insertion point for each array cell, then build the insert matrix.
-      const placed = { ...ins, x: ins.x + cI * ins.colSpacing, y: ins.y + rI * ins.rowSpacing };
+      // Compute local-frame offset, then rotate into WCS before adding to insertion point.
+      // Array spacing is in the INSERT's local frame (not WCS) and is NOT scaled by xscale/yscale.
+      const dx = cI * ins.colSpacing, dy = rI * ins.rowSpacing;
+      const offX = cosθ * dx - sinθ * dy;
+      const offY = sinθ * dx + cosθ * dy;
+      const placed = { ...ins, x: ins.x + offX, y: ins.y + offY };
       const m = insertMatrix(placed, base);
       for (const bp of blockPrims) {
         // Apply insert transform, then document unit scale.
