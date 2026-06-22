@@ -22,7 +22,8 @@ function harness() {
     addPrimitive: async (prim: { id: string }) => { sketcherAdds.push(prim.id); },
     removePrimitive: async (id: string) => { sketcherRemoves.push(id); },
   };
-  const store = { getActivePart: () => ({ id: 'part1' } as never), setActivePart: (p: unknown) => { setParts.push(p); } };
+  const activePart = { id: 'part1' } as never;
+  const store = { getActivePart: () => activePart, setActivePart: (p: unknown) => { setParts.push(p); } };
   return { kernelAdds, kernelRemoves, sketcherAdds, sketcherRemoves, setParts, kernel, sketcherClient, store };
 }
 
@@ -34,6 +35,7 @@ describe('ImportDxfIntoActiveSketchCommand', () => {
       store: h.store,
       sketchId: 'sk1', file: fakeFile(DXF),
     });
+    const priorPart = h.store.getActivePart();
     await cmd.apply();
     expect(h.kernelAdds).toHaveLength(2);
     expect(h.sketcherAdds).toEqual(h.kernelAdds);
@@ -41,6 +43,9 @@ describe('ImportDxfIntoActiveSketchCommand', () => {
     await cmd.revert();
     expect(h.kernelRemoves.sort()).toEqual([...h.kernelAdds].sort());
     expect(h.sketcherRemoves.sort()).toEqual([...h.sketcherAdds].sort());
+    // revert must restore the store to the pre-import snapshot
+    expect(h.setParts).toHaveLength(2);
+    expect(h.setParts[1]).toBe(priorPart);
   });
 
   it('rolls back partial adds if a later add throws', async () => {

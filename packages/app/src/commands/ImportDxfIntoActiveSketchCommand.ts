@@ -22,12 +22,14 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
   readonly name = 'ImportDxfIntoActiveSketch';
   private partId = '';
   private added: SketchPrimitive[] = [];
+  private prior: PartDocument | null = null;
 
   constructor(private ctx: Ctx) {}
 
   async apply(): Promise<void> {
     const part = this.ctx.store.getActivePart();
     if (!part) throw new Error('no active part');
+    this.prior = part;
     this.partId = part.id;
     const text = await this.ctx.file.text();
     const { primitives, dropped } = toSketch(parseDxf(text));
@@ -56,5 +58,6 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
       if (this.ctx.sketcherClient) await this.ctx.sketcherClient.removePrimitive(p.id);
     }
     this.added = [];
+    this.ctx.store.setActivePart(this.prior);
   }
 }
