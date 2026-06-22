@@ -40,6 +40,22 @@ describe('transformEllipse', () => {
     expect(r.startAngle! + r.rotation).toBeCloseTo(Math.PI / 2, 6);
     expect(r.endAngle! + r.rotation).toBeCloseTo(Math.PI, 6);
   });
+
+  it('degenerate zero-scale INSERT does not produce NaN', () => {
+    // xscale=0 collapses the curve: det = 0*d - 0 = 0
+    const m = { a: 0, b: 0, c: 0, d: 1, e: 5, f: 7 };
+    const r = transformEllipse(m, 1, 2, 3, 3, 0, 0, Math.PI / 2);
+    expect(Number.isNaN(r.startAngle!)).toBe(false);
+    expect(Number.isNaN(r.endAngle!)).toBe(false);
+    expect(Number.isNaN(r.rx)).toBe(false);
+    expect(Number.isNaN(r.ry)).toBe(false);
+    // center is still mapped by the affine translation
+    expect(r.cx).toBeCloseTo(0 + 5, 9);  // a*1+c*2+e = 0+0+5
+    expect(r.cy).toBeCloseTo(2 + 7, 9);  // b*1+d*2+f = 0+2+7
+    // original radii preserved (no Rytz)
+    expect(r.rx).toBeCloseTo(3, 9);
+    expect(r.ry).toBeCloseTo(3, 9);
+  });
 });
 
 function ents(body: string, header = ''): string {

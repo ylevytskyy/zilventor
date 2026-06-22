@@ -120,6 +120,28 @@ export function transformEllipse(
   endAngle?: number;
   isotropic: boolean;
 } {
+  // ── Degenerate INSERT guard (spec step 8) ───────────────────────────────────
+  // If |det L| ≈ 0 the INSERT has collapsed the curve (e.g. xscale=0). Attempting
+  // Rytz or mapParam on a zero-area image causes division by zero → NaN angles.
+  // Fall back: map only the center via the affine, keep the original radii/rotation/
+  // params as-is, and skip Rytz entirely. This is a pathological INSERT and the
+  // resulting ellipse will be degenerate in the output, but we must not crash.
+  const det = m.a * m.d - m.b * m.c;
+  if (Math.abs(det) <= 1e-12) {
+    const cx1d = m.a * cx + m.c * cy + m.e;
+    const cy1d = m.b * cx + m.d * cy + m.f;
+    const isotropicD = Math.abs(rx - ry) <= 1e-9 * (rx || 1);
+    const outD: {
+      cx: number; cy: number; rx: number; ry: number; rotation: number;
+      startAngle?: number; endAngle?: number; isotropic: boolean;
+    } = { cx: cx1d, cy: cy1d, rx, ry, rotation, isotropic: isotropicD };
+    if (startParam !== undefined && endParam !== undefined) {
+      outD.startAngle = startParam;
+      outD.endAngle = endParam;
+    }
+    return outD;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
   const cosR = Math.cos(rotation);
   const sinR = Math.sin(rotation);
   // source semi-axis vectors  u = R(rot)·(rx,0),  v = R(rot)·(0,ry)
