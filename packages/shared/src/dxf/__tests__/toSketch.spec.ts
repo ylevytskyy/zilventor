@@ -1,6 +1,46 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../parser';
 import { toSketch } from '../toSketch';
+import { transformEllipse } from '../toSketch';
+
+describe('transformEllipse', () => {
+  // Pure 90° CCW rotation about origin: M = [[0,-1,0],[1,0,0]] (a=0,b=1,c=-1,d=0,e=0,f=0)
+  const rot90: { a: number; b: number; c: number; d: number; e: number; f: number } =
+    { a: 0, b: 1, c: -1, d: 0, e: 0, f: 0 };
+
+  it('rotates a circular arc: center and params move by +90°, stays isotropic', () => {
+    const r = transformEllipse(rot90, 3, 4, 2, 2, 0, Math.PI / 6, (2 * Math.PI) / 3);
+    expect(r.cx).toBeCloseTo(-4, 9);
+    expect(r.cy).toBeCloseTo(3, 9);
+    expect(r.rx).toBeCloseTo(2, 9);
+    expect(r.ry).toBeCloseTo(2, 9);
+    expect(r.isotropic).toBe(true);
+    // principal-frame params + the returned rotation reconstruct the TRUE angles 2π/3 and 7π/6
+    expect(r.startAngle! + r.rotation).toBeCloseTo((2 * Math.PI) / 3, 6);
+    expect(r.endAngle! + r.rotation).toBeCloseTo((7 * Math.PI) / 6, 6);
+  });
+
+  it('non-uniform scale of a circle yields an axis-aligned ellipse', () => {
+    // M = scale(2,1): a=2,d=1
+    const m = { a: 2, b: 0, c: 0, d: 1, e: 0, f: 0 };
+    const r = transformEllipse(m, 0, 0, 3, 3, 0);
+    expect(r.isotropic).toBe(false);
+    expect(r.rx).toBeCloseTo(6, 9); // 3*2
+    expect(r.ry).toBeCloseTo(3, 9); // 3*1
+    expect(r.rotation).toBeCloseTo(0, 9);
+  });
+
+  it('reflection (negative x-scale) swaps start/end of an arc', () => {
+    // M = scale(-1,1): mirror across Y axis. det = -1 < 0.
+    const m = { a: -1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+    const r = transformEllipse(m, 0, 0, 2, 2, 0, 0, Math.PI / 2);
+    // start point (2,0) -> (-2,0) true angle π ; end point (0,2)->(0,2) true angle π/2
+    // reflected => swap so emitted start is the old end-image, end is old start-image
+    expect(r.isotropic).toBe(true);
+    expect(r.startAngle! + r.rotation).toBeCloseTo(Math.PI / 2, 6);
+    expect(r.endAngle! + r.rotation).toBeCloseTo(Math.PI, 6);
+  });
+});
 
 function ents(body: string, header = ''): string {
   return [header, '  0', 'SECTION', '  2', 'ENTITIES', body.trim(), '  0', 'ENDSEC', '  0', 'EOF'].join('\n');

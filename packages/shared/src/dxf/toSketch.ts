@@ -88,6 +88,120 @@ function insertMatrix(ins: { x: number; y: number; xscale: number; yscale: numbe
 }
 
 /**
+ * Apply an INSERT affine to a curve treated as a parametric ellipse and recover
+ * the image ellipse's principal form via Rytz's construction.
+ *
+ * Source point at parameter s: P(s) = center + R(rotation)·(rx·cos s, ry·sin s).
+ * The affine image of an ellipse is an ellipse; perpendicular source semi-axes map
+ * to (generally non-perpendicular) conjugate semi-diameters u',v', from which Rytz
+ * gives the principal semi-axes A ≥ B and major-axis angle φ.
+ *
+ * start/end are returned as PARAMETERS in the image's principal frame (matching the
+ * `ellipse` primitive convention). For an isotropic image emitted as circle/arc, the
+ * caller converts to a true angle by adding `rotation` (invariant under the arbitrary
+ * φ Rytz returns for a circle).
+ */
+export function transformEllipse(
+  m: Affine,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  rotation: number,
+  startParam?: number,
+  endParam?: number,
+): {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rotation: number;
+  startAngle?: number;
+  endAngle?: number;
+  isotropic: boolean;
+} {
+  const cosR = Math.cos(rotation);
+  const sinR = Math.sin(rotation);
+  // source semi-axis vectors  u = R(rot)·(rx,0),  v = R(rot)·(0,ry)
+  const ux = rx * cosR;
+  const uy = rx * sinR;
+  const vx = -ry * sinR;
+  const vy = ry * cosR;
+  // linear part of the affine applied to u,v (translation dropped)
+  const u1x = m.a * ux + m.c * uy;
+  const u1y = m.b * ux + m.d * uy;
+  const v1x = m.a * vx + m.c * vy;
+  const v1y = m.b * vx + m.d * vy;
+  // Rytz: principal axes from conjugate semi-diameters u1,v1
+  const dotuv = u1x * v1x + u1y * v1y;
+  const dotuu = u1x * u1x + u1y * u1y;
+  const dotvv = v1x * v1x + v1y * v1y;
+  const t = 0.5 * Math.atan2(2 * dotuv, dotuu - dotvv);
+  const cosT = Math.cos(t);
+  const sinT = Math.sin(t);
+  const px = u1x * cosT + v1x * sinT;
+  const py = u1y * cosT + v1y * sinT;
+  const qx = -u1x * sinT + v1x * cosT;
+  const qy = -u1y * sinT + v1y * cosT;
+  const lenP = Math.hypot(px, py);
+  const lenQ = Math.hypot(qx, qy);
+  let A: number;
+  let B: number;
+  let majx: number;
+  let majy: number;
+  if (lenP >= lenQ) {
+    A = lenP;
+    B = lenQ;
+    majx = px;
+    majy = py;
+  } else {
+    A = lenQ;
+    B = lenP;
+    majx = qx;
+    majy = qy;
+  }
+  const phi = Math.atan2(majy, majx);
+  const cx1 = m.a * cx + m.c * cy + m.e;
+  const cy1 = m.b * cx + m.d * cy + m.f;
+  const isotropic = Math.abs(A - B) <= 1e-9 * (A || 1);
+  const reflected = m.a * m.d - m.b * m.c < 0;
+
+  const out: {
+    cx: number; cy: number; rx: number; ry: number; rotation: number;
+    startAngle?: number; endAngle?: number; isotropic: boolean;
+  } = { cx: cx1, cy: cy1, rx: A, ry: B, rotation: phi, isotropic };
+
+  if (startParam !== undefined && endParam !== undefined) {
+    const cphi = Math.cos(phi);
+    const sphi = Math.sin(phi);
+    const mapParam = (s: number): number => {
+      const lx = rx * Math.cos(s);
+      const ly = ry * Math.sin(s);
+      const wx = cx + cosR * lx - sinR * ly;
+      const wy = cy + sinR * lx + cosR * ly;
+      const tx = m.a * wx + m.c * wy + m.e;
+      const ty = m.b * wx + m.d * wy + m.f;
+      const dx = tx - cx1;
+      const dy = ty - cy1;
+      // R(-phi)·(dx,dy)
+      const ex = cphi * dx + sphi * dy;
+      const ey = -sphi * dx + cphi * dy;
+      return Math.atan2(ey / B, ex / A);
+    };
+    let sa = mapParam(startParam);
+    let ea = mapParam(endParam);
+    if (reflected) {
+      const tmp = sa;
+      sa = ea;
+      ea = tmp;
+    }
+    out.startAngle = sa;
+    out.endAngle = ea;
+  }
+  return out;
+}
+
+/**
  * Apply an affine transform to a SketchPrimitive, assigning a fresh id.
  *
  * 4b SIMPLIFYING ASSUMPTIONS (revisit in 4c):
