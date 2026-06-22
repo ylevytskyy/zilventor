@@ -769,3 +769,27 @@ describe('toSketch — HATCH polyline loop (Phase 4c)', () => {
     expect(kinds).toEqual(['arc', 'line', 'line']);   // the bulge=0.5 segment becomes an arc
   });
 });
+
+describe('toSketch — HATCH edge loop (Phase 4c)', () => {
+  it('expands a HATCH edge loop (line + arc) to construction primitives', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1', ' 92', '1', ' 93', '2',
+      ' 72', '1', ' 10', '0', ' 20', '0', ' 11', '10', ' 21', '0',
+      ' 72', '2', ' 10', '10', ' 20', '0', ' 40', '5', ' 50', '0', ' 51', '90', ' 73', '1',
+      ' 97', '0',
+    ].join('\n'))));
+    expect(r.primitives).toHaveLength(2);
+    expect(r.primitives.every((p) => p.construction === true)).toBe(true);
+    const line = r.primitives.find((p) => p.kind === 'line')!;
+    if (line.kind === 'line') expect([line.x1, line.y1, line.x2, line.y2]).toEqual([0, 0, 10, 0]);
+    const arc = r.primitives.find((p) => p.kind === 'arc')!;
+    if (arc.kind === 'arc') {
+      expect(arc.cx).toBeCloseTo(10, 9);
+      expect(arc.cy).toBeCloseTo(0, 9);
+      expect(arc.r).toBeCloseTo(5, 9);
+      expect(arc.startAngle).toBeCloseTo(0, 9);
+      expect(arc.endAngle).toBeCloseTo(Math.PI / 2, 9);
+    }
+  });
+});

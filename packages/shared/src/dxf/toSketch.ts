@@ -615,11 +615,30 @@ function clipToBox(
 function expandHatch(e: Extract<DxfEntity, { type: 'HATCH' }>, s: number, drop: (k: string, r: string) => void): SketchPrimitive[] {
   const out: SketchPrimitive[] = [];
   const ext = e.extrusion;
+  const refl = ocsReflected(ext);
   for (const loop of e.loops) {
     if (loop.kind === 'polyline') {
       out.push(...expandPolyline({ vertices: loop.vertices, closed: loop.closed, ...(ext ? { extrusion: ext } : {}) }, s, true));
     } else {
       // edges: Tasks 6/7
+      for (const edge of loop.edges) {
+        if (edge.kind === 'line') {
+          const a = ocsXY(ext, edge.x1, edge.y1), b = ocsXY(ext, edge.x2, edge.y2);
+          out.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
+        } else if (edge.kind === 'arc') {
+          let a0 = (edge.startAngle * Math.PI) / 180, a1 = (edge.endAngle * Math.PI) / 180;
+          if (!edge.ccw) { const t = a0; a0 = a1; a1 = t; }
+          const c = ocsXY(ext, edge.cx, edge.cy);
+          const sp = ocsXY(ext, edge.cx + edge.r * Math.cos(a0), edge.cy + edge.r * Math.sin(a0));
+          const ep = ocsXY(ext, edge.cx + edge.r * Math.cos(a1), edge.cy + edge.r * Math.sin(a1));
+          const sa = Math.atan2(sp.y - c.y, sp.x - c.x);
+          const ea = Math.atan2(ep.y - c.y, ep.x - c.x);
+          const [startAngle, endAngle] = refl ? [ea, sa] : [sa, ea];
+          out.push({ id: freshId(), kind: 'arc', cx: c.x * s, cy: c.y * s, r: edge.r * s, startAngle, endAngle, construction: true });
+        } else {
+          /* Task 7: ellipse / spline edges */
+        }
+      }
     }
   }
   return out;
