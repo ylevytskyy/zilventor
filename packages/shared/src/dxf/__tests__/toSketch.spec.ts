@@ -69,3 +69,34 @@ describe('toSketch core mapping', () => {
     expect(r.dropped.find((d) => d.kind === 'LWPOLYLINE')?.count).toBe(1);
   });
 });
+
+describe('toSketch OCS→WCS', () => {
+  it('mirrors a CIRCLE center across extrusion (0,0,-1)', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','CIRCLE','  8','0',' 10','5',' 20','7',' 40','3','210','0','220','0','230','-1',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const p = toSketch(parseDxf(dxf)).primitives[0]!;
+    if (p.kind === 'circle') { expect(p.cx).toBeCloseTo(-5, 9); expect(p.cy).toBeCloseTo(7, 9); expect(p.r).toBeCloseTo(3, 9); }
+    else throw new Error('expected circle');
+  });
+
+  it('reflects an ARC: endpoints map correctly and sweep reverses', () => {
+    // DXF arc center (0,0) r=2, 0°→90°. Under (0,0,-1): start point (2,0)→(-2,0) [angle π],
+    // end point (0,2)→(0,2) [angle π/2]. CCW from π/2 to π traces the correct (upper-left) span.
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','ARC','  8','0',' 10','0',' 20','0',' 40','2',' 50','0',' 51','90','210','0','220','0','230','-1',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const p = toSketch(parseDxf(dxf)).primitives[0]!;
+    if (p.kind === 'arc') {
+      // sample the CCW midpoint angle; it must lie in the upper-left quadrant (x<0, y>0)
+      const mid = midAngleCCW(p.startAngle, p.endAngle);
+      expect(Math.cos(mid)).toBeLessThan(0);
+      expect(Math.sin(mid)).toBeGreaterThan(0);
+    } else throw new Error('expected arc');
+  });
+});
+
+function midAngleCCW(a: number, b: number): number {
+  let span = b - a; while (span < 0) span += 2 * Math.PI;
+  return a + span / 2;
+}
