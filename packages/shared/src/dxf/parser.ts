@@ -249,6 +249,18 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const ml = parseMleader(raw.pairs);
       return { type: 'MLEADER', layer, leaderLines: ml.leaderLines, ...(ml.text ? { text: ml.text } : {}) };
     }
+    case '3DFACE': {
+      // Corners c0–c3 from codes 10–13 / 20–23 / 30–33, in sequential polygon
+      // order (NOT the SOLID 0,1,3,2 swap). Carry z for the planar gate in toSketch.
+      const c0 = { x: num(raw.pairs, 10), y: num(raw.pairs, 20), z: num(raw.pairs, 30) };
+      const c1 = { x: num(raw.pairs, 11), y: num(raw.pairs, 21), z: num(raw.pairs, 31) };
+      const c2 = { x: num(raw.pairs, 12), y: num(raw.pairs, 22), z: num(raw.pairs, 32) };
+      const c3 = { x: num(raw.pairs, 13), y: num(raw.pairs, 23), z: num(raw.pairs, 33) };
+      const eps = 1e-9;
+      const isTri = Math.abs(c3.x - c2.x) < eps && Math.abs(c3.y - c2.y) < eps && Math.abs(c3.z - c2.z) < eps;
+      const corners = isTri ? [c0, c1, c2] : [c0, c1, c2, c3];
+      return { type: '3DFACE', layer, corners };
+    }
     default:
       return null;
   }

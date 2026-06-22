@@ -397,3 +397,31 @@ describe('parseDxf — SOLID', () => {
     if (e.type === 'SOLID') expect(e.corners.map((c) => [c.x, c.y])).toEqual([[0, 0], [2, 0], [1, 2]]);
   });
 });
+
+describe('parseDxf — 3DFACE', () => {
+  it('parses a quad 3DFACE with four 3D corners in sequential order', () => {
+    const dxf = entitiesDxf(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '0',
+      ' 11', '1', ' 21', '0', ' 31', '0',
+      ' 12', '1', ' 22', '1', ' 32', '0',
+      ' 13', '0', ' 23', '1', ' 33', '0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('3DFACE');
+    if (e.type === '3DFACE') {
+      expect(e.corners).toHaveLength(4);
+      expect(e.corners[0]).toEqual({ x: 0, y: 0, z: 0 });
+      expect(e.corners[2]).toEqual({ x: 1, y: 1, z: 0 });
+    }
+  });
+
+  it('collapses to a triangle when corner 3 equals corner 2', () => {
+    const dxf = entitiesDxf(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '0',
+      ' 11', '2', ' 21', '0', ' 31', '0',
+      ' 12', '1', ' 22', '2', ' 32', '0',
+      ' 13', '1', ' 23', '2', ' 33', '0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('3DFACE');
+    if (e.type === '3DFACE') expect(e.corners).toHaveLength(3);
+  });
+});
