@@ -635,8 +635,22 @@ function expandHatch(e: Extract<DxfEntity, { type: 'HATCH' }>, s: number, drop: 
           const ea = Math.atan2(ep.y - c.y, ep.x - c.x);
           const [startAngle, endAngle] = refl ? [ea, sa] : [sa, ea];
           out.push({ id: freshId(), kind: 'arc', cx: c.x * s, cy: c.y * s, r: edge.r * s, startAngle, endAngle, construction: true });
-        } else {
-          /* Task 7: ellipse / spline edges */
+        } else if (edge.kind === 'ellipse') {
+          const c = ocsXY(ext, edge.cx, edge.cy);
+          const maj = ocsXY(ext, edge.majorX, edge.majorY);   // major endpoint is RELATIVE to center
+          const { rx, ry, rotation } = ellipseAxes(maj.x, maj.y, edge.ratio, s);
+          const sp = (edge.startAngle * Math.PI) / 180;
+          let epp = (edge.endAngle * Math.PI) / 180;
+          while (epp < sp) epp += 2 * Math.PI;               // branch-cut: keep CCW ordering
+          const full = isFullEllipse(sp, epp);
+          out.push({ id: freshId(), kind: 'ellipse', cx: c.x * s, cy: c.y * s, rx, ry, rotation,
+            ...(full ? {} : { startAngle: sp, endAngle: epp }), construction: true });
+        } else { // spline
+          if (edge.controlPoints.length < 2) { drop('HATCH', 'spline edge with fewer than 2 control points'); continue; }
+          const degree = Math.min(edge.degree, edge.controlPoints.length - 1);
+          out.push({ id: freshId(), kind: 'spline',
+            controlPoints: edge.controlPoints.map((p) => { const q = ocsXY(ext, p.x, p.y); return { x: q.x * s, y: q.y * s }; }),
+            degree, closed: edge.closed, construction: true });
         }
       }
     }

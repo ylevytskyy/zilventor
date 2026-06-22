@@ -770,6 +770,39 @@ describe('toSketch — HATCH polyline loop (Phase 4c)', () => {
   });
 });
 
+describe('toSketch — HATCH ellipse + spline edges (Phase 4c)', () => {
+  it('expands HATCH ellipse + spline edges to construction primitives', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1', ' 92', '1', ' 93', '2',
+      ' 72', '3', ' 10', '0', ' 20', '0', ' 11', '4', ' 21', '0', ' 40', '0.5',
+      ' 50', '0', ' 51', '180', ' 73', '1',
+      ' 72', '4', ' 94', '2', ' 73', '0', ' 74', '0', ' 95', '5', ' 96', '3',
+      ' 40', '0', ' 40', '0', ' 40', '0.5', ' 40', '1', ' 40', '1',
+      ' 10', '0', ' 20', '0', ' 10', '5', ' 20', '5', ' 10', '10', ' 20', '0',
+      ' 97', '0',
+    ].join('\n'))));
+    expect(r.primitives).toHaveLength(2);
+    expect(r.primitives.every((p) => p.construction === true)).toBe(true);
+    const ell = r.primitives.find((p) => p.kind === 'ellipse')!;
+    if (ell.kind === 'ellipse') {
+      expect(ell.cx).toBeCloseTo(0, 9);
+      expect(ell.cy).toBeCloseTo(0, 9);
+      expect(ell.rx).toBeCloseTo(4, 9);              // major length 4, unit scale 1
+      expect(ell.ry).toBeCloseTo(2, 9);              // ratio 0.5
+      expect(ell.rotation).toBeCloseTo(0, 9);
+      expect(ell.startAngle).toBeCloseTo(0, 9);
+      expect(ell.endAngle).toBeCloseTo(Math.PI, 9);  // 180° → π
+    }
+    const sp = r.primitives.find((p) => p.kind === 'spline')!;
+    if (sp.kind === 'spline') {
+      expect(sp.degree).toBe(2);
+      expect(sp.closed).toBe(false);
+      expect(sp.controlPoints).toEqual([{ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 0 }]);
+    }
+  });
+});
+
 describe('toSketch — HATCH edge loop (Phase 4c)', () => {
   it('expands a HATCH edge loop (line + arc) to construction primitives', () => {
     const r = toSketch(parseDxf(ents([
