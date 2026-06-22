@@ -208,3 +208,22 @@ describe('parseDxf HEADER section', () => {
     expect(r.header['$EXTMIN']).toBe('0.0'); // first value pair after the var name
   });
 });
+
+describe('parseDxf OCS extrusion', () => {
+  it('reads extrusion (0,0,-1) on a CIRCLE', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','CIRCLE','  8','0',' 10','5.0',' 20','5.0',' 40','3.0',
+      '210','0.0','220','0.0','230','-1.0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('CIRCLE');
+    if (e.type === 'CIRCLE') expect(e.extrusion).toEqual({ x: 0, y: 0, z: -1 });
+  });
+  it('leaves extrusion undefined when 210/220/230 absent', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','CIRCLE','  8','0',' 10','1',' 20','1',' 40','2',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const e = parseDxf(dxf).entities[0]!;
+    if (e.type === 'CIRCLE') expect(e.extrusion).toBeUndefined();
+  });
+});

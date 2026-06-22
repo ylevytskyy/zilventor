@@ -15,6 +15,12 @@ function str(pairs: DxfPair[], code: number, fallback = ''): string {
   return pairs.find((q) => q.code === code)?.value ?? fallback;
 }
 
+function extrusion(pairs: DxfPair[]): { x: number; y: number; z: number } | undefined {
+  const has = pairs.some((q) => q.code === 210 || q.code === 220 || q.code === 230);
+  if (!has) return undefined;
+  return { x: num(pairs, 210, 0), y: num(pairs, 220, 0), z: num(pairs, 230, 1) };
+}
+
 /** Extracts HEADER variables: each `9 <name>` maps to the value of the next pair. */
 function parseHeader(pairs: DxfPair[]): Record<string, string> {
   const header: Record<string, string> = {};
@@ -42,13 +48,19 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       return { type: 'LINE', layer,
         x1: num(raw.pairs, 10), y1: num(raw.pairs, 20),
         x2: num(raw.pairs, 11), y2: num(raw.pairs, 21) };
-    case 'CIRCLE':
+    case 'CIRCLE': {
+      const ex = extrusion(raw.pairs);
       return { type: 'CIRCLE', layer,
-        cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40) };
-    case 'ARC':
+        cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40),
+        ...(ex ? { extrusion: ex } : {}) };
+    }
+    case 'ARC': {
+      const ex = extrusion(raw.pairs);
       return { type: 'ARC', layer,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40),
-        startAngle: num(raw.pairs, 50), endAngle: num(raw.pairs, 51) };
+        startAngle: num(raw.pairs, 50), endAngle: num(raw.pairs, 51),
+        ...(ex ? { extrusion: ex } : {}) };
+    }
     case 'TEXT':
       return { type: 'TEXT', layer,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
@@ -72,7 +84,9 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         }
       }
       if (cur) verts.push(cur);
-      return { type: 'LWPOLYLINE', layer, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts };
+      const ex = extrusion(raw.pairs);
+      return { type: 'LWPOLYLINE', layer, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts,
+        ...(ex ? { extrusion: ex } : {}) };
     }
     case 'INSERT':
       return { type: 'INSERT', layer,
@@ -90,11 +104,14 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       }
       return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1, controlPoints: cps };
     }
-    case 'ELLIPSE':
+    case 'ELLIPSE': {
+      const ex = extrusion(raw.pairs);
       return { type: 'ELLIPSE', layer,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20),
         majorX: num(raw.pairs, 11), majorY: num(raw.pairs, 21),
-        ratio: num(raw.pairs, 40), startParam: num(raw.pairs, 41), endParam: num(raw.pairs, 42, 2 * Math.PI) };
+        ratio: num(raw.pairs, 40), startParam: num(raw.pairs, 41), endParam: num(raw.pairs, 42, 2 * Math.PI),
+        ...(ex ? { extrusion: ex } : {}) };
+    }
     default:
       return null;
   }
@@ -113,13 +130,15 @@ export function parseDxf(text: string): ParsedDxf {
   let section = '';
   let currentBlock: string | null = null;
   let raw: RawEntity | null = null;
-  let polyline: { layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }> } | null = null;
+  let polyline: { layer: string; closed: boolean; extrusion?: { x: number; y: number; z: number }; vertices: Array<{ x: number; y: number; bulge: number }> } | null = null;
 
   const flush = (): void => {
     if (!raw) return;
     if (raw.type === '__POLYHDR__' && polyline) {
       polyline.layer = str(raw.pairs, 8, '0');
       polyline.closed = (num(raw.pairs, 70) & 1) === 1;
+      const ex = extrusion(raw.pairs);
+      if (ex) polyline.extrusion = ex;
       raw = null;
       return;
     }
@@ -164,7 +183,8 @@ export function parseDxf(text: string): ParsedDxf {
         raw = { type: '__VERTEX__', pairs: [] };
       } else if (kind === 'SEQEND') {
         if (polyline) {
-          const ent: DxfEntity = { type: 'POLYLINE', layer: polyline.layer, closed: polyline.closed, vertices: polyline.vertices };
+          const ent: DxfEntity = { type: 'POLYLINE', layer: polyline.layer, closed: polyline.closed, vertices: polyline.vertices,
+            ...(polyline.extrusion ? { extrusion: polyline.extrusion } : {}) };
           if (section === 'ENTITIES') result.entities.push(ent);
           else if (section === 'BLOCKS' && currentBlock) (result.blocks[currentBlock] ??= []).push(ent);
           polyline = null;
