@@ -356,6 +356,8 @@ function expandInsert(
       blockPrims.push(...expandSolid(be, 1));
     } else if (be.type === '3DFACE') {
       blockPrims.push(...expandFace(be, 1, drop));
+    } else if (be.type === 'HATCH') {
+      blockPrims.push(...expandHatch(be, 1, drop));
     } else {
       const p = mapEntity(be, 1, drop, false);
       if (p) blockPrims.push(p);

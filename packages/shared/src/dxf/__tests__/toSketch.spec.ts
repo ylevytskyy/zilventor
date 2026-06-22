@@ -826,3 +826,31 @@ describe('toSketch — HATCH edge loop (Phase 4c)', () => {
     }
   });
 });
+
+describe('toSketch — HATCH nested inside INSERT block (Phase 4c)', () => {
+  it('expands a HATCH nested inside a block via INSERT', () => {
+    const dxf = [
+      '  0', 'SECTION', '  2', 'BLOCKS',
+      '  0', 'BLOCK', '  2', 'HB', ' 10', '0', ' 20', '0',
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1', ' 92', '1', ' 93', '1',
+      ' 72', '1', ' 10', '0', ' 20', '0', ' 11', '10', ' 21', '0',
+      ' 97', '0',
+      '  0', 'ENDBLK',
+      '  0', 'ENDSEC',
+      '  0', 'SECTION', '  2', 'ENTITIES',
+      '  0', 'INSERT', '  2', 'HB', ' 10', '100', ' 20', '0',
+      '  0', 'ENDSEC', '  0', 'EOF',
+    ].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    expect(r.primitives).toHaveLength(1);
+    const p = r.primitives[0]!;
+    expect(p.kind).toBe('line');
+    expect(p.construction).toBe(true);
+    // INSERT at (100,0) shifts the block-local line (0,0)→(10,0) to (100,0)→(110,0)
+    if (p.kind === 'line') {
+      expect(p.x1).toBeCloseTo(100, 9);
+      expect(p.x2).toBeCloseTo(110, 9);
+    }
+  });
+});
