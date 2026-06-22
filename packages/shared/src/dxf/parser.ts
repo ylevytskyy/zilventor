@@ -152,6 +152,8 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         ratio: num(raw.pairs, 40), startParam: num(raw.pairs, 41), endParam: num(raw.pairs, 42, 2 * Math.PI),
         ...(ex ? { extrusion: ex } : {}) };
     }
+    case 'POINT':
+      return { type: 'POINT', layer, x: num(raw.pairs, 10), y: num(raw.pairs, 20) };
     default:
       return null;
   }

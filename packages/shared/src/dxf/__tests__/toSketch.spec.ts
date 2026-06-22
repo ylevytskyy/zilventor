@@ -163,6 +163,16 @@ describe('toSketch polyline + bulge', () => {
   });
 });
 
+describe('toSketch Phase 4b coverage', () => {
+  it('maps POINT → point primitive (unit-scaled)', () => {
+    const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','1','  0','ENDSEC'].join('\n');
+    const r = toSketch(parseDxf(ents(['  0','POINT','  8','0',' 10','2',' 20','3'].join('\n'), header)));
+    const p = r.primitives[0]!;
+    if (p.kind === 'point') { expect(p.x).toBeCloseTo(50.8, 6); expect(p.y).toBeCloseTo(76.2, 6); }
+    else throw new Error('expected point');
+  });
+});
+
 describe('toSketch Phase 4a coverage', () => {
   it('passes through trimmed ellipse startAngle/endAngle unscaled even when units scale coordinates', () => {
     // $INSUNITS=1 (inch→mm, ×25.4). rx must be scaled; startAngle/endAngle must be raw radians.

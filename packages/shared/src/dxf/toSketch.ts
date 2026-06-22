@@ -144,6 +144,8 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       return { id: freshId(), kind: 'spline',
         controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed };
     }
+    case 'POINT':
+      return { id: freshId(), kind: 'point', x: e.x * s, y: e.y * s };
     case 'TEXT': drop('TEXT', 'text annotation model is Phase 4b'); return null;
     case 'MTEXT': drop('MTEXT', 'text annotation model is Phase 4b'); return null;
     case 'INSERT': drop('INSERT', 'block flatten is Phase 4b'); return null;
