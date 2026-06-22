@@ -294,6 +294,20 @@ describe('parseDxf INSERT arrays + BLOCK base points', () => {
   });
 });
 
+describe('parseDxf — LEADER', () => {
+  it('parses leader vertices from repeated 10/20 pairs', () => {
+    const dxf = entitiesDxf(['  0', 'LEADER', '  8', 'NOTES', ' 76', '3',
+      ' 10', '0', ' 20', '0',
+      ' 10', '5', ' 20', '5',
+      ' 10', '10', ' 20', '5'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('LEADER');
+    if (e.type === 'LEADER') {
+      expect(e.vertices.map((v) => [v.x, v.y])).toEqual([[0, 0], [5, 5], [10, 5]]);
+    }
+  });
+});
+
 describe('parseDxf — SOLID', () => {
   it('parses a quad SOLID in winding order P0,P1,P3,P2', () => {
     const dxf = entitiesDxf(['  0', 'SOLID', '  8', 'ARROWS',

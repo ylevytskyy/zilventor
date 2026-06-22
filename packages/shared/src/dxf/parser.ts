@@ -169,6 +169,14 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const corners = isTri ? [p0, p1, p3] : [p0, p1, p3, p2];
       return { type: 'SOLID', layer, corners, ...(ex ? { extrusion: ex } : {}) };
     }
+    case 'LEADER': {
+      const xs = nums(raw.pairs, 10);
+      const ys = nums(raw.pairs, 20);
+      const n = Math.min(xs.length, ys.length);
+      const vertices: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i < n; i++) vertices.push({ x: xs[i]!, y: ys[i]! });
+      return { type: 'LEADER', layer, vertices };
+    }
     default:
       return null;
   }
