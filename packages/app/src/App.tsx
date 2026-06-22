@@ -1223,6 +1223,20 @@ export default function App() {
       w.__zilventorClashResults = (): unknown[] => {
         return useAppStore.getState().clashRows ?? [];
       };
+
+      // DXF import hook — used by the §6 e2e to exercise the real import path.
+      (w as unknown as { __zilventorImportDxfNewPart: (f: File) => Promise<void> }).__zilventorImportDxfNewPart =
+        async (file: File): Promise<void> => {
+          const { kernel, bus, setActivePart, setStatus } = useAppStore.getState();
+          if (!kernel) throw new Error('__zilventorImportDxfNewPart: kernel not ready');
+          const { ImportDxfIntoNewPartCommand } = await import('./commands/ImportDxfIntoNewPartCommand');
+          await bus.execute(new ImportDxfIntoNewPartCommand({
+            kernel,
+            store: { getActivePart: () => useAppStore.getState().activePart, setActivePart },
+            setStatus,
+            file,
+          }));
+        };
     }
   }, []);
 

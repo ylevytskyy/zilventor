@@ -18,6 +18,9 @@ import { triggerDownload } from '../../nesting/triggerDownload';
 /** Maximum STEP file size accepted before warning the user (50 MB). */
 export const STEP_MAX_BYTES = 50 * 1024 * 1024;
 
+/** Maximum DXF file size accepted before warning the user (50 MB). */
+export const DXF_MAX_BYTES = 50 * 1024 * 1024;
+
 export default function FileTab() {
   const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
@@ -305,6 +308,24 @@ export default function FileTab() {
     }
   };
 
+  const handleImportDxf = async () => {
+    const file = await pickFile([{ description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } }]);
+    if (!file) return;
+    if (file.size > DXF_MAX_BYTES) {
+      setErrorDialog(`DXF file is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum supported size is ${(DXF_MAX_BYTES / 1024 / 1024).toFixed(0)} MB.`);
+      return;
+    }
+    const { kernel, bus, setActivePart, setStatus } = useAppStore.getState();
+    if (!kernel) return;
+    const { ImportDxfIntoNewPartCommand } = await import('../../commands/ImportDxfIntoNewPartCommand');
+    await bus.execute(new ImportDxfIntoNewPartCommand({
+      kernel,
+      store: { getActivePart: () => useAppStore.getState().activePart, setActivePart },
+      setStatus,
+      file,
+    }));
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
       <button className="hover:text-white" onClick={handleNewPart}>{t('menu.file.newPart')}</button>
@@ -348,6 +369,12 @@ export default function FileTab() {
         onClick={() => useAppStore.getState().setImportFromInventorDialogOpen(true)}
       >
         {t('menu.file.importFromInventor')}
+      </button>
+      <button
+        className="hover:text-white disabled:text-neutral-500"
+        onClick={() => { void handleImportDxf(); }}
+      >
+        {t('menu.file.importDxf')}
       </button>
       {errorDialog && (
         <div role="alertdialog" aria-label={t('common.error')} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
