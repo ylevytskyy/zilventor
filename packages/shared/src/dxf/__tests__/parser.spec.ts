@@ -293,3 +293,30 @@ describe('parseDxf INSERT arrays + BLOCK base points', () => {
     expect(r.blockBasePoints['BLK']).toEqual({ x: 5, y: 7 });
   });
 });
+
+describe('parseDxf — SOLID', () => {
+  it('parses a quad SOLID in winding order P0,P1,P3,P2', () => {
+    const dxf = entitiesDxf(['  0', 'SOLID', '  8', 'ARROWS',
+      ' 10', '0', ' 20', '0',
+      ' 11', '1', ' 21', '0',
+      ' 12', '0', ' 22', '1',
+      ' 13', '1', ' 23', '1'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('SOLID');
+    if (e.type === 'SOLID') {
+      // stored 10,11,12,13 = (0,0),(1,0),(0,1),(1,1); winding order is 10,11,13,12
+      expect(e.corners.map((c) => [c.x, c.y])).toEqual([[0, 0], [1, 0], [1, 1], [0, 1]]);
+    }
+  });
+
+  it('collapses a triangle when corner 12 == corner 13', () => {
+    const dxf = entitiesDxf(['  0', 'SOLID', '  8', '0',
+      ' 10', '0', ' 20', '0',
+      ' 11', '2', ' 21', '0',
+      ' 12', '1', ' 22', '2',
+      ' 13', '1', ' 23', '2'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('SOLID');
+    if (e.type === 'SOLID') expect(e.corners.map((c) => [c.x, c.y])).toEqual([[0, 0], [2, 0], [1, 2]]);
+  });
+});

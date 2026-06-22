@@ -156,6 +156,19 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const ex = extrusion(raw.pairs);
       return { type: 'POINT', layer, x: num(raw.pairs, 10), y: num(raw.pairs, 20), ...(ex ? { extrusion: ex } : {}) };
     }
+    case 'SOLID':
+    case 'TRACE': {
+      const ex = extrusion(raw.pairs);
+      const p0 = { x: num(raw.pairs, 10), y: num(raw.pairs, 20) };
+      const p1 = { x: num(raw.pairs, 11), y: num(raw.pairs, 21) };
+      const p2 = { x: num(raw.pairs, 12), y: num(raw.pairs, 22) };
+      const p3 = { x: num(raw.pairs, 13), y: num(raw.pairs, 23) };
+      // ezdxf gotcha: screen/winding order is 0,1,3,2 (last two reversed). Triangle when p2 == p3.
+      const eps = 1e-9;
+      const isTri = Math.abs(p2.x - p3.x) < eps && Math.abs(p2.y - p3.y) < eps;
+      const corners = isTri ? [p0, p1, p3] : [p0, p1, p3, p2];
+      return { type: 'SOLID', layer, corners, ...(ex ? { extrusion: ex } : {}) };
+    }
     default:
       return null;
   }
