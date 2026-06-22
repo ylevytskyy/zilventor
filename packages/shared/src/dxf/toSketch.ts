@@ -56,10 +56,52 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
   };
 
   for (const e of parsed.entities) {
+    if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
+      primitives.push(...expandPolyline(e, s));
+      continue;
+    }
     const prim = mapEntity(e, s, drop);
     if (prim) primitives.push(prim);
   }
   return { primitives, annotations: [], dropped: [...droppedMap.values()] };
+}
+
+function expandPolyline(
+  e: { vertices: Array<{ x: number; y: number; bulge: number }>; closed: boolean; extrusion?: V3 },
+  s: number,
+): SketchPrimitive[] {
+  const out: SketchPrimitive[] = [];
+  const v = e.vertices;
+  const n = v.length;
+  if (n < 2) return out;
+  const last = e.closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const a = v[i]!;
+    const b = v[(i + 1) % n]!;
+    const pa = ocsXY(e.extrusion, a.x, a.y);
+    const pb = ocsXY(e.extrusion, b.x, b.y);
+    out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, a.bulge));
+  }
+  return out;
+}
+
+function segment(x1: number, y1: number, x2: number, y2: number, bulge: number): SketchPrimitive {
+  if (bulge === 0) return { id: freshId(), kind: 'line', x1, y1, x2, y2 };
+  const theta = 4 * Math.atan(bulge);                  // signed included angle
+  const dx = x2 - x1, dy = y2 - y1;
+  const c = Math.hypot(dx, dy);
+  const r = Math.abs(c / (2 * Math.sin(theta / 2)));   // radius
+  const ux = dx / c, uy = dy / c;                      // chord unit vector
+  const nx = -uy, ny = ux;                             // left normal (+90°)
+  const apothem = Math.cos(theta / 2) * r;             // midpoint→center distance (magnitude)
+  const sign = bulge >= 0 ? -1 : 1;                    // center on side opposite the bulge
+  const cx = (x1 + x2) / 2 + sign * apothem * nx;
+  const cy = (y1 + y2) / 2 + sign * apothem * ny;
+  const a1 = Math.atan2(y1 - cy, x1 - cx);
+  const a2 = Math.atan2(y2 - cy, x2 - cx);
+  // sketch arc is CCW start→end; for bulge>0 the swept span is a2→a1 (swap), else a1→a2
+  const [startAngle, endAngle] = bulge > 0 ? [a2, a1] : [a1, a2];
+  return { id: freshId(), kind: 'arc', cx, cy, r, startAngle, endAngle };
 }
 
 function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void): SketchPrimitive | null {
@@ -101,8 +143,6 @@ function mapEntity(e: DxfEntity, s: number, drop: (k: string, r: string) => void
       return { id: freshId(), kind: 'spline',
         controlPoints: poles.map((p) => ({ x: p.x * s, y: p.y * s })), degree, closed: e.closed };
     }
-    case 'LWPOLYLINE': drop('LWPOLYLINE', 'polyline mapping lands in task 6'); return null;
-    case 'POLYLINE': drop('POLYLINE', 'polyline mapping lands in task 6'); return null;
     case 'TEXT': drop('TEXT', 'text annotation model is Phase 4b'); return null;
     case 'MTEXT': drop('MTEXT', 'text annotation model is Phase 4b'); return null;
     case 'INSERT': drop('INSERT', 'block flatten is Phase 4b'); return null;

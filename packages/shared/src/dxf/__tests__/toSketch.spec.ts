@@ -63,10 +63,10 @@ describe('toSketch core mapping', () => {
     else throw new Error('expected circle');
   });
 
-  it('tallies unsupported entities into dropped (LWPOLYLINE handled in task 6)', () => {
-    const r = toSketch(parseDxf(ents(['  0','LWPOLYLINE','  8','0',' 90','2',' 10','0',' 20','0',' 10','5',' 20','5'].join('\n'))));
+  it('tallies unsupported entities into dropped (e.g. INSERT)', () => {
+    const r = toSketch(parseDxf(ents(['  0','INSERT','  8','0',' 10','0',' 20','0',' 66','0'].join('\n'))));
     expect(r.primitives).toHaveLength(0);
-    expect(r.dropped.find((d) => d.kind === 'LWPOLYLINE')?.count).toBe(1);
+    expect(r.dropped.find((d) => d.kind === 'INSERT')?.count).toBe(1);
   });
 });
 
@@ -100,3 +100,43 @@ function midAngleCCW(a: number, b: number): number {
   let span = b - a; while (span < 0) span += 2 * Math.PI;
   return a + span / 2;
 }
+
+describe('toSketch polyline + bulge', () => {
+  it('maps a straight LWPOLYLINE (3 verts open) to 2 line segments', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','LWPOLYLINE','  8','0',' 90','3',' 70','0',
+      ' 10','0',' 20','0',' 10','10',' 20','0',' 10','10',' 20','5',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    expect(r.primitives.filter((p) => p.kind === 'line')).toHaveLength(2);
+  });
+
+  it('maps a closed square LWPOLYLINE to 4 line segments (wrap included)', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','LWPOLYLINE','  8','0',' 90','4',' 70','1',
+      ' 10','0',' 20','0',' 10','10',' 20','0',' 10','10',' 20','10',' 10','0',' 20','10',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    expect(r.primitives).toHaveLength(4);
+    expect(r.primitives.every((p) => p.kind === 'line')).toBe(true);
+  });
+
+  it('maps a bulged segment to an arc on the correct side', () => {
+    // segment (0,0)→(10,0) with bulge 0.41421356 (Δθ=90°). Arc must bulge UP (+y, left of travel).
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','LWPOLYLINE','  8','0',' 90','2',' 70','0',
+      ' 10','0',' 20','0',' 42','0.41421356237',' 10','10',' 20','0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    const arc = r.primitives.find((p) => p.kind === 'arc');
+    expect(arc).toBeDefined();
+    if (arc && arc.kind === 'arc') {
+      // center sits below the chord (bulge-opposite side)
+      expect(arc.cy).toBeLessThan(0);
+      // the CCW-mid point of the arc lies above the chord (y>0)
+      let span = arc.endAngle - arc.startAngle; while (span < 0) span += 2 * Math.PI;
+      const mid = arc.startAngle + span / 2;
+      expect(arc.cy + arc.r * Math.sin(mid)).toBeGreaterThan(0);
+    }
+  });
+});
