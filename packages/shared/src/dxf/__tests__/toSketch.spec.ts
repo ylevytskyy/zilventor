@@ -529,6 +529,22 @@ describe('toSketch TEXT/MTEXT → annotations', () => {
   });
 });
 
+describe('toSketch — LEADER', () => {
+  it('maps a 3-vertex LEADER to 2 construction segments, no annotation', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'LEADER', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 10', '5', ' 20', '5', ' 10', '10', ' 20', '5'].join('\n'))));
+    expect(r.primitives).toHaveLength(2);
+    expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
+    expect(r.annotations).toHaveLength(0);
+  });
+
+  it('drops a degenerate LEADER (< 2 vertices)', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'LEADER', '  8', '0', ' 10', '1', ' 20', '1'].join('\n'))));
+    expect(r.primitives).toHaveLength(0);
+    expect(r.dropped.some((d) => d.kind === 'LEADER')).toBe(true);
+  });
+});
+
 describe('toSketch — expandInsert flattens SOLID in block body', () => {
   it('renders a block SOLID arrowhead as construction lines', () => {
     const parsed: ParsedDxf = {

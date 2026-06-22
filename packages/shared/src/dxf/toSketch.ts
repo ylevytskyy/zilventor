@@ -395,6 +395,10 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       primitives.push(...expandSolid(e, s));
       continue;
     }
+    if (e.type === 'LEADER') {
+      primitives.push(...expandLeader(e, s, drop));
+      continue;
+    }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
@@ -423,6 +427,21 @@ function expandPolyline(
     const pa = ocsXY(e.extrusion, a.x, a.y);
     const pb = ocsXY(e.extrusion, b.x, b.y);
     out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, refl ? -a.bulge : a.bulge, construction));
+  }
+  return out;
+}
+
+function expandLeader(
+  e: Extract<DxfEntity, { type: 'LEADER' }>,
+  s: number,
+  drop: (k: string, r: string) => void,
+): SketchPrimitive[] {
+  if (e.vertices.length < 2) { drop('LEADER', 'fewer than 2 vertices'); return []; }
+  const out: SketchPrimitive[] = [];
+  for (let i = 0; i < e.vertices.length - 1; i++) {
+    const a = e.vertices[i]!;
+    const b = e.vertices[i + 1]!;
+    out.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
   }
   return out;
 }
