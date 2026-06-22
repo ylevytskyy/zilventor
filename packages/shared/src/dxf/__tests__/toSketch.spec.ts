@@ -751,3 +751,21 @@ describe('toSketch — RAY/XLINE bbox-clamp', () => {
     }
   });
 });
+
+describe('toSketch — HATCH polyline loop (Phase 4c)', () => {
+  it('expands a HATCH polyline loop to closed construction segments (bulge → arc)', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1', ' 92', '3', ' 72', '1', ' 73', '1', ' 93', '3',
+      ' 10', '0', ' 20', '0', ' 42', '0',
+      ' 10', '10', ' 20', '0', ' 42', '0.5',
+      ' 10', '10', ' 20', '10', ' 42', '0',
+      ' 97', '0',
+    ].join('\n'))));
+    // closed polyline with 3 vertices → 3 segments (last closes back to v0)
+    expect(r.primitives).toHaveLength(3);
+    expect(r.primitives.every((p) => p.construction === true)).toBe(true);
+    const kinds = r.primitives.map((p) => p.kind).sort();
+    expect(kinds).toEqual(['arc', 'line', 'line']);   // the bulge=0.5 segment becomes an arc
+  });
+});

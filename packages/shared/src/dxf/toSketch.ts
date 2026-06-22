@@ -415,6 +415,10 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       primitives.push(...expandSolid(e, s));
       continue;
     }
+    if (e.type === 'HATCH') {
+      primitives.push(...expandHatch(e, s, drop));
+      continue;
+    }
     if (e.type === '3DFACE') {
       primitives.push(...expandFace(e, s, drop));
       continue;
@@ -606,6 +610,19 @@ function clipToBox(
   if (t1 < t0) return null; // misses the box
   if (ray) { t0 = Math.max(t0, 0); if (t1 < t0) return null; } // box entirely behind base
   return { x1: bx + ux * t0, y1: by + uy * t0, x2: bx + ux * t1, y2: by + uy * t1 };
+}
+
+function expandHatch(e: Extract<DxfEntity, { type: 'HATCH' }>, s: number, drop: (k: string, r: string) => void): SketchPrimitive[] {
+  const out: SketchPrimitive[] = [];
+  const ext = e.extrusion;
+  for (const loop of e.loops) {
+    if (loop.kind === 'polyline') {
+      out.push(...expandPolyline({ vertices: loop.vertices, closed: loop.closed, ...(ext ? { extrusion: ext } : {}) }, s, true));
+    } else {
+      // edges: Tasks 6/7
+    }
+  }
+  return out;
 }
 
 function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): SketchPrimitive[] {
