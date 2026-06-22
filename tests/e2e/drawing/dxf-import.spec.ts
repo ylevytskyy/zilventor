@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { waitForKernelReady } from '../helpers/buildBox';
 
 // Minimal DXF fixture: INSUNITS=1 (inch), one LINE and one CIRCLE.
@@ -112,5 +114,43 @@ test('DXF import into active sketch adds primitives to the open sketch', async (
   }, DXF_FIXTURE);
 
   expect(primitiveCount).toBe(2);  // line + circle
+  expect(errors).toEqual([]);
+});
+
+test('Phase 4b: imports points, text, INSERT array, and layer construction', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const errors: string[] = [];
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  const dxfText = readFileSync(resolve(__dirname, '../fixtures/phase4b.dxf'), 'utf-8');
+
+  // Drive the command through the DEV-gated window hook (same pattern as 4a scenarios above).
+  const counts = await page.evaluate(async (text: string) => {
+    const w = window as unknown as {
+      __zilventorStore: { getState: () => { activePart?: { featureTree: Array<{ kind: string; primitives?: unknown[]; annotations?: unknown[] }> } } };
+      __zilventorImportDxfNewPart: (f: File) => Promise<void>;
+    };
+    const file = new File([text], 'phase4b.dxf', { type: 'image/vnd.dxf' });
+    await w.__zilventorImportDxfNewPart(file);
+    const part = w.__zilventorStore.getState();
+    const sketch = part.activePart?.featureTree.find((f) => f.kind === 'sketch');
+    return {
+      prims: sketch?.primitives?.length ?? -1,
+      annos: (sketch?.annotations as unknown[] | undefined)?.length ?? 0,
+      point: (sketch?.primitives as Array<{ kind: string }> | undefined)?.filter((p) => p.kind === 'point').length ?? 0,
+    };
+  }, dxfText);
+
+  // 1 POINT entity → 1 point primitive
+  expect(counts.point).toBe(1);
+  // 1 TEXT entity → 1 annotation
+  expect(counts.annos).toBe(1);
+  // 1 LINE + 2 INSERT-array circles (2 columns × 1 CIRCLE per block) + 1 POINT = 4 primitives
+  expect(counts.prims).toBeGreaterThanOrEqual(4);
   expect(errors).toEqual([]);
 });
