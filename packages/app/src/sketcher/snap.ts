@@ -12,7 +12,7 @@ export type SnapContext = {
 
 const AXIS_SNAP_DEGREES = 3;
 
-function primitiveEndpoints(p: SketchPrimitive): Point2[] {
+export function primitiveEndpoints(p: SketchPrimitive): Point2[] {
   switch (p.kind) {
     case 'line':
       return [{ x: p.x1, y: p.y1 }, { x: p.x2, y: p.y2 }];
@@ -45,6 +45,9 @@ function primitiveEndpoints(p: SketchPrimitive): Point2[] {
       // Full ellipse: expose major-axis endpoint (mirrors circle's single snap point)
       return [{ x: p.cx + p.rx * cr, y: p.cy + p.rx * sr }];
     }
+    case 'point':
+      // A point's only snap endpoint is its own coordinate.
+      return [{ x: p.x, y: p.y }];
   }
 }
 

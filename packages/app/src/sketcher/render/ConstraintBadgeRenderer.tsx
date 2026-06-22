@@ -68,6 +68,7 @@ function anchorWorldPos(c: SketchConstraint, prims: Map<string, SketchPrimitive>
     if (p.kind === 'circle')    return { x: p.cx, y: p.cy };
     if (p.kind === 'arc')       return { x: p.cx, y: p.cy };
     if (p.kind === 'ellipse')   return { x: p.cx, y: p.cy };
+    // point: no constraint badge in 4b (point is not a constrainable edge)
     if (p.kind === 'rectangle') {
       switch (ref.anchor) {
         case 'bl': return { x: p.x,         y: p.y };

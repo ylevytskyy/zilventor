@@ -100,6 +100,13 @@ function primitivesBbox(prims: SketchPrimitive[]): Bbox | null {
         touched = true;
         break;
       }
+      case 'point':
+        // Degenerate bbox: the point itself. Included so a sketch containing
+        // only a point primitive registers a bbox for profile pick.
+        xmin = Math.min(xmin, p.x); xmax = Math.max(xmax, p.x);
+        ymin = Math.min(ymin, p.y); ymax = Math.max(ymax, p.y);
+        touched = true;
+        break;
     }
   }
   return touched ? { xmin, ymin, xmax, ymax } : null;

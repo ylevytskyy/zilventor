@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSnap } from '../snap';
+import { resolveSnap, primitiveEndpoints } from '../snap';
 import type { SketchPrimitive } from '@zilventor/shared';
 
 const EMPTY_SKETCH: SketchPrimitive[] = [];
@@ -90,5 +90,9 @@ describe('resolveSnap', () => {
     expect(r.point.x).toBeCloseTo(0, 3);
     expect(r.point.y).toBeCloseTo(5, 3);
     expect(r.kind).toBe('endpoint');
+  });
+
+  it('returns the point coordinate as its only endpoint', () => {
+    expect(primitiveEndpoints({ id: 'p', kind: 'point', x: 7, y: 9 } as never)).toEqual([{ x: 7, y: 9 }]);
   });
 });

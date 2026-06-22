@@ -40,6 +40,7 @@ export class SelectTool {
       } else if (prim.kind === 'ellipse') {
         candidates.push({ ref: { primitiveId: prim.id, anchor: 'center' }, x: prim.cx, y: prim.cy });
       }
+      // point: no constraint-snap endpoint in 4b (a point is not a dimensionable edge)
       for (const c of candidates) {
         const dx = c.x - p.x, dy = c.y - p.y;
         const d2 = dx * dx + dy * dy;

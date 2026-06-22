@@ -75,6 +75,19 @@ export class CommittedSketchRenderer {
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
       return new THREE.Line(g, mat);
     }
+    if (p.kind === 'point') {
+      // Render a small cross marker (4 world-unit arm) at the point location.
+      // The cross is drawn as two line segments sharing the center.
+      const ARM = 2; // half-length of each arm in world units
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+        p.x - ARM, p.y,       SKETCH_Z,
+        p.x + ARM, p.y,       SKETCH_Z,
+        p.x,       p.y - ARM, SKETCH_Z,
+        p.x,       p.y + ARM, SKETCH_Z,
+      ]), 3));
+      return new THREE.LineSegments(g, mat);
+    }
     // spline
     return this.buildSpline(p.controlPoints, mat);
   }
