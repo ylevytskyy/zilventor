@@ -15,8 +15,11 @@ export type DxfEntity =
   | { type: 'SPLINE'; layer: string; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }>; fitPoints: Array<{ x: number; y: number }>; knots: number[]; weights: number[] }
   | { type: 'ELLIPSE'; layer: string; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number; extrusion?: DxfExtrusion };
 
+export type DxfLayer = { name: string; color: number; linetype: string; flags: number };
+
 export type ParsedDxf = {
   entities: DxfEntity[];
   blocks: Record<string, DxfEntity[]>;
   header: Record<string, string>;
+  layers: Record<string, DxfLayer>;
 };

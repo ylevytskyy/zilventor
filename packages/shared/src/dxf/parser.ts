@@ -1,5 +1,5 @@
 import { tokenize } from './tokenizer';
-import type { DxfPair, DxfEntity, ParsedDxf } from './types';
+import type { DxfPair, DxfEntity, DxfLayer, ParsedDxf } from './types';
 
 /** A raw entity record: its type plus a code→values multimap of its attribute pairs. */
 type RawEntity = { type: string; pairs: DxfPair[] };
@@ -45,6 +45,33 @@ function parseHeader(pairs: DxfPair[]): Record<string, string> {
     }
   }
   return header;
+}
+
+/** Extracts LAYER records from the TABLES section. */
+function parseLayers(pairs: DxfPair[]): Record<string, DxfLayer> {
+  const layers: Record<string, DxfLayer> = {};
+  let inTables = false;
+  let cur: DxfLayer | null = null;
+  const commit = (): void => { if (cur) { layers[cur.name] = cur; cur = null; } };
+  for (let i = 0; i < pairs.length; i++) {
+    const p = pairs[i]!;
+    if (p.code === 0 && p.value === 'SECTION') {
+      const next = pairs[i + 1];
+      inTables = !!next && next.code === 2 && next.value === 'TABLES';
+      continue;
+    }
+    if (p.code === 0 && (p.value === 'ENDSEC' || p.value === 'EOF')) { commit(); inTables = false; continue; }
+    if (!inTables) continue;
+    if (p.code === 0 && p.value === 'LAYER') { commit(); cur = { name: '', color: 0, linetype: '', flags: 0 }; continue; }
+    if (p.code === 0) { commit(); continue; } // any other record ends the current LAYER
+    if (!cur) continue;
+    if (p.code === 2) cur.name = p.value;
+    else if (p.code === 6) cur.linetype = p.value;
+    else if (p.code === 62) cur.color = Number.parseInt(p.value, 10) || 0;
+    else if (p.code === 70) cur.flags = Number.parseInt(p.value, 10) || 0;
+  }
+  commit();
+  return layers;
 }
 
 function readEntity(raw: RawEntity): DxfEntity | null {
@@ -129,7 +156,7 @@ function readEntity(raw: RawEntity): DxfEntity | null {
 }
 
 export function parseDxf(text: string): ParsedDxf {
-  const result: ParsedDxf = { entities: [], blocks: {}, header: {} };
+  const result: ParsedDxf = { entities: [], blocks: {}, header: {}, layers: {} };
   let pairs: DxfPair[];
   try {
     pairs = tokenize(text);
@@ -137,6 +164,7 @@ export function parseDxf(text: string): ParsedDxf {
     return result;
   }
   result.header = parseHeader(pairs);
+  result.layers = parseLayers(pairs);
 
   let section = '';
   let currentBlock: string | null = null;

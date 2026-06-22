@@ -244,3 +244,21 @@ describe('parseDxf OCS extrusion', () => {
     if (e.type === 'CIRCLE') expect(e.extrusion).toBeUndefined();
   });
 });
+
+describe('parseDxf TABLES/LAYER', () => {
+  it('captures LAYER records (name/color/linetype/flags)', () => {
+    const dxf = ['  0','SECTION','  2','TABLES',
+      '  0','TABLE','  2','LAYER',
+      '  0','LAYER','  2','0','  6','CONTINUOUS',' 62','7',' 70','0',
+      '  0','LAYER','  2','DEFPOINTS','  6','CONTINUOUS',' 62','7',' 70','1',
+      '  0','ENDTAB','  0','ENDSEC','  0','EOF'].join('\n');
+    const r = parseDxf(dxf);
+    expect(Object.keys(r.layers)).toEqual(['0', 'DEFPOINTS']);
+    expect(r.layers['DEFPOINTS']).toEqual({ name: 'DEFPOINTS', color: 7, linetype: 'CONTINUOUS', flags: 1 });
+  });
+  it('leaves layers empty when no TABLES section', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES','  0','LINE','  8','0',' 10','0',' 20','0',' 11','1',' 21','1',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    expect(parseDxf(dxf).layers).toEqual({});
+  });
+});
