@@ -627,3 +627,60 @@ describe('toSketch — MLEADER', () => {
     expect(r.dropped.some((d) => d.kind === 'MLEADER')).toBe(true);
   });
 });
+
+describe('toSketch — 3DFACE', () => {
+  it('maps a planar quad 3DFACE to a closed loop of 4 construction lines', () => {
+    const r = toSketch(parseDxf(ents(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '0',
+      ' 11', '1', ' 21', '0', ' 31', '0',
+      ' 12', '1', ' 22', '1', ' 32', '0',
+      ' 13', '0', ' 23', '1', ' 33', '0'].join('\n'))));
+    expect(r.primitives).toHaveLength(4);
+    expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
+    const last = r.primitives[3]!;
+    if (last.kind === 'line') expect([last.x2, last.y2]).toEqual([0, 0]); // closed back to c0
+  });
+
+  it('maps a planar triangle 3DFACE to 3 lines', () => {
+    const r = toSketch(parseDxf(ents(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '0',
+      ' 11', '2', ' 21', '0', ' 31', '0',
+      ' 12', '1', ' 22', '2', ' 32', '0',
+      ' 13', '1', ' 23', '2', ' 33', '0'].join('\n'))));
+    expect(r.primitives).toHaveLength(3);
+  });
+
+  it('imports a face flat at a nonzero single z plane', () => {
+    const r = toSketch(parseDxf(ents(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '5',
+      ' 11', '1', ' 21', '0', ' 31', '5',
+      ' 12', '1', ' 22', '1', ' 32', '5',
+      ' 13', '0', ' 23', '1', ' 33', '5'].join('\n'))));
+    expect(r.primitives).toHaveLength(4);
+  });
+
+  it('drops a non-planar 3DFACE (corners not co-Z) and tallies it', () => {
+    const r = toSketch(parseDxf(ents(['  0', '3DFACE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 30', '0',
+      ' 11', '1', ' 21', '0', ' 31', '0',
+      ' 12', '1', ' 22', '1', ' 32', '9',
+      ' 13', '0', ' 23', '1', ' 33', '0'].join('\n'))));
+    expect(r.primitives).toHaveLength(0);
+    expect(r.dropped.some((d) => d.kind === '3DFACE')).toBe(true);
+  });
+
+  it('flattens a 3DFACE inside an INSERT block', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'FACE', x: 0, y: 0,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: {
+        FACE: [{ type: '3DFACE', layer: '0',
+          corners: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }, { x: 0, y: 1, z: 0 }] }],
+      },
+      header: {}, layers: {}, blockBasePoints: { FACE: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.primitives).toHaveLength(4);
+    expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
+  });
+});

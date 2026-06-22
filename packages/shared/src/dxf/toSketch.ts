@@ -347,6 +347,8 @@ function expandInsert(
       blockPrims.push(...expandPolyline(be, 1, false));
     } else if (be.type === 'SOLID') {
       blockPrims.push(...expandSolid(be, 1));
+    } else if (be.type === '3DFACE') {
+      blockPrims.push(...expandFace(be, 1, drop));
     } else {
       const p = mapEntity(be, 1, drop, false);
       if (p) blockPrims.push(p);
@@ -403,6 +405,10 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     }
     if (e.type === 'SOLID') {
       primitives.push(...expandSolid(e, s));
+      continue;
+    }
+    if (e.type === '3DFACE') {
+      primitives.push(...expandFace(e, s, drop));
       continue;
     }
     if (e.type === 'LEADER') {
@@ -502,10 +508,9 @@ function expandLeader(
   return out;
 }
 
-function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): SketchPrimitive[] {
-  // corners are already in winding order (0,1,3,2) from the parser. Emit a closed
-  // construction loop. Fill is intentionally dropped (boundary only, consistent with HATCH).
-  const pts = e.corners.map((c) => ocsXY(e.extrusion, c.x, c.y));
+/** Emit a closed loop of construction lines from polygon corners (OCS→WCS, scaled by s). */
+function closedLoop(corners: ReadonlyArray<{ x: number; y: number }>, extrusion: V3 | undefined, s: number): SketchPrimitive[] {
+  const pts = corners.map((c) => ocsXY(extrusion, c.x, c.y));
   const out: SketchPrimitive[] = [];
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i]!;
@@ -513,6 +518,30 @@ function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): Sketc
     out.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
   }
   return out;
+}
+
+function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): SketchPrimitive[] {
+  // corners are already in winding order (0,1,3,2) from the parser. Emit a closed
+  // construction loop. Fill is intentionally dropped (boundary only, consistent with HATCH).
+  return closedLoop(e.corners, e.extrusion, s);
+}
+
+function expandFace(e: Extract<DxfEntity, { type: '3DFACE' }>, s: number, drop: (k: string, r: string) => void): SketchPrimitive[] {
+  const eps = 1e-9;
+  // Degenerate guard: fewer than 3 distinct corners → not a face.
+  const distinct: Array<{ x: number; y: number; z: number }> = [];
+  for (const p of e.corners) {
+    if (!distinct.some((q) => Math.abs(q.x - p.x) < eps && Math.abs(q.y - p.y) < eps && Math.abs(q.z - p.z) < eps)) {
+      distinct.push(p);
+    }
+  }
+  if (distinct.length < 3) { drop('3DFACE', 'degenerate (fewer than 3 distinct corners)'); return []; }
+  // Planar gate: every corner must share corner 0's z (else projecting onto XY distorts it).
+  const z0 = e.corners[0]!.z;
+  if (e.corners.some((p) => Math.abs(p.z - z0) > eps)) { drop('3DFACE', 'non-planar (corners not co-Z)'); return []; }
+  // 3DFACE is WCS — no extrusion/OCS. Emit a closed construction loop (all edges; code 70
+  // edge-visibility flags are ignored — documented limitation).
+  return closedLoop(e.corners, undefined, s);
 }
 
 function segment(x1: number, y1: number, x2: number, y2: number, bulge: number, construction: boolean): SketchPrimitive {
