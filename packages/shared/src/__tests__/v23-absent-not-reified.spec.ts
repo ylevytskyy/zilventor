@@ -48,7 +48,7 @@ const V22_PART_WITH_BORES: AnyManifest = {
 describe('v22→v23 absent-not-reified round-trip', () => {
   it('migrated manifest has formatVersion 24', () => {
     const out = migrateManifest(V22_PART_WITH_BORES);
-    expect(out.formatVersion).toBe(31);
+    expect(out.formatVersion).toBe(32);
   });
 
   it('suppressedConnectorIds key is absent on the document (not [] or null or undefined)', () => {
@@ -115,7 +115,7 @@ describe('v22→v23 absent-not-reified round-trip', () => {
       },
     };
     const out = migrateManifest(v22WithEdited);
-    expect(out.formatVersion).toBe(31);
+    expect(out.formatVersion).toBe(32);
     const doc = out.document as { bores?: Array<Record<string, unknown>> };
     expect(doc.bores![0]!['edited']).toBe(true);
   });
@@ -142,7 +142,7 @@ describe('v22→v23 absent-not-reified round-trip', () => {
       },
     };
     const out = migrateManifest(v22WithJointDir);
-    expect(out.formatVersion).toBe(31);
+    expect(out.formatVersion).toBe(32);
     const doc = out.document as { bores?: Array<Record<string, unknown>> };
     expect(doc.bores![0]!['jointDir']).toEqual({ x: 0, y: 1, z: 0 });
   });
