@@ -492,6 +492,26 @@ describe('transformPrimitive curves (4c)', () => {
   });
 });
 
+describe('toSketch — SOLID', () => {
+  it('maps a quad SOLID to a closed loop of 4 construction lines', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'SOLID', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 11', '1', ' 21', '0',
+      ' 12', '0', ' 22', '1', ' 13', '1', ' 23', '1'].join('\n'))));
+    expect(r.primitives).toHaveLength(4);
+    expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
+    // closed: last segment ends back at first corner (0,0)
+    const last = r.primitives[3]!;
+    if (last.kind === 'line') expect([last.x2, last.y2]).toEqual([0, 0]);
+  });
+
+  it('maps a triangle SOLID to 3 lines', () => {
+    const r = toSketch(parseDxf(ents(['  0', 'SOLID', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 11', '2', ' 21', '0',
+      ' 12', '1', ' 22', '2', ' 13', '1', ' 23', '2'].join('\n'))));
+    expect(r.primitives).toHaveLength(3);
+  });
+});
+
 describe('toSketch TEXT/MTEXT → annotations', () => {
   it('maps TEXT to a text annotation (deg→rad rotation, unit-scaled)', () => {
     const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','4','  0','ENDSEC'].join('\n');

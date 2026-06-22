@@ -389,6 +389,10 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       annotations.push({ id: freshId(), x: e.x * s, y: e.y * s, height: e.height * s, value, rotation: (e.rotation * Math.PI) / 180 });
       continue;
     }
+    if (e.type === 'SOLID') {
+      primitives.push(...expandSolid(e, s));
+      continue;
+    }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
@@ -417,6 +421,19 @@ function expandPolyline(
     const pa = ocsXY(e.extrusion, a.x, a.y);
     const pb = ocsXY(e.extrusion, b.x, b.y);
     out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, refl ? -a.bulge : a.bulge, construction));
+  }
+  return out;
+}
+
+function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): SketchPrimitive[] {
+  // corners are already in winding order (0,1,3,2) from the parser. Emit a closed
+  // construction loop. Fill is intentionally dropped (boundary only, consistent with HATCH).
+  const pts = e.corners.map((c) => ocsXY(e.extrusion, c.x, c.y));
+  const out: SketchPrimitive[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
+    out.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
   }
   return out;
 }
