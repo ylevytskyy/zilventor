@@ -18,6 +18,8 @@ export type DxfEntity =
   | { type: 'SOLID'; layer: string; corners: ReadonlyArray<{ x: number; y: number }>; extrusion?: DxfExtrusion }
   | { type: 'LEADER'; layer: string; vertices: ReadonlyArray<{ x: number; y: number }> }
   | { type: '3DFACE'; layer: string; corners: ReadonlyArray<{ x: number; y: number; z: number }> }
+  | { type: 'RAY'; layer: string; x: number; y: number; dx: number; dy: number }
+  | { type: 'XLINE'; layer: string; x: number; y: number; dx: number; dy: number }
   | { type: 'DIMENSION'; layer: string; block?: string; textOverride: string; measurement: number; textMidX: number; textMidY: number }
   | { type: 'MLEADER'; layer: string;
       leaderLines: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>;

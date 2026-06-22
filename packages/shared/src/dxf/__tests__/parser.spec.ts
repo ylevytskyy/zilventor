@@ -425,3 +425,21 @@ describe('parseDxf — 3DFACE', () => {
     if (e.type === '3DFACE') expect(e.corners).toHaveLength(3);
   });
 });
+
+describe('parseDxf — RAY & XLINE', () => {
+  it('parses a RAY with base point and direction (z dropped)', () => {
+    const dxf = entitiesDxf(['  0', 'RAY', '  8', '0',
+      ' 10', '1', ' 20', '2', ' 30', '0', ' 11', '1', ' 21', '0', ' 31', '0'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('RAY');
+    if (e.type === 'RAY') expect([e.x, e.y, e.dx, e.dy]).toEqual([1, 2, 1, 0]);
+  });
+
+  it('parses an XLINE with base point and direction', () => {
+    const dxf = entitiesDxf(['  0', 'XLINE', '  8', '0',
+      ' 10', '0', ' 20', '0', ' 11', '0', ' 21', '1'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('XLINE');
+    if (e.type === 'XLINE') expect([e.x, e.y, e.dx, e.dy]).toEqual([0, 0, 0, 1]);
+  });
+});

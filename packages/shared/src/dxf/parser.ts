@@ -261,6 +261,14 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const corners = isTri ? [c0, c1, c2] : [c0, c1, c2, c3];
       return { type: '3DFACE', layer, corners };
     }
+    case 'RAY':
+      return { type: 'RAY', layer,
+        x: num(raw.pairs, 10), y: num(raw.pairs, 20),
+        dx: num(raw.pairs, 11), dy: num(raw.pairs, 21) };
+    case 'XLINE':
+      return { type: 'XLINE', layer,
+        x: num(raw.pairs, 10), y: num(raw.pairs, 20),
+        dx: num(raw.pairs, 11), dy: num(raw.pairs, 21) };
     default:
       return null;
   }
