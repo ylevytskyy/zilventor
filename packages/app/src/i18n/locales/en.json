@@ -989,7 +989,8 @@
       "under": "{{count}} DOF"
     },
     "dxfImport": {
-      "done": "Imported {{imported}} primitives, skipped {{skipped}} entities"
+      "done": "Imported {{imported}} primitives, skipped {{skipped}} entities",
+      "doneWithAnnotations": "Imported {{imported}} primitives, {{annotations}} annotations, skipped {{skipped}} entities"
     },
     "drawing": {
       "assemblySourceFailed": "Assembly source load failed — Regenerate disabled. Ensure all assembly parts are saved.",

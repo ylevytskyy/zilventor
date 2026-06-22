@@ -30,7 +30,7 @@ export class ImportDxfIntoNewPartCommand implements Command {
     await this.ctx.kernel.registerPart(part);
     this.ctx.store.setActivePart(part);
     const skipped = dropped.reduce((a, d) => a + d.count, 0);
-    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, ${annotations.length} annotations, skipped ${skipped} entities`);
+    this.ctx.setStatus?.(i18n.t('status.dxfImport.doneWithAnnotations', { imported: primitives.length, annotations: annotations.length, skipped }));
   }
 
   async revert(): Promise<void> {

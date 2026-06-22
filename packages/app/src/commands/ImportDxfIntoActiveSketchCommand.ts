@@ -49,7 +49,7 @@ export class ImportDxfIntoActiveSketchCommand implements Command {
     const updated = await this.ctx.kernel.getPart(this.partId);
     this.ctx.store.setActivePart(updated);
     const skipped = dropped.reduce((a, d) => a + d.count, 0) + annotations.length;
-    this.ctx.setStatus?.(`Imported ${primitives.length} primitives, skipped ${skipped} entities`);
+    this.ctx.setStatus?.(i18n.t('status.dxfImport.done', { imported: primitives.length, skipped }));
   }
 
   async revert(): Promise<void> {

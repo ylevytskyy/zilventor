@@ -989,7 +989,8 @@
       "under": "{{count}} ступ. свободи"
     },
     "dxfImport": {
-      "done": "Імпортовано {{imported}} примітивів, пропущено {{skipped}}"
+      "done": "Імпортовано {{imported}} примітивів, пропущено {{skipped}}",
+      "doneWithAnnotations": "Імпортовано {{imported}} примітивів, {{annotations}} анотацій, пропущено {{skipped}}"
     },
     "drawing": {
       "assemblySourceFailed": "Не вдалося завантажити джерело збірки — Регенерацію вимкнено. Переконайтеся, що всі деталі збірки збережено.",
