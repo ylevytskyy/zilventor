@@ -172,8 +172,28 @@ function parseHatchLoops(pairs: DxfPair[]): HatchLoop[] {
       }
       loops.push({ kind: 'polyline', closed, vertices });
     } else {
-      // ----- EDGE list: stub for Task 2 -----
-      loops.push({ kind: 'edges', edges: [] });
+      // ----- EDGE list: 93 edge count, then per edge a 72 type + type-specific codes -----
+      const ecount = Math.trunc(f(take(93)));
+      const edges: HatchEdge[] = [];
+      for (let e = 0; e < ecount; e++) {
+        const ts = take(72); if (ts === undefined) break;
+        const etype = Math.trunc(f(ts));
+        if (etype === 1) {                                 // line: 10 20 11 21
+          const x1 = f(take(10)), y1 = f(take(20)), x2 = f(take(11)), y2 = f(take(21));
+          edges.push({ kind: 'line', x1, y1, x2, y2 });
+        } else if (etype === 2) {                          // circular arc: 10 20 40 50 51 73
+          const cx = f(take(10)), cy = f(take(20)), r = f(take(40));
+          const startAngle = f(take(50)), endAngle = f(take(51));
+          const ccw = Math.trunc(f(take(73))) !== 0;
+          edges.push({ kind: 'arc', cx, cy, r, startAngle, endAngle, ccw });
+        } else if (etype === 3 || etype === 4) {           // elliptic arc / spline: Task 3
+          break;
+        } else {
+          // unrecognised edge type → cannot know its code count; skip the rest of this loop's edges
+          break;
+        }
+      }
+      loops.push({ kind: 'edges', edges });
     }
   }
   return loops;

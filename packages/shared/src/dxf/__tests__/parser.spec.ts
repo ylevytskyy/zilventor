@@ -476,4 +476,32 @@ describe('parseDxf — HATCH', () => {
       }
     }
   });
+
+  it('parses a HATCH edge loop with line + circular-arc edges', () => {
+    const dxf = entitiesDxf([
+      '  0', 'HATCH', '  8', '0',
+      ' 91', '1',
+      ' 92', '1',                              // path type: external (bit1), NOT polyline → edge list
+      ' 93', '2',                              // 2 edges
+      ' 72', '1',                              // edge 1: line
+      ' 10', '0', ' 20', '0', ' 11', '10', ' 21', '0',
+      ' 72', '2',                              // edge 2: circular arc
+      ' 10', '10', ' 20', '0', ' 40', '5',
+      ' 50', '0', ' 51', '90', ' 73', '1',     // start 0°, end 90°, ccw
+      ' 97', '0',
+    ].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('HATCH');
+    if (e.type === 'HATCH') {
+      expect(e.loops).toHaveLength(1);
+      const loop = e.loops[0]!;
+      expect(loop.kind).toBe('edges');
+      if (loop.kind === 'edges') {
+        expect(loop.edges).toHaveLength(2);
+        const [l, a] = loop.edges;
+        expect(l).toEqual({ kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 });
+        expect(a).toEqual({ kind: 'arc', cx: 10, cy: 0, r: 5, startAngle: 0, endAngle: 90, ccw: true });
+      }
+    }
+  });
 });
