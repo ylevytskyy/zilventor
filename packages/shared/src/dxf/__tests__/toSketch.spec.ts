@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../parser';
 import { toSketch } from '../toSketch';
 import { transformEllipse, transformPrimitive } from '../toSketch';
+import type { ParsedDxf } from '../types';
 
 describe('transformEllipse', () => {
   // Pure 90° CCW rotation about origin: M = [[0,-1,0],[1,0,0]] (a=0,b=1,c=-1,d=0,e=0,f=0)
@@ -525,5 +526,22 @@ describe('toSketch TEXT/MTEXT → annotations', () => {
   it('strips MTEXT inline formatting codes', () => {
     const r = toSketch(parseDxf(ents(['  0','MTEXT','  8','0',' 10','0',' 20','0',' 40','2',' 1','{\\fArial|b0;Line1}\\PLine2',' 50','0'].join('\n'))));
     expect(r.annotations[0]!.value).toBe('Line1\nLine2');
+  });
+});
+
+describe('toSketch — expandInsert flattens SOLID in block body', () => {
+  it('renders a block SOLID arrowhead as construction lines', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'ARROW', x: 0, y: 0,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: {
+        ARROW: [{ type: 'SOLID', layer: '0',
+          corners: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }] }],
+      },
+      header: {}, layers: {}, blockBasePoints: { ARROW: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.primitives).toHaveLength(4);
+    expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
   });
 });

@@ -335,6 +335,8 @@ function expandInsert(
       blockPrims.push(...expandInsert(be, parsed, 1, depth + 1, drop));
     } else if (be.type === 'LWPOLYLINE' || be.type === 'POLYLINE') {
       blockPrims.push(...expandPolyline(be, 1, false));
+    } else if (be.type === 'SOLID') {
+      blockPrims.push(...expandSolid(be, 1));
     } else {
       const p = mapEntity(be, 1, drop, false);
       if (p) blockPrims.push(p);
