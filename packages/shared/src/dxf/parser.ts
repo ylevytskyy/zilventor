@@ -11,6 +11,12 @@ function num(pairs: DxfPair[], code: number, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function nums(pairs: DxfPair[], code: number): number[] {
+  const out: number[] = [];
+  for (const q of pairs) if (q.code === code) { const n = Number.parseFloat(q.value); if (Number.isFinite(n)) out.push(n); }
+  return out;
+}
+
 function str(pairs: DxfPair[], code: number, fallback = ''): string {
   return pairs.find((q) => q.code === code)?.value ?? fallback;
 }
@@ -97,12 +103,17 @@ function readEntity(raw: RawEntity): DxfEntity | null {
     case 'SPLINE': {
       const f = (s: string): number => { const n = Number.parseFloat(s); return Number.isFinite(n) ? n : 0; };
       const cps: Array<{ x: number; y: number }> = [];
+      const fps: Array<{ x: number; y: number }> = [];
       let cx: number | null = null;
+      let fx: number | null = null;
       for (const q of raw.pairs) {
         if (q.code === 10) cx = f(q.value);
         else if (q.code === 20 && cx !== null) { cps.push({ x: cx, y: f(q.value) }); cx = null; }
+        else if (q.code === 11) fx = f(q.value);
+        else if (q.code === 21 && fx !== null) { fps.push({ x: fx, y: f(q.value) }); fx = null; }
       }
-      return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1, controlPoints: cps };
+      return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1,
+        controlPoints: cps, fitPoints: fps, knots: nums(raw.pairs, 40), weights: nums(raw.pairs, 41) };
     }
     case 'ELLIPSE': {
       const ex = extrusion(raw.pairs);

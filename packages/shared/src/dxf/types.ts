@@ -12,7 +12,7 @@ export type DxfEntity =
   | { type: 'LWPOLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion }
   | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion }
   | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number }
-  | { type: 'SPLINE'; layer: string; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }> }
+  | { type: 'SPLINE'; layer: string; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }>; fitPoints: Array<{ x: number; y: number }>; knots: number[]; weights: number[] }
   | { type: 'ELLIPSE'; layer: string; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number; extrusion?: DxfExtrusion };
 
 export type ParsedDxf = {

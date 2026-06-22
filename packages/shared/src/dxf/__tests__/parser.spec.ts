@@ -209,6 +209,23 @@ describe('parseDxf HEADER section', () => {
   });
 });
 
+describe('parseDxf SPLINE fidelity', () => {
+  it('reads fit points and knots when control points are absent', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','SPLINE','  8','0',' 71','3',
+      ' 40','0',' 40','0',' 40','1',' 40','1',
+      ' 11','0',' 21','0',' 11','5',' 21','5',' 11','10',' 21','0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('SPLINE');
+    if (e.type === 'SPLINE') {
+      expect(e.controlPoints).toHaveLength(0);
+      expect(e.fitPoints).toEqual([{ x: 0, y: 0 }, { x: 5, y: 5 }, { x: 10, y: 0 }]);
+      expect(e.knots).toEqual([0, 0, 1, 1]);
+    }
+  });
+});
+
 describe('parseDxf OCS extrusion', () => {
   it('reads extrusion (0,0,-1) on a CIRCLE', () => {
     const dxf = ['  0','SECTION','  2','ENTITIES',
