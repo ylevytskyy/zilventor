@@ -15,6 +15,26 @@ function str(pairs: DxfPair[], code: number, fallback = ''): string {
   return pairs.find((q) => q.code === code)?.value ?? fallback;
 }
 
+/** Extracts HEADER variables: each `9 <name>` maps to the value of the next pair. */
+function parseHeader(pairs: DxfPair[]): Record<string, string> {
+  const header: Record<string, string> = {};
+  let inHeader = false;
+  for (let i = 0; i < pairs.length; i++) {
+    const p = pairs[i]!;
+    if (p.code === 0 && p.value === 'SECTION') {
+      const next = pairs[i + 1];
+      inHeader = !!next && next.code === 2 && next.value === 'HEADER';
+      continue;
+    }
+    if (p.code === 0 && (p.value === 'ENDSEC' || p.value === 'EOF')) { inHeader = false; continue; }
+    if (inHeader && p.code === 9) {
+      const valuePair = pairs[i + 1];
+      if (valuePair && valuePair.code !== 9 && valuePair.code !== 0) header[p.value] = valuePair.value;
+    }
+  }
+  return header;
+}
+
 function readEntity(raw: RawEntity): DxfEntity | null {
   const layer = str(raw.pairs, 8, '0');
   switch (raw.type) {
@@ -88,6 +108,7 @@ export function parseDxf(text: string): ParsedDxf {
   } catch {
     return result;
   }
+  result.header = parseHeader(pairs);
 
   let section = '';
   let currentBlock: string | null = null;

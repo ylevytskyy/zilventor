@@ -190,3 +190,21 @@ describe('dxf barrel', () => {
     expect(typeof pd).toBe('function');
   });
 });
+
+function headerDxf(body: string): string {
+  return ['  0', 'SECTION', '  2', 'HEADER', body.trim(), '  0', 'ENDSEC', '  0', 'EOF'].join('\n');
+}
+
+describe('parseDxf HEADER section', () => {
+  it('captures $INSUNITS and $ACADVER from the HEADER section', () => {
+    const dxf = headerDxf([
+      '  9', '$ACADVER', '  1', 'AC1015',
+      '  9', '$INSUNITS', ' 70', '4',
+      '  9', '$EXTMIN', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0',
+    ].join('\n'));
+    const r = parseDxf(dxf);
+    expect(r.header['$ACADVER']).toBe('AC1015');
+    expect(r.header['$INSUNITS']).toBe('4');
+    expect(r.header['$EXTMIN']).toBe('0.0'); // first value pair after the var name
+  });
+});
