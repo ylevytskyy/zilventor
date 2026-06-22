@@ -75,12 +75,13 @@ function expandPolyline(
   const n = v.length;
   if (n < 2) return out;
   const last = e.closed ? n : n - 1;
+  const refl = ocsReflected(e.extrusion);
   for (let i = 0; i < last; i++) {
     const a = v[i]!;
     const b = v[(i + 1) % n]!;
     const pa = ocsXY(e.extrusion, a.x, a.y);
     const pb = ocsXY(e.extrusion, b.x, b.y);
-    out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, a.bulge));
+    out.push(segment(pa.x * s, pa.y * s, pb.x * s, pb.y * s, refl ? -a.bulge : a.bulge));
   }
   return out;
 }

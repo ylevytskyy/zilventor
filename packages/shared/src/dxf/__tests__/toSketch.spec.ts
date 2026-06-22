@@ -139,4 +139,69 @@ describe('toSketch polyline + bulge', () => {
       expect(arc.cy + arc.r * Math.sin(mid)).toBeGreaterThan(0);
     }
   });
+
+  it('negates bulge sign under reflected OCS (extrusion 0,0,-1)', () => {
+    // Derivation: extrusion (0,0,-1) → ocsReflected=true; ocsXY maps (x,y)→(-x,y).
+    // chord (0,0)→(10,0) in OCS maps to (0,0)→(-10,0) in WCS.
+    // Without fix: bulge=+0.41421356 on reflected chord → arc mid-point at -y (wrong side).
+    // With fix: bulge negated to -0.41421356 on chord (0,0)→(-10,0) → arc mid-point at +y (correct WCS side,
+    //   matching the geometry a viewer would expect from the original CCW arc mirrored across the y-axis).
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','LWPOLYLINE','  8','0',' 90','2',' 70','0',
+      ' 10','0',' 20','0',' 42','0.41421356237',' 10','10',' 20','0',
+      '210','0','220','0','230','-1',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const r = toSketch(parseDxf(dxf));
+    const arc = r.primitives.find((p) => p.kind === 'arc');
+    expect(arc).toBeDefined();
+    if (arc && arc.kind === 'arc') {
+      // The CCW-mid point of the emitted arc must lie above the WCS chord (y>0), matching the
+      // non-reflected case geometry seen from the front (+z) direction.
+      const mid = midAngleCCW(arc.startAngle, arc.endAngle);
+      expect(arc.cy + arc.r * Math.sin(mid)).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('toSketch Phase 4a coverage', () => {
+  it('passes through trimmed ellipse startAngle/endAngle unscaled even when units scale coordinates', () => {
+    // $INSUNITS=1 (inch→mm, ×25.4). rx must be scaled; startAngle/endAngle must be raw radians.
+    const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','1','  0','ENDSEC'].join('\n');
+    const r = toSketch(parseDxf(ents(
+      ['  0','ELLIPSE','  8','0',' 10','0',' 20','0',' 11','1',' 21','0',' 40','0.5',' 41','0.5',' 42','2.0'].join('\n'),
+      header,
+    )));
+    const p = r.primitives[0]!;
+    if (p.kind === 'ellipse') {
+      // rx = majorLen * scale = 1 * 25.4 = 25.4
+      expect(p.rx).toBeCloseTo(25.4, 6);
+      // startAngle and endAngle are raw radians from DXF, NOT scaled
+      expect('startAngle' in p ? p.startAngle : undefined).toBeCloseTo(0.5, 9);
+      expect('endAngle' in p ? p.endAngle : undefined).toBeCloseTo(2.0, 9);
+    } else throw new Error('expected ellipse');
+  });
+
+  it('drops a SPLINE with fewer than 2 control or fit points', () => {
+    // Single control point — toSketch must drop it and not emit a spline primitive.
+    const r = toSketch(parseDxf(ents(
+      ['  0','SPLINE','  8','0',' 71','3',' 10','0',' 20','0'].join('\n'),
+    )));
+    expect(r.primitives.some((p) => p.kind === 'spline')).toBe(false);
+    const splineDropped = r.dropped.find((d) => d.kind === 'SPLINE');
+    expect(splineDropped).toBeDefined();
+    expect((splineDropped?.count ?? 0)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('scales a CIRCLE by ×10 for $INSUNITS=5 (centimetres)', () => {
+    const header = ['  0','SECTION','  2','HEADER','  9','$INSUNITS',' 70','5','  0','ENDSEC'].join('\n');
+    const r = toSketch(parseDxf(ents(
+      ['  0','CIRCLE','  8','0',' 10','1',' 20','0',' 40','1'].join('\n'),
+      header,
+    )));
+    const p = r.primitives[0]!;
+    if (p.kind === 'circle') {
+      expect(p.cx).toBeCloseTo(10, 6);
+      expect(p.r).toBeCloseTo(10, 6);
+    } else throw new Error('expected circle');
+  });
 });

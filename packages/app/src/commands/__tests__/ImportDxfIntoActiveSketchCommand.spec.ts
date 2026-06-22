@@ -62,6 +62,6 @@ describe('ImportDxfIntoActiveSketchCommand', () => {
     await expect(cmd.apply()).rejects.toThrow('boom');
     // the one primitive that was added must have been removed from both paths
     expect(h.kernelRemoves).toEqual(h.kernelAdds);
-    expect(h.sketcherRemoves.length).toBeGreaterThanOrEqual(1);
+    expect(h.sketcherRemoves).toEqual(h.kernelAdds);
   });
 });
