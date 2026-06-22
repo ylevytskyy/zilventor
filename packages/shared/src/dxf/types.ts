@@ -16,7 +16,8 @@ export type DxfEntity =
   | { type: 'ELLIPSE'; layer: string; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number; extrusion?: DxfExtrusion }
   | { type: 'POINT'; layer: string; x: number; y: number; extrusion?: DxfExtrusion }
   | { type: 'SOLID'; layer: string; corners: ReadonlyArray<{ x: number; y: number }>; extrusion?: DxfExtrusion }
-  | { type: 'LEADER'; layer: string; vertices: ReadonlyArray<{ x: number; y: number }> };
+  | { type: 'LEADER'; layer: string; vertices: ReadonlyArray<{ x: number; y: number }> }
+  | { type: 'DIMENSION'; layer: string; block?: string; textOverride: string; measurement: number; textMidX: number; textMidY: number };
 
 export type DxfLayer = { name: string; color: number; linetype: string; flags: number };
 

@@ -177,6 +177,14 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       for (let i = 0; i < n; i++) vertices.push({ x: xs[i]!, y: ys[i]! });
       return { type: 'LEADER', layer, vertices };
     }
+    case 'DIMENSION': {
+      const block = str(raw.pairs, 2);
+      return { type: 'DIMENSION', layer,
+        ...(block ? { block } : {}),
+        textOverride: str(raw.pairs, 1),
+        measurement: num(raw.pairs, 42),
+        textMidX: num(raw.pairs, 11), textMidY: num(raw.pairs, 21) };
+    }
     default:
       return null;
   }

@@ -308,6 +308,30 @@ describe('parseDxf — LEADER', () => {
   });
 });
 
+describe('parseDxf — DIMENSION', () => {
+  it('parses block name, text override, measurement, and text midpoint', () => {
+    const dxf = entitiesDxf(['  0', 'DIMENSION', '  8', 'DIMENSIONS',
+      '  2', '*D1', '  1', '<>', ' 42', '123.45',
+      ' 11', '50', ' 21', '60'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('DIMENSION');
+    if (e.type === 'DIMENSION') {
+      expect(e.block).toBe('*D1');
+      expect(e.textOverride).toBe('<>');
+      expect(e.measurement).toBeCloseTo(123.45);
+      expect([e.textMidX, e.textMidY]).toEqual([50, 60]);
+    }
+  });
+
+  it('omits block when group 2 is absent', () => {
+    const dxf = entitiesDxf(['  0', 'DIMENSION', '  8', '0',
+      ' 42', '10', ' 11', '1', ' 21', '2'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('DIMENSION');
+    if (e.type === 'DIMENSION') expect(e.block).toBeUndefined();
+  });
+});
+
 describe('parseDxf — SOLID', () => {
   it('parses a quad SOLID in winding order P0,P1,P3,P2', () => {
     const dxf = entitiesDxf(['  0', 'SOLID', '  8', 'ARROWS',
