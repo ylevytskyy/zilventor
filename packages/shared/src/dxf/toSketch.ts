@@ -201,37 +201,68 @@ export function transformEllipse(
   return out;
 }
 
+// Build the right SketchPrimitive from a transformEllipse result, simplifying an
+// isotropic image back to circle/arc. `hadAngles` is true for arc / elliptical-arc.
+function buildCurveFromEllipse(
+  e: ReturnType<typeof transformEllipse>,
+  hadAngles: boolean,
+  construction: boolean | undefined,
+): SketchPrimitive {
+  const cons = construction ? { construction: true } : {};
+  if (e.isotropic) {
+    if (hadAngles) {
+      const sa = e.startAngle! + e.rotation;
+      let ea = e.endAngle! + e.rotation;
+      // atan2 in mapParam wraps to (-π,π]; restore CCW ordering so ea ≥ sa (mod 2π).
+      while (ea < sa) ea += 2 * Math.PI;
+      return {
+        id: freshId(),
+        kind: 'arc',
+        cx: e.cx,
+        cy: e.cy,
+        r: e.rx,
+        startAngle: sa,
+        endAngle: ea,
+        ...cons,
+      };
+    }
+    return { id: freshId(), kind: 'circle', cx: e.cx, cy: e.cy, r: e.rx, ...cons };
+  }
+  const base = { id: freshId(), kind: 'ellipse' as const, cx: e.cx, cy: e.cy, rx: e.rx, ry: e.ry, rotation: e.rotation };
+  return hadAngles
+    ? { ...base, startAngle: e.startAngle!, endAngle: e.endAngle!, ...cons }
+    : { ...base, ...cons };
+}
+
 /**
  * Apply an affine transform to a SketchPrimitive, assigning a fresh id.
  *
  * 4b SIMPLIFYING ASSUMPTIONS (revisit in 4c):
- * - circle/arc/ellipse RADII are NOT scaled by xscale/yscale (only centers move).
- *   This is correct for the dominant unit-scale (1,1) inserts; non-uniform curved
- *   geometry scaling is deferred to 4c.
- * - w/h of a rectangle are also not scaled (same reasoning).
+ * - w/h of a rectangle are not scaled (same reasoning as before).
  * - Block-internal entities ignore their own OCS extrusion under an insert (rare, deferred).
- * - 4b LIMITATION (revisit 4c, same class as 4a OCS-bulge): arc startAngle/endAngle and
- *   ellipse rotation are NOT rotated when the INSERT has a non-zero rotation (θ≠0).
- *   The arc/ellipse CENTER is placed correctly; only the angular sweep / major-axis
- *   orientation is wrong for rotated inserts containing arcs or ellipses.
  */
-function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
+export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
   switch (p.kind) {
     case 'line': {
       const a = afApply(m, p.x1, p.y1), b = afApply(m, p.x2, p.y2);
       return { ...p, id: freshId(), x1: a.x, y1: a.y, x2: b.x, y2: b.y };
     }
     case 'circle': {
-      const c = afApply(m, p.cx, p.cy);
-      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // radius unchanged (4b)
+      const e = transformEllipse(m, p.cx, p.cy, p.r, p.r, 0);
+      return buildCurveFromEllipse(e, false, p.construction);
     }
     case 'arc': {
-      const c = afApply(m, p.cx, p.cy);
-      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // radius/angles unchanged (4b)
+      const e = transformEllipse(m, p.cx, p.cy, p.r, p.r, 0, p.startAngle, p.endAngle);
+      return buildCurveFromEllipse(e, true, p.construction);
     }
     case 'ellipse': {
-      const c = afApply(m, p.cx, p.cy);
-      return { ...p, id: freshId(), cx: c.x, cy: c.y }; // rx/ry/rotation unchanged (4b)
+      const hadAngles = p.startAngle !== undefined && p.endAngle !== undefined;
+      const e = transformEllipse(
+        m, p.cx, p.cy, p.rx, p.ry, p.rotation,
+        hadAngles ? p.startAngle : undefined,
+        hadAngles ? p.endAngle : undefined,
+      );
+      return buildCurveFromEllipse(e, hadAngles, p.construction);
     }
     case 'spline': {
       return { ...p, id: freshId(), controlPoints: p.controlPoints.map((cp) => afApply(m, cp.x, cp.y)) };

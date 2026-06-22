@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDxf } from '../parser';
 import { toSketch } from '../toSketch';
-import { transformEllipse } from '../toSketch';
+import { transformEllipse, transformPrimitive } from '../toSketch';
 
 describe('transformEllipse', () => {
   // Pure 90° CCW rotation about origin: M = [[0,-1,0],[1,0,0]] (a=0,b=1,c=-1,d=0,e=0,f=0)
@@ -347,17 +347,8 @@ describe('toSketch INSERT flatten', () => {
   });
 });
 
-describe('toSketch INSERT arc-angle pinning (4b limitation)', () => {
-  // PINS current 4b behavior (KNOWN LIMITATION): arc angles are NOT rotated under a rotated INSERT.
-  // When 4c fixes this, UPDATE this test to expect rotated angles.
-  //
-  // Hand-derivation (rotation=90° CCW, unit-scale insert, no translation, base=(0,0)):
-  //   Block ARC: center (3,4), r=2, startAngle=30°, endAngle=120° in block-local space.
-  //   R(90°) applied to center (x,y) → (-y, x): (3,4) → (-4,3). ✓ center is transformed.
-  //   4b: startAngle (π/6) and endAngle (2π/3) are NOT rotated by the INSERT — they stay
-  //   at their block-local values. A correct implementation (4c) would rotate them by +90°:
-  //   new startAngle = π/6 + π/2 = 2π/3, new endAngle = 2π/3 + π/2 = 7π/6.
-  it('arc center is transformed but start/end angles are unchanged under a 90° rotated INSERT', () => {
+describe('toSketch INSERT arc-angle under rotated INSERT (4c)', () => {
+  it('rotates arc start/end angles under a 90° rotated INSERT', () => {
     const blocks = [
       '  0','SECTION','  2','BLOCKS',
       '  0','BLOCK','  8','0','  2','BLK2',' 70','0',' 10','0',' 20','0','  3','BLK2',
@@ -376,12 +367,43 @@ describe('toSketch INSERT arc-angle pinning (4b limitation)', () => {
     const arc = r.primitives.find((p) => p.kind === 'arc');
     expect(arc).toBeDefined();
     if (!arc || arc.kind !== 'arc') throw new Error('expected arc');
-    // Center must be rotated: (3,4) under R(90°) → (-4,3).
+    // Center rotates (3,4) -> (-4,3); angles rotate +90°.
+    expect(arc.kind).toBe('arc');
     expect(arc.cx).toBeCloseTo(-4, 9);
     expect(arc.cy).toBeCloseTo(3, 9);
-    // Angles must be UNCHANGED from block-local values (4b limitation — not yet rotated by INSERT).
-    expect(arc.startAngle).toBeCloseTo(Math.PI / 6, 9);   // 30° in radians
-    expect(arc.endAngle).toBeCloseTo((2 * Math.PI) / 3, 9); // 120° in radians
+    expect(arc.startAngle).toBeCloseTo((2 * Math.PI) / 3, 6);   // 30°+90° = 120°
+    expect(arc.endAngle).toBeCloseTo((7 * Math.PI) / 6, 6);     // 120°+90° = 210°
+  });
+});
+
+describe('transformPrimitive curves (4c)', () => {
+  const rot90 = { a: 0, b: 1, c: -1, d: 0, e: 0, f: 0 };
+  const scale21 = { a: 2, b: 0, c: 0, d: 1, e: 0, f: 0 };
+
+  it('circle under non-uniform scale becomes an axis-aligned ellipse', () => {
+    const out = transformPrimitive(scale21, { id: 'c1', kind: 'circle', cx: 0, cy: 0, r: 3 });
+    expect(out.kind).toBe('ellipse');
+    if (out.kind === 'ellipse') {
+      expect(out.rx).toBeCloseTo(6, 9);
+      expect(out.ry).toBeCloseTo(3, 9);
+      expect(out.rotation).toBeCloseTo(0, 9);
+      expect(out.startAngle).toBeUndefined();
+    }
+  });
+
+  it('circle under pure rotation stays a circle', () => {
+    const out = transformPrimitive(rot90, { id: 'c2', kind: 'circle', cx: 1, cy: 0, r: 2 });
+    expect(out.kind).toBe('circle');
+    if (out.kind === 'circle') {
+      expect(out.cx).toBeCloseTo(0, 9);
+      expect(out.cy).toBeCloseTo(1, 9);
+      expect(out.r).toBeCloseTo(2, 9);
+    }
+  });
+
+  it('preserves construction flag through the transform', () => {
+    const out = transformPrimitive(rot90, { id: 'c3', kind: 'circle', cx: 1, cy: 0, r: 2, construction: true });
+    expect(out.construction).toBe(true);
   });
 });
 
