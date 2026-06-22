@@ -262,3 +262,34 @@ describe('parseDxf TABLES/LAYER', () => {
     expect(parseDxf(dxf).layers).toEqual({});
   });
 });
+
+describe('parseDxf INSERT arrays + BLOCK base points', () => {
+  it('reads COLUMNS/ROWS/spacing on an INSERT (defaults to 1/1/0/0)', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','INSERT','  2','BLK',' 10','1',' 20','2',' 41','1',' 42','1',' 50','0',
+      ' 70','3',' 71','2',' 44','10',' 45','20',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const e = parseDxf(dxf).entities[0]!;
+    if (e.type === 'INSERT') {
+      expect([e.columns, e.rows, e.colSpacing, e.rowSpacing]).toEqual([3, 2, 10, 20]);
+    } else throw new Error('expected INSERT');
+  });
+  it('defaults columns/rows to 1 when absent', () => {
+    const dxf = ['  0','SECTION','  2','ENTITIES',
+      '  0','INSERT','  2','BLK',' 10','0',' 20','0',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const e = parseDxf(dxf).entities[0]!;
+    if (e.type === 'INSERT') expect([e.columns, e.rows]).toEqual([1, 1]);
+    else throw new Error('expected INSERT');
+  });
+  it('captures a BLOCK base point', () => {
+    const dxf = ['  0','SECTION','  2','BLOCKS',
+      '  0','BLOCK','  8','0','  2','BLK',' 70','0',' 10','5',' 20','7',' 30','0','  3','BLK',
+      '  0','LINE','  8','0',' 10','0',' 20','0',' 11','1',' 21','1',
+      '  0','ENDBLK',
+      '  0','ENDSEC','  0','EOF'].join('\n');
+    const r = parseDxf(dxf);
+    expect(r.blocks['BLK']).toHaveLength(1);
+    expect(r.blockBasePoints['BLK']).toEqual({ x: 5, y: 7 });
+  });
+});

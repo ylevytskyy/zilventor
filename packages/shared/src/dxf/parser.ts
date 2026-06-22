@@ -126,7 +126,9 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         name: str(raw.pairs, 2),
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         xscale: num(raw.pairs, 41, 1), yscale: num(raw.pairs, 42, 1),
-        rotation: num(raw.pairs, 50) };
+        rotation: num(raw.pairs, 50),
+        columns: num(raw.pairs, 70, 1), rows: num(raw.pairs, 71, 1),
+        colSpacing: num(raw.pairs, 44, 0), rowSpacing: num(raw.pairs, 45, 0) };
     case 'SPLINE': {
       const f = (s: string): number => { const n = Number.parseFloat(s); return Number.isFinite(n) ? n : 0; };
       const cps: Array<{ x: number; y: number }> = [];
@@ -156,7 +158,7 @@ function readEntity(raw: RawEntity): DxfEntity | null {
 }
 
 export function parseDxf(text: string): ParsedDxf {
-  const result: ParsedDxf = { entities: [], blocks: {}, header: {}, layers: {} };
+  const result: ParsedDxf = { entities: [], blocks: {}, header: {}, layers: {}, blockBasePoints: {} };
   let pairs: DxfPair[];
   try {
     pairs = tokenize(text);
@@ -183,6 +185,11 @@ export function parseDxf(text: string): ParsedDxf {
     }
     if (raw.type === '__VERTEX__' && polyline) {
       polyline.vertices.push({ x: num(raw.pairs, 10), y: num(raw.pairs, 20), bulge: num(raw.pairs, 42) });
+      raw = null;
+      return;
+    }
+    if (raw.type === '__BLOCK__') {
+      if (currentBlock) result.blockBasePoints[currentBlock] = { x: num(raw.pairs, 10), y: num(raw.pairs, 20) };
       raw = null;
       return;
     }
@@ -233,10 +240,10 @@ export function parseDxf(text: string): ParsedDxf {
       }
     } else if (raw) {
       raw.pairs.push(p);
-      if (raw.type === '__BLOCK__' && p.code === 2) {
+      if (raw.type === '__BLOCK__' && p.code === 2 && !currentBlock) {
         currentBlock = p.value;
         result.blocks[currentBlock] ??= [];
-        raw = null; // block header consumed; following entities belong to this block
+        // keep raw alive: base point (10/20) follows the name pair and will be read in flush()
       }
     }
   }

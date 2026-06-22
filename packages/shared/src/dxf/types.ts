@@ -11,7 +11,7 @@ export type DxfEntity =
   | { type: 'MTEXT'; layer: string; x: number; y: number; height: number; value: string; rotation: number }
   | { type: 'LWPOLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion }
   | { type: 'POLYLINE'; layer: string; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion }
-  | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number }
+  | { type: 'INSERT'; layer: string; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number; columns: number; rows: number; colSpacing: number; rowSpacing: number }
   | { type: 'SPLINE'; layer: string; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }>; fitPoints: Array<{ x: number; y: number }>; knots: number[]; weights: number[] }
   | { type: 'ELLIPSE'; layer: string; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number; extrusion?: DxfExtrusion };
 
@@ -22,4 +22,5 @@ export type ParsedDxf = {
   blocks: Record<string, DxfEntity[]>;
   header: Record<string, string>;
   layers: Record<string, DxfLayer>;
+  blockBasePoints: Record<string, { x: number; y: number }>;
 };
