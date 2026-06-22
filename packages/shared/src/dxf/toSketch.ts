@@ -392,6 +392,7 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     if (cur) cur.count += 1;
     else droppedMap.set(kind, { kind, count: 1, reason });
   };
+  const pendingInfinite: Array<Extract<DxfEntity, { type: 'RAY' | 'XLINE' }>> = [];
 
   for (const e of parsed.entities) {
     if (e.type === 'INSERT') {
@@ -461,6 +462,7 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       }
       continue;
     }
+    if (e.type === 'RAY' || e.type === 'XLINE') { pendingInfinite.push(e); continue; }
     const construction = isConstructionLayer(parsed.layers, e.layer);
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
       primitives.push(...expandPolyline(e, s, construction));
@@ -468,6 +470,36 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     }
     const prim = mapEntity(e, s, drop, construction);
     if (prim) primitives.push(prim);
+  }
+  if (pendingInfinite.length) {
+    // Bounding box of all other emitted geometry, in scaled (mm) space.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of primitives) {
+      const ext = primExtent(p);
+      if (!ext) continue;
+      minX = Math.min(minX, ext.minX); minY = Math.min(minY, ext.minY);
+      maxX = Math.max(maxX, ext.maxX); maxY = Math.max(maxY, ext.maxY);
+    }
+    const hasBox = Number.isFinite(minX);
+    // Margin so the clamped line clears the geometry; absolute floor handles a tiny/point box.
+    const diag = hasBox ? Math.hypot(maxX - minX, maxY - minY) : 0;
+    const margin = Math.max(diag * 0.1, 10);
+    const box = { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
+    const FALLBACK_LEN = 100; // mm — reference line shown when there's nothing to clamp to
+    for (const e of pendingInfinite) {
+      const dlen = Math.hypot(e.dx, e.dy);
+      if (dlen < 1e-12) { drop(e.type, 'zero direction'); continue; }
+      const ux = e.dx / dlen, uy = e.dy / dlen;
+      const bx = e.x * s, by = e.y * s; // base scales by s; direction is dimensionless
+      let seg = hasBox ? clipToBox(bx, by, ux, uy, box, e.type === 'RAY') : null;
+      if (!seg) {
+        // Fixed-length fallback (NOT a drop): XLINE centered on base, RAY starting at base.
+        seg = e.type === 'XLINE'
+          ? { x1: bx - ux * FALLBACK_LEN / 2, y1: by - uy * FALLBACK_LEN / 2, x2: bx + ux * FALLBACK_LEN / 2, y2: by + uy * FALLBACK_LEN / 2 }
+          : { x1: bx, y1: by, x2: bx + ux * FALLBACK_LEN, y2: by + uy * FALLBACK_LEN };
+      }
+      primitives.push({ id: freshId(), kind: 'line', x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2, construction: true });
+    }
   }
   return { primitives, annotations, dropped: [...droppedMap.values()] };
 }
@@ -518,6 +550,55 @@ function closedLoop(corners: ReadonlyArray<{ x: number; y: number }>, extrusion:
     out.push({ id: freshId(), kind: 'line', x1: a.x * s, y1: a.y * s, x2: b.x * s, y2: b.y * s, construction: true });
   }
   return out;
+}
+
+/** Axis-aligned extent of a primitive in scaled (mm) space, or null if it has none. */
+function primExtent(p: SketchPrimitive): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  switch (p.kind) {
+    case 'line': return { minX: Math.min(p.x1, p.x2), minY: Math.min(p.y1, p.y2), maxX: Math.max(p.x1, p.x2), maxY: Math.max(p.y1, p.y2) };
+    case 'rectangle': return { minX: p.x, minY: p.y, maxX: p.x + p.w, maxY: p.y + p.h };
+    case 'circle':
+    case 'arc': return { minX: p.cx - p.r, minY: p.cy - p.r, maxX: p.cx + p.r, maxY: p.cy + p.r };
+    case 'ellipse': { const m = Math.max(p.rx, p.ry); return { minX: p.cx - m, minY: p.cy - m, maxX: p.cx + m, maxY: p.cy + m }; }
+    case 'point': return { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y };
+    case 'spline': {
+      if (!p.controlPoints.length) return null;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const c of p.controlPoints) { minX = Math.min(minX, c.x); minY = Math.min(minY, c.y); maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y); }
+      return { minX, minY, maxX, maxY };
+    }
+    default: return null;
+  }
+}
+
+/**
+ * Slab-clip the parametric line P(t) = (bx,by) + t·(ux,uy) (unit dir) against an
+ * axis-aligned box. Returns the clipped segment, or null when the line misses the box
+ * (or, for a ray with t≥0, when the box is entirely behind the base).
+ */
+function clipToBox(
+  bx: number, by: number, ux: number, uy: number,
+  box: { minX: number; minY: number; maxX: number; maxY: number },
+  ray: boolean,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  let t0 = -Infinity, t1 = Infinity;
+  if (Math.abs(ux) < 1e-12) {
+    if (bx < box.minX || bx > box.maxX) return null; // parallel to Y slab & outside
+  } else {
+    let ta = (box.minX - bx) / ux, tb = (box.maxX - bx) / ux;
+    if (ta > tb) { const tmp = ta; ta = tb; tb = tmp; }
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+  }
+  if (Math.abs(uy) < 1e-12) {
+    if (by < box.minY || by > box.maxY) return null; // parallel to X slab & outside
+  } else {
+    let ta = (box.minY - by) / uy, tb = (box.maxY - by) / uy;
+    if (ta > tb) { const tmp = ta; ta = tb; tb = tmp; }
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+  }
+  if (t1 < t0) return null; // misses the box
+  if (ray) { t0 = Math.max(t0, 0); if (t1 < t0) return null; } // box entirely behind base
+  return { x1: bx + ux * t0, y1: by + uy * t0, x2: bx + ux * t1, y2: by + uy * t1 };
 }
 
 function expandSolid(e: Extract<DxfEntity, { type: 'SOLID' }>, s: number): SketchPrimitive[] {

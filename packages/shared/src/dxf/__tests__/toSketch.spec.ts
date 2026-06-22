@@ -684,3 +684,60 @@ describe('toSketch — 3DFACE', () => {
     expect(r.primitives.every((p) => p.kind === 'line' && p.construction === true)).toBe(true);
   });
 });
+
+describe('toSketch — RAY/XLINE bbox-clamp', () => {
+  it('clamps an XLINE to span the geometry bounding box', () => {
+    // Circle r=5 at origin → bbox [-5,-5]..[5,5]; horizontal XLINE through y=0.
+    const r = toSketch(parseDxf(ents([
+      '  0', 'CIRCLE', '  8', '0', ' 10', '0', ' 20', '0', ' 40', '5',
+      '  0', 'XLINE', '  8', '0', ' 10', '0', ' 20', '0', ' 11', '1', ' 21', '0',
+    ].join('\n'))));
+    const line = r.primitives.find((p) => p.kind === 'line');
+    expect(line).toBeDefined();
+    if (line && line.kind === 'line') {
+      expect(line.construction).toBe(true);
+      const xs = [line.x1, line.x2];
+      expect(Math.min(...xs)).toBeLessThanOrEqual(-5); // reaches past the left extent
+      expect(Math.max(...xs)).toBeGreaterThanOrEqual(5); // and the right extent
+      expect(line.y1).toBeCloseTo(0, 9);
+      expect(line.y2).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('clamps a RAY to t≥0 (base toward the far box edge only)', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'CIRCLE', '  8', '0', ' 10', '0', ' 20', '0', ' 40', '5',
+      '  0', 'RAY', '  8', '0', ' 10', '0', ' 20', '0', ' 11', '1', ' 21', '0',
+    ].join('\n'))));
+    const line = r.primitives.find((p) => p.kind === 'line');
+    expect(line).toBeDefined();
+    if (line && line.kind === 'line') {
+      const xs = [line.x1, line.x2];
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(-1e-9); // never goes behind the base
+      expect(Math.max(...xs)).toBeGreaterThanOrEqual(5);
+    }
+  });
+
+  it('drops a zero-direction XLINE and tallies it', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'CIRCLE', '  8', '0', ' 10', '0', ' 20', '0', ' 40', '5',
+      '  0', 'XLINE', '  8', '0', ' 10', '0', ' 20', '0', ' 11', '0', ' 21', '0',
+    ].join('\n'))));
+    expect(r.primitives.some((p) => p.kind === 'line')).toBe(false);
+    expect(r.dropped.some((d) => d.kind === 'XLINE')).toBe(true);
+  });
+
+  it('emits a fixed-length fallback XLINE when there is no other geometry', () => {
+    const r = toSketch(parseDxf(ents([
+      '  0', 'XLINE', '  8', '0', ' 10', '0', ' 20', '0', ' 11', '1', ' 21', '0',
+    ].join('\n'))));
+    const lines = r.primitives.filter((p) => p.kind === 'line');
+    expect(lines).toHaveLength(1);
+    const l = lines[0]!;
+    if (l.kind === 'line') {
+      expect(l.construction).toBe(true);
+      const len = Math.hypot(l.x2 - l.x1, l.y2 - l.y1);
+      expect(len).toBeCloseTo(100, 6);
+    }
+  });
+});
