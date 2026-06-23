@@ -21,7 +21,7 @@ describe('migrateManifest v10 → v11', () => {
       },
     };
     const m = migrateManifest(v10);
-    expect(m.formatVersion).toBe(30);
+    expect(m.formatVersion).toBe(32);
     const doc = m.document as { cutListItemNumbers: unknown };
     expect(doc.cutListItemNumbers).toEqual({});
   });
@@ -46,7 +46,7 @@ describe('migrateManifest v10 → v11', () => {
       document: { id: 'p1', materials: [] },
     };
     const m = migrateManifest(v10);
-    expect(m.formatVersion).toBe(30);
+    expect(m.formatVersion).toBe(32);
     expect((m.document as Record<string, unknown>).cutListItemNumbers).toBeUndefined();
   });
 });

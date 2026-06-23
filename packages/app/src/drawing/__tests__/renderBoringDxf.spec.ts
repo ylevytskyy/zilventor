@@ -67,7 +67,7 @@ describe('renderBoringDxf — panel outline', () => {
       ],
     };
     const dxf = renderBoringDxf(result);
-    expect(dxf).toContain('AC1009');               // valid R12 header
+    expect(dxf).toContain('AC1015');               // valid AC1015 header
     expect(dxf).toContain('POLYLINE');
     expect(dxf).toContain('OUTLINE');               // outline layer referenced by the polyline
     expect(dxf.trimEnd().endsWith('EOF')).toBe(true);

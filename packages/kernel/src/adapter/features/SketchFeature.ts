@@ -14,6 +14,7 @@ import {
   makeArcEdge,
   makeCircleEdge,
   makeSplineEdge,
+  makeEllipseEdge,
   makeRectangleEdges,
   combineEdgesIntoWires,
   disposeEdge,
@@ -112,6 +113,11 @@ export function executeSketchFeature(
         case 'spline':
           edges.push(makeSplineEdge(oc, p, frame));
           break;
+        case 'ellipse':
+          edges.push(makeEllipseEdge(oc, p, frame));
+          break;
+        case 'point':
+          break; // points are not edges — contribute nothing to the profile
       }
     }
 

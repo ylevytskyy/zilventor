@@ -78,6 +78,7 @@ export class GeneralDimensionTool {
         const rim = Math.abs(Math.hypot(p.x - prim.cx, p.y - prim.cy) - prim.r);
         if (rim < 5 && (!bestCircle || rim < bestCircle.d2)) bestCircle = { id: prim.id, d2: rim };
       }
+      // point primitive: not dimensionable in 4b — no hit registered.
     }
     if (bestPoint) return { kind: 'point', ref: bestPoint.ref };
     if (bestLine)  return { kind: 'line',  id: bestLine.id };

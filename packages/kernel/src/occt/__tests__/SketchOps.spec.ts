@@ -1,8 +1,19 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occtLoader';
 import { makeLineEdge, makeArcEdge, edgeEndpoints, disposeEdge } from '../SketchOps';
-import { makeCircleEdge, makeSplineEdge, makeRectangleEdges } from '../SketchOps';
+import { makeCircleEdge, makeSplineEdge, makeRectangleEdges, makeEllipseEdge } from '../SketchOps';
 import { combineEdgesIntoWires, SKETCH_TOLERANCE_MM } from '../SketchOps';
+
+/** Compute the axis-aligned bounding box of an OCCT edge using Bnd_Box + BRepBndLib. */
+function edgeBbox(oc: OcctInstance, edge: unknown) {
+  const bb = new oc.Bnd_Box_1();
+  oc.BRepBndLib.Add(edge as never, bb, false as never);
+  const pmin = bb.CornerMin();
+  const pmax = bb.CornerMax();
+  const result = { xmin: pmin.X(), xmax: pmax.X(), ymin: pmin.Y(), ymax: pmax.Y() };
+  pmin.delete(); pmax.delete(); bb.delete();
+  return result;
+}
 
 let occt: OcctInstance;
 beforeAll(async () => {
@@ -137,5 +148,73 @@ describe('SketchOps.combineEdgesIntoWires', () => {
     const result = combineEdgesIntoWires(occt, []);
     expect(result.closedWires.length).toBe(0);
     expect(result.openChains.length).toBe(0);
+  });
+});
+
+describe('SketchOps.makeEllipseEdge', () => {
+  it('builds a full elliptical edge with correct axis-aligned bbox (rx > ry)', () => {
+    const e = makeEllipseEdge(occt, { cx: 0, cy: 0, rx: 8, ry: 3, rotation: 0 });
+    const bbox = edgeBbox(occt, e.edge);
+    expect(bbox.xmax - bbox.xmin).toBeCloseTo(16, 2); // 2*rx
+    expect(bbox.ymax - bbox.ymin).toBeCloseTo(6, 2);  // 2*ry
+    disposeEdge(e);
+  });
+
+  it('handles ry > rx (swap branch) without throwing + correct bbox', () => {
+    const e = makeEllipseEdge(occt, { cx: 0, cy: 0, rx: 3, ry: 8, rotation: 0 });
+    const bbox = edgeBbox(occt, e.edge);
+    expect(bbox.xmax - bbox.xmin).toBeCloseTo(6, 2);  // 2*rx
+    expect(bbox.ymax - bbox.ymin).toBeCloseTo(16, 2); // 2*ry
+    disposeEdge(e);
+  });
+});
+
+describe('makeEllipseEdge — branch-cut / end>2π', () => {
+  // WHY THIS MATTERS: the DXF→sketch producer (toSketch.ts) normalizes trimmed
+  // ellipse params so the end parameter is always >= start and the arc is taken
+  // CCW, which means endAngle can legitimately exceed 2π (here 6.7 > 2π ≈ 6.283).
+  // makeEllipseEdge passes these straight into BRepBuilderAPI_MakeEdge_13. This
+  // test locks that OCCT bakes such an over-2π trim as the SHORT CCW arc that
+  // wraps across the param-0 (+x) seam — NOT the complementary long arc. If OCCT
+  // ever rejected end>2π, or if someone "fixed" the producer to wrap endAngle
+  // back under 2π (producing endAngle < startAngle), this short-arc geometry
+  // would silently flip to the long arc and the DXF import would be wrong.
+  it('bakes a trimmed ellipse with endAngle > 2π as the correct short CCW arc across the seam', () => {
+    // rx=10, ry=5, start=5.5, end=6.7 (>2π): short CCW arc straddling angle 0.
+    const e = makeEllipseEdge(occt, {
+      cx: 0, cy: 0, rx: 10, ry: 5, rotation: 0, startAngle: 5.5, endAngle: 6.7,
+    });
+    // Make succeeded → a valid edge was returned (MakeEdge_13 IsDone()).
+    expect(e.edge).toBeDefined();
+
+    const tds = occt.TopoDS.Edge_1(e.edge as never);
+    const adaptor = new occt.BRepAdaptor_Curve_2(tds);
+    const u0 = adaptor.FirstParameter();
+    const u1 = adaptor.LastParameter();
+    const pnt = new occt.gp_Pnt_1();
+    adaptor.D0((u0 + u1) / 2, pnt);
+    const mx = pnt.X();
+    const my = pnt.Y();
+    pnt.delete();
+    adaptor.delete();
+
+    // Short arc near the +x seam: midpoint ≈ (10·cos6.1, 5·sin6.1) ≈ (9.83, -0.91).
+    // The complementary LONG arc's midpoint would sit at large negative x.
+    expect(mx).toBeGreaterThan(5);   // near +x seam, NOT the long arc (negative x)
+    expect(Math.abs(my)).toBeLessThan(2);
+
+    disposeEdge(e);
+  });
+});
+
+describe('SketchOps.makeSplineEdge degree-n', () => {
+  it('accepts degree > 3 (degree-5 spline from 6 control points)', () => {
+    const pts = [
+      { x: 0, y: 0 }, { x: 1, y: 2 }, { x: 2, y: -1 },
+      { x: 3, y: 2 }, { x: 4, y: 0 }, { x: 5, y: 1 },
+    ];
+    const e = makeSplineEdge(occt, { controlPoints: pts, degree: 5, closed: false });
+    expect(e.edge).toBeDefined();
+    disposeEdge(e);
   });
 });

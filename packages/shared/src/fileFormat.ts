@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 30 as const;
+export const CURRENT_FORMAT_VERSION = 32 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -412,6 +412,21 @@ const migrations: Record<number, MigrateFn> = {
     }
     return { ...m, formatVersion: 30 };
   },
+  // v30 → v31: DXF Phase 3 sketch-model extension. Additive: introduces the
+  // `ellipse` SketchPrimitive kind and widens spline `degree` 2|3 → number.
+  // No existing document needs mutation (no ellipses exist; existing spline
+  // degrees are valid numbers). The bump pins the new schema. (DXF M1 Phase 3)
+  30: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 31 };
+  },
+  // v31 → v32: DXF Phase 4b. Additive: introduces the `point` SketchPrimitive
+  // kind and `annotations` array on SketchFeature. No existing document needs
+  // mutation. The bump pins the new schema. (DXF M1 Phase 4b)
+  31: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 32 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -423,7 +438,8 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 22 || m.formatVersion === 23 || m.formatVersion === 24 ||
      m.formatVersion === 25 || m.formatVersion === 26 ||
      m.formatVersion === 27 || m.formatVersion === 28 ||
-     m.formatVersion === 29 || m.formatVersion === 30) &&
+     m.formatVersion === 29 || m.formatVersion === 30 ||
+     m.formatVersion === 31 || m.formatVersion === 32) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;

@@ -713,6 +713,7 @@
       "exportImage": "Export Image",
       "exportStep": "Export STEP",
       "exportStl": "Export STL",
+      "importDxf": "Import DXF…",
       "importFromInventor": "Import from Inventor",
       "newAssembly": "New Assembly",
       "newPart": "New Part",
@@ -959,6 +960,7 @@
       "spline": "Spline",
       "symmetric": "Symmetric (Y)",
       "tangent": "Tangent (T)",
+      "importDxf": "Import DXF…",
       "trim": "Trim",
       "vertical": "Vertical (V)"
     },
@@ -985,6 +987,10 @@
       "fully": "Fully constrained",
       "over": "Over constrained: {{count}}",
       "under": "{{count}} DOF"
+    },
+    "dxfImport": {
+      "done": "Imported {{imported}} primitives, skipped {{skipped}} entities",
+      "doneWithAnnotations": "Imported {{imported}} primitives, {{annotations}} annotations, skipped {{skipped}} entities"
     },
     "drawing": {
       "assemblySourceFailed": "Assembly source load failed — Regenerate disabled. Ensure all assembly parts are saved.",
@@ -1017,6 +1023,7 @@
     "imported": "Imported",
     "insertStepFailed": "Insert From STEP failed: {{error}}",
     "stepFileTooLarge": "STEP file is too large ({{sizeMb}} MB). The maximum supported size is {{maxMb}} MB. Large files may freeze the browser; consider simplifying the geometry before importing.",
+    "dxfFileTooLarge": "DXF file is too large ({{sizeMb}} MB). Maximum supported size is {{maxMb}} MB.",
     "modified": "Modified",
     "openCancelled": "Open cancelled",
     "opened": "Opened",

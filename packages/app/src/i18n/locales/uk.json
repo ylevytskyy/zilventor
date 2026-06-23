@@ -713,6 +713,7 @@
       "exportImage": "Експорт зображення",
       "exportStep": "Експорт STEP",
       "exportStl": "Експорт STL",
+      "importDxf": "Імпорт DXF…",
       "importFromInventor": "Імпорт з Inventor",
       "newAssembly": "Нова збірка",
       "newPart": "Нова деталь",
@@ -959,6 +960,7 @@
       "spline": "Сплайн",
       "symmetric": "Симетрично (Y)",
       "tangent": "Дотична (T)",
+      "importDxf": "Імпорт DXF…",
       "trim": "Обрізати",
       "vertical": "Вертикаль (V)"
     },
@@ -985,6 +987,10 @@
       "fully": "Повністю визначений",
       "over": "Надлишково визначений: {{count}}",
       "under": "{{count}} ступ. свободи"
+    },
+    "dxfImport": {
+      "done": "Імпортовано {{imported}} примітивів, пропущено {{skipped}}",
+      "doneWithAnnotations": "Імпортовано {{imported}} примітивів, {{annotations}} анотацій, пропущено {{skipped}}"
     },
     "drawing": {
       "assemblySourceFailed": "Не вдалося завантажити джерело збірки — Регенерацію вимкнено. Переконайтеся, що всі деталі збірки збережено.",
@@ -1017,6 +1023,7 @@
     "imported": "Імпортовано",
     "insertStepFailed": "Помилка вставлення зі STEP: {{error}}",
     "stepFileTooLarge": "Файл STEP надто великий ({{sizeMb}} МБ). Максимальний підтримуваний розмір — {{maxMb}} МБ. Великі файли можуть призвести до зависання браузера; спростіть геометрію перед імпортом.",
+    "dxfFileTooLarge": "Файл DXF завеликий ({{sizeMb}} МБ). Максимальний допустимий розмір — {{maxMb}} МБ.",
     "modified": "Змінено",
     "openCancelled": "Відкриття скасовано",
     "opened": "Відкрито",

@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('fileFormat v25→v26 (face-frame roles)', () => {
   it('CURRENT_FORMAT_VERSION is 26', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(30);
+    expect(CURRENT_FORMAT_VERSION).toBe(32);
   });
 
   it('migrates a v25 part manifest to v26 without structural change', () => {
@@ -14,7 +14,7 @@ describe('fileFormat v25→v26 (face-frame roles)', () => {
         properties: {}, materials: [], hardware: [] },
     };
     const out = migrateManifest(v25 as unknown as Parameters<typeof migrateManifest>[0]);
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
     expect((out as unknown as { document: { id: string } }).document.id).toBe('p');
   });
 });

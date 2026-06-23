@@ -167,6 +167,12 @@ export class GcsSystem {
         });
         break;
       }
+      case 'point': {
+        // A raw-imported point is a single free GCS point registered under its own id.
+        into.push({ id: p.id, type: 'point', x: p.x, y: p.y, fixed: false });
+        this.decomp.set(p.id, { pointIds: { self: p.id }, primitiveId: p.id });
+        break;
+      }
       case 'spline': {
         const pointIds: Record<string, string> = {};
         for (let i = 0; i < p.controlPoints.length; i++) {
@@ -176,6 +182,26 @@ export class GcsSystem {
           pointIds[`cp${i}`] = id;
         }
         this.decomp.set(p.id, { pointIds, primitiveId: p.id });
+        break;
+      }
+      case 'ellipse': {
+        const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+        const at = (lx: number, ly: number) => ({
+          x: p.cx + lx * cr - ly * sr,
+          y: p.cy + lx * sr + ly * cr,
+        });
+        const c  = pId('center');
+        const xp = pId('xpos'), xn = pId('xneg'), yp = pId('ypos'), yn = pId('yneg');
+        const pxp = at(p.rx, 0), pxn = at(-p.rx, 0), pyp = at(0, p.ry), pyn = at(0, -p.ry);
+        into.push({ id: c,  type: 'point', x: p.cx,  y: p.cy,  fixed: false });
+        into.push({ id: xp, type: 'point', x: pxp.x, y: pxp.y, fixed: false });
+        into.push({ id: xn, type: 'point', x: pxn.x, y: pxn.y, fixed: false });
+        into.push({ id: yp, type: 'point', x: pyp.x, y: pyp.y, fixed: false });
+        into.push({ id: yn, type: 'point', x: pyn.x, y: pyn.y, fixed: false });
+        this.decomp.set(p.id, {
+          pointIds: { center: c, xpos: xp, xneg: xn, ypos: yp, yneg: yn },
+          primitiveId: p.id,
+        });
         break;
       }
     }
@@ -375,6 +401,17 @@ export class GcsSystem {
           return { x: p.x, y: p.y };
         });
         return { ...original, controlPoints };
+      }
+      case 'ellipse': {
+        // points-only decomposition: only the solved center is read back; rx/ry/rotation are not solver-constrained
+        const center = pts.get(d.pointIds['center']!);
+        if (!center) return original;
+        return { ...original, cx: center.x, cy: center.y };
+      }
+      case 'point': {
+        const pt = pts.get(d.pointIds['self']!);
+        if (!pt) return original;
+        return { ...original, x: pt.x, y: pt.y };
       }
     }
   }

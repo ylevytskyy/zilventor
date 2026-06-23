@@ -118,14 +118,13 @@ describe('renderDrawingDxf — hatch ACI color (Task 8)', () => {
     // Find the SECTION-HATCH LINE entity block and check for group 62 = 1
     const lines = out.split('\n');
     // Look for LINE entities on SECTION-HATCH layer
+    // AC1015: LINE entity has handle/owner/subclass markers before the layer group.
+    // Search for SECTION-HATCH layer within a 15-line window from each LINE entity.
     let found = false;
     for (let i = 0; i < lines.length - 4; i++) {
-      if (lines[i]!.trim() === 'LINE' &&
-          lines[i + 1]!.trim() === '8' &&
-          lines[i + 2]!.trim() === 'SECTION-HATCH') {
-        // Found a SECTION-HATCH LINE entity; look for group 62 within next 10 lines
-        const block = lines.slice(i, i + 15).join('\n');
-        if (/ 62\n\s*1\n/.test(block)) {
+      if (lines[i]!.trim() === 'LINE') {
+        const block = lines.slice(i, i + 20).join('\n');
+        if (block.includes('SECTION-HATCH') && / 62\n\s*1\n/.test(block)) {
           found = true;
           break;
         }
@@ -159,13 +158,12 @@ describe('renderDrawingDxf — hatch ACI color (Task 8)', () => {
     };
     const out = renderDrawingDxf(makeDrawing(sheet), sheet, null);
     const lines = out.split('\n');
+    // AC1015: LINE entity has handle/owner/subclass markers before the layer group.
     let entityHasColor = false;
     for (let i = 0; i < lines.length - 4; i++) {
-      if (lines[i]!.trim() === 'LINE' &&
-          lines[i + 1]!.trim() === '8' &&
-          lines[i + 2]!.trim() === 'SECTION-HATCH') {
-        const block = lines.slice(i, i + 15).join('\n');
-        if (/ 62\n/.test(block)) {
+      if (lines[i]!.trim() === 'LINE') {
+        const block = lines.slice(i, i + 20).join('\n');
+        if (block.includes('SECTION-HATCH') && / 62\n/.test(block)) {
           entityHasColor = true;
         }
       }

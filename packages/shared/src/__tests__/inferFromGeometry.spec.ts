@@ -66,4 +66,46 @@ describe('inferFromGeometry', () => {
     const coinc = cs.filter((c) => c.kind === 'coincident');
     expect(coinc.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('infers endpoints for a full ellipse (center only, no coincident with itself)', () => {
+    const out = inferFromGeometry([
+      { id: 'e1', kind: 'ellipse', cx: 10, cy: 20, rx: 5, ry: 3, rotation: 0 },
+    ]);
+    // A full ellipse (no startAngle/endAngle) contributes only a center anchor.
+    // With a single primitive and nothing to coincide with, no coincident constraints are inferred.
+    expect(out.filter((c) => c.kind === 'coincident')).toHaveLength(0);
+    // And no spurious horizontal/vertical inferences either.
+    expect(out).toHaveLength(0);
+  });
+
+  it('infers start/end + center endpoints for an elliptical arc', () => {
+    // local-frame eccentric params: start at param 0 → (cx+rx, cy); end at param π/2 → (cx, cy+ry)
+    const out = inferFromGeometry([
+      { id: 'a', kind: 'line', x1: 15, y1: 20, x2: 99, y2: 99 }, // endpoint to coincide with ellipse start
+      { id: 'e2', kind: 'ellipse', cx: 10, cy: 20, rx: 5, ry: 3, rotation: 0, startAngle: 0, endAngle: Math.PI / 2 },
+    ]);
+    // line.start (15,20) coincides with ellipse start (cx+rx=15, cy=20) → a coincident constraint is inferred
+    expect(out.some((c) => c.kind === 'coincident')).toBe(true);
+  });
+
+  it('round-trips a point primitive through JSON', () => {
+    const prim: SketchPrimitive = { id: 'pt1', kind: 'point', x: 3, y: 4 };
+    const out = JSON.parse(JSON.stringify(prim)) as SketchPrimitive;
+    expect(out).toEqual(prim);
+  });
+
+  it('round-trips a point primitive with construction flag through JSON', () => {
+    const prim: SketchPrimitive = { id: 'pt2', kind: 'point', x: 1, y: 2, construction: true };
+    const out = JSON.parse(JSON.stringify(prim)) as SketchPrimitive;
+    expect(out).toEqual(prim);
+  });
+
+  it('anchors a point at its coordinate (coincides with a line endpoint at the same position)', () => {
+    // A point at (2,5) and a line starting at (2,5) — the point anchor coincides with line.start
+    const cs = inferFromGeometry([
+      { id: 'pt', kind: 'point' as const, x: 2, y: 5 },
+      { id: 'ln', kind: 'line' as const, x1: 2, y1: 5, x2: 10, y2: 10 },
+    ]);
+    expect(cs.some((c) => c.kind === 'coincident')).toBe(true);
+  });
 });

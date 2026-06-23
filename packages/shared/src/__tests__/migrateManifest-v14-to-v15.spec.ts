@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
   it('CURRENT_FORMAT_VERSION is 17 (advanced by Drawing F3)', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(30);
+    expect(CURRENT_FORMAT_VERSION).toBe(32);
   });
 
   it('passes a v14 part through to v16 unchanged', () => {
@@ -16,7 +16,7 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Part) as { formatVersion: number; kind: string };
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
     expect(out.kind).toBe('part');
   });
 
@@ -33,7 +33,7 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v14Asm) as { formatVersion: number };
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
   });
 
   it('passes a v14 drawing through to v16 without data loss', () => {
@@ -50,7 +50,7 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       kind: string;
       document: { name: string };
     };
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
     expect(out.kind).toBe('drawing');
     expect(out.document.name).toBe('Box — Drawing');
   });
@@ -65,6 +65,6 @@ describe('migrateManifest v14 → v15 (Drawing F1 — no-op additive)', () => {
       },
     };
     const out = migrateManifest(v16) as { formatVersion: number };
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
   });
 });

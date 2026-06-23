@@ -20,6 +20,22 @@ function endpointsOf(p: SketchPrimitive): Array<{ anchor: PointRef['anchor']; x:
     case 'circle':    return [{ anchor: 'center', x: p.cx, y: p.cy }];
     case 'rectangle': return [];
     case 'spline':    return p.controlPoints.map((cp, i) => ({ anchor: `cp${i}` as const, x: cp.x, y: cp.y }));
+    case 'point':   return [{ anchor: 'center', x: p.x, y: p.y }];
+    case 'ellipse': {
+      const out: Array<{ anchor: PointRef['anchor']; x: number; y: number }> = [
+        { anchor: 'center', x: p.cx, y: p.cy },
+      ];
+      if (p.startAngle !== undefined && p.endAngle !== undefined) {
+        const cr = Math.cos(p.rotation), sr = Math.sin(p.rotation);
+        const pt = (t: number) => {
+          const lx = p.rx * Math.cos(t), ly = p.ry * Math.sin(t);
+          return { x: p.cx + lx * cr - ly * sr, y: p.cy + lx * sr + ly * cr };
+        };
+        const s = pt(p.startAngle), e = pt(p.endAngle);
+        out.push({ anchor: 'start', x: s.x, y: s.y }, { anchor: 'end', x: e.x, y: e.y });
+      }
+      return out;
+    }
   }
 }
 

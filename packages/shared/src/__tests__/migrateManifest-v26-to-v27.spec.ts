@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v26 → v27 (edge-band thickness)', () => {
   it('CURRENT_FORMAT_VERSION is 27', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(30);
+    expect(CURRENT_FORMAT_VERSION).toBe(32);
   });
 
   it('back-fills thickness:0.4 onto non-null edge bands of panel features', () => {
@@ -35,7 +35,7 @@ describe('migrateManifest v26 → v27 (edge-band thickness)', () => {
       formatVersion: number;
       document: { featureTree: Array<{ kind: string; edgeBands?: Record<string, { thickness?: number } | null> }> };
     };
-    expect(out.formatVersion).toBe(30);
+    expect(out.formatVersion).toBe(32);
     const eb = out.document.featureTree.find((f) => f.kind === 'panel')!.edgeBands!;
     expect(eb.front).toEqual({ materialId: 'm-pvc', thickness: 0.4 });
     expect(eb.left).toEqual({ materialId: 'm-pvc', thickness: 0.4 });

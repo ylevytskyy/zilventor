@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import type { ToolKind } from '../../store/useAppStore';
 import SketchRectangleDialog from '../SketchRectangleDialog';
 import type { Feature } from '@zilventor/shared';
+import { pickFile } from '../fsaFallback';
 
 type PrimitiveBtn = { kind: 'line' | 'rect' | 'circle' | 'arc' | 'spline'; labelKey: string; shortcut: string };
 const BUTTONS: PrimitiveBtn[] = [
@@ -15,7 +16,11 @@ const BUTTONS: PrimitiveBtn[] = [
   { kind: 'spline', labelKey: 'ribbon.sketch.spline', shortcut: 'S' },
 ];
 
-export default function SketchTab() {
+interface SketchTabProps {
+  onImportDxfIntoSketch?: ((file: File) => Promise<void>) | undefined;
+}
+
+export default function SketchTab(props: SketchTabProps) {
   const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const sketchMode = useAppStore((s) => s.sketchMode);
@@ -45,6 +50,25 @@ export default function SketchTab() {
     store.setSketchMode(false);
     store.setActiveToolKind(null);
     store.setStatus(t('status.ready'));
+  };
+
+  const handleImportDxfIntoSketch = async () => {
+    const file = await pickFile([{ description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } }]);
+    if (!file) return;
+    if (props.onImportDxfIntoSketch) {
+      await props.onImportDxfIntoSketch(file);
+      return;
+    }
+    const store = useAppStore.getState();
+    if (!store.kernel || !store.activeSketchId) return;
+    const { ImportDxfIntoActiveSketchCommand } = await import('../../commands/ImportDxfIntoActiveSketchCommand');
+    await store.bus.execute(new ImportDxfIntoActiveSketchCommand({
+      kernel: store.kernel,
+      store: { getActivePart: () => useAppStore.getState().activePart, setActivePart: store.setActivePart },
+      sketchId: store.activeSketchId,
+      setStatus: store.setStatus,
+      file,
+    }));
   };
 
   return (
@@ -183,6 +207,15 @@ export default function SketchTab() {
       </RibbonPanel>
       <RibbonPanel title={t('ribbon.sketch.fallback')}>
         <button className="text-xs text-neutral-400 hover:text-white" onClick={() => setNumericFallbackOpen(true)}>{t('ribbon.sketch.numericRect')}</button>
+      </RibbonPanel>
+      <RibbonPanel title="Import">
+        <button
+          className="text-xs hover:text-white disabled:text-neutral-500"
+          disabled={!sketchMode}
+          onClick={() => { void handleImportDxfIntoSketch(); }}
+        >
+          {t('ribbon.sketch.importDxf')}
+        </button>
       </RibbonPanel>
       {numericFallbackOpen && <SketchRectangleDialog onClose={() => setNumericFallbackOpen(false)} />}
     </div>

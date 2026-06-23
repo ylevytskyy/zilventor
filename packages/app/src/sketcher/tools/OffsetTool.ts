@@ -41,6 +41,7 @@ function samplePrimitive(p: SketchPrimitive): Point2[] {
       { x: p.x,          y: p.y },
     ];
   }
+  // point: not offsettable — no polyline representation; returns [] (no-op)
   return [];
 }
 
@@ -81,6 +82,7 @@ function signedDist(prim: SketchPrimitive, cursor: Point2): number {
       return Math.hypot(ox, oy);
     }
   }
+  // point: not pickable/offsettable — no signed distance defined; returns 0 (no-op)
   return 0;
 }
 

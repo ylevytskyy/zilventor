@@ -31,7 +31,7 @@ export function pickPrimitiveAt(
     } else if (prim.kind === 'arc') {
       bodyDist = Math.abs(Math.hypot(point.x - prim.cx, point.y - prim.cy) - prim.r);
     }
-    // spline: bodyDist stays Infinity (no body-pick for splines)
+    // spline/ellipse/point: bodyDist stays Infinity (body-pick unsupported in Phase 3–4b; bbox-pick via ProfilePickController)
 
     if (bodyDist < BODY_HIT_THRESHOLD && (!best || bodyDist < best.d)) {
       best = { id: prim.id, d: bodyDist };

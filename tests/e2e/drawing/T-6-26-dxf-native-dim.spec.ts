@@ -15,7 +15,7 @@
  *  9. Click "Export DXF" button; capture download.
  * 10. Read downloaded bytes as UTF-8 text.
  * 11. Parse DXF group-code pairs and assert native DIMENSION entities:
- *     a. 4 balanced SECTION/ENDSEC pairs (BLOCKS now non-empty)
+ *     a. 6 balanced SECTION/ENDSEC pairs (AC1015: HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS)
  *     b. DIMSTYLE table with STANDARD style
  *     c. ≥1 DIMENSION entity on DIMENSIONS layer
  *     d. ≥1 anonymous *D block defined
@@ -28,11 +28,19 @@ import { buildBox, waitForKernelReady } from '../helpers/buildBox';
 
 /** Parse DXF text into an array of [groupCode, value] pairs. */
 function parseDxf(text: string): Array<[number, string]> {
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  // AC1015 BLOCK definitions contain group-code 1 with an empty string value.
+  // A naive filter-empty-lines approach shifts the pair alignment after that point.
+  // Instead: skip blank separator lines, but when a valid group code is found consume
+  // the next line (even if empty) as the value.
+  const lines = text.split('\n').map((l) => l.trim());
   const pairs: Array<[number, string]> = [];
-  for (let i = 0; i + 1 < lines.length; i += 2) {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.length === 0) continue; // skip blank separator lines
     const code = parseInt(lines[i]!, 10);
-    if (!isNaN(code)) pairs.push([code, lines[i + 1]!]);
+    if (!isNaN(code) && i + 1 < lines.length) {
+      pairs.push([code, lines[i + 1]!]);
+      i++; // consume the value line (may be empty string for group-code 1)
+    }
   }
   return pairs;
 }
@@ -278,9 +286,9 @@ test('T-6-26: DXF native DIMENSION entities — real geometry download + parse-b
   // ─── Native DIMENSION assertions ─────────────────────────────────────────
   const code0Values = pairs.filter(([c]) => c === 0).map(([, v]) => v);
 
-  // 4 sections still (HEADER, TABLES, BLOCKS, ENTITIES) — BLOCKS now non-empty
-  expect(code0Values.filter((v) => v === 'SECTION').length).toBe(4);
-  expect(code0Values.filter((v) => v === 'ENDSEC').length).toBe(4);
+  // 6 balanced SECTION/ENDSEC pairs (AC1015: HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS)
+  expect(code0Values.filter((v) => v === 'SECTION').length).toBe(6);
+  expect(code0Values.filter((v) => v === 'ENDSEC').length).toBe(6);
 
   // DIMSTYLE table present
   expect(dxfText, 'DIMSTYLE table must be defined').toContain('DIMSTYLE');

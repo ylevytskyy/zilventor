@@ -18,7 +18,6 @@
     "@zilventor/shared": "workspace:*",
     "@zilventor/sketcher-worker": "workspace:*",
     "comlink": "^4.4.1",
-    "dxf-parser": "^1.1.2",
     "expr-eval": "^2.0.2",
     "fflate": "^0.8.2",
     "i18next": "^26.3.1",

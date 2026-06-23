@@ -10,15 +10,17 @@ describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
     const sections = (out.match(/\n\s*SECTION\s*\n/g) ?? []).length;
     const endsecs  = (out.match(/\n\s*ENDSEC\s*\n/g)  ?? []).length;
     expect(sections).toBe(endsecs);
-    expect(sections).toBe(4); // HEADER, TABLES, BLOCKS, ENTITIES
+    expect(sections).toBe(6); // HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS (AC1015)
   });
 
-  it('DXF-SCAF-2: contains HEADER, TABLES, BLOCKS, ENTITIES section names', () => {
+  it('DXF-SCAF-2: contains HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS section names', () => {
     const out = createDxfDocument().toString();
     expect(out).toContain('HEADER');
+    expect(out).toContain('CLASSES');
     expect(out).toContain('TABLES');
     expect(out).toContain('BLOCKS');
     expect(out).toContain('ENTITIES');
+    expect(out).toContain('OBJECTS');
   });
 
   it('DXF-SCAF-6: BLOCKS section is ordered after TABLES and before ENTITIES', () => {
@@ -125,7 +127,8 @@ describe('dxfWriter — entity emitters (DXF-ENT)', () => {
     const lines = out.split('\n');
     const lineIdx = lines.findIndex((l) => l.trim() === 'LINE');
     expect(lineIdx).toBeGreaterThan(-1);
-    const entityBlock = lines.slice(lineIdx, lineIdx + 20).join('\n');
+    // AC1015 LINE entity has handle/owner/subclass markers — use a wider window (25 lines)
+    const entityBlock = lines.slice(lineIdx, lineIdx + 25).join('\n');
     expect(entityBlock).toContain('10.0000');
     expect(entityBlock).toContain('20.0000');
     expect(entityBlock).toContain('30.0000');
@@ -141,8 +144,11 @@ describe('dxfWriter — entity emitters (DXF-ENT)', () => {
     expect(out).toContain('SEQEND');
     // Vertices-follow flag: group code 66 = 1
     expect(out).toContain(' 66');
-    // Count VERTEX occurrences = 3
-    const vertexCount = (out.match(/\bVERTEX\b/g) ?? []).length;
+    // Count VERTEX occurrences in the ENTITIES section only (AC1015 BLOCKS section also
+    // contains *Model_Space/*Paper_Space VERTEX entries; scope the count to stay meaningful).
+    const entitiesIdx = out.indexOf('\nENTITIES\n');
+    const entitiesSection = entitiesIdx >= 0 ? out.slice(entitiesIdx) : out;
+    const vertexCount = (entitiesSection.match(/\bVERTEX\b/g) ?? []).length;
     expect(vertexCount).toBe(3);
   });
 
@@ -201,7 +207,8 @@ describe('dxfWriter — entity emitters (DXF-ENT)', () => {
     const lines = out.split('\n');
     const lineIdx = lines.findIndex((l) => l.trim() === 'LINE');
     expect(lineIdx).toBeGreaterThan(-1);
-    const entityBlock = lines.slice(lineIdx, lineIdx + 20).join('\n');
+    // AC1015 LINE entity has handle/owner/subclass markers — use a wider window (30 lines)
+    const entityBlock = lines.slice(lineIdx, lineIdx + 30).join('\n');
     // x1=NaN → 0.0000, y1=Infinity → 0.0000, x2=-0 → 0.0000, y2=-Infinity → 0.0000
     const coordValues = entityBlock.match(/0\.0000/g) ?? [];
     expect(coordValues.length).toBeGreaterThanOrEqual(4);
@@ -227,7 +234,8 @@ describe('dxfWriter — native DIMENSION entity (DXF-NDIM)', () => {
     const pairs = out.split('\n');
     const dimIdx = pairs.findIndex((l) => l.trim() === 'DIMENSION');
     expect(dimIdx).toBeGreaterThan(-1);
-    const block = pairs.slice(dimIdx, dimIdx + 40).join('\n');
+    // AC1015 DIMENSION entity has handle/owner/subclass markers; use a wider window (60 lines)
+    const block = pairs.slice(dimIdx, dimIdx + 60).join('\n');
     expect(block).toContain('30');            // text
     // extension-line def points (13/14 → x; 23/24 → y; 33/34 → 0.0)
     expect(block).toContain(' 13');

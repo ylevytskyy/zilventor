@@ -70,7 +70,11 @@ export class ConstraintTool {
         }
         // No body-distance for splines in 2b — only control-point picking.
         // bodyDist stays Infinity (declared above), so no body-pick is emitted.
+      } else if (prim.kind === 'ellipse') {
+        endpoints.push({ ref: { primitiveId: prim.id, anchor: 'center' }, x: prim.cx, y: prim.cy });
+        bodyDist = Math.abs(Math.hypot(p.x - prim.cx, p.y - prim.cy) - Math.max(prim.rx, prim.ry));
       }
+      // point: not constrainable as a profile edge in 4b — no endpoints or body-dist emitted.
 
       for (const e of endpoints) {
         const dx = e.x - p.x, dy = e.y - p.y;

@@ -11,7 +11,7 @@
  *  7. Stub showSaveFilePicker → anchor-click fallback; click "Export DXF (1:1)"; capture download.
  *  8. Read bytes; assert suggestedFilename matches /-1to1\.dxf$/.
  *  9. Parse VERTEX x-coords; compute X-extent; assert extent ≈ 40mm (not 20mm).
- * 10. Sanity: AC1009 + ENTITIES + ≥1 POLYLINE on VISIBLE layer present.
+ * 10. Sanity: AC1015 + ENTITIES + ≥1 POLYLINE on VISIBLE layer present.
  * 11. Assert no browser console errors.
  *
  * TEETH: step 5 sets view.scale = 1:2. A renderer that wrongly applied view.scale would emit
@@ -255,15 +255,21 @@ test('T-6-24: DXF 1:1 export — true-size proof (scale 1:2 → extent ≈40mm)'
   expect(extent, `True-size x-extent must be ≥ 38mm. Got: ${extent.toFixed(3)}`).toBeGreaterThanOrEqual(38);
 
   // ─── Step 10: Structural sanity checks ───────────────────────────────────
-  expect(dxfText, 'DXF must contain AC1009 header').toContain('AC1009');
+  expect(dxfText, 'DXF must contain AC1015 header').toContain('AC1015');
   expect(dxfText, 'DXF must contain ENTITIES section').toContain('ENTITIES');
 
   // At least one POLYLINE on VISIBLE layer.
+  // AC1015 BLOCK defs contain group-code 1 with empty string value — use the
+  // robust parser that skips blank separator lines but preserves empty values.
   const pairs: Array<[number, string]> = [];
-  const trimLines = dxfText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-  for (let i = 0; i + 1 < trimLines.length; i += 2) {
-    const code = parseInt(trimLines[i]!, 10);
-    if (!isNaN(code)) pairs.push([code, trimLines[i + 1]!]);
+  const trimLines = dxfText.split('\n').map((l) => l.trim());
+  for (let ti = 0; ti < trimLines.length; ti++) {
+    if (trimLines[ti]!.length === 0) continue;
+    const code = parseInt(trimLines[ti]!, 10);
+    if (!isNaN(code) && ti + 1 < trimLines.length) {
+      pairs.push([code, trimLines[ti + 1]!]);
+      ti++;
+    }
   }
   let visiblePolylineCount = 0;
   for (let i = 0; i < pairs.length - 1; i++) {

@@ -60,6 +60,22 @@ describe('ConstraintTool', () => {
     expect(c.axis).toBe('AXIS');
   });
 
+  it('pickAt on an ellipse returns its primitiveId (center anchor)', async () => {
+    const emit = vi.fn();
+    const tool = new ConstraintTool({ kind: 'equal', onCommit: emit });
+    const ellipse: SketchPrimitive = { id: 'E1', kind: 'ellipse', cx: 5, cy: 5, rx: 3, ry: 1, rotation: 0 };
+    tool.setPrimitives([ellipse]);
+    // Click exactly at center — within endpoint threshold (d2 < 1)
+    await tool.onPointerClick({ x: 5, y: 5 });
+    // Not yet committed (equal needs 2 picks), but no throw — primitive was picked
+    expect(emit).not.toHaveBeenCalled();
+    // Second click — same ellipse, yields coincident-ish equal (primitiveId same both)
+    await tool.onPointerClick({ x: 5, y: 5 });
+    expect(emit).toHaveBeenCalledOnce();
+    expect(emit.mock.calls[0]![0].kind).toBe('equal');
+    expect(emit.mock.calls[0]![0].a).toBe('E1');
+  });
+
   it('escapePressed resets the state machine', async () => {
     const emit = vi.fn();
     const tool = new ConstraintTool({ kind: 'parallel', onCommit: emit });
