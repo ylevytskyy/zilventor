@@ -888,6 +888,7 @@
       "exportManufacturingDxf": "Export DXF (Manufacturing)",
       "exportCsv": "Export CSV",
       "exportNestDxf": "Export DXF (Nest)",
+      "exportLabels": "Export Labels (PDF)",
       "generateNest": "Generate Nest",
       "generatePresadku": "Генерувати присадку",
       "hardware": "Hardware",

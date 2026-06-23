@@ -22,6 +22,7 @@ import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { ExportPanelManufacturingDxfCommand } from '../../commands/ExportPanelManufacturingDxfCommand';
+import { ExportPanelLabelsCommand } from '../../commands/ExportPanelLabelsCommand';
 import { usePanelManufacturingInputs } from '../usePanelManufacturingInputs';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
@@ -581,6 +582,18 @@ export default function FurnitureTab() {
               }).apply();
             }}>
             {t('ribbon.furniture.exportNestDxf')}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly || cutListResult.rows.length === 0}
+            aria-disabled={!activeAssembly || cutListResult.rows.length === 0}
+            onClick={() => {
+              if (!activeAssembly || cutListResult.rows.length === 0) return;
+              void new ExportPanelLabelsCommand({
+                cutListResult,
+                suggestedName: `${activeAssembly.name ?? 'assembly'}-labels.pdf`,
+              }).apply();
+            }}>
+            {t('ribbon.furniture.exportLabels')}
           </button>
         </RibbonPanel>
       </div>
