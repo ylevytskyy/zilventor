@@ -16,20 +16,22 @@ function boreLabel(b: BoreOp): string {
   return b.depth === 'throughAll' ? `O${b.diameter} THRU` : `O${b.diameter}x${b.depth}`;
 }
 
-function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y: number; layer: string } {
-  switch (b.face) {
+function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y: number; layer: string } | null {
+  switch (b.face.role) {
     case 'Top':    return { x: b.u, y: b.v, layer: L.boresFront(b.diameter) };
     case 'Bottom': return { x: b.u, y: wid - b.v, layer: L.boresBack(b.diameter) };
     case 'Front':  return { x: b.v, y: wid, layer: L.boresEdge('Front', b.diameter) };
     case 'Back':   return { x: len - b.v, y: 0, layer: L.boresEdge('Back', b.diameter) };
     case 'Left':   return { x: 0, y: b.v, layer: L.boresEdge('Left', b.diameter) };
     case 'Right':  return { x: len, y: wid - b.v, layer: L.boresEdge('Right', b.diameter) };
+    default:       return null;
   }
 }
 
 function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number): void {
   for (const b of bores) {
     const f = boreToFlat(b, len, wid);
+    if (!f) continue;
     doc.circle(f.layer, f.x, f.y, b.diameter / 2);
     doc.text(L.boreInfo, f.x + b.diameter / 2 + 1, f.y, 4, boreLabel(b));
   }

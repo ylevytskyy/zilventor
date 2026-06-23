@@ -14,9 +14,10 @@ const base: PanelManufacturingInput = {
   grooves: [],
 };
 
-function bore(face: BoreOp['face'], u: number, v: number, diameter: number,
+function bore(role: string, u: number, v: number, diameter: number,
               depth: number | 'throughAll'): BoreOp {
-  return { id: `b-${face}-${u}-${v}`, face, u, v, diameter, depth, role: 'shelfPin-system32' } as BoreOp;
+  const face: BoreOp['face'] = { featureId: 'panel', role, instance: 0 };
+  return { id: `b-${role}-${u}-${v}`, face, u, v, diameter, depth, role: 'shelfPin-system32' } as BoreOp;
 }
 
 describe('renderPanelManufacturingDxf — outline/info/dims', () => {
