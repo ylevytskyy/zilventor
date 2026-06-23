@@ -561,3 +561,29 @@ describe('parseDxf — HATCH', () => {
     expect(e.type).toBe('HATCH');
   });
 });
+
+describe('entity-level color/linetype capture', () => {
+  it('reads code 62 (color) and code 6 (linetype) off a LINE entity', () => {
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LINE', '8', 'walls', '62', '1', '6', 'DASHED',
+      '10', '0', '20', '0', '11', '10', '21', '0',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n');
+    const parsed = parseDxf(dxf);
+    const line = parsed.entities.find((e) => e.type === 'LINE')!;
+    expect(line.color).toBe(1);
+    expect(line.linetype).toBe('DASHED');
+  });
+
+  it('leaves color/linetype undefined when codes 62/6 are absent', () => {
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '5', '21', '0',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n');
+    const line = parseDxf(dxf).entities.find((e) => e.type === 'LINE')!;
+    expect(line.color).toBeUndefined();
+    expect(line.linetype).toBeUndefined();
+  });
+});

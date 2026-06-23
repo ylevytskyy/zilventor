@@ -224,30 +224,35 @@ function parseHatchLoops(pairs: DxfPair[]): HatchLoop[] {
 
 function readEntity(raw: RawEntity): DxfEntity | null {
   const layer = str(raw.pairs, 8, '0');
+  const colorCode = raw.pairs.find((q) => q.code === 62);
+  const color = colorCode ? (Number.parseInt(colorCode.value, 10) || 0) : undefined;
+  const ltCode = raw.pairs.find((q) => q.code === 6);
+  const linetype = ltCode ? ltCode.value : undefined;
+  const common = { layer, ...(color !== undefined ? { color } : {}), ...(linetype !== undefined ? { linetype } : {}) };
   switch (raw.type) {
     case 'LINE':
-      return { type: 'LINE', layer,
+      return { type: 'LINE', ...common,
         x1: num(raw.pairs, 10), y1: num(raw.pairs, 20),
         x2: num(raw.pairs, 11), y2: num(raw.pairs, 21) };
     case 'CIRCLE': {
       const ex = extrusion(raw.pairs);
-      return { type: 'CIRCLE', layer,
+      return { type: 'CIRCLE', ...common,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40),
         ...(ex ? { extrusion: ex } : {}) };
     }
     case 'ARC': {
       const ex = extrusion(raw.pairs);
-      return { type: 'ARC', layer,
+      return { type: 'ARC', ...common,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20), r: num(raw.pairs, 40),
         startAngle: num(raw.pairs, 50), endAngle: num(raw.pairs, 51),
         ...(ex ? { extrusion: ex } : {}) };
     }
     case 'TEXT':
-      return { type: 'TEXT', layer,
+      return { type: 'TEXT', ...common,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
         value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
     case 'MTEXT':
-      return { type: 'MTEXT', layer,
+      return { type: 'MTEXT', ...common,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20), height: num(raw.pairs, 40),
         value: str(raw.pairs, 1), rotation: num(raw.pairs, 50) };
     case 'LWPOLYLINE': {
@@ -266,11 +271,11 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       }
       if (cur) verts.push(cur);
       const ex = extrusion(raw.pairs);
-      return { type: 'LWPOLYLINE', layer, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts,
+      return { type: 'LWPOLYLINE', ...common, closed: (num(raw.pairs, 70) & 1) === 1, vertices: verts,
         ...(ex ? { extrusion: ex } : {}) };
     }
     case 'INSERT':
-      return { type: 'INSERT', layer,
+      return { type: 'INSERT', ...common,
         name: str(raw.pairs, 2),
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         xscale: num(raw.pairs, 41, 1), yscale: num(raw.pairs, 42, 1),
@@ -289,12 +294,12 @@ function readEntity(raw: RawEntity): DxfEntity | null {
         else if (q.code === 11) fx = f(q.value);
         else if (q.code === 21 && fx !== null) { fps.push({ x: fx, y: f(q.value) }); fx = null; }
       }
-      return { type: 'SPLINE', layer, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1,
+      return { type: 'SPLINE', ...common, degree: num(raw.pairs, 71, 3), closed: (num(raw.pairs, 70) & 1) === 1,
         controlPoints: cps, fitPoints: fps, knots: nums(raw.pairs, 40), weights: nums(raw.pairs, 41) };
     }
     case 'ELLIPSE': {
       const ex = extrusion(raw.pairs);
-      return { type: 'ELLIPSE', layer,
+      return { type: 'ELLIPSE', ...common,
         cx: num(raw.pairs, 10), cy: num(raw.pairs, 20),
         majorX: num(raw.pairs, 11), majorY: num(raw.pairs, 21),
         ratio: num(raw.pairs, 40), startParam: num(raw.pairs, 41), endParam: num(raw.pairs, 42, 2 * Math.PI),
@@ -302,7 +307,7 @@ function readEntity(raw: RawEntity): DxfEntity | null {
     }
     case 'POINT': {
       const ex = extrusion(raw.pairs);
-      return { type: 'POINT', layer, x: num(raw.pairs, 10), y: num(raw.pairs, 20), ...(ex ? { extrusion: ex } : {}) };
+      return { type: 'POINT', ...common, x: num(raw.pairs, 10), y: num(raw.pairs, 20), ...(ex ? { extrusion: ex } : {}) };
     }
     case 'SOLID':
     case 'TRACE': {
@@ -315,7 +320,7 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const eps = 1e-9;
       const isTri = Math.abs(p2.x - p3.x) < eps && Math.abs(p2.y - p3.y) < eps;
       const corners = isTri ? [p0, p1, p3] : [p0, p1, p3, p2];
-      return { type: 'SOLID', layer, corners, ...(ex ? { extrusion: ex } : {}) };
+      return { type: 'SOLID', ...common, corners, ...(ex ? { extrusion: ex } : {}) };
     }
     case 'LEADER': {
       const xs = nums(raw.pairs, 10);
@@ -323,11 +328,11 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const n = Math.min(xs.length, ys.length);
       const vertices: Array<{ x: number; y: number }> = [];
       for (let i = 0; i < n; i++) vertices.push({ x: xs[i]!, y: ys[i]! });
-      return { type: 'LEADER', layer, vertices };
+      return { type: 'LEADER', ...common, vertices };
     }
     case 'DIMENSION': {
       const block = str(raw.pairs, 2);
-      return { type: 'DIMENSION', layer,
+      return { type: 'DIMENSION', ...common,
         ...(block ? { block } : {}),
         textOverride: str(raw.pairs, 1),
         measurement: num(raw.pairs, 42),
@@ -336,7 +341,7 @@ function readEntity(raw: RawEntity): DxfEntity | null {
     case 'MLEADER':
     case 'MULTILEADER': {
       const ml = parseMleader(raw.pairs);
-      return { type: 'MLEADER', layer, leaderLines: ml.leaderLines, ...(ml.text ? { text: ml.text } : {}) };
+      return { type: 'MLEADER', ...common, leaderLines: ml.leaderLines, ...(ml.text ? { text: ml.text } : {}) };
     }
     case '3DFACE': {
       // Corners c0–c3 from codes 10–13 / 20–23 / 30–33, in sequential polygon
@@ -348,19 +353,19 @@ function readEntity(raw: RawEntity): DxfEntity | null {
       const eps = 1e-9;
       const isTri = Math.abs(c3.x - c2.x) < eps && Math.abs(c3.y - c2.y) < eps && Math.abs(c3.z - c2.z) < eps;
       const corners = isTri ? [c0, c1, c2] : [c0, c1, c2, c3];
-      return { type: '3DFACE', layer, corners };
+      return { type: '3DFACE', ...common, corners };
     }
     case 'RAY':
-      return { type: 'RAY', layer,
+      return { type: 'RAY', ...common,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         dx: num(raw.pairs, 11), dy: num(raw.pairs, 21) };
     case 'XLINE':
-      return { type: 'XLINE', layer,
+      return { type: 'XLINE', ...common,
         x: num(raw.pairs, 10), y: num(raw.pairs, 20),
         dx: num(raw.pairs, 11), dy: num(raw.pairs, 21) };
     case 'HATCH': {
       const ex = extrusion(raw.pairs);
-      return { type: 'HATCH', layer, loops: parseHatchLoops(raw.pairs), ...(ex ? { extrusion: ex } : {}) };
+      return { type: 'HATCH', ...common, loops: parseHatchLoops(raw.pairs), ...(ex ? { extrusion: ex } : {}) };
     }
     default:
       return null;
