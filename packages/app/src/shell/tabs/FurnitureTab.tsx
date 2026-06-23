@@ -20,6 +20,8 @@ import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBores
 import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
+import { ExportPanelManufacturingDxfCommand } from '../../commands/ExportPanelManufacturingDxfCommand';
+import { usePanelManufacturingInputs } from '../usePanelManufacturingInputs';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
 import { AddDrawerHandlesCommand } from '../../commands/AddDrawerHandlesCommand';
@@ -44,6 +46,7 @@ export default function FurnitureTab() {
   const cutListResult = useCutListResult();
   const boringResult = useBoringResult();
   const connectorRows = useConnectorBomResult();
+  const panelManufacturingInputs = usePanelManufacturingInputs();
   const showBores = useAppStore((s) => s.showBores);
 
   const handlePanel = async () => {
@@ -535,6 +538,15 @@ export default function FurnitureTab() {
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.dxf`,
             }).apply()}>
             {t('ribbon.furniture.exportBoringDxf')}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly || panelManufacturingInputs.length === 0}
+            aria-disabled={!activeAssembly || panelManufacturingInputs.length === 0}
+            onClick={() => void new ExportPanelManufacturingDxfCommand({
+              inputs: panelManufacturingInputs,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-manufacturing.zip`,
+            }).apply()}>
+            {t('ribbon.furniture.exportManufacturingDxf')}
           </button>
         </RibbonPanel>
       </div>

@@ -885,6 +885,7 @@
       "cutListPanel": "Панель розкрою",
       "exportBoringCsv": "Експорт CSV (присадка)",
       "exportBoringDxf": "Експорт DXF (присадка)",
+      "exportManufacturingDxf": "Експорт DXF (Виробництво)",
       "exportCsv": "Експорт CSV",
       "generateNest": "Генерувати розкладку",
       "generatePresadku": "Генерувати присадку",
