@@ -337,6 +337,18 @@ export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimiti
 }
 
 /**
+ * Apply an INSERT affine to a TextAnnotation: transform the insertion point, scale the
+ * (vertical) text height by the affine's vertical magnitude, and add the affine's rotation
+ * to the text angle. Used to surface TEXT/MTEXT living inside an INSERTed block.
+ */
+function transformAnnotation(m: Affine, a: TextAnnotation): TextAnnotation {
+  const p = afApply(m, a.x, a.y);
+  const heightScale = Math.hypot(m.c, m.d); // image of the (0,1) text-up vector
+  const rotOffset = Math.atan2(m.b, m.a); // image rotation of the (1,0) baseline vector
+  return { id: freshId(), x: p.x, y: p.y, height: a.height * heightScale, value: a.value, rotation: a.rotation + rotOffset };
+}
+
+/**
  * Recursively expand one INSERT entity into a flat list of SketchPrimitives.
  * Depth guard: max 16 levels to prevent infinite recursion on cyclic block references.
  * Array (COLUMNS×ROWS): each cell's local-frame offset (col*colSpacing, row*rowSpacing)
@@ -350,19 +362,29 @@ function expandInsert(
   s: number,
   depth: number,
   drop: (k: string, r: string) => void,
-): SketchPrimitive[] {
-  if (depth > 16) { drop('INSERT', 'block nesting deeper than 16 levels'); return []; }
+): { primitives: SketchPrimitive[]; annotations: TextAnnotation[] } {
+  if (depth > 16) { drop('INSERT', 'block nesting deeper than 16 levels'); return { primitives: [], annotations: [] }; }
   const body = parsed.blocks[ins.name];
-  if (!body) { drop('INSERT', `unknown block ${ins.name}`); return []; }
+  if (!body) { drop('INSERT', `unknown block ${ins.name}`); return { primitives: [], annotations: [] }; }
   const base = parsed.blockBasePoints[ins.name] ?? { x: 0, y: 0 };
 
   // Map the block body once at unit scale (the document scale s is applied
   // to the final WCS coordinates below, not inside the block frame).
+  // blockAnnos holds text in the block's local-unit frame (raw TEXT/MTEXT plus
+  // annotations bubbled up from nested INSERTs); the cell loop transforms them per cell.
   const blockPrims: SketchPrimitive[] = [];
+  const blockAnnos: TextAnnotation[] = [];
   for (const be of body) {
     if (be.type === 'INSERT') {
       // Nested INSERT: recurse; it styles its own sub-entities — do not outer-style it.
-      blockPrims.push(...expandInsert(be, parsed, 1, depth + 1, drop));
+      const sub = expandInsert(be, parsed, 1, depth + 1, drop);
+      blockPrims.push(...sub.primitives);
+      blockAnnos.push(...sub.annotations);
+      continue;
+    }
+    if (be.type === 'TEXT' || be.type === 'MTEXT') {
+      const value = be.type === 'MTEXT' ? stripMText(be.value) : be.value;
+      blockAnnos.push({ id: freshId(), x: be.x, y: be.y, height: be.height, value, rotation: (be.rotation * Math.PI) / 180 });
       continue;
     }
     // Resolve this sub-entity's own layer/entity style (color + lineStyle).
@@ -382,6 +404,7 @@ function expandInsert(
   }
 
   const out: SketchPrimitive[] = [];
+  const outAnnos: TextAnnotation[] = [];
   const cols = Math.max(1, ins.columns);
   const rows = Math.max(1, ins.rows);
   // Pre-compute rotation sin/cos for rotating the local-frame array offset into WCS.
@@ -398,13 +421,16 @@ function expandInsert(
       const offY = sinθ * dx + cosθ * dy;
       const placed = { ...ins, x: ins.x + offX, y: ins.y + offY };
       const m = insertMatrix(placed, base);
+      const full = afMul(scaleM, m); // insert transform then document unit scale
       for (const bp of blockPrims) {
-        // Apply insert transform, then document unit scale.
         out.push(transformPrimitive(scaleM, transformPrimitive(m, bp)));
+      }
+      for (const ba of blockAnnos) {
+        outAnnos.push(transformAnnotation(full, ba));
       }
     }
   }
-  return out;
+  return { primitives: out, annotations: outAnnos };
 }
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -422,7 +448,9 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
 
   for (const e of parsed.entities) {
     if (e.type === 'INSERT') {
-      primitives.push(...expandInsert(e, parsed, s, 0, drop));
+      const r = expandInsert(e, parsed, s, 0, drop);
+      primitives.push(...r.primitives);
+      annotations.push(...r.annotations);
       continue;
     }
     if (e.type === 'TEXT' || e.type === 'MTEXT') {
@@ -440,18 +468,11 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
           x: 0, y: 0, xscale: 1, yscale: 1, rotation: 0,
           columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0,
         };
-        primitives.push(...expandInsert(synth, parsed, s, 0, drop));
-        // expandInsert is geometry-only and drops block text. Scan the block body for
-        // TEXT/MTEXT and emit annotations under the same identity transform (subtract the
-        // block base point, then apply the document unit scale).
-        const base = parsed.blockBasePoints[e.block] ?? { x: 0, y: 0 };
-        for (const be of body) {
-          if (be.type === 'TEXT' || be.type === 'MTEXT') {
-            const value = be.type === 'MTEXT' ? stripMText(be.value) : be.value;
-            annotations.push({ id: freshId(), x: (be.x - base.x) * s, y: (be.y - base.y) * s,
-              height: be.height * s, value, rotation: (be.rotation * Math.PI) / 180 });
-          }
-        }
+        // expandInsert flattens the drawn geometry AND surfaces the block's TEXT/MTEXT
+        // (dimension value) as annotations under the same identity transform.
+        const r = expandInsert(synth, parsed, s, 0, drop);
+        primitives.push(...r.primitives);
+        annotations.push(...r.annotations);
       } else {
         // Fallback (block absent/unresolvable): one annotation at the text midpoint.
         const override = e.textOverride.trim();

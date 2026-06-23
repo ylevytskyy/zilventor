@@ -572,6 +572,70 @@ describe('toSketch — expandInsert flattens SOLID in block body', () => {
   });
 });
 
+describe('toSketch — expandInsert emits block TEXT', () => {
+  it('imports a TEXT inside an INSERTed block as a translated annotation', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'TB', x: 10, y: 20,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: { TB: [{ type: 'TEXT', layer: '0', x: 1, y: 2, height: 5, value: 'TITLE', rotation: 0 }] },
+      header: {}, layers: {}, blockBasePoints: { TB: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.value).toBe('TITLE');
+    expect(r.annotations[0]!.x).toBeCloseTo(11, 9);
+    expect(r.annotations[0]!.y).toBeCloseTo(22, 9);
+    expect(r.annotations[0]!.height).toBeCloseTo(5, 9);
+    expect(r.annotations[0]!.rotation).toBeCloseTo(0, 9);
+  });
+
+  it('emits one annotation per array cell (COLUMNS×ROWS)', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'TB', x: 0, y: 0,
+        xscale: 1, yscale: 1, rotation: 0, columns: 2, rows: 1, colSpacing: 100, rowSpacing: 0 }],
+      blocks: { TB: [{ type: 'TEXT', layer: '0', x: 1, y: 0, height: 5, value: 'N', rotation: 0 }] },
+      header: {}, layers: {}, blockBasePoints: { TB: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.annotations).toHaveLength(2);
+    expect(r.annotations.map((a) => a.value)).toEqual(['N', 'N']);
+    expect(r.annotations.map((a) => Math.round(a.x))).toEqual([1, 101]);
+  });
+
+  it('transforms block TEXT under INSERT scale + rotation', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'TB', x: 0, y: 0,
+        xscale: 2, yscale: 2, rotation: 90, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: { TB: [{ type: 'TEXT', layer: '0', x: 1, y: 0, height: 5, value: 'R', rotation: 0 }] },
+      header: {}, layers: {}, blockBasePoints: { TB: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.x).toBeCloseTo(0, 9);
+    expect(r.annotations[0]!.y).toBeCloseTo(2, 9);
+    expect(r.annotations[0]!.height).toBeCloseTo(10, 9);
+    expect(r.annotations[0]!.rotation).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it('surfaces TEXT through a nested INSERT', () => {
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'OUTER', x: 10, y: 0,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: {
+        OUTER: [{ type: 'INSERT', layer: '0', name: 'INNER', x: 5, y: 0,
+          xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+        INNER: [{ type: 'TEXT', layer: '0', x: 1, y: 0, height: 5, value: 'NESTED', rotation: 0 }],
+      },
+      header: {}, layers: {}, blockBasePoints: { OUTER: { x: 0, y: 0 }, INNER: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    expect(r.annotations).toHaveLength(1);
+    expect(r.annotations[0]!.value).toBe('NESTED');
+    expect(r.annotations[0]!.x).toBeCloseTo(16, 9);
+    expect(r.annotations[0]!.y).toBeCloseTo(0, 9);
+  });
+});
+
 describe('toSketch — DIMENSION', () => {
   it('full fidelity: flattens block geometry + arrowhead and emits the block MTEXT', () => {
     const parsed: ParsedDxf = {
