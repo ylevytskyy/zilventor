@@ -855,6 +855,32 @@ describe('toSketch — HATCH nested inside INSERT block (Phase 4c)', () => {
   });
 });
 
+// ── Task 5: INSERT block sub-entity color ───────────────────────────────────
+
+describe('toSketch — INSERT sub-entity color (Task 5)', () => {
+  it('preserves block sub-entity color through INSERT expansion', () => {
+    // Block BLK contains a LINE on layer "walls" (ACI color 1 = 0xff0000).
+    // After INSERT expansion the transformed line must keep color 0xff0000.
+    const dxf = [
+      '0', 'SECTION', '2', 'TABLES',
+      '0', 'TABLE', '2', 'LAYER',
+      '0', 'LAYER', '2', 'walls', '62', '1', '6', 'CONTINUOUS', '70', '0',
+      '0', 'ENDTAB', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'BLOCKS',
+      '0', 'BLOCK', '8', '0', '2', 'BLK', '70', '0', '10', '0', '20', '0', '3', 'BLK',
+      '0', 'LINE', '8', 'walls', '10', '0', '20', '0', '11', '2', '21', '0',
+      '0', 'ENDBLK', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'INSERT', '2', 'BLK', '10', '10', '20', '5', '41', '1', '42', '1', '50', '0',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n');
+    const s = toSketch(parseDxf(dxf));
+    const line = s.primitives.find((p) => p.kind === 'line')!;
+    expect(line).toBeDefined();
+    expect(line.color).toBe(0xff0000);
+  });
+});
+
 // ── Task 4: color/linetype style merge ──────────────────────────────────────
 
 function dxfWithLayers(body: string[]): string {

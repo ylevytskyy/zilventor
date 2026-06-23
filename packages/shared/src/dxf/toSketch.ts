@@ -293,6 +293,10 @@ function buildCurveFromEllipse(
  * - Block-internal entities ignore their own OCS extrusion under an insert (rare, deferred).
  */
 export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
+  // Carry color/lineStyle through the transform (Task 5). SketchStyle is the precise type.
+  const style: SketchStyle = {};
+  if (p.color !== undefined) style.color = p.color;
+  if (p.lineStyle !== undefined) style.lineStyle = p.lineStyle;
   switch (p.kind) {
     case 'line': {
       const a = afApply(m, p.x1, p.y1), b = afApply(m, p.x2, p.y2);
@@ -300,11 +304,13 @@ export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimiti
     }
     case 'circle': {
       const e = transformEllipse(m, p.cx, p.cy, p.r, p.r, 0);
-      return buildCurveFromEllipse(e, false, p.construction);
+      const r = buildCurveFromEllipse(e, false, p.construction);
+      return { ...r, ...style } as SketchPrimitive;
     }
     case 'arc': {
       const e = transformEllipse(m, p.cx, p.cy, p.r, p.r, 0, p.startAngle, p.endAngle);
-      return buildCurveFromEllipse(e, true, p.construction);
+      const r = buildCurveFromEllipse(e, true, p.construction);
+      return { ...r, ...style } as SketchPrimitive;
     }
     case 'ellipse': {
       const hadAngles = p.startAngle !== undefined && p.endAngle !== undefined;
@@ -313,7 +319,8 @@ export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimiti
         hadAngles ? p.startAngle : undefined,
         hadAngles ? p.endAngle : undefined,
       );
-      return buildCurveFromEllipse(e, hadAngles, p.construction);
+      const r = buildCurveFromEllipse(e, hadAngles, p.construction);
+      return { ...r, ...style } as SketchPrimitive;
     }
     case 'spline': {
       return { ...p, id: freshId(), controlPoints: p.controlPoints.map((cp) => afApply(m, cp.x, cp.y)) };
@@ -354,19 +361,23 @@ function expandInsert(
   const blockPrims: SketchPrimitive[] = [];
   for (const be of body) {
     if (be.type === 'INSERT') {
-      // Nested INSERT: recurse; the outer matrix handles the final scale.
+      // Nested INSERT: recurse; it styles its own sub-entities — do not outer-style it.
       blockPrims.push(...expandInsert(be, parsed, 1, depth + 1, drop));
-    } else if (be.type === 'LWPOLYLINE' || be.type === 'POLYLINE') {
-      blockPrims.push(...expandPolyline(be, 1, false));
+      continue;
+    }
+    // Resolve this sub-entity's own layer/entity style (color + lineStyle).
+    const beStyle = resolveStyle(be, parsed.layers);
+    if (be.type === 'LWPOLYLINE' || be.type === 'POLYLINE') {
+      blockPrims.push(...applyStyle(expandPolyline(be, 1, false), beStyle));
     } else if (be.type === 'SOLID') {
-      blockPrims.push(...expandSolid(be, 1));
+      blockPrims.push(...applyStyle(expandSolid(be, 1), beStyle));
     } else if (be.type === '3DFACE') {
-      blockPrims.push(...expandFace(be, 1, drop));
+      blockPrims.push(...applyStyle(expandFace(be, 1, drop), beStyle));
     } else if (be.type === 'HATCH') {
-      blockPrims.push(...expandHatch(be, 1, drop));
+      blockPrims.push(...applyStyle(expandHatch(be, 1, drop), beStyle));
     } else {
       const p = mapEntity(be, 1, drop, false);
-      if (p) blockPrims.push(p);
+      if (p) blockPrims.push({ ...p, ...beStyle });
     }
   }
 
