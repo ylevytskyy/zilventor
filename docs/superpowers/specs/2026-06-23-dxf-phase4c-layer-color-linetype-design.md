@@ -28,6 +28,10 @@ so it is a real user-visible feature, not dead metadata.
 - **trueColor** (group code 420) — only ACI (code 62) is read.
 - Per-`INSERT` **BYBLOCK** color inheritance — BYBLOCK (0) resolves to default for now.
 - Reproducing each DXF linetype's exact dash pattern — collapsed to two families (`dashed`/`dashdot`).
+- **Full 256-entry ACI palette** — only the deterministic common colors (ACI 1–9, the
+  250–255 gray ramp, plus a couple of common extended like 30/40) are mapped; unmapped
+  indices fall back to the native default look. Extending to the full palette is a follow-up.
+  (Matches the existing sparse `dxfWriter.ts ACI_PALETTE` posture.)
 
 ## Model (`packages/shared/src/types.ts`)
 
@@ -53,10 +57,12 @@ render with the existing defaults.
 
 ## Resolution helpers (`packages/shared/src/dxf/`)
 
-### `aciToRgb(aci: number): number`
-Canonical 256-entry AutoCAD Color Index palette → `0xRRGGBB`. (The existing
-`dxfWriter.ts hexToAci` is the reverse direction and only a partial nearest-match palette;
-this is a fresh forward table.)
+### `aciToRgb(aci: number): number | undefined`
+Forward ACI → `0xRRGGBB`, returning **`undefined`** for ACI `0` (BYBLOCK), `7`
+(white/foreground), `256` (BYLAYER), and any **unmapped** index — meaning "use the native
+default look". Mapped: ACI 1–9, the 250–255 gray ramp, and a few common extended (30/40).
+Full 256-entry palette deferred (see non-goals). The existing `dxfWriter.ts hexToAci` is the
+reverse direction and shares this sparse posture.
 
 ### `resolveStyle(entity, layers): { color?: number; lineStyle?: 'dashed' | 'dashdot' }`
 Precedence:
