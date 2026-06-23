@@ -15,7 +15,7 @@ export function buildNestZipEntries(
   for (const sheet of nest.sheets) {
     const materialName = materials.find((m) => m.id === sheet.materialId)?.name ?? sheet.materialId;
     const sheetCount = nest.sheets.filter((s) => s.materialId === sheet.materialId).length;
-    entries[`${sanitize(sheet.materialId)}-sheet-${sheet.sheetIndex + 1}.dxf`] =
+    entries[`${sanitize(sheet.materialId)}-sheet-${sheet.sheetIndex}.dxf`] =
       renderNestSheetDxf(sheet, { sheetCount, materialName });
   }
   return entries;

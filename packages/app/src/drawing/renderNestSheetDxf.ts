@@ -26,13 +26,13 @@ export function renderNestSheetDxf(
       { x: p.x, y: p.y }, { x: p.x + w, y: p.y },
       { x: p.x + w, y: p.y + h }, { x: p.x, y: p.y + h },
     ], true);
-    doc.text(MANUFACTURING_LAYERS.info, p.x + w / 2, p.y + h / 2, 15, `#${p.itemNumber}  ${p.length}×${p.width}`);
+    doc.text(MANUFACTURING_LAYERS.info, p.x + w / 2, p.y + h / 2, 15, `#${p.itemNumber}  ${p.length}x${p.width}`);
   }
 
   doc.text(
     MANUFACTURING_LAYERS.info,
     0, W + 30, 30,
-    `Sheet ${sheet.sheetIndex + 1}/${meta.sheetCount} · ${meta.materialName} · util ${sheet.utilizationPct}%`,
+    `Sheet ${sheet.sheetIndex}/${meta.sheetCount} - ${meta.materialName} - util ${sheet.utilizationPct}%`,
   );
 
   return doc.toString();

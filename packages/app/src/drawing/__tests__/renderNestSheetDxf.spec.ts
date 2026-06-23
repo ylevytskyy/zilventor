@@ -24,7 +24,7 @@ function lwpolys(dxf: string): Array<{ layer: string; minX: number; minY: number
 
 const sheet: NestSheet = {
   materialId: 'mdf18',
-  sheetIndex: 0,
+  sheetIndex: 1,
   sheetLengthMm: 2800,
   sheetWidthMm: 2070,
   utilizationPct: 85.5,
@@ -51,8 +51,8 @@ describe('renderNestSheetDxf', () => {
 
     // INFO: 2 panel labels + 1 header = 3 TEXT entities.
     expect((dxf.match(/\n {2}0\nTEXT\n/g) ?? []).length).toBe(3);
-    expect(dxf).toContain('#1  600×300');
-    expect(dxf).toContain('#2  300×600');
-    expect(dxf).toContain('Sheet 1/3 · White 18 · util 85.5%');
+    expect(dxf).toContain('#1  600x300');
+    expect(dxf).toContain('#2  300x600');
+    expect(dxf).toContain('Sheet 1/3 - White 18 - util 85.5%');
   });
 });

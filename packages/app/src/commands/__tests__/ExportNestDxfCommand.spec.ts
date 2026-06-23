@@ -14,9 +14,9 @@ const nest: NestState = {
   inputFingerprint: 'fp',
   excluded: [],
   sheets: [
-    { materialId: 'mdf18', sheetIndex: 0, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 80,
+    { materialId: 'mdf18', sheetIndex: 1, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 80,
       panels: [{ itemNumber: 1, rowKey: 'a', x: 0, y: 0, length: 600, width: 300, rotated: false }] },
-    { materialId: 'mdf18', sheetIndex: 1, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 50,
+    { materialId: 'mdf18', sheetIndex: 2, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 50,
       panels: [
         { itemNumber: 2, rowKey: 'b', x: 0, y: 0, length: 600, width: 300, rotated: false },
         { itemNumber: 3, rowKey: 'c', x: 700, y: 0, length: 300, width: 600, rotated: true },
@@ -39,8 +39,8 @@ describe('buildNestZipEntries', () => {
     expect((entries['mdf18-sheet-1.dxf']!.match(/LWPOLYLINE/g) ?? []).length).toBe(2);
     expect((entries['mdf18-sheet-2.dxf']!.match(/LWPOLYLINE/g) ?? []).length).toBe(3);
     // per-material sheetCount → "Sheet 1/2" / "Sheet 2/2".
-    expect(entries['mdf18-sheet-1.dxf']).toContain('Sheet 1/2 · White 18');
-    expect(entries['mdf18-sheet-2.dxf']).toContain('Sheet 2/2 · White 18');
+    expect(entries['mdf18-sheet-1.dxf']).toContain('Sheet 1/2 - White 18');
+    expect(entries['mdf18-sheet-2.dxf']).toContain('Sheet 2/2 - White 18');
   });
 });
 
