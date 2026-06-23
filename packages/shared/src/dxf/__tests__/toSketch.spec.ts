@@ -854,3 +854,39 @@ describe('toSketch — HATCH nested inside INSERT block (Phase 4c)', () => {
     }
   });
 });
+
+// ── Task 4: color/linetype style merge ──────────────────────────────────────
+
+function dxfWithLayers(body: string[]): string {
+  return ['0', 'SECTION', '2', 'TABLES',
+    '0', 'TABLE', '2', 'LAYER',
+    '0', 'LAYER', '2', 'walls', '62', '1', '6', 'CONTINUOUS', '70', '0',
+    '0', 'LAYER', '2', 'hidden', '62', '5', '6', 'HIDDEN', '70', '0',
+    '0', 'LAYER', '2', 'frozen', '62', '2', '6', 'CONTINUOUS', '70', '1',
+    '0', 'ENDTAB', '0', 'ENDSEC',
+    '0', 'SECTION', '2', 'ENTITIES', ...body, '0', 'ENDSEC', '0', 'EOF'].join('\n');
+}
+
+describe('toSketch color/linetype', () => {
+  it('attaches resolved color to a layer-coloured line', () => {
+    const s = toSketch(parseDxf(dxfWithLayers(['0', 'LINE', '8', 'walls', '10', '0', '20', '0', '11', '10', '21', '0'])));
+    const line = s.primitives.find((p) => p.kind === 'line')!;
+    expect(line.color).toBe(0xff0000);
+    expect(line.lineStyle).toBeUndefined();
+  });
+
+  it('attaches color + dashed lineStyle from a HIDDEN layer', () => {
+    const s = toSketch(parseDxf(dxfWithLayers(['0', 'LINE', '8', 'hidden', '10', '0', '20', '0', '11', '10', '21', '0'])));
+    const line = s.primitives.find((p) => p.kind === 'line')!;
+    expect(line.color).toBe(0x0000ff);
+    expect(line.lineStyle).toBe('dashed');
+  });
+
+  it('drops color/lineStyle on construction (frozen-layer) geometry', () => {
+    const s = toSketch(parseDxf(dxfWithLayers(['0', 'LINE', '8', 'frozen', '10', '0', '20', '0', '11', '10', '21', '0'])));
+    const line = s.primitives.find((p) => p.kind === 'line')!;
+    expect(line.construction).toBe(true);
+    expect(line.color).toBeUndefined();
+    expect(line.lineStyle).toBeUndefined();
+  });
+});

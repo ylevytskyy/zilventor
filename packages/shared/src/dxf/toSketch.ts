@@ -1,5 +1,6 @@
 import type { ParsedDxf, DxfEntity, DxfLayer } from './types';
 import type { SketchPrimitive, TextAnnotation } from '../types';
+import { resolveStyle, type SketchStyle } from './style';
 
 export type DxfDropped = { kind: string; count: number; reason: string };
 export type ToSketchResult = { primitives: SketchPrimitive[]; annotations: TextAnnotation[]; dropped: DxfDropped[] };
@@ -15,6 +16,11 @@ export function stripMText(raw: string): string {
 }
 
 function freshId(): string { return `dxf-${crypto.randomUUID().slice(0, 8)}`; }
+
+function applyStyle(prims: SketchPrimitive[], style: SketchStyle): SketchPrimitive[] {
+  if (style.color === undefined && style.lineStyle === undefined) return prims;
+  return prims.map((p) => ({ ...p, ...style }));
+}
 
 // ── OCS→WCS helpers (DXF Arbitrary Axis Algorithm) ──────────────────────────
 type V3 = { x: number; y: number; z: number };
@@ -413,22 +419,6 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
       annotations.push({ id: freshId(), x: e.x * s, y: e.y * s, height: e.height * s, value, rotation: (e.rotation * Math.PI) / 180 });
       continue;
     }
-    if (e.type === 'SOLID') {
-      primitives.push(...expandSolid(e, s));
-      continue;
-    }
-    if (e.type === 'HATCH') {
-      primitives.push(...expandHatch(e, s, drop));
-      continue;
-    }
-    if (e.type === '3DFACE') {
-      primitives.push(...expandFace(e, s, drop));
-      continue;
-    }
-    if (e.type === 'LEADER') {
-      primitives.push(...expandLeader(e, s, drop));
-      continue;
-    }
     if (e.type === 'DIMENSION') {
       const body = e.block ? parsed.blocks[e.block] : undefined;
       if (e.block && body) {
@@ -477,12 +467,29 @@ export function toSketch(parsed: ParsedDxf): ToSketchResult {
     }
     if (e.type === 'RAY' || e.type === 'XLINE') { pendingInfinite.push(e); continue; }
     const construction = isConstructionLayer(parsed.layers, e.layer);
+    const style = construction ? {} : resolveStyle(e, parsed.layers);
+    if (e.type === 'SOLID') {
+      primitives.push(...applyStyle(expandSolid(e, s), style));
+      continue;
+    }
+    if (e.type === 'HATCH') {
+      primitives.push(...applyStyle(expandHatch(e, s, drop), style));
+      continue;
+    }
+    if (e.type === '3DFACE') {
+      primitives.push(...applyStyle(expandFace(e, s, drop), style));
+      continue;
+    }
+    if (e.type === 'LEADER') {
+      primitives.push(...applyStyle(expandLeader(e, s, drop), style));
+      continue;
+    }
     if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE') {
-      primitives.push(...expandPolyline(e, s, construction));
+      primitives.push(...applyStyle(expandPolyline(e, s, construction), style));
       continue;
     }
     const prim = mapEntity(e, s, drop, construction);
-    if (prim) primitives.push(prim);
+    if (prim) primitives.push({ ...prim, ...style });
   }
   if (pendingInfinite.length) {
     // Bounding box of all other emitted geometry, in scaled (mm) space.
