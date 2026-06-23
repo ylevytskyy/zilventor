@@ -888,6 +888,7 @@
       "exportManufacturingDxf": "Експорт DXF (Виробництво)",
       "exportCsv": "Експорт CSV",
       "exportNestDxf": "Експорт DXF (Розкладка)",
+      "exportLabels": "Експорт етикеток (PDF)",
       "generateNest": "Генерувати розкладку",
       "generatePresadku": "Генерувати присадку",
       "hardware": "Фурнітура",
