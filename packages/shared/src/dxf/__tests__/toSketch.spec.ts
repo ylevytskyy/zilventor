@@ -881,6 +881,37 @@ describe('toSketch — INSERT sub-entity color (Task 5)', () => {
   });
 });
 
+// ── Task 5b: INSERT curve color preservation ────────────────────────────────
+
+describe('toSketch — INSERT curve color preservation (Task 5b)', () => {
+  it('preserves CIRCLE color through a 90°-rotated INSERT (curve branch of transformPrimitive)', () => {
+    // Block CBLK contains a CIRCLE on layer "walls" (ACI 1 = 0xff0000).
+    // Inserted with rotation=90° so it must route through the circle/arc/ellipse
+    // branch of transformPrimitive (NOT the line branch). After expansion the
+    // resulting curve primitive (circle or ellipse) must carry color === 0xff0000.
+    const dxf = [
+      '0', 'SECTION', '2', 'TABLES',
+      '0', 'TABLE', '2', 'LAYER',
+      '0', 'LAYER', '2', 'walls', '62', '1', '6', 'CONTINUOUS', '70', '0',
+      '0', 'ENDTAB', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'BLOCKS',
+      '0', 'BLOCK', '8', '0', '2', 'CBLK', '70', '0', '10', '0', '20', '0', '3', 'CBLK',
+      '0', 'CIRCLE', '8', 'walls', '10', '3', '20', '0', '40', '2',
+      '0', 'ENDBLK', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'ENTITIES',
+      // INSERT at (0,0), rotation=90°, scale 1
+      '0', 'INSERT', '2', 'CBLK', '10', '0', '20', '0', '41', '1', '42', '1', '50', '90',
+      '0', 'ENDSEC', '0', 'EOF',
+    ].join('\n');
+    const s = toSketch(parseDxf(dxf));
+    // A circle under 90° pure rotation stays a circle (isotropic); either way
+    // we find the first curve primitive (circle or ellipse).
+    const curve = s.primitives.find((p) => p.kind === 'circle' || p.kind === 'arc' || p.kind === 'ellipse');
+    expect(curve).toBeDefined();
+    expect(curve!.color).toBe(0xff0000);
+  });
+});
+
 // ── Task 4: color/linetype style merge ──────────────────────────────────────
 
 function dxfWithLayers(body: string[]): string {
