@@ -1,5 +1,7 @@
+import { jsPDF } from 'jspdf';
 import type { PanelEdgeKey, GrainDirection } from '@zilventor/shared';
 import type { PanelLabel } from './buildPanelLabels';
+import { drawQr, qrMatrix } from './qr';
 
 export const LABEL_LAYOUT = {
   cols: 2,
@@ -142,4 +144,50 @@ export function drawLabelDiagram(pdf: DiagramPdf, label: PanelLabel, rect: Box):
     const my = (seg[1] + seg[3]) / 2;
     pdf.text(EDGE_LETTER[key], mx, my);
   }
+}
+
+/** Draw one label into its cell: border, text block, mini diagram, QR. */
+function drawLabelCell(pdf: jsPDF, label: PanelLabel, cell: CellRect): void {
+  const pad = 3;
+  // Cell border.
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.2);
+  pdf.rect(cell.x, cell.y, cell.w, cell.h);
+
+  // Text block (top-left).
+  const tx = cell.x + pad;
+  let ty = cell.y + pad + 3;
+  pdf.setFontSize(9);
+  pdf.text(`#${label.itemNumber}  ${label.partName}`, tx, ty);
+  ty += 5;
+  pdf.setFontSize(7);
+  pdf.text(label.materialName, tx, ty);
+  ty += 4;
+  pdf.text(`${label.length} x ${label.width} x ${label.thickness} mm`, tx, ty);
+  ty += 4;
+  pdf.text(`copy ${label.copyIndex}/${label.copyCount}`, tx, ty);
+
+  // QR (top-right corner).
+  const qrSize = Math.min(cell.h - 2 * pad, cell.w * 0.3);
+  drawQr(pdf, qrMatrix(label.qrPayload), cell.x + cell.w - pad - qrSize, cell.y + pad, qrSize);
+
+  // Mini panel diagram (bottom band of the cell).
+  const diagTop = ty + 2;
+  drawLabelDiagram(pdf, label, {
+    x: tx,
+    y: diagTop,
+    w: cell.w - 2 * pad,
+    h: cell.y + cell.h - pad - diagTop,
+  });
+}
+
+/** Render all labels onto an A4 portrait PDF; returns the file bytes. */
+export function renderLabelsPdf(labels: PanelLabel[], layout: LabelLayout = LABEL_LAYOUT): Uint8Array {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const perPage = layout.cols * layout.rows;
+  labels.forEach((label, i) => {
+    if (i > 0 && i % perPage === 0) pdf.addPage();
+    drawLabelCell(pdf, label, labelCellRect(i, layout));
+  });
+  return new Uint8Array(pdf.output('arraybuffer'));
 }
