@@ -69,7 +69,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -3331,6 +3331,8 @@ export default function App() {
   const partTextureIdCacheRef = useRef<Map<string, string | undefined>>(new Map());
   // Phase 5: bores per partPath; populated alongside geometryCacheRef when the kernel loads a part doc.
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
+  // M2.1: grooves per partPath; populated alongside partBoresCacheRef when the kernel loads a part doc.
+  const partGroovesCacheRef = useRef<Map<string, GrooveFeature[]>>(new Map());
   // T36: tessellated faces per partPath; populated in the assembly mesh-sync loop
   // alongside partBoresCacheRef. Used by the assembly face-pick handler to resolve
   // a triangleIndex (from raycastAssemblyRef) to a real FaceName via
@@ -3409,6 +3411,7 @@ export default function App() {
         geometryCacheRef.current.delete(partPath);
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
+        partGroovesCacheRef.current.delete(partPath);
         partTessellatedFacesCacheRef.current.delete(partPath);
         loadedPartDocsRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
@@ -4451,6 +4454,7 @@ export default function App() {
         geometryCacheRef.current.clear();
         partTextureIdCacheRef.current.clear();
         partBoresCacheRef.current.clear();
+        partGroovesCacheRef.current.clear();
         partTessellatedFacesCacheRef.current.clear();
         partTessellatedEdgesCacheRef.current.clear();
         loadedPartDocsRef.current.clear();
@@ -4528,6 +4532,11 @@ export default function App() {
               partTextureIdCacheRef.current.set(partPath, partMat?.textureId);
               // Phase 5: persist bores so the marker-wiring effect can read them without re-loading.
               partBoresCacheRef.current.set(partPath, partDoc.bores);
+              // M2.1: persist grooves for manufacturing DXF export.
+              partGroovesCacheRef.current.set(
+                partPath,
+                partDoc.featureTree.filter((f): f is GrooveFeature => f.kind === 'groove'),
+              );
               // T36: persist tessellated faces so the assembly face-pick handler can resolve
               // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
               partTessellatedFacesCacheRef.current.set(partPath, res.value.tessellatedFaces ?? []);
@@ -5375,6 +5384,7 @@ export default function App() {
       geometryCacheRef.current.delete(partPath);
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
+      partGroovesCacheRef.current.delete(partPath);
       partTessellatedFacesCacheRef.current.delete(partPath);
       partTessellatedEdgesCacheRef.current.delete(partPath);
       loadedPartDocsRef.current.delete(partPath);
@@ -5404,7 +5414,7 @@ export default function App() {
   }, [invalidatePartPaths]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

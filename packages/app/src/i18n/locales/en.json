@@ -885,6 +885,7 @@
       "cutListPanel": "Cut List panel",
       "exportBoringCsv": "Export CSV (Boring)",
       "exportBoringDxf": "Export DXF (Boring)",
+      "exportManufacturingDxf": "Export DXF (Manufacturing)",
       "exportCsv": "Export CSV",
       "generateNest": "Generate Nest",
       "generatePresadku": "Генерувати присадку",
