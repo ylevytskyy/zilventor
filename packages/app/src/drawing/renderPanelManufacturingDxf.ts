@@ -1,6 +1,6 @@
 import { createDxfDocument, type DxfDocument } from './dxfWriter';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
-import type { PanelSpec, BoreOp, GrooveFeature } from '@zilventor/shared';
+import type { PanelSpec, BoreOp, GrooveFeature, PanelEdgeKey } from '@zilventor/shared';
 
 export type PanelManufacturingInput = {
   itemNumber: number;
@@ -70,12 +70,69 @@ function drawDim(
   });
 }
 
+function grooveRect(
+  g: GrooveFeature, len: number, wid: number,
+): Array<{ x: number; y: number }> | null {
+  if (g.faceRole !== 'Top' && g.faceRole !== 'Bottom') return null;
+  const mirror = g.faceRole === 'Bottom';
+  if (g.axis === 'u') {
+    let y0 = g.position, y1 = g.position + g.width;
+    if (mirror) { y0 = wid - g.position; y1 = wid - (g.position + g.width); }
+    return [{ x: 0, y: y0 }, { x: len, y: y0 }, { x: len, y: y1 }, { x: 0, y: y1 }];
+  } else {
+    const x0 = g.position, x1 = g.position + g.width;
+    return [{ x: x0, y: 0 }, { x: x1, y: 0 }, { x: x1, y: wid }, { x: x0, y: wid }];
+  }
+}
+
+function drawGrooves(doc: DxfDocument, grooves: GrooveFeature[], len: number, wid: number): void {
+  for (const g of grooves) {
+    const r = grooveRect(g, len, wid);
+    if (r) doc.lwpolyline(L.grooves, r, true);
+  }
+}
+
+const EDGE_LINE: Record<PanelEdgeKey, (len: number, wid: number) => [number, number, number, number]> = {
+  front:  (_len, wid) => [0, wid, _len, wid],
+  back:   (len)       => [0, 0, len, 0],
+  left:   (_len, wid) => [0, 0, 0, wid],
+  right:  (len, wid)  => [len, 0, len, wid],
+};
+
+function drawEdgeBands(doc: DxfDocument, spec: PanelSpec, len: number, wid: number): void {
+  (Object.keys(EDGE_LINE) as PanelEdgeKey[]).forEach((edge) => {
+    if (spec.edgeBands[edge]) {
+      const [x1, y1, x2, y2] = EDGE_LINE[edge](len, wid);
+      doc.line(L.edgeband, x1, y1, x2, y2);
+    }
+  });
+}
+
+function drawGrain(doc: DxfDocument, spec: PanelSpec, len: number, wid: number): void {
+  if (spec.grain === 'none') return;
+  const cx = len / 2, cy = wid / 2;
+  if (spec.grain === 'length') {
+    const a = len * 0.3;
+    doc.line(L.grain, cx - a, cy, cx + a, cy);
+    doc.line(L.grain, cx + a, cy, cx + a - 10, cy + 6);
+    doc.line(L.grain, cx + a, cy, cx + a - 10, cy - 6);
+  } else {
+    const a = wid * 0.3;
+    doc.line(L.grain, cx, cy - a, cx, cy + a);
+    doc.line(L.grain, cx, cy + a, cx + 6, cy + a - 10);
+    doc.line(L.grain, cx, cy + a, cx - 6, cy + a - 10);
+  }
+}
+
 export function renderPanelManufacturingDxf(input: PanelManufacturingInput): string {
   const doc = createDxfDocument();
   const len = input.spec.length;
   const wid = input.spec.width;
   drawOutline(doc, len, wid);
   drawBores(doc, input.bores, len, wid);
+  drawGrooves(doc, input.grooves, len, wid);
+  drawEdgeBands(doc, input.spec, len, wid);
+  drawGrain(doc, input.spec, len, wid);
   // L dimension (horizontal, below the panel)
   drawDim(doc, L.dimensions, [0, -15], [len, -15], [0, -15], 0, `${len}`);
   // W dimension (vertical, left of the panel)

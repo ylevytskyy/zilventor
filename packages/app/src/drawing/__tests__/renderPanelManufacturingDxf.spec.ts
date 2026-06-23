@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderPanelManufacturingDxf } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
   itemNumber: 1,
@@ -66,5 +66,32 @@ describe('renderPanelManufacturingDxf — bores', () => {
       bores: [bore('Front', 9, 300, 5, 32)] }); // v=300 along edge, u=9 depth
     expect(dxf).toContain('BORES-EDGE-Front-5MM');
     expect(dxf).toMatch(/CIRCLE[\s\S]*?\n300\.0+\n[\s\S]*?\n600\.0+\n/);
+  });
+});
+
+describe('renderPanelManufacturingDxf — grooves/edgeband/grain', () => {
+  it('draws a Top groove as a closed rect on the GROOVES layer', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9 };
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).toContain('GROOVES');
+    // rect spans X 0..800 at Y 10..16
+    expect(dxf).toMatch(/\n10\.0+\n/);
+    expect(dxf).toMatch(/\n16\.0+\n/);
+  });
+  it('draws an EDGEBAND line only on banded edges', () => {
+    const banded = { ...base, spec: { ...base.spec,
+      edgeBands: { front: { materialId: 'e', thickness: 1 }, back: null, left: null, right: null } } };
+    const dxf = renderPanelManufacturingDxf(banded as any);
+    expect(dxf).toContain('EDGEBAND');
+  });
+  it('omits the GRAIN layer when grain is none', () => {
+    const dxf = renderPanelManufacturingDxf({ ...base,
+      spec: { ...base.spec, grain: 'none' } as any });
+    expect(dxf).not.toContain('\nGRAIN\n');
+  });
+  it('draws a GRAIN arrow when grain is length', () => {
+    const dxf = renderPanelManufacturingDxf(base); // grain 'length'
+    expect(dxf).toContain('GRAIN');
   });
 });
