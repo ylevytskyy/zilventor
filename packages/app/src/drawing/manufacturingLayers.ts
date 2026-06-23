@@ -1,4 +1,5 @@
 export const MANUFACTURING_LAYERS = {
+  sheet: 'SHEET',
   outline: 'OUTLINE',
   grooves: 'GROOVES',
   edgeband: 'EDGEBAND',
