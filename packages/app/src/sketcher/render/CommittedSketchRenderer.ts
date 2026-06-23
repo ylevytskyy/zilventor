@@ -5,6 +5,14 @@ const SKETCH_COLOR = 0xe8e8e8;
 const CONSTRUCTION_COLOR = 0x8a8f98;
 const SKETCH_Z = 0.005;
 
+export function materialSpec(p: SketchPrimitive): { color: number; dashed: boolean; dashSize: number; gapSize: number } {
+  if (p.construction) return { color: CONSTRUCTION_COLOR, dashed: true, dashSize: 2, gapSize: 1.5 };
+  const color = p.color ?? SKETCH_COLOR;
+  if (p.lineStyle === 'dashed')  return { color, dashed: true, dashSize: 3, gapSize: 2 };
+  if (p.lineStyle === 'dashdot') return { color, dashed: true, dashSize: 4, gapSize: 1.5 };
+  return { color, dashed: false, dashSize: 0, gapSize: 0 };
+}
+
 /**
  * Renders committed sketch primitives as three.js objects.
  * Rebuild the whole group whenever the primitives array changes (by joined-id + construction key).
@@ -30,11 +38,12 @@ export class CommittedSketchRenderer {
   }
 
   private buildObject(p: SketchPrimitive): THREE.Object3D {
-    const mat: THREE.LineBasicMaterial | THREE.LineDashedMaterial = p.construction
-      ? new THREE.LineDashedMaterial({ color: CONSTRUCTION_COLOR, dashSize: 2, gapSize: 1.5 })
-      : new THREE.LineBasicMaterial({ color: SKETCH_COLOR });
+    const spec = materialSpec(p);
+    const mat: THREE.LineBasicMaterial | THREE.LineDashedMaterial = spec.dashed
+      ? new THREE.LineDashedMaterial({ color: spec.color, dashSize: spec.dashSize, gapSize: spec.gapSize })
+      : new THREE.LineBasicMaterial({ color: spec.color });
     const obj = this.buildGeometry(p, mat);
-    if (p.construction) {
+    if (spec.dashed) {
       obj.computeLineDistances();
     }
     return obj;
