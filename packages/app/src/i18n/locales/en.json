@@ -887,6 +887,7 @@
       "exportBoringDxf": "Export DXF (Boring)",
       "exportManufacturingDxf": "Export DXF (Manufacturing)",
       "exportCsv": "Export CSV",
+      "exportNestDxf": "Export DXF (Nest)",
       "generateNest": "Generate Nest",
       "generatePresadku": "Генерувати присадку",
       "hardware": "Hardware",

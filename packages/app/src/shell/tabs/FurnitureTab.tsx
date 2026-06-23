@@ -16,6 +16,7 @@ import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
+import { ExportNestDxfCommand } from '../../commands/ExportNestDxfCommand';
 import { GenerateCarcassBoresCommand } from '../../commands/GenerateCarcassBoresCommand';
 import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
@@ -567,6 +568,19 @@ export default function FurnitureTab() {
               }).apply();
             }}>
             {t('ribbon.drawing.exportPdf')}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly?.nest}
+            aria-disabled={!activeAssembly?.nest}
+            onClick={async () => {
+              if (!activeAssembly?.nest) return;
+              await new ExportNestDxfCommand({
+                nest: activeAssembly.nest,
+                materials: activeAssembly.materials,
+                suggestedName: `${activeAssembly.name}-nest.zip`,
+              }).apply();
+            }}>
+            {t('ribbon.furniture.exportNestDxf')}
           </button>
         </RibbonPanel>
       </div>
