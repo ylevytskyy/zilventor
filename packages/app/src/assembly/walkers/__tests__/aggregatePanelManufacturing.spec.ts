@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aggregatePanelManufacturing } from '../aggregatePanelManufacturing';
-import type { CutListResult, CutListRow } from '@zilventor/shared';
+import type { CutListResult, CutListRow, BoreOp } from '@zilventor/shared';
 import type { BoringAggregateResult } from '../aggregateBoresRecursive';
 
 const row = (over: Partial<CutListRow> = {}): CutListRow => ({
@@ -14,11 +14,19 @@ const panel = (over: Partial<any> = {}) => ({
   length: 800, width: 600, thickness: 18, bores: [], ...over,
 });
 
+const bore = (faceRole: string, u = 10, v = 10): BoreOp => ({
+  id: `b-${faceRole}-${u}-${v}`,
+  face: { featureId: 'panel', role: faceRole, instance: 0 },
+  u, v, diameter: 5, depth: 12,
+  role: 'dowel-face',
+  connectorId: 'c1',
+  connectorKind: 'dowel',
+});
+
 describe('aggregatePanelManufacturing', () => {
   it('produces one input per cut-list row joined to its bores', () => {
     const cut: CutListResult = { rows: [row()], bandTotals: [], excluded: {} as any };
-    const boring: BoringAggregateResult = { panels: [panel({ bores: [
-      { id: 'b1', face: 'Top', u: 10, v: 10, diameter: 5, depth: 12, role: 'x' } as any] })] };
+    const boring: BoringAggregateResult = { panels: [panel({ bores: [bore('Top')] })] };
     const out = aggregatePanelManufacturing(cut, boring, new Map());
     expect(out).toHaveLength(1);
     expect(out[0]!.itemNumber).toBe(1);
@@ -31,8 +39,8 @@ describe('aggregatePanelManufacturing', () => {
       row({ partPath: 'p/b', itemNumber: 2 }),
     ], bandTotals: [], excluded: {} as any };
     const boring: BoringAggregateResult = { panels: [
-      panel({ partPath: 'p/a', bores: [{ id: 'x', face: 'Top', u: 10, v: 10, diameter: 5, depth: 12, role: 'r' } as any] }),
-      panel({ partPath: 'p/b', bores: [{ id: 'y', face: 'Top', u: 99, v: 99, diameter: 5, depth: 12, role: 'r' } as any] }),
+      panel({ partPath: 'p/a', bores: [bore('Top', 10, 10)] }),
+      panel({ partPath: 'p/b', bores: [bore('Top', 99, 99)] }),
     ] };
     const out = aggregatePanelManufacturing(cut, boring, new Map());
     expect(out).toHaveLength(2);
@@ -49,5 +57,17 @@ describe('aggregatePanelManufacturing', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.qty).toBe(5);
     expect(out[0]!.itemNumber).toBe(1); // first wins
+  });
+  it('faceKey distinguishes bores by face.role — Top vs Bottom on same geometry are separate entries', () => {
+    const cut: CutListResult = { rows: [
+      row({ partPath: 'p/a', itemNumber: 1 }),
+      row({ partPath: 'p/b', itemNumber: 2 }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [
+      panel({ partPath: 'p/a', bores: [bore('Top', 10, 10)] }),
+      panel({ partPath: 'p/b', bores: [bore('Bottom', 10, 10)] }),
+    ] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out).toHaveLength(2);
   });
 });

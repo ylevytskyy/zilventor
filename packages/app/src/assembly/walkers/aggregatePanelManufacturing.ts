@@ -1,10 +1,9 @@
-import type { CutListResult, CutListRow, BoreOp, GrooveFeature } from '@zilventor/shared';
+import type { CutListResult, CutListRow, BoreOp, GrooveFeature, FaceName } from '@zilventor/shared';
 import type { BoringAggregateResult } from './aggregateBoresRecursive';
 import type { PanelManufacturingInput } from '../../drawing/renderPanelManufacturingDxf';
 
-function faceKey(face: BoreOp['face']): string {
-  if (typeof face === 'string') return face as string;
-  return `${(face as any).featureId}:${(face as any).role}:${(face as any).instance ?? 0}`;
+function faceKey(face: FaceName): string {
+  return `${face.featureId}:${face.role}:${face.instance ?? 0}`;
 }
 
 function sortBores(bores: BoreOp[]): BoreOp[] {
