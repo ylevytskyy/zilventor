@@ -78,11 +78,13 @@ function grooveRect(
   if (g.faceRole !== 'Top' && g.faceRole !== 'Bottom') return null;
   const mirror = g.faceRole === 'Bottom';
   if (g.axis === 'u') {
-    let y0 = g.position, y1 = g.position + g.width;
-    if (mirror) { y0 = wid - g.position; y1 = wid - (g.position + g.width); }
+    // kernel cuts CENTERED at position: [position - width/2, position + width/2]
+    let y0 = g.position - g.width / 2, y1 = g.position + g.width / 2;
+    if (mirror) { y0 = wid - (g.position - g.width / 2); y1 = wid - (g.position + g.width / 2); }
     return [{ x: 0, y: y0 }, { x: len, y: y0 }, { x: len, y: y1 }, { x: 0, y: y1 }];
   } else {
-    const x0 = g.position, x1 = g.position + g.width;
+    // kernel cuts CENTERED at position: [position - width/2, position + width/2]
+    const x0 = g.position - g.width / 2, x1 = g.position + g.width / 2;
     return [{ x: x0, y: 0 }, { x: x1, y: 0 }, { x: x1, y: wid }, { x: x0, y: wid }];
   }
 }

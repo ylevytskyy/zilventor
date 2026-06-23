@@ -71,14 +71,30 @@ describe('renderPanelManufacturingDxf — bores', () => {
 });
 
 describe('renderPanelManufacturingDxf — grooves/edgeband/grain', () => {
-  it('draws a Top groove as a closed rect on the GROOVES layer', () => {
+  it('draws a Top groove centered at position on the GROOVES layer', () => {
     const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
       axis: 'u', position: 10, width: 6, depth: 9 };
     const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
     expect(dxf).toContain('GROOVES');
-    // rect spans X 0..800 at Y 10..16
-    expect(dxf).toMatch(/\n10\.0+\n/);
-    expect(dxf).toMatch(/\n16\.0+\n/);
+    // rect spans X 0..800 at Y 7..13 (centered: position±width/2 = 10±3)
+    expect(dxf).toMatch(/\n7\.0+\n/);
+    expect(dxf).toMatch(/\n13\.0+\n/);
+  });
+  it('draws a Bottom groove mirrored+centered: bounds W-7=593 and W-13=587', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g2', faceRole: 'Bottom',
+      axis: 'u', position: 10, width: 6, depth: 9 };
+    // panel W=600; centered y0=7,y1=13; mirrored: 600-7=593, 600-13=587
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).toMatch(/\n593\.0+\n/);
+    expect(dxf).toMatch(/\n587\.0+\n/);
+  });
+  it('draws a vertical (axis=v) Top groove centered at position: X bounds 96 and 104', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g3', faceRole: 'Top',
+      axis: 'v', position: 100, width: 8, depth: 9 };
+    // centered: x0=100-4=96, x1=100+4=104
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).toMatch(/\n96\.0+\n/);
+    expect(dxf).toMatch(/\n104\.0+\n/);
   });
   it('draws an EDGEBAND line only on banded edges', () => {
     const banded = { ...base, spec: { ...base.spec,
