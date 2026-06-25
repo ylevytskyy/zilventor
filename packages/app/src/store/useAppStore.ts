@@ -422,6 +422,7 @@ type AppState = {
   removeMaterial(id: string): void;
   addCustomTexture(def: import('@zilventor/shared').CustomTextureDef): void;
   removeCustomTexture(id: string): void;
+  addCustomHardware(entries: import('@zilventor/shared/src/hardware/resolveCatalog').HardwareCatalogEntry[]): void;
   panelDialog: PanelDialogState | null;
   setPanelDialog(s: PanelDialogState | null): void;
   cabinetDialog: CabinetDialogState | null;
@@ -978,6 +979,24 @@ export const useAppStore = create<AppState>((set) => ({
       const next: PartDocument = {
         ...s.activePart,
         customTextures: [...(s.activePart.customTextures ?? []), def],
+      };
+      return { activeDocument: { kind: 'part', document: next }, activePart: next };
+    }
+    return s;
+  }),
+
+  addCustomHardware: (entries) => set((s) => {
+    if (s.activeAssembly) {
+      const next: AssemblyDocument = {
+        ...s.activeAssembly,
+        customHardware: [...(s.activeAssembly.customHardware ?? []), ...entries],
+      };
+      return { activeDocument: { kind: 'assembly', document: next }, activeAssembly: next };
+    }
+    if (s.activePart) {
+      const next: PartDocument = {
+        ...s.activePart,
+        customHardware: [...(s.activePart.customHardware ?? []), ...entries],
       };
       return { activeDocument: { kind: 'part', document: next }, activePart: next };
     }
