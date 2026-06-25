@@ -165,6 +165,7 @@ export class SceneManager {
     hinge:       '#8c2eb8',   // violet
     drawerSlide:  '#7d2ed1',   // purple
     handleScrew:  '#2ec8c8',   // teal
+    legLeveler:   '#3da03d',   // green
   } satisfies Record<BoreConnectorKind, string>;
 
 

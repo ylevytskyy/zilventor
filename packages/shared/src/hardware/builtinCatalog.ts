@@ -1,4 +1,4 @@
-import type { HardwareEntry } from '../hardware-feature';
+import type { HardwareEntry, LegLevelerSpec } from '../hardware-feature';
 
 interface CatalogEntry extends HardwareEntry {
   readonly bboxMm: { readonly l: number; readonly w: number; readonly h: number };
@@ -7,6 +7,7 @@ interface CatalogEntry extends HardwareEntry {
     readonly position: { readonly x: number; readonly y: number; readonly z: number };
     readonly normal?: { readonly x: number; readonly y: number; readonly z: number };
   }>;
+  readonly legLeveler?: LegLevelerSpec;
 }
 
 export const BUILTIN_CATALOG: readonly CatalogEntry[] = [
@@ -178,6 +179,7 @@ export const BUILTIN_CATALOG: readonly CatalogEntry[] = [
       { name: 'stem', position: { x: 0, y: 0, z: 120 } },
       { name: 'foot', position: { x: 0, y: 0, z: 0 } },
     ],
+    legLeveler: { screwCount: 4, patternW: 36, patternD: 36, screwDiameter: 4, screwDepth: 13 },
   },
   // ── Soft-close hinges (Ø35 cup; integrated BLUMOTION damper) ─────────────────
   {

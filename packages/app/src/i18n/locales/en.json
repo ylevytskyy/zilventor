@@ -206,6 +206,18 @@
         "heightCount": "Enter one height for each drawer"
       }
     },
+    "legLevelers": {
+      "title": "Add Leg Levelers",
+      "legsPerRow": "Legs per row",
+      "sku": "Leg model",
+      "total": "Total legs: {{n}}",
+      "error": {
+        "tooFewLegs": "Legs per row must be at least 2",
+        "noToekick": "Cabinet has no toekick to mount legs",
+        "tooSmall": "Cabinet is too small to fit the leg baseplate",
+        "noSpec": "Selected leg model has no baseplate spec"
+      }
+    },
     "drawerHandle": {
       "title": "Add Drawer Handles",
       "cc": "Center-to-center",

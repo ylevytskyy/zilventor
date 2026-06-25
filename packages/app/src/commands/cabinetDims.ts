@@ -18,7 +18,7 @@ type OpfsReader = {
 export async function deriveCabinetDims(
   cab: AssemblyDocument,
   opfs: Pick<OpfsReader, 'read'>,
-): Promise<{ width: number; height: number; depth: number; Tc: number; toekickHeight: number }> {
+): Promise<{ width: number; height: number; depth: number; Tc: number; toekickHeight: number; toekickSetback: number }> {
   const leftComp = cab.components.find((c) => c.role === 'leftSide');
   const rightComp = cab.components.find((c) => c.role === 'rightSide');
   const bottomComp = cab.components.find((c) => c.role === 'bottom');
@@ -66,5 +66,9 @@ export async function deriveCabinetDims(
     );
   }
 
-  return derived;
+  // Toekick setback: invert buildBaseCabinet placement (position.y = depth - setback - Tc).
+  const toekickComp = cab.components.find((c) => c.role === 'toekick');
+  const toekickSetback = toekickComp ? Math.max(0, D - Tc - toekickComp.position.y) : 0;
+
+  return { ...derived, toekickSetback };
 }

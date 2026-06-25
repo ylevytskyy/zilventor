@@ -10,6 +10,7 @@ import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
 import { AddDoorDialog } from './AddDoorDialog';
 import { DrawerBankDialog } from './DrawerBankDialog';
+import { LegLevelersDialog } from './LegLevelersDialog';
 import { DrawerHandleDialog } from './DrawerHandleDialog';
 import { ShelfPinDialog } from './ShelfPinDialog';
 import { FaceFrameDialog } from './FaceFrameDialog';
@@ -63,6 +64,7 @@ export function WorkFeatureDialogsHost({
       <BoringDialog />
       <AddDoorDialog />
       <DrawerBankDialog />
+      <LegLevelersDialog />
       <DrawerHandleDialog />
       <ShelfPinDialog />
       <FaceFrameDialog />

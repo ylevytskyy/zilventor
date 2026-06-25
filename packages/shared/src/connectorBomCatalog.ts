@@ -20,4 +20,5 @@ export const CONNECTOR_BOM_CATALOG: Record<BoreConnectorKind, ConnectorBomEntry>
   hinge:       { kind: 'hinge',       nameKey: 'bom.connector.hinge',       nameEn: 'Hinge Ø35 cup',       nameUk: 'Завіса Ø35',        notes: '+ 2 plate screws'    },
   drawerSlide:  { kind: 'drawerSlide',  nameKey: 'bom.connector.drawerSlide',  nameEn: 'Drawer slide Ø5',  nameUk: 'Напрямна ящика Ø5', notes: 'система-32 Ø5 blind' },
   handleScrew:  { kind: 'handleScrew',  nameKey: 'bom.connector.handleScrew',  nameEn: 'Handle screw',     nameUk: 'Гвинт ручки',       notes: 'Ø5 face mount'       },
+  legLeveler:   { kind: 'legLeveler',   nameKey: 'bom.connector.legLeveler',   nameEn: 'Leg-leveler screw', nameUk: 'Гвинт ніжки',       notes: 'Ø4 baseplate screw'  },
 };
