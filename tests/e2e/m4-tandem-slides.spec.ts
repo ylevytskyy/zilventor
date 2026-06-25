@@ -135,14 +135,27 @@ test(
       await w.__zilventorStore.getState().bus.execute(cmd);
     }, cabinetPath);
 
-    // ── C+D. Assert drawerBox components + solverDirty via STORE ─────────────
+    // ── C+D+E. Assert via STORE: drawerBox count + tandem-slide path + solverDirty ─
+    //
+    // Architecture note: panel-level bores (tandem-cabinet, tandem-drawer-bottom,
+    // tandem-drawer-back roles) are written to OPFS .zipt files and are NOT stored in
+    // the Zustand store. subAssemblyDocs only holds the cabinet AssemblyDocument (component
+    // list), not individual panel PartDocuments. Reading OPFS for bore assertions is the
+    // exact anti-pattern that hid the leg-leveler bug; we do not do it here.
+    //
+    // Instead we assert the closest non-OPFS proxy that is NON-VACUOUS:
+    //   • drawerBox count = 2  — proves reloadCabinet ran and the boxes were created
+    //   • tandemSlideCount > 0 — every drawerSlide component's partPath contains 'tandem';
+    //       fails if slideSystem:'sideMount' is used (path = hardware/drawer-slide-500.zipt,
+    //       no 'tandem') — proves the tandem code branch was actually exercised
+    //   • solverDirty = true   — proves scene-refresh path ran
     const storeResult = await page.evaluate(
       (cabPath: string) => {
         const w = window as unknown as {
           __zilventorStore: {
             getState(): {
               subAssemblyDocs: Record<string, {
-                components: Array<{ role?: string }>;
+                components: Array<{ role?: string; partPath?: string }>;
               }>;
               solverDirty: boolean;
             };
@@ -150,22 +163,39 @@ test(
         };
         const state = w.__zilventorStore.getState();
         const doc = state.subAssemblyDocs[cabPath];
-        if (!doc) return { boxCount: -1, solverDirty: false };
+        if (!doc) return { boxCount: -1, tandemSlideCount: -1, solverDirty: false };
+        const slideComps = doc.components.filter((c) => c.role === 'drawerSlide');
         return {
           boxCount: doc.components.filter((c) => c.role === 'drawerBox').length,
+          // non-vacuous: tandem slide path = 'hardware/drawer-slide-tandem-500.zipt';
+          // sideMount path = 'hardware/drawer-slide-500.zipt' (no 'tandem' substring)
+          tandemSlideCount: slideComps.filter(
+            (c) => typeof c.partPath === 'string' && c.partPath.includes('tandem'),
+          ).length,
           solverDirty: state.solverDirty,
         };
       },
       cabinetPath,
     );
 
-    console.log('[m4-c] store drawerBox count =', storeResult.boxCount, '| solverDirty =', storeResult.solverDirty);
+    console.log(
+      '[m4-c] store drawerBox count =', storeResult.boxCount,
+      '| tandemSlideCount =', storeResult.tandemSlideCount,
+      '| solverDirty =', storeResult.solverDirty,
+    );
 
     expect(
       storeResult.boxCount,
       `store.subAssemblyDocs["${cabinetPath}"] must have 2 drawerBox components; got ${storeResult.boxCount}. ` +
         `If −1, subAssemblyDocs was never updated (reloadCabinet missing).`,
     ).toBe(2);
+
+    // Non-vacuous tandem-path assertion: fails if sideMount slide SKU was used.
+    expect(
+      storeResult.tandemSlideCount,
+      `store.subAssemblyDocs["${cabinetPath}"] must have ≥1 drawerSlide with 'tandem' in partPath; ` +
+        `got ${storeResult.tandemSlideCount}. Fails if slideSystem:'sideMount' was used instead of 'tandem'.`,
+    ).toBeGreaterThan(0);
 
     expect(
       storeResult.solverDirty,
