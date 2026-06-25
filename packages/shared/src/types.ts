@@ -7,6 +7,7 @@ import type { HardwareEntry, HardwareFeature } from './hardware-feature';
 import type { NestState } from './nesting/nestState';
 import type { DrawingDocument } from './drawing/types';
 import type { CustomTextureDef } from './custom-texture-def';
+import type { HardwareCatalogEntry } from './hardware/resolveCatalog';
 import type { BoreOp } from './bore';
 import type { GrooveFeature } from './groove';
 import type { ShelfPinParams } from './shelfPinGrid';
@@ -100,6 +101,9 @@ export type PartDocument = {
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
   customTextures?: CustomTextureDef[];
+  /** User-imported hardware SKU catalog entries for this part (M4 Slice D).
+   *  Absent === [] at runtime; never seeded by migration. */
+  customHardware?: HardwareCatalogEntry[];
   /** Intrinsic part color (e.g. from STEP import). Default render color in
    *  part view; seeds ComponentInstance.color on explode/insert. User
    *  colorOverrides still win. */
@@ -217,6 +221,9 @@ export type AssemblyDocument = {
   materials: MaterialEntry[];
   hardware: HardwareEntry[];
   customTextures?: CustomTextureDef[];
+  /** User-imported hardware SKU catalog entries for this assembly (M4 Slice D).
+   *  Absent === [] at runtime; never seeded by migration. */
+  customHardware?: HardwareCatalogEntry[];
   nest?: NestState;
 };
 

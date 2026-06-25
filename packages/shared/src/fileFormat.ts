@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 32 as const;
+export const CURRENT_FORMAT_VERSION = 33 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -427,6 +427,13 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 32 };
   },
+  // v32 → v33: M4 Slice D. Additive: introduces the optional `customHardware`
+  // catalog field on assembly/part documents. No existing document needs
+  // mutation; the bump pins the schema.
+  32: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 33 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -439,7 +446,8 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 25 || m.formatVersion === 26 ||
      m.formatVersion === 27 || m.formatVersion === 28 ||
      m.formatVersion === 29 || m.formatVersion === 30 ||
-     m.formatVersion === 31 || m.formatVersion === 32) &&
+     m.formatVersion === 31 || m.formatVersion === 32 ||
+     m.formatVersion === 33) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
