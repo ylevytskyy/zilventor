@@ -127,12 +127,13 @@ export type AddDrawerHandleDialogState = {
 /** Slice-4 присадка: "Add Drawers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddDrawerBankDialogState = {
   cabinetPath: string;
-  /** Optional dims — used by the dialog's degenerate guard if provided. */
-  dims?: { openW: number; openH: number };
+  /** Cabinet opening dims — always provided by FurnitureTab after deriveCabinetDims. */
+  dims: { openW: number; openH: number };
   onSubmit: (params: {
     count: number;
     overlay: 'full' | 'half' | 'inset';
     thickness: number;
+    heights?: number[];
   }) => void;
   onCancel: () => void;
 };

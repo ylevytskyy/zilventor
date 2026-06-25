@@ -196,9 +196,14 @@
       "overlayHalf": "Half",
       "overlayInset": "Inset",
       "thickness": "Thickness (mm)",
+      "heights": "Drawer heights (mm)",
+      "heightN": "Drawer {{n}}",
+      "remaining": "Remaining: {{mm}} mm",
       "error": {
         "invalidCount": "Count must be between 2 and 10",
-        "tooSmall": "Cabinet opening is too small to fit drawers"
+        "tooSmall": "Cabinet opening is too small to fit drawers",
+        "heightSum": "Heights must sum to the opening height ({{openH}} mm)",
+        "heightCount": "Enter one height for each drawer"
       }
     },
     "drawerHandle": {

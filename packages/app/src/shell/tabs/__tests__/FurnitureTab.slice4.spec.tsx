@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import FurnitureTab from '../FurnitureTab';
 import { useAppStore } from '../../../store/useAppStore';
 import { AddDrawerBankCommand } from '../../../commands/AddDrawerBankCommand';
@@ -9,12 +9,29 @@ import type { AssemblyDocument } from '@zilventor/shared';
 vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
   Opfs: {
     forNavigator: vi.fn().mockResolvedValue({
-      read: vi.fn(),
+      read: vi.fn().mockResolvedValue(new Uint8Array()),
       write: vi.fn(),
       exists: vi.fn().mockResolvedValue(false),
       delete: vi.fn(),
     }),
   },
+}));
+
+// Mock unpackAssembly and deriveCabinetDims used by the async pick callback
+vi.mock('@zilventor/kernel/src/storage/AssemblyPacker', () => ({
+  packAssembly: vi.fn(),
+  unpackAssembly: vi.fn().mockResolvedValue({
+    id: 'cab', name: 'Cabinet', units: 'mm', parameters: {}, properties: {},
+    components: [], constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+    materials: [], hardware: [],
+  }),
+}));
+
+vi.mock('../../../commands/cabinetDims', () => ({
+  deriveCabinetDims: vi.fn().mockResolvedValue({
+    width: 600, height: 760, depth: 560, Tc: 18, toekickHeight: 100,
+  }),
 }));
 
 const seedAsm: AssemblyDocument = {
@@ -64,9 +81,9 @@ describe('FurnitureTab — slice-4 Add Drawers wiring', () => {
     expect(useAppStore.getState().oneComponentPickHandle).not.toBeNull();
   });
 
-  it('onPick callback sets addDrawerBankDialog with cabinetPath', () => {
-    let capturedOnPick: ((cabinetPath: string) => void) | null = null;
-    const pickFn = vi.fn().mockImplementation((_resolve: unknown, onPick: (p: string) => void) => {
+  it('onPick callback sets addDrawerBankDialog with cabinetPath', async () => {
+    let capturedOnPick: ((cabinetPath: string) => void | Promise<void>) | null = null;
+    const pickFn = vi.fn().mockImplementation((_resolve: unknown, onPick: (p: string) => void | Promise<void>) => {
       capturedOnPick = onPick;
       return { pick: vi.fn(), cancel: vi.fn() };
     });
@@ -75,17 +92,19 @@ describe('FurnitureTab — slice-4 Add Drawers wiring', () => {
     render(<FurnitureTab />);
     fireEvent.click(screen.getByRole('button', { name: 'Add Drawers' }));
 
-    // Simulate the user picking a cabinet
-    capturedOnPick!('parts/cab.ziasm');
+    // Simulate the user picking a cabinet (callback is now async — derive dims before setting dialog)
+    await capturedOnPick!('parts/cab.ziasm');
 
-    const dialog = useAppStore.getState().addDrawerBankDialog;
-    expect(dialog).not.toBeNull();
-    expect(dialog?.cabinetPath).toBe('parts/cab.ziasm');
+    await waitFor(() => {
+      const dialog = useAppStore.getState().addDrawerBankDialog;
+      expect(dialog).not.toBeNull();
+      expect(dialog?.cabinetPath).toBe('parts/cab.ziasm');
+    });
   });
 
   it('onSubmit in the dialog callback dispatches an AddDrawerBankCommand via bus', async () => {
-    let capturedOnPick: ((cabinetPath: string) => void) | null = null;
-    const pickFn = vi.fn().mockImplementation((_resolve: unknown, onPick: (p: string) => void) => {
+    let capturedOnPick: ((cabinetPath: string) => void | Promise<void>) | null = null;
+    const pickFn = vi.fn().mockImplementation((_resolve: unknown, onPick: (p: string) => void | Promise<void>) => {
       capturedOnPick = onPick;
       return { pick: vi.fn(), cancel: vi.fn() };
     });
@@ -103,7 +122,7 @@ describe('FurnitureTab — slice-4 Add Drawers wiring', () => {
     render(<FurnitureTab />);
     fireEvent.click(screen.getByRole('button', { name: 'Add Drawers' }));
 
-    capturedOnPick!('parts/cab.ziasm');
+    await capturedOnPick!('parts/cab.ziasm');
 
     const dialog = useAppStore.getState().addDrawerBankDialog;
     expect(dialog).not.toBeNull();

@@ -32,6 +32,7 @@ describe('DrawerBankDialog — structural', () => {
   it('renders the drawer controls when open', () => {
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel: vi.fn(),
     });
@@ -46,6 +47,7 @@ describe('DrawerBankDialog — structural', () => {
   it('defaults: count=3, overlay=full, thickness=18', () => {
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel: vi.fn(),
     });
@@ -59,6 +61,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -81,6 +84,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('drawerBank.error.tooSmall'));
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -99,6 +103,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -114,6 +119,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -160,6 +166,7 @@ describe('DrawerBankDialog — structural', () => {
     const onCancel = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel,
     });
@@ -183,6 +190,7 @@ describe('DrawerBankDialog — dialog→command bus.execute assertion', () => {
     // Wire onSubmit the same way FurnitureTab does
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: async (opts) => {
         await fakeBus.execute(
           new AddDrawerBankCommand({
