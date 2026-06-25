@@ -141,7 +141,7 @@ export type AddDrawerBankDialogState = {
 /** M4-B: "Add Leg Levelers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddLegLevelersDialogState = {
   cabinetPath: string;
-  onSubmit: (params: { legsPerRow: number; skuId: string }) => void;
+  onSubmit: (params: { legsPerRow: number; skuId: string }) => void | Promise<void>;
   onCancel: () => void;
 };
 

@@ -90,7 +90,7 @@ describe('LegLevelersDialog — structural', () => {
     expect(screen.getByText(/Total legs: 4/)).toBeTruthy();
   });
 
-  it('onSubmit rejection keeps dialog open and shows error', async () => {
+  it('onSubmit rejection keeps dialog open and shows translated error text', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('legLeveler.error.tooSmall'));
     useAppStore.getState().setAddLegLevelersDialog({
       cabinetPath: 'parts/cab.ziasm',
@@ -103,6 +103,8 @@ describe('LegLevelersDialog — structural', () => {
       expect(useAppStore.getState().addLegLevelersDialog).not.toBeNull();
     });
     expect(screen.getByRole('alert')).toBeTruthy();
+    // Verify the error-key mapping legLeveler.error.tooSmall → dialog.legLevelers.error.tooSmall
+    expect(await screen.findByText('Cabinet is too small to fit the leg baseplate')).toBeInTheDocument();
   });
 
   it('Cancel calls onCancel and closes', () => {

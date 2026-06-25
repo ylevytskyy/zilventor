@@ -241,7 +241,7 @@ export default function FurnitureTab() {
               cabinetPath,
               params: {
                 legsPerRow: p.legsPerRow,
-                ...(p.skuId !== undefined ? { skuId: p.skuId } : {}),
+                skuId: p.skuId,
               },
               opfs,
               store: useAppStore,
