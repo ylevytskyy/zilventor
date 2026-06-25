@@ -229,16 +229,15 @@ test(
 
     console.log('[m4-a] box Z-positions:', JSON.stringify(boxZPositions));
     expect(boxZPositions.length, 'must have 3 drawerBox Z-positions').toBe(3);
-    expect(boxZPositions.every((z) => z >= 0), 'all box Z-positions must be non-negative').toBe(true);
+    boxZPositions.forEach((z, i) =>
+      expect(z, `drawerBox[${i}] Z-position must be > 0 (got ${z})`).toBeGreaterThan(0),
+    );
 
     // The gaps between consecutive box Z-positions must be unequal (proving variable-height path).
     // With heights [146, 204, 234] the gaps will be proportional to those heights.
     const gap01 = boxZPositions[1]! - boxZPositions[0]!;
     const gap12 = boxZPositions[2]! - boxZPositions[1]!;
-    expect(
-      Math.abs(gap01 - gap12) > 1,
-      `box Z-gaps must differ by >1mm (got gap01=${gap01.toFixed(1)}mm gap12=${gap12.toFixed(1)}mm), proving variable-height path`,
-    ).toBe(true);
+    expect(Math.abs(gap01 - gap12)).toBeGreaterThan(1);
 
     // ── E. 0 browser console errors ───────────────────────────────────────────
     const realErrors = consoleErrors.filter(
