@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildHardwareCache } from '../buildHardwareCache';
 import type { AssemblyDocument } from '@zilventor/shared';
+import type { HardwareCatalogEntry } from '@zilventor/shared/src/hardware/resolveCatalog';
 
 function makeAsm(components: Array<{ id: string; partPath: string }>): AssemblyDocument {
   return {
@@ -64,5 +65,31 @@ describe('buildHardwareCache', () => {
 
     expect(cache.has('hardware/totally-unknown-sku.zipt')).toBe(false);
     expect(cache.size).toBe(0);
+  });
+
+  it('case d: placed custom SKU in doc.customHardware → cache entry synthesized (M4-D BOM bug)', () => {
+    const customEntry: HardwareCatalogEntry = {
+      id: 'acme-pull-128',
+      name: 'Acme Pull 128mm',
+      category: 'drawerHandles',
+      vendor: 'Acme',
+      notes: '',
+      bboxMm: { l: 128, w: 20, h: 10 },
+      attachPoints: [],
+    };
+    const asm: AssemblyDocument = {
+      ...makeAsm([{ id: 'c1', partPath: 'hardware/acme-pull-128.zipt' }]),
+      customHardware: [customEntry],
+    };
+    const cache = buildHardwareCache(asm, {});
+
+    expect(cache.has('hardware/acme-pull-128.zipt')).toBe(true);
+    const entry = cache.get('hardware/acme-pull-128.zipt');
+    expect(entry?.kind).toBe('part');
+    if (entry?.kind !== 'part') throw new Error('unreachable');
+    const feature = entry.document.featureTree[0] as Record<string, unknown>;
+    expect(feature.kind).toBe('hardware');
+    expect(feature.hardwareSkuId).toBe('acme-pull-128');
+    expect(feature.id).toBe('hf-acme-pull-128');
   });
 });
