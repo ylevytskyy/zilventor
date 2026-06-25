@@ -71,6 +71,25 @@ describe('tandemSlideMath', () => {
     expect(leftVs[1]).toBeCloseTo(vRear, 6);
   });
 
+  it('LEFT cabinet bore (Top face) world-depth via face2DFrame [load-bearing]', () => {
+    // face2DFrame('Top'): origin=(-H/2,-D/2,Tc), uDir=(1,0,0), vDir=(0,+1,0).
+    // part-local Y of bore at v: -D/2 + v.
+    // Front bore (v=37): partY = -280+37 = -243 = -(D/2-vFront)
+    // Rear bore (v=533): partY = -280+533 = 253 = D/2-Tc-9 (positive, within panel ✓)
+    const fLeft = face2DFrame({ length: H, width: D, thickness: Tc }, 'Top');
+    const leftBores = r.cabinetBores.filter((b) => b.face.role === 'Top');
+    const frontBoreL = leftBores.find((b) => b.v === vFront);
+    const rearBoreL  = leftBores.find((b) => b.v === vRear);
+    expect(frontBoreL).toBeDefined();
+    expect(rearBoreL).toBeDefined();
+    // part-local Y = origin.y + v*vDir.y = -D/2 + v
+    expect(fLeft.origin.y + frontBoreL!.v * fLeft.vDir.y).toBeCloseTo(-D / 2 + vFront, 6);
+    expect(fLeft.origin.y + rearBoreL!.v * fLeft.vDir.y).toBeCloseTo(-D / 2 + vRear, 6);
+    // Rear bore is still within panel (partY > -D/2 and < D/2)
+    expect(fLeft.origin.y + rearBoreL!.v * fLeft.vDir.y).toBeGreaterThan(-D / 2);
+    expect(fLeft.origin.y + rearBoreL!.v * fLeft.vDir.y).toBeLessThan(D / 2);
+  });
+
   it('RIGHT cabinet bore (Bottom face) world-depth via face2DFrame [load-bearing — catches vDir sign flip]', () => {
     // face2DFrame('Bottom'): origin=(-H/2,D/2,0), uDir=(1,0,0), vDir=(0,-1,0).
     // part-local Y of bore at v: D/2 - v.
@@ -81,13 +100,15 @@ describe('tandemSlideMath', () => {
     // If vDir were (0,+1,0) (sign flip), partY = D/2+v → rear bore partY = D/2+533 = 813 > D ← impossible.
     const fRight = face2DFrame({ length: H, width: D, thickness: Tc }, 'Bottom');
     const rightBores = r.cabinetBores.filter((b) => b.face.role === 'Bottom');
-    const frontBore = rightBores.find((b) => b.v === vFront)!;
-    const rearBore  = rightBores.find((b) => b.v === vRear)!;
+    const frontBore = rightBores.find((b) => b.v === vFront);
+    const rearBore  = rightBores.find((b) => b.v === vRear);
+    expect(frontBore).toBeDefined();
+    expect(rearBore).toBeDefined();
     // Part-local Y for front bore: D/2 - 37 = 243
-    expect(fRight.origin.y + frontBore.v * fRight.vDir.y).toBeCloseTo(D / 2 - vFront, 6);
+    expect(fRight.origin.y + frontBore!.v * fRight.vDir.y).toBeCloseTo(D / 2 - vFront, 6);
     // Part-local Y for rear bore: D/2 - (D-Tc-9) = -(D/2-Tc-9) < 0 — confirms vDir=-Y, not +Y
-    expect(fRight.origin.y + rearBore.v * fRight.vDir.y).toBeCloseTo(D / 2 - vRear, 6);
-    expect(fRight.origin.y + rearBore.v * fRight.vDir.y).toBeLessThan(0);
+    expect(fRight.origin.y + rearBore!.v * fRight.vDir.y).toBeCloseTo(D / 2 - vRear, 6);
+    expect(fRight.origin.y + rearBore!.v * fRight.vDir.y).toBeLessThan(0);
   });
 
   it('cabinet bores have role=tandem-cabinet, connectorKind=tandem, diameter=5, depth=12', () => {
@@ -109,7 +130,7 @@ describe('tandemSlideMath', () => {
     });
   });
 
-  it('boxBottomBores world position matches via face2DFrame Bottom [load-bearing]', () => {
+  it('boxBottomBores world position matches via face2DFrame Bottom — rear + front [load-bearing]', () => {
     // Bottom panel dims: length = bw-2T, width = bd-2T, thickness = BOX_BOTTOM_THICKNESS(12)
     const botLen = bw - 2 * T;
     const botWid = bd - 2 * T;
@@ -122,20 +143,32 @@ describe('tandemSlideMath', () => {
     //   bottom panel pose.translation = (bw/2, bd/2, 0) with identity quat
     //   box-local = (bw/2, bd/2, 0) + (-botLen/2+u, botWid/2-v, 0)
     //             = (T + u, bd - T - v, 0)
-    // So u=T maps to box-local x=2T, v=TANDEM_REAR_HOOK_FROM_BACK maps to y=bd-T-9
+    // Rear bore (v=9):   box-local y = bd - T - 9 = 465
+    // Front bore (v=botWid-37=421): box-local y = bd - T - 421 = 53 = T + 37
+
+    // ── Rear bores ────────────────────────────────────────────────────────────
     const rearBores = r.boxBottomBores.filter((b) => b.v === TANDEM_REAR_HOOK_FROM_BACK);
     expect(rearBores).toHaveLength(2);
     for (const b of rearBores) {
       const px = f.origin.x + b.u * f.uDir.x + b.v * f.vDir.x;
       const py = f.origin.y + b.u * f.uDir.y + b.v * f.vDir.y;
-      // Bottom panel uses identity (BOTTOM_QUAT): box-local = pose.translation + (px, py, 0)
-      // pose.translation = (bw/2, bd/2, 0)
       const boxLocalX = bw / 2 + px;
       const boxLocalY = bd / 2 + py;
-      // Rear hole: box-local y should equal bd - T - TANDEM_REAR_HOOK_FROM_BACK
       expect(boxLocalY).toBeCloseTo(bd - T - TANDEM_REAR_HOOK_FROM_BACK, 6);
-      // Lateral: left bore at box-local x=2T, right at bw-2T
-      // (u_L=T → T+T=2T; u_R=botLen-T → T+(botLen-T)=botLen=bw-2T)
+      expect([2 * T, bw - 2 * T]).toContain(Math.round(boxLocalX));
+    }
+
+    // ── Front bores [non-vacuous: wrong formula v=37 gives boxLocalY=437≠53] ──
+    const vFrontBot = botWid - TANDEM_CABINET_FRONT_SETBACK; // 458-37=421
+    const frontBores = r.boxBottomBores.filter((b) => b.v === vFrontBot);
+    expect(frontBores).toHaveLength(2);
+    for (const b of frontBores) {
+      const px = f.origin.x + b.u * f.uDir.x + b.v * f.vDir.x;
+      const py = f.origin.y + b.u * f.uDir.y + b.v * f.vDir.y;
+      const boxLocalX = bw / 2 + px;
+      const boxLocalY = bd / 2 + py;
+      // box-local y = bd - T - (botWid - 37) = bd - T - botWid + 37 = T + 37 = 53
+      expect(boxLocalY).toBeCloseTo(T + TANDEM_CABINET_FRONT_SETBACK, 6);
       expect([2 * T, bw - 2 * T]).toContain(Math.round(boxLocalX));
     }
   });
