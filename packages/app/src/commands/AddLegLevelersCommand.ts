@@ -1,5 +1,5 @@
 /**
- * AddLegLevelersCommand — M4-B, Task 5.
+ * AddLegLevelersCommand — M4-B, Tasks 5 + 6.
  *
  * execute():
  *   1. Validation (all before any opfs.write — guard order matters):
@@ -11,20 +11,24 @@
  *   2. computeLegPositions (2R positions in cabinet-local XY plane)
  *   3. legLevelerBores × 2R → 4*(2R) BoreOp[] on the bottom panel Bottom face
  *   4. Append to bottom panel bores, write once.
+ *   5. Synthesize hardware/<skuId>.zipt once (if not yet present).
+ *   6. Push 2R ComponentInstance[role:'legLeveler'] onto the cabinet assembly.
  *
  * Face mapping: u = pos.x - bottomComp.position.x,
  *               v = pos.y - bottomComp.position.y  (panel-local centred coords).
  * Exact axis placement is verified in the Task 8 e2e test.
  *
- * revert(): stubs — Task 6 restores priorBottomBores to bottom panel.
+ * revert(): removes the 2R leg components added by execute() and restores
+ *   priorBottomBores to the bottom panel.
  */
 
 import type { Command } from './Command';
-import type { BoreOp, FaceName } from '@zilventor/shared';
+import type { BoreOp, ComponentInstance, FaceName } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import { computeLegPositions, legLevelerBores } from '@zilventor/shared/src/cabinets/legLayout';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
-import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
+import { unpackAssembly, packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { useAppStore } from '../store/useAppStore';
 import { deriveCabinetDims } from './cabinetDims';
@@ -53,8 +57,14 @@ export class AddLegLevelersCommand implements Command {
   readonly name = 'AddLegLevelers';
   private readonly store: typeof useAppStore; // reserved for Task 6 revert
 
-  /** Prior bottom-panel bores — stashed on execute() for Task 6 revert. */
+  /** Prior bottom-panel bores — stashed on execute() for revert. */
   priorBottomBores: BoreOp[] = [];
+
+  /** Component ids added by execute() — used by revert() to filter them out. */
+  addedComponentIds: string[] = [];
+
+  /** Cabinet path cached from execute() so revert() can find the bottom panel. */
+  private executedCabinetPath = '';
 
   constructor(private readonly opts: {
     cabinetPath: string;
@@ -129,6 +139,44 @@ export class AddLegLevelersCommand implements Command {
       manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
       blobs: project.blobs ?? {},
     }));
+
+    // ─── 5. Synthesize hardware/<skuId>.zipt once ────────────────────────────
+    const legPath = `hardware/${entry.id}.zipt`;
+    if (!(await opfs.exists(legPath))) {
+      const hwFeature = {
+        kind: 'hardware' as const,
+        id: 'leg',
+        hardwareSkuId: entry.id,
+        bboxMm: entry.bboxMm,
+        attachPoints: entry.attachPoints,
+      };
+      const partDoc = addFeature(newPart(entry.name), hwFeature as never);
+      await opfs.write(legPath, await packProject({
+        manifest: { formatVersion: CURRENT_FORMAT_VERSION, kind: 'part' as const, document: partDoc },
+        blobs: {},
+      }));
+      await this.opts.kernel?.registerPart?.({ id: entry.id });
+    }
+
+    // ─── 6. Push 2R leg ComponentInstances onto the cabinet assembly ─────────
+    const ts = `LG${cab.components.length}`;
+    this.addedComponentIds = [];
+    for (const [i, pos] of positions.entries()) {
+      const comp: ComponentInstance = {
+        id: `${ts}-${i}`,
+        partPath: legPath,
+        position: { x: pos.x, y: pos.y, z: dims.toekickHeight - entry.bboxMm.h / 2 },
+        rotation: { rx: 0, ry: 0, rz: 0 },
+        visible: true,
+        role: 'legLeveler',
+      };
+      cab.components.push(comp);
+      this.addedComponentIds.push(comp.id);
+    }
+    await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
+
+    // Cache for revert()
+    this.executedCabinetPath = cabinetPath;
   }
 
   /** Alias for Command interface compliance. */
@@ -137,10 +185,28 @@ export class AddLegLevelersCommand implements Command {
   }
 
   /**
-   * Task 6: restore priorBottomBores to the bottom panel.
-   * Stub until Task 6 implements revert.
+   * Removes the 2R leg components added by execute() and restores
+   * priorBottomBores to the bottom panel.
    */
   async revert(): Promise<void> {
-    // TODO(task-6): read bottomComp.partPath, restore priorBottomBores, write back.
+    const { opfs } = this.opts;
+    const cabinetPath = this.executedCabinetPath || this.opts.cabinetPath;
+
+    // Remove leg components from cabinet
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    cab.components = cab.components.filter((c) => !this.addedComponentIds.includes(c.id));
+    await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
+
+    // Restore bottom-panel bores (blob-preserving)
+    const bottomComp = cab.components.find((c) => c.role === 'bottom');
+    if (bottomComp) {
+      const proj = await unpackProject(await opfs.read(bottomComp.partPath));
+      const doc = (proj.manifest as { document: { bores?: BoreOp[] } }).document;
+      doc.bores = this.priorBottomBores;
+      await opfs.write(bottomComp.partPath, await packProject({
+        manifest: { ...(proj.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
+        blobs: proj.blobs ?? {},
+      }));
+    }
   }
 }

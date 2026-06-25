@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { AddLegLevelersCommand } from '../AddLegLevelersCommand';
 import { useAppStore } from '../../store/useAppStore';
 import { unpackProject, packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AssemblyDocument, BoreOp, PartDocument } from '@zilventor/shared';
 
@@ -211,5 +211,30 @@ describe('AddLegLevelersCommand', () => {
       }).execute(),
     ).rejects.toThrow('legLeveler.error.tooSmall');
     expect(await boresOf(opfs, 'B.zipt')).toHaveLength(0); // no write happened
+  });
+
+  it('places 2R leg components top-aligned under the bottom panel', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    const cmd = new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: 2 }, opfs, kernel: makeKernel() });
+    await cmd.execute();
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const legs = cab.components.filter((c) => c.role === 'legLeveler');
+    expect(legs).toHaveLength(4);
+    expect(legs.every((l) => l.partPath === 'hardware/leg-leveler-100.zipt')).toBe(true);
+    // top of 120mm leg aligns to underside at z = TOEKICK_H: centroid z = TOEKICK_H - 60
+    expect(legs[0]!.position.z).toBeCloseTo(TOEKICK_H - 60, 3);
+    expect(await opfs.exists('hardware/leg-leveler-100.zipt')).toBe(true);
+  });
+
+  it('revert removes bores and leg components', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    const cmd = new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: 2 }, opfs, kernel: makeKernel() });
+    await cmd.execute();
+    await cmd.revert!();
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    expect(cab.components.filter((c) => c.role === 'legLeveler')).toHaveLength(0);
+    expect((await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler')).toHaveLength(0);
   });
 });
