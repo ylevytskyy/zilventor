@@ -93,3 +93,30 @@ export function validateCustomHardwareSku(
     ...(raw.legLeveler === undefined ? {} : { legLeveler: legLeveler(raw.legLeveler) }),
   };
 }
+
+/**
+ * Parse imported JSON text (a single SKU object OR an array of them) and validate
+ * each against the existing registry. Atomic: throws on the first failure — including
+ * an id that collides with a builtin, an already-imported entry, or an earlier item in
+ * the same batch — and returns nothing partial. On success returns all validated entries.
+ */
+export function parseCustomHardwareImport(
+  jsonText: string,
+  existingRegistry: readonly HardwareCatalogEntry[],
+): HardwareCatalogEntry[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (e) {
+    throw new CustomHardwareValidationError(`Invalid JSON: ${(e as Error).message}`);
+  }
+  const items = Array.isArray(parsed) ? parsed : [parsed];
+  const ids = new Set<string>(existingRegistry.map((e) => e.id));
+  const out: HardwareCatalogEntry[] = [];
+  for (const item of items) {
+    const entry = validateCustomHardwareSku(item, ids);
+    ids.add(entry.id);
+    out.push(entry);
+  }
+  return out;
+}

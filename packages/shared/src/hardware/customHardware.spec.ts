@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateCustomHardwareSku, CustomHardwareValidationError } from './customHardware';
+import { validateCustomHardwareSku, CustomHardwareValidationError, parseCustomHardwareImport } from './customHardware';
+import { BUILTIN_CATALOG } from './builtinCatalog';
 
 const valid = {
   id: 'acme-pull-128',
@@ -63,5 +64,35 @@ describe('validateCustomHardwareSku', () => {
   it('rejects an id that collides with existingIds', () => {
     expect(() => validateCustomHardwareSku(valid, new Set(['acme-pull-128'])))
       .toThrow(/already exists|collision|duplicate/i);
+  });
+});
+
+describe('parseCustomHardwareImport', () => {
+  const one = JSON.stringify(valid);
+  const two = JSON.stringify([valid, { ...valid, id: 'acme-pull-160', name: 'ACME 160' }]);
+
+  it('parses a single object into a one-element array', () => {
+    const out = parseCustomHardwareImport(one, BUILTIN_CATALOG);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.id).toBe('acme-pull-128');
+  });
+
+  it('parses an array of objects', () => {
+    const out = parseCustomHardwareImport(two, BUILTIN_CATALOG);
+    expect(out.map((e) => e.id)).toEqual(['acme-pull-128', 'acme-pull-160']);
+  });
+
+  it('throws on malformed JSON', () => {
+    expect(() => parseCustomHardwareImport('{ not json', BUILTIN_CATALOG)).toThrow(/JSON/i);
+  });
+
+  it('rejects an id that collides with a builtin', () => {
+    const dup = JSON.stringify({ ...valid, id: BUILTIN_CATALOG[0]!.id });
+    expect(() => parseCustomHardwareImport(dup, BUILTIN_CATALOG)).toThrow(/already exists/i);
+  });
+
+  it('rejects an intra-batch duplicate id (atomic — second item collides with first)', () => {
+    const batch = JSON.stringify([valid, { ...valid, name: 'dup' }]);
+    expect(() => parseCustomHardwareImport(batch, BUILTIN_CATALOG)).toThrow(/already exists/i);
   });
 });
