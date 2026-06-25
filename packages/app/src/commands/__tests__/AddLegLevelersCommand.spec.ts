@@ -14,6 +14,7 @@ import { unpackProject, packProject } from '@zilventor/kernel/src/storage/Projec
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AssemblyDocument, BoreOp, PartDocument } from '@zilventor/shared';
+import { face2DFrame } from '@zilventor/shared/src/bore';
 
 // ─── In-memory OPFS (mirrors AddDrawerBankCommand.spec.ts) ───────────────────
 
@@ -211,6 +212,51 @@ describe('AddLegLevelersCommand', () => {
       }).execute(),
     ).rejects.toThrow('legLeveler.error.tooSmall');
     expect(await boresOf(opfs, 'B.zipt')).toHaveLength(0); // no write happened
+  });
+
+  it('bore (u,v) co-locates with leg component (x,y) via face2DFrame Bottom transform', async () => {
+    // Reproduce / lock the v-mapping geometry invariant:
+    // Each leg's 4 bores, converted back to cabinet world XY via the same
+    // face2DFrame('Bottom') transform the viewport uses, must equal the leg
+    // component's (position.x, position.y) within ±patternW/2 (=18mm).
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    const cmd = new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: 2 }, opfs, kernel: makeKernel() });
+    await cmd.execute();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const bottomComp = cab.components.find((c) => c.role === 'bottom')!;
+    const legs = cab.components.filter((c) => c.role === 'legLeveler');
+    const allBores = (await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler');
+
+    // Panel dims in the test (Tb=0 so panelWidth = CABD)
+    const panelL = CABW - 2 * Tc;   // 564
+    const panelW = CABD;              // 560
+    const f = face2DFrame({ length: panelL, width: panelW, thickness: Tc }, 'Bottom');
+
+    // worldPose.translation = comp.position + (hL, hW, 0)  (kernel centers the mesh)
+    const hL = panelL / 2;
+    const hW = panelW / 2;
+    const tx = bottomComp.position.x + hL;  // 300
+    const ty = bottomComp.position.y + hW;  // 280
+
+    // For each of the 4 legs, find its 4 bores and assert bore centroid ≈ leg (x,y)
+    for (let i = 0; i < legs.length; i++) {
+      const leg = legs[i]!;
+      // Bores for leg i are tagged leg-${i}-*
+      const legBores = allBores.filter((b) => b.id.startsWith(`leg-${i}-`));
+      expect(legBores).toHaveLength(4);
+
+      const avgU = legBores.reduce((s, b) => s + b.u, 0) / 4;
+      const avgV = legBores.reduce((s, b) => s + b.v, 0) / 4;
+
+      // world = worldPose.translation + frame.origin + u*uDir + v*vDir
+      const worldX = tx + f.origin.x + avgU * f.uDir.x + avgV * f.vDir.x;
+      const worldY = ty + f.origin.y + avgU * f.uDir.y + avgV * f.vDir.y;
+
+      expect(worldX).toBeCloseTo(leg.position.x, 1);
+      expect(worldY).toBeCloseTo(leg.position.y, 1);
+    }
   });
 
   it('places 2R leg components top-aligned under the bottom panel', async () => {

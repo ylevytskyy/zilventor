@@ -121,12 +121,19 @@ export class AddLegLevelersCommand implements Command {
 
     const face: FaceName = { featureId: 'panel', role: 'Bottom', instance: 0 };
 
-    // Map each cabinet-local (x, y) to bottom-panel-local (u, v).
-    // u = pos.x - bottomComp.position.x, v = pos.y - bottomComp.position.y
-    // (panel-local centred coords; exact face2DFrame placement confirmed by Task 8 e2e).
+    // Map each cabinet-local (x, y) to bottom-panel Bottom-face (u, v).
+    //
+    // face2DFrame('Bottom'): origin={x:-hL,y:+hW,z:0}, uDir={x:1,y:0,z:0}, vDir={x:0,y:-1,z:0}.
+    // worldPose.translation = comp.position + (hL, hW, 0)  (kernel centers the mesh geometry).
+    // world.x = (comp.x + hL) + (-hL) + u        = comp.x + u
+    //   → u = pos.x - comp.x  = pos.x - bottomComp.position.x           ← unchanged ✓
+    // world.y = (comp.y + hW) + hW + v * (-1)    = comp.y + (D - Tb) - v
+    //         = D - v  (since comp.y = Tb, the back-panel thickness)
+    //   → v = dims.depth - pos.y
+    // vDir = -Y means v grows toward the FRONT; confirmed by the co-location unit test.
     const newBores = positions.flatMap((pos, i) => {
       const u = pos.x - bottomComp.position.x;
-      const v = pos.y - bottomComp.position.y;
+      const v = dims.depth - pos.y;
       return legLevelerBores({ u, v }, spec, face, `leg-${i}`);
     });
 
