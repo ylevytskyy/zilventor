@@ -68,6 +68,7 @@ export interface AddDrawerBankParams {
   count: number;
   overlay: 'full' | 'half' | 'inset';
   thickness: number;
+  heights?: number[];
 }
 
 /** Artifacts created for one drawer slot during apply(). */
@@ -130,20 +131,25 @@ export class AddDrawerBankCommand implements Command {
     if (N < 1) {
       throw new Error('drawerBank.error.tooSmall: count must be ≥ 1');
     }
-    const slotH = openH / N;
     if (openW <= 57) {
       throw new Error(
         `drawerBank.error.tooSmall: cabinet opening width ${openW}mm is ≤ 57mm (minimum for drawer box front/back panels)`,
       );
     }
-    if (slotH <= 24) {
-      throw new Error(
-        `drawerBank.error.tooSmall: drawer slot height ${slotH}mm is ≤ 24mm (minimum for drawer box with clearances)`,
-      );
-    }
 
     // ─── 3. Bank layout ───────────────────────────────────────────────────────
-    const slots = drawerBankLayout({ openBottomZ, openH }, N);
+    // drawerBankLayout validates heights count + sum (throws heightCount/heightSum) before any write.
+    const slots = drawerBankLayout({ openBottomZ, openH }, N, params.heights);
+
+    // Per-slot minimum-height guard (replaces the old single slotH check).
+    for (const slot of slots) {
+      const slotH = slot.topZ - slot.bottomZ;
+      if (slotH <= 24) {
+        throw new Error(
+          `drawerBank.error.tooSmall: drawer slot ${slot.index + 1} height ${slotH}mm is ≤ 24mm (minimum for drawer box with clearances)`,
+        );
+      }
+    }
 
     // Collect existing .zipt basenames for dedupeName
     const existingNames = listZiptBasenames(cab);
@@ -162,7 +168,7 @@ export class AddDrawerBankCommand implements Command {
       const currentSlotH = slot.topZ - slot.bottomZ;
 
       // ─── 4a. Front panel ──────────────────────────────────────────────────
-      const front = drawerFrontMath(i, N, { openBottomZ, openH, openW, frontY }, params.overlay, {
+      const front = drawerFrontMath(i, N, slot, { openW, frontY }, params.overlay, {
         Tc: dims.Tc,
         reveal: 2,
         insetClearance: 2,

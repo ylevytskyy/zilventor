@@ -431,3 +431,181 @@ describe('AddDrawerBankCommand — revert (H2)', () => {
     expect(revertedRightBores.filter((b) => b.role === 'drawerSlide-cabinet')).toHaveLength(0);
   });
 });
+
+// ─── Helpers for variable-height tests ───────────────────────────────────────
+
+/** Derive openH for the seeded cabinet (H - toekick - 2*Tc). */
+async function openHForSeed(opfs: MemOpfs, path: string): Promise<number> {
+  const cab = await unpackAssembly(await opfs.read(path));
+  const dims = await (async () => {
+    const { deriveCabinetDims } = await import('../cabinetDims');
+    return deriveCabinetDims(cab, opfs);
+  })();
+  return dims.height - dims.toekickHeight - 2 * dims.Tc;
+}
+
+/** Returns N equal heights that sum to openH. */
+async function equalSplitForSeed(opfs: MemOpfs, path: string, n: number): Promise<number[]> {
+  const openH = await openHForSeed(opfs, path);
+  const each = openH / n;
+  return Array.from({ length: n }, () => each);
+}
+
+/** Returns N unequal heights summing to openH (25% / 35% / 40% for n=3). */
+async function someUnequalSplit(opfs: MemOpfs, path: string, n: number): Promise<number[]> {
+  const openH = await openHForSeed(opfs, path);
+  if (n === 3) {
+    return [openH * 0.25, openH * 0.35, openH * 0.40];
+  }
+  // Fallback: uniform
+  const each = openH / n;
+  return Array.from({ length: n }, () => each);
+}
+
+/**
+ * Read back drawer geometry from a cabinet .ziasm in opfs.
+ * Returns an array (one entry per drawerFront component) with bottomZ/topZ of the front.
+ */
+async function dumpDrawerGeometry(opfs: MemOpfs, path: string): Promise<Array<{ frontId: string; frontPartPath: string; posX: number; posY: number; posZ: number; boxPosX: number; boxPosY: number; boxPosZ: number }>> {
+  const cab = await unpackAssembly(await opfs.read(path));
+  const result = [];
+  const fronts = cab.components.filter((c) => c.role === 'drawerFront');
+  const boxes = cab.components.filter((c) => c.role === 'drawerBox');
+  for (let i = 0; i < fronts.length; i++) {
+    const front = fronts[i]!;
+    const box = boxes[i];
+    result.push({
+      frontId: front.id,
+      frontPartPath: front.partPath,
+      posX: front.position.x,
+      posY: front.position.y,
+      posZ: front.position.z,
+      boxPosX: box?.position.x ?? 0,
+      boxPosY: box?.position.y ?? 0,
+      boxPosZ: box?.position.z ?? 0,
+    });
+  }
+  return result;
+}
+
+describe('AddDrawerBankCommand — variable-height drawers (M4-A)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('back-compat: omitting heights produces same component geometry as equal-split heights', async () => {
+    // Bank A — no heights (uniform split)
+    const opfsA = new MemOpfs();
+    const pathA = await seedCabinet(opfsA);
+    await new AddDrawerBankCommand({
+      cabinetPath: pathA,
+      params: { count: 3, overlay: 'full', thickness: 18 },
+      opfs: opfsA,
+      store: useAppStore,
+    }).apply();
+
+    // Bank B — heights equal to the equal split
+    const opfsB = new MemOpfs();
+    const pathB = await seedCabinet(opfsB);
+    const split = await equalSplitForSeed(opfsB, pathB, 3);
+    await new AddDrawerBankCommand({
+      cabinetPath: pathB,
+      params: { count: 3, overlay: 'full', thickness: 18, heights: split },
+      opfs: opfsB,
+      store: useAppStore,
+    }).apply();
+
+    // Compare positions of front and box components (ignoring auto-generated IDs and paths)
+    const geoA = await dumpDrawerGeometry(opfsA, pathA);
+    const geoB = await dumpDrawerGeometry(opfsB, pathB);
+
+    expect(geoA).toHaveLength(3);
+    expect(geoB).toHaveLength(3);
+
+    // Compare positions numerically (IDs and paths differ; positions must match)
+    for (let i = 0; i < 3; i++) {
+      expect(geoB[i]!.posX).toBeCloseTo(geoA[i]!.posX, 5);
+      expect(geoB[i]!.posY).toBeCloseTo(geoA[i]!.posY, 5);
+      expect(geoB[i]!.posZ).toBeCloseTo(geoA[i]!.posZ, 5);
+      expect(geoB[i]!.boxPosX).toBeCloseTo(geoA[i]!.boxPosX, 5);
+      expect(geoB[i]!.boxPosY).toBeCloseTo(geoA[i]!.boxPosY, 5);
+      expect(geoB[i]!.boxPosZ).toBeCloseTo(geoA[i]!.boxPosZ, 5);
+    }
+  });
+
+  it('applies explicit unequal heights → N fronts at expected ascending bottomZ', async () => {
+    const opfs = new MemOpfs();
+    const path = await seedCabinet(opfs);
+    const heights = await someUnequalSplit(opfs, path, 3);
+    await new AddDrawerBankCommand({
+      cabinetPath: path,
+      params: { count: 3, overlay: 'full', thickness: 18, heights },
+      opfs,
+      store: useAppStore,
+    }).apply();
+
+    const cab = await unpackAssembly(await opfs.read(path));
+    const fronts = cab.components.filter((c) => c.role === 'drawerFront');
+    expect(fronts).toHaveLength(3);
+
+    // Front positions should be in ascending Z order (bottom drawer has lowest Z)
+    const zPositions = fronts.map((f) => f.position.z);
+    expect(zPositions[0]!).toBeLessThan(zPositions[1]!);
+    expect(zPositions[1]!).toBeLessThan(zPositions[2]!);
+  });
+
+  it('per-slot guard throws tooSmall when a height is ≤ 24mm', async () => {
+    const opfs = new MemOpfs();
+    const path = await seedCabinet(opfs);
+    const openH = await openHForSeed(opfs, path);
+    // First slot = 10mm (≤ 24mm), remaining two split the rest equally
+    const remaining = openH - 10;
+    const heights = [10, remaining / 2, remaining / 2];
+    await expect(
+      new AddDrawerBankCommand({
+        cabinetPath: path,
+        params: { count: 3, overlay: 'full', thickness: 18, heights },
+        opfs,
+        store: useAppStore,
+      }).apply(),
+    ).rejects.toThrow(/drawerBank\.error\.tooSmall/);
+  });
+
+  it('sum-mismatch heights throw heightSum before writing', async () => {
+    const opfs = new MemOpfs();
+    const path = await seedCabinet(opfs);
+    await expect(
+      new AddDrawerBankCommand({
+        cabinetPath: path,
+        params: { count: 3, overlay: 'full', thickness: 18, heights: [50, 50, 50] },
+        opfs,
+        store: useAppStore,
+      }).apply(),
+    ).rejects.toThrow(/drawerBank\.error\.heightSum/);
+  });
+
+  it('revert restores prior state after a variable-height apply', async () => {
+    const opfs = new MemOpfs();
+    const path = await seedCabinet(opfs);
+    const beforeCab = await unpackAssembly(await opfs.read(path));
+    const beforeComponentCount = beforeCab.components.length;
+    const heights = await someUnequalSplit(opfs, path, 3);
+    const cmd = new AddDrawerBankCommand({
+      cabinetPath: path,
+      params: { count: 3, overlay: 'full', thickness: 18, heights },
+      opfs,
+      store: useAppStore,
+    });
+    await cmd.apply();
+    // Confirm apply added components
+    const afterApply = await unpackAssembly(await opfs.read(path));
+    expect(afterApply.components.filter((c) => c.role === 'drawerFront')).toHaveLength(3);
+    await cmd.revert();
+    // After revert: no drawer components, component count restored
+    const afterRevert = await unpackAssembly(await opfs.read(path));
+    expect(afterRevert.components).toHaveLength(beforeComponentCount);
+    expect(afterRevert.components.filter((c) => c.role === 'drawerFront' || c.role === 'drawerBox')).toHaveLength(0);
+  });
+});
