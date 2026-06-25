@@ -44,8 +44,9 @@ import { packProject, unpackProject } from '@zilventor/kernel/src/storage/Projec
 import { dedupeName } from '../import/dedupeName';
 import { useAppStore } from '../store/useAppStore';
 import { deriveCabinetDims } from './cabinetDims';
-import { buildDrawerBox, writeBoxSideBores } from './buildDrawerBox';
-import { buildSlidePart, DEFAULT_DRAWER_SLIDE_SKU } from './buildSlidePart';
+import { buildDrawerBox, writeBoxSideBores, writeBoxBottomBores, writeBoxBackBores } from './buildDrawerBox';
+import { buildSlidePart, DEFAULT_DRAWER_SLIDE_SKU, DEFAULT_TANDEM_SLIDE_SKU } from './buildSlidePart';
+import { tandemSlideMath } from '@zilventor/shared/src/tandemSlideMath';
 import { drawerBankLayout } from '@zilventor/shared/src/drawerBankLayout';
 import { drawerFrontMath } from '@zilventor/shared/src/drawerFrontMath';
 import { drawerBoxMath } from '@zilventor/shared/src/drawerBoxMath';
@@ -69,6 +70,7 @@ export interface AddDrawerBankParams {
   overlay: 'full' | 'half' | 'inset';
   thickness: number;
   heights?: number[];
+  slideSystem?: 'sideMount' | 'tandem';
 }
 
 /** Artifacts created for one drawer slot during apply(). */
@@ -158,7 +160,8 @@ export class AddDrawerBankCommand implements Command {
 
     // Drawer slides are sold as a pair → one slide hardware part per drawer.
     // Build/write the slide .zipt once (idempotent); each drawer references it (1b.5.3).
-    const slideSkuId = DEFAULT_DRAWER_SLIDE_SKU;
+    const isTandem = params.slideSystem === 'tandem';
+    const slideSkuId = isTandem ? DEFAULT_TANDEM_SLIDE_SKU : DEFAULT_DRAWER_SLIDE_SKU;
     const slideHwPath = `hardware/${slideSkuId}.zipt`;
     const { bytes: slideHwBytes } = await buildSlidePart(slideSkuId);
     await opfs.write(slideHwPath, slideHwBytes);
@@ -213,7 +216,11 @@ export class AddDrawerBankCommand implements Command {
       };
 
       // ─── 4b. Drawer box ───────────────────────────────────────────────────
-      const boxResult = drawerBoxMath(slot, { openW, innerD });
+      const boxResult = drawerBoxMath(slot, {
+        openW,
+        innerD,
+        ...(isTandem ? { slideSystem: 'tandem' as const } : {}),
+      });
 
       const boxBaseName = dedupeName(
         `${cab.name} - Drawer Box ${i + 1}`,
@@ -270,16 +277,24 @@ export class AddDrawerBankCommand implements Command {
         slotH: currentSlotH,
         bh: boxResult.outer.height,
         cabinet: { H: dims.height, D: dims.depth, Tc: dims.Tc },
-        box: { bd: boxResult.outer.depth },
+        box: { bd: boxResult.outer.depth, bw: boxResult.outer.width },
         slideLength: boxResult.outer.depth,
       };
-      const { cabinetBores, boxBores } = drawerSlideMath(slideCtx);
 
-      // Write box-side bores into the box panel .zipt files
-      await writeBoxSideBores(boxBytes, boxBores, opfs);
-
-      // Append cabinet-side bores to cabinet L/R side panels (snapshot priors once per path)
-      await this.appendCabinetSideBores(cab, cabinetBores, opfs);
+      if (isTandem) {
+        const { cabinetBores, boxBottomBores, boxBackBores } = tandemSlideMath(
+          slideCtx as typeof slideCtx & { box: { bw: number } },
+        );
+        await writeBoxBottomBores(boxBytes, boxBottomBores, opfs);
+        await writeBoxBackBores(boxBytes, boxBackBores, opfs);
+        await this.appendCabinetSideBores(cab, cabinetBores, opfs);
+      } else {
+        const { cabinetBores, boxBores } = drawerSlideMath(slideCtx);
+        // Write box-side bores into the box panel .zipt files
+        await writeBoxSideBores(boxBytes, boxBores, opfs);
+        // Append cabinet-side bores to cabinet L/R side panels (snapshot priors once per path)
+        await this.appendCabinetSideBores(cab, cabinetBores, opfs);
+      }
 
       // ─── 4d. Slide hardware part (pair) at the drawer-box centroid (1b.5.3) ──
       // Identity pose; bbox w runs front-to-back (world-Y). BOM-bearing marker —
