@@ -105,6 +105,14 @@ export class AddDrawerBankCommand implements Command {
   /** sidePanelPath → prior BoreOp[] snapshot (cabinet-side, before apply appended). */
   private priorCabinetSideBores = new Map<string, BoreOp[]>();
 
+  /**
+   * Tandem-only: OPFS paths of the box bottom+back panels that received tandem bores.
+   * Accumulated across apply/redo cycles (Set deduplicates). Must be included in
+   * boreCacheInvalidator calls in BOTH apply() AND revert() so that stale bore-marker
+   * cache entries are cleared on redo (the M4-B bug class).
+   */
+  private tandemBoxBorePaths = new Set<string>();
+
   constructor(private readonly opts: {
     cabinetPath: string;
     params: AddDrawerBankParams;
@@ -282,11 +290,14 @@ export class AddDrawerBankCommand implements Command {
       };
 
       if (isTandem) {
-        const { cabinetBores, boxBottomBores, boxBackBores } = tandemSlideMath(
-          slideCtx as typeof slideCtx & { box: { bw: number } },
-        );
-        await writeBoxBottomBores(boxBytes, boxBottomBores, opfs);
-        await writeBoxBackBores(boxBytes, boxBackBores, opfs);
+        const { cabinetBores, boxBottomBores, boxBackBores } = tandemSlideMath(slideCtx);
+        // Capture returned priorBores to extract panel paths for cache invalidation.
+        // Without this, stale bore-marker cache entries persist on REDO (M4-B bug class).
+        const { priorBores: botPrior } = await writeBoxBottomBores(boxBytes, boxBottomBores, opfs);
+        const { priorBores: backPrior } = await writeBoxBackBores(boxBytes, boxBackBores, opfs);
+        for (const p of [...botPrior.keys(), ...backPrior.keys()]) {
+          this.tandemBoxBorePaths.add(p);
+        }
         await this.appendCabinetSideBores(cab, cabinetBores, opfs);
       } else {
         const { cabinetBores, boxBores } = drawerSlideMath(slideCtx);
@@ -338,12 +349,13 @@ export class AddDrawerBankCommand implements Command {
     await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
     await this.reloadCabinet(cab);
 
-    // Invalidate the bore-marker cache for the cabinet side panels we appended
-    // slide bores to, so the cabinet-side markers refresh live (mirrors revert()).
-    // Without this, apply() leaves the side-panel bore cache stale until a tab bump.
+    // Invalidate bore-marker cache for all panels that received new bores:
+    // cabinet side panels + (tandem only) box bottom+back panels.
+    // Including tandemBoxBorePaths prevents stale markers on REDO (M4-B bug class).
     const cabinetSidePaths = [...this.priorCabinetSideBores.keys()];
-    if (cabinetSidePaths.length > 0) {
-      this.store.getState().boreCacheInvalidator?.(cabinetSidePaths);
+    const allBorePaths = [...cabinetSidePaths, ...this.tandemBoxBorePaths];
+    if (allBorePaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(allBorePaths);
     }
   }
 
@@ -410,8 +422,13 @@ export class AddDrawerBankCommand implements Command {
     await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
     await this.reloadCabinet(cab);
 
-    if (restoredSidePaths.length > 0) {
-      this.store.getState().boreCacheInvalidator?.(restoredSidePaths);
+    // Invalidate bore-marker cache for all panels restored/deleted by revert:
+    // cabinet side panels + (tandem only) box bottom+back panels.
+    // Clearing tandemBoxBorePaths prevents stale markers from a prior apply persisting
+    // in the viewport after undo (M4-B bug class, mirrors apply() fix).
+    const allRevertPaths = [...restoredSidePaths, ...this.tandemBoxBorePaths];
+    if (allRevertPaths.length > 0) {
+      this.store.getState().boreCacheInvalidator?.(allRevertPaths);
     }
   }
 
