@@ -4,15 +4,18 @@
  * Flow:
  *   A. New assembly + materials → CreateCabinetCommand (toekickHeight: 100).
  *   B. AddLegLevelersCommand with legsPerRow: 2 (2 rows × 2 legs = 4 total).
- *   C. Assert: ≥4 components with role === 'legLeveler' in the cabinet assembly (read from OPFS
- *      via __zilventorUnpackAssembly — AddLegLevelersCommand writes to OPFS directly).
- *   D. Assert: 0 browser console errors.
+ *      Command receives the real app store so reloadCabinet() patches subAssemblyDocs
+ *      + sets solverDirty, proving the scene-refresh path ran.
+ *   C. Assert: ≥4 components with role === 'legLeveler' in store.subAssemblyDocs
+ *      (NOT from OPFS — this catches regressions where reloadCabinet is removed).
+ *   D. Assert: store.getState().solverDirty === true (viewport will re-tessellate).
+ *   E. Assert: 0 browser console errors.
  */
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from './helpers/buildBox';
 
 test(
-  'M4-B leg levelers: legsPerRow=2 → ≥4 legLeveler components + 0 console errors',
+  'M4-B leg levelers: legsPerRow=2 → ≥4 legLeveler components in store + solverDirty + 0 console errors',
   async ({ page }) => {
     test.setTimeout(360_000);
     page.setDefaultTimeout(120_000);
@@ -110,11 +113,19 @@ test(
     console.log('[m4-b] cabinetPath =', cabinetPath);
 
     // ── B. AddLegLevelersCommand: legsPerRow=2 → 4 legs total ────────────────
-    // legsPerRow=2 → xs=[50, 550]; ys=[75, 535] → 4 positions (2R).
-    // Fit: 2×50 + 36 = 136 < 600 (width OK); 75 + 25 + 36 = 136 < 560 (depth OK).
+    // Pass the real app store (window.__zilventorStore === useAppStore) so
+    // reloadCabinet() patches subAssemblyDocs + sets solverDirty in the live store.
+    // legsPerRow=2 → xs=[50,550]; ys=[75,535] → 4 positions.
+    // Fit: 2×50+36=136<600 (width OK); 75+25+36=136<560 (depth OK).
     await page.evaluate(async (cabPath: string) => {
       const w = window as unknown as {
-        __zilventorStore: { getState(): { bus: { execute(c: unknown): Promise<void> } } };
+        __zilventorStore: {
+          getState(): {
+            bus: { execute(c: unknown): Promise<void> };
+            subAssemblyDocs: Record<string, unknown>;
+            setSolverDirty(v: boolean): void;
+          };
+        };
         __zilventorGetOpfs(): Promise<{
           read(p: string): Promise<Uint8Array>;
           write(p: string, b: Uint8Array): Promise<void>;
@@ -127,31 +138,51 @@ test(
         cabinetPath: cabPath,
         params: { legsPerRow: 2 },
         opfs,
+        store: w.__zilventorStore, // real app store → reloadCabinet patches subAssemblyDocs
       });
       await w.__zilventorStore.getState().bus.execute(cmd);
     }, cabinetPath);
 
-    // ── C. Assert ≥4 legLeveler components in the cabinet assembly ───────────
-    // AddLegLevelersCommand writes directly to OPFS (no store.subAssemblyDocs update).
-    // Read back via __zilventorUnpackAssembly (exposed by App.tsx) + __zilventorGetOpfs.
-    const legLevelerCount: number = await page.evaluate(async (cabPath: string) => {
-      const w = window as unknown as {
-        __zilventorGetOpfs(): Promise<{ read(p: string): Promise<Uint8Array> }>;
-        __zilventorUnpackAssembly(b: Uint8Array): Promise<{ components: Array<{ role?: string }> }>;
-      };
-      const opfs = await w.__zilventorGetOpfs();
-      const bytes = await opfs.read(cabPath);
-      const cab = await w.__zilventorUnpackAssembly(bytes);
-      return cab.components.filter((c) => c.role === 'legLeveler').length;
-    }, cabinetPath);
+    // ── C. Assert ≥4 legLeveler components via the STORE (not OPFS) ──────────
+    // This proves reloadCabinet() ran: if it were removed, subAssemblyDocs[cabPath]
+    // would not contain the leg components even though they are in OPFS.
+    const storeResult = await page.evaluate(
+      (cabPath: string) => {
+        const w = window as unknown as {
+          __zilventorStore: {
+            getState(): {
+              subAssemblyDocs: Record<string, { components: Array<{ role?: string }> }>;
+              solverDirty: boolean;
+            };
+          };
+        };
+        const state = w.__zilventorStore.getState();
+        const doc = state.subAssemblyDocs[cabPath];
+        if (!doc) return { legCount: -1, solverDirty: false };
+        return {
+          legCount: doc.components.filter((c) => c.role === 'legLeveler').length,
+          solverDirty: state.solverDirty,
+        };
+      },
+      cabinetPath,
+    );
 
-    console.log('[m4-b] legLeveler count =', legLevelerCount);
+    console.log('[m4-b] store legLeveler count =', storeResult.legCount, '| solverDirty =', storeResult.solverDirty);
+
     expect(
-      legLevelerCount,
-      `cabinet must have ≥4 legLeveler components (legsPerRow=2 → 2 rows × 2 = 4 legs); got ${legLevelerCount}`,
+      storeResult.legCount,
+      `store.subAssemblyDocs["${cabinetPath}"] must have ≥4 legLeveler components ` +
+        `(legsPerRow=2 → 2 rows × 2 = 4 legs); got ${storeResult.legCount}. ` +
+        `If −1, subAssemblyDocs was never updated (reloadCabinet missing/not called).`,
     ).toBeGreaterThanOrEqual(4);
 
-    // ── D. 0 browser console errors ───────────────────────────────────────────
+    // ── D. Assert solverDirty — viewport will re-tessellate legs ─────────────
+    expect(
+      storeResult.solverDirty,
+      'store.solverDirty must be true after AddLegLevelersCommand (proves viewport refresh is triggered)',
+    ).toBe(true);
+
+    // ── E. 0 browser console errors ───────────────────────────────────────────
     const realErrors = consoleErrors.filter(
       (e) => !e.includes('ResizeObserver') && !e.includes('favicon'),
     );
