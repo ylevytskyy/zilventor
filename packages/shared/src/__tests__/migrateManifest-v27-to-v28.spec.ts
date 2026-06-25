@@ -4,7 +4,7 @@ import type { Rule } from '../types';
 
 describe('migrateManifest v27 → v28 (parameter rules)', () => {
   it('CURRENT_FORMAT_VERSION is 28', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(32);
+    expect(CURRENT_FORMAT_VERSION).toBe(33);
   });
 
   it('injects rules:[] onto a v27 part document missing it', () => {
@@ -21,7 +21,7 @@ describe('migrateManifest v27 → v28 (parameter rules)', () => {
       formatVersion: number;
       document: { rules?: Rule[] };
     };
-    expect(out.formatVersion).toBe(32);
+    expect(out.formatVersion).toBe(33);
     expect(out.document.rules).toEqual([]);
   });
 
@@ -55,7 +55,7 @@ describe('migrateManifest v27 → v28 (parameter rules)', () => {
       formatVersion: number;
       document: Record<string, unknown>;
     };
-    expect(out.formatVersion).toBe(32);
+    expect(out.formatVersion).toBe(33);
     expect(out.document.rules).toBeUndefined();
   });
 });

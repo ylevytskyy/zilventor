@@ -13,7 +13,7 @@ import { ConnectorBomTable } from './ConnectorBomTable';
 import { useConnectorBomResult } from './useConnectorBomResult';
 import { aggregateHardwareRecursive } from '../assembly/walkers/aggregateHardwareRecursive';
 import { buildHardwareCache } from '../assembly/walkers/buildHardwareCache';
-import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
+import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
@@ -239,7 +239,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
 
   if (cutListTabActive) {
     const hwCache = buildHardwareCache(asm, useAppStore.getState().subAssemblyDocs);
-    const hardwareRows = aggregateHardwareRecursive(asm, hwCache, [...BUILTIN_CATALOG]).rows;
+    const hardwareRows = aggregateHardwareRecursive(asm, hwCache, [...resolveHardwareCatalog(asm)]).rows;
     return (
       <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
         {tabStrip}

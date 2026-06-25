@@ -1,6 +1,6 @@
 import type { HardwareEntry, LegLevelerSpec } from '../hardware-feature';
 
-interface CatalogEntry extends HardwareEntry {
+export interface CatalogEntry extends HardwareEntry {
   readonly bboxMm: { readonly l: number; readonly w: number; readonly h: number };
   readonly attachPoints: ReadonlyArray<{
     readonly name: string;

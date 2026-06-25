@@ -364,6 +364,11 @@
     "hardware": {
       "category": "Категорія",
       "hinges": "Петлі",
+      "import": {
+        "button": "Імпорт SKU…",
+        "error": "Помилка імпорту: {{message}}",
+        "success": "Імпортовано SKU: {{count}}"
+      },
       "qty": "Кіл.:",
       "shelf_pins": "Полицеві шипи",
       "title": "Додати фурнітуру"

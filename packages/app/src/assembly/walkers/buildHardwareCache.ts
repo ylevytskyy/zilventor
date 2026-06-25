@@ -1,5 +1,5 @@
 import type { AssemblyDocument } from '@zilventor/shared';
-import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
+import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
 
 type CacheEntry =
   | { kind: 'ok'; doc: AssemblyDocument }
@@ -27,7 +27,7 @@ export function buildHardwareCache(
       if (c.partPath.startsWith('hardware/') && c.partPath.endsWith('.zipt')) {
         if (cache.has(c.partPath)) continue; // already synthesized
         const skuId = c.partPath.slice('hardware/'.length, -'.zipt'.length);
-        const entry = BUILTIN_CATALOG.find((e) => e.id === skuId);
+        const entry = resolveHardwareCatalog(activeDoc).find((e) => e.id === skuId);
         if (!entry) continue; // unknown SKU — skip gracefully
         cache.set(c.partPath, {
           kind: 'part',

@@ -1,7 +1,7 @@
 import type { Command } from './Command';
 import type { HardwareFeature } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
-import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
+import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
 import { newPart, addFeature, setParameter } from '@zilventor/kernel/src/adapter/PartDocument';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
@@ -46,7 +46,8 @@ export class AddHardwareCommand implements Command {
   }
 
   async apply(): Promise<void> {
-    const catalogEntry = BUILTIN_CATALOG.find((e) => e.id === this.opts.skuId);
+    const activeDoc = this.store.getState().activeAssembly ?? this.store.getState().activePart;
+    const catalogEntry = resolveHardwareCatalog(activeDoc).find((e) => e.id === this.opts.skuId);
     if (!catalogEntry) throw new HardwareSkuNotFoundError(this.opts.skuId);
 
     const { path } = this;
@@ -110,7 +111,7 @@ export class AddHardwareCommand implements Command {
   }
 
   private async synthesizePart(
-    entry: typeof BUILTIN_CATALOG[number],
+    entry: ReturnType<typeof resolveHardwareCatalog>[number],
   ): Promise<Uint8Array> {
     const { l, w, h } = entry.bboxMm;
     const sketchId = `hw-bbox-sketch-${entry.id}`;

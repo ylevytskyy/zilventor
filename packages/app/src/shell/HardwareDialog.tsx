@@ -1,7 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
-import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
+import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
+import { parseCustomHardwareImport } from '@zilventor/shared/src/hardware/customHardware';
+import { ImportCustomHardwareCommand } from '../commands/ImportCustomHardwareCommand';
+import { pickFile } from './fsaFallback';
 import type { HardwareCategory } from '@zilventor/shared';
 
 const overlayStyle: React.CSSProperties = {
@@ -21,17 +24,20 @@ const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', bo
 export function HardwareDialog(): JSX.Element | null {
   const { t } = useTranslation();
   const dialog = useAppStore((s) => s.hardwareDialog);
+  const activeDoc = useAppStore((s) => s.activeAssembly ?? s.activePart);
   const [category, setCategory] = React.useState<HardwareCategory>('hinges');
   const [selectedSkuId, setSelectedSkuId] = React.useState<string>('hinge-35mm-cup-full');
   const [qty, setQty] = React.useState(1);
+  const [importError, setImportError] = React.useState<string | null>(null);
 
-  const filtered = BUILTIN_CATALOG.filter((e) => e.category === category);
+  const filtered = resolveHardwareCatalog(activeDoc).filter((e) => e.category === category);
 
   React.useEffect(() => {
     if (!dialog) return;
     setCategory('hinges');
     setSelectedSkuId('hinge-35mm-cup-full');
     setQty(1);
+    setImportError(null);
   }, [dialog]);
 
   React.useEffect(() => {
@@ -54,6 +60,19 @@ export function HardwareDialog(): JSX.Element | null {
   const handleOk = () => {
     dialog.onSubmit(selectedSkuId, qty);
     useAppStore.getState().setHardwareDialog(null);
+  };
+
+  const handleImport = async () => {
+    const file = await pickFile([{ accept: { 'application/json': ['.json'] }, description: 'JSON' }]);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const entries = parseCustomHardwareImport(text, resolveHardwareCatalog(activeDoc));
+      await useAppStore.getState().bus.execute(new ImportCustomHardwareCommand({ entries }));
+      setImportError(null);
+    } catch (e) {
+      setImportError(t('dialog.hardware.import.error', { message: (e as Error).message }));
+    }
   };
 
   return (
@@ -112,6 +131,22 @@ export function HardwareDialog(): JSX.Element | null {
             style={btnStyle}
             onClick={() => setQty((q) => Math.min(100, q + 1))}
           >+</button>
+        </div>
+
+        <div style={{ marginBottom: 8 }}>
+          <button
+            type="button"
+            style={btnStyle}
+            onClick={() => { void handleImport(); }}
+            aria-label={t('dialog.hardware.import.button')}
+          >
+            {t('dialog.hardware.import.button')}
+          </button>
+          {importError && (
+            <div role="alert" style={{ color: '#f88', fontSize: 11, marginTop: 4 }}>
+              {importError}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>

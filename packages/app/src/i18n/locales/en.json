@@ -364,6 +364,11 @@
     "hardware": {
       "category": "Category",
       "hinges": "Hinges",
+      "import": {
+        "button": "Import SKU…",
+        "error": "Import failed: {{message}}",
+        "success": "Imported {{count}} hardware SKU(s)"
+      },
       "qty": "Qty:",
       "shelf_pins": "Shelf Pins",
       "title": "Add Hardware"
