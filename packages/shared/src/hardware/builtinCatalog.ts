@@ -167,6 +167,18 @@ export const BUILTIN_CATALOG: readonly CatalogEntry[] = [
       { name: 'back',  position: { x: 0, y: -250, z: 0 } },
     ],
   },
+  {
+    id: 'drawer-slide-tandem-500',
+    name: 'Blum TANDEM Under-Mount Slide 500mm (pair)',
+    category: 'drawerSlides',
+    vendor: 'Blum',
+    notes: 'TANDEM 560H nominal; under-mount; 500mm run; sold as pair',
+    bboxMm: { l: 42, w: 500, h: 14 },
+    attachPoints: [
+      { name: 'front', position: { x: 0, y:  250, z: 0 } },
+      { name: 'back',  position: { x: 0, y: -250, z: 0 } },
+    ],
+  },
   // ── Leg leveler ─────────────────────────────────────────────────────────────
   {
     id: 'leg-leveler-100',
