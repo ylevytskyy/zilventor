@@ -128,7 +128,7 @@ describe('FurnitureTab — slice-4 Add Drawers wiring', () => {
     expect(dialog).not.toBeNull();
 
     // Simulate onSubmit being called by the dialog
-    await dialog!.onSubmit({ count: 3, overlay: 'full', thickness: 18 });
+    await dialog!.onSubmit({ count: 3, overlay: 'full', thickness: 18, slideSystem: 'sideMount' });
 
     expect(fakeBus.execute).toHaveBeenCalledTimes(1);
     expect(executedCommands[0]).toBeInstanceOf(AddDrawerBankCommand);

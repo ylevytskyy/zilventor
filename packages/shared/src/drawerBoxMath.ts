@@ -18,6 +18,7 @@ import {
   SLIDE_CLEARANCE_PER_SIDE,
   BOX_BACK_CLEARANCE,
 } from './drawerConventions';
+import { TANDEM_SLIDE_CLEARANCE_PER_SIDE } from './tandemConventions';
 import type { PanelRole } from './cabinets/types';
 
 type Vec3 = { x: number; y: number; z: number };
@@ -50,6 +51,7 @@ export interface BoxSlot {
 export interface BoxOpening {
   openW: number;   // inner width of cabinet opening (mm)
   innerD: number;  // inner depth of cabinet (mm)
+  slideSystem?: 'sideMount' | 'tandem';
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +124,10 @@ export function drawerBoxMath(slot: BoxSlot, opening: BoxOpening): DrawerBoxResu
   const slotH = slot.topZ - slot.bottomZ;
 
   // §14.2 authoritative dimensions
-  const bw = opening.openW - 2 * SLIDE_CLEARANCE_PER_SIDE; // box outer width
+  const clearance = opening.slideSystem === 'tandem'
+    ? TANDEM_SLIDE_CLEARANCE_PER_SIDE
+    : SLIDE_CLEARANCE_PER_SIDE;
+  const bw = opening.openW - 2 * clearance; // box outer width
   const bh = slotH - 2 * BOX_VERT_CLEARANCE;               // box outer height
   const bd = opening.innerD - BOX_BACK_CLEARANCE;           // box outer depth
 

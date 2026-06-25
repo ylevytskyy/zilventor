@@ -25,6 +25,9 @@ export interface BuildSlidePartResult {
 /** Default drawer-slide SKU placed by AddDrawerBankCommand. */
 export const DEFAULT_DRAWER_SLIDE_SKU = 'drawer-slide-500-fullext';
 
+/** Default TANDEM under-mount slide SKU placed by AddDrawerBankCommand (slideSystem='tandem'). */
+export const DEFAULT_TANDEM_SLIDE_SKU = 'drawer-slide-tandem-500';
+
 /**
  * Build and pack a PartDocument containing a single HardwareFeature for the
  * given drawer-slide SKU. Throws if the SKU is not found in BUILTIN_CATALOG.

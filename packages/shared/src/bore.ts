@@ -10,9 +10,12 @@ export type BoreRole =
   | 'drawerSlide-cabinet' // Ø5 Система-32 slide hole on a cabinet inner side
   | 'drawerSlide-box'    // Ø5 Система-32 slide hole on a drawer box side panel
   | 'handleScrew-face'  // Ø5 mounting hole on drawer front outward face
-  | 'legLeveler';       // Ø4 baseplate screw hole on cabinet floor underside
+  | 'legLeveler'       // Ø4 baseplate screw hole on cabinet floor underside
+  | 'tandem-cabinet'       // Ø5 TANDEM mounting hole on cabinet inner side
+  | 'tandem-drawer-bottom' // Ø5 TANDEM mounting hole on drawer box bottom face
+  | 'tandem-drawer-back';  // Ø5 TANDEM mounting hole on drawer box back panel
 
-export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' | 'hinge' | 'drawerSlide' | 'handleScrew' | 'legLeveler';
+export type BoreConnectorKind = 'confirmat' | 'minifix' | 'dowel' | 'shelfPin' | 'hinge' | 'drawerSlide' | 'handleScrew' | 'legLeveler' | 'tandem';
 
 /**
  * Hardware-boring op (присадка). One drill: a face, a panel-local (u,v) on that

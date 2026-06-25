@@ -166,6 +166,7 @@ export class SceneManager {
     drawerSlide:  '#7d2ed1',   // purple
     handleScrew:  '#2ec8c8',   // teal
     legLeveler:   '#3da03d',   // green
+    tandem:       '#e87c2e',   // orange — TANDEM under-mount slide
   } satisfies Record<BoreConnectorKind, string>;
 
 
