@@ -73,7 +73,7 @@ describe('SceneManager bore markers — slice-2 shelfPin/hinge kinds', () => {
   // The compile-time `satisfies Record<BoreConnectorKind,string>` on BORE_COLORS (Phase 1)
   // is the stronger lock; this runtime check is the secondary defense.
   it('every BoreConnectorKind has a non-empty color string in BORE_COLORS', () => {
-    const kinds: BoreConnectorKind[] = ['confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge'];
+    const kinds: BoreConnectorKind[] = ['confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge', 'legLeveler'];
     for (const k of kinds) {
       expect(typeof SceneManager.BORE_COLORS[k]).toBe('string');
       expect(SceneManager.BORE_COLORS[k].length).toBeGreaterThan(0);

@@ -36,6 +36,14 @@ export interface HardwareFeature {
   readonly attachPoints: readonly AttachPoint[];
 }
 
+export interface LegLevelerSpec {
+  readonly screwCount: 4;
+  readonly patternW: number;   // square pattern width  (mm)
+  readonly patternD: number;   // square pattern depth  (mm)
+  readonly screwDiameter: number; // mm
+  readonly screwDepth: number;    // mm
+}
+
 export function isHardwareFeature(f: unknown): f is HardwareFeature {
   return (
     f !== null &&
