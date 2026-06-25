@@ -23,7 +23,7 @@
  */
 
 import type { Command } from './Command';
-import type { BoreOp, ComponentInstance, FaceName } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, ComponentInstance, FaceName } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import { computeLegPositions, legLevelerBores } from '@zilventor/shared/src/cabinets/legLayout';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
@@ -55,7 +55,7 @@ export interface AddLegLevelersParams {
 
 export class AddLegLevelersCommand implements Command {
   readonly name = 'AddLegLevelers';
-  private readonly store: typeof useAppStore; // reserved for Task 6 revert
+  private readonly store: typeof useAppStore | undefined;
 
   /** Prior bottom-panel bores — stashed on execute() for revert. */
   priorBottomBores: BoreOp[] = [];
@@ -73,7 +73,8 @@ export class AddLegLevelersCommand implements Command {
     kernel?: KernelPartApi;
     store?: typeof useAppStore;
   }) {
-    this.store = opts.store ?? useAppStore;
+    // store is optional — unit tests omit it; real UI passes useAppStore
+    this.store = opts.store;
   }
 
   async execute(): Promise<void> {
@@ -174,6 +175,8 @@ export class AddLegLevelersCommand implements Command {
       this.addedComponentIds.push(comp.id);
     }
     await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
+    await this.reloadCabinet(cab);
+    this.store?.getState().boreCacheInvalidator?.([bottomPath]);
 
     // Cache for revert()
     this.executedCabinetPath = cabinetPath;
@@ -197,6 +200,8 @@ export class AddLegLevelersCommand implements Command {
     cab.components = cab.components.filter((c) => !this.addedComponentIds.includes(c.id));
     await opfs.write(cabinetPath, await packAssembly(cab, new Uint8Array()));
 
+    await this.reloadCabinet(cab);
+
     // Restore bottom-panel bores (blob-preserving)
     const bottomComp = cab.components.find((c) => c.role === 'bottom');
     if (bottomComp) {
@@ -207,6 +212,16 @@ export class AddLegLevelersCommand implements Command {
         manifest: { ...(proj.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
         blobs: proj.blobs ?? {},
       }));
+      this.store?.getState().boreCacheInvalidator?.([bottomComp.partPath]);
     }
+  }
+
+  /** Refresh the cabinet entry in subAssemblyDocs and mark solver dirty. No-ops when store is absent (unit tests). */
+  private async reloadCabinet(cab: AssemblyDocument): Promise<void> {
+    if (!this.store) return;
+    const docs = { ...this.store.getState().subAssemblyDocs };
+    docs[this.opts.cabinetPath] = cab;
+    this.store.getState().setSubAssemblyDocs(docs);
+    this.store.getState().setSolverDirty(true);
   }
 }
