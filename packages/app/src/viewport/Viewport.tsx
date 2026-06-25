@@ -110,7 +110,7 @@ export type ViewportRef = {
    */
   beginOneComponentPick(
     resolvePartPath: (path: ComponentPath) => string,
-    onPick: (partPath: string, path: ComponentPath) => void,
+    onPick: (partPath: string, path: ComponentPath) => void | Promise<void>,
   ): { pick: (clientX: number, clientY: number) => void; reset: () => void };
   /**
    * T37 drag-along-free-DOFs stub.

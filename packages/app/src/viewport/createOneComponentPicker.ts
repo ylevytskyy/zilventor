@@ -23,11 +23,11 @@ export interface OneComponentPicker {
  */
 export function createOneComponentPicker(
   resolvePartPath: (path: ComponentPath) => string,
-  onPick: (partPath: string, path: ComponentPath) => void,
+  onPick: (partPath: string, path: ComponentPath) => void | Promise<void>,
 ): OneComponentPicker {
   return {
     pick(path) {
-      onPick(resolvePartPath(path), path);
+      void onPick(resolvePartPath(path), path);
     },
     reset() { /* one-shot: nothing to clear */ },
   };

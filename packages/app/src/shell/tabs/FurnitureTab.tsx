@@ -37,6 +37,8 @@ import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
 import { useConnectorBomResult } from '../useConnectorBomResult';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
+import { deriveCabinetDims } from '../../commands/cabinetDims';
 import { collectBoreDocsForClear } from '../../commands/clearBoresForAssembly';
 
 export default function FurnitureTab() {
@@ -187,12 +189,18 @@ export default function FurnitureTab() {
   const handleAddDrawers = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolvePartPath, async (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
+      const opfs = await Opfs.forNavigator();
+      const cab = await unpackAssembly(await opfs.read(cabinetPath));
+      const raw = await deriveCabinetDims(cab, opfs);
+      const openW = raw.width - 2 * raw.Tc;
+      const openH = raw.height - raw.toekickHeight - 2 * raw.Tc;
       useAppStore.getState().setAddDrawerBankDialog({
         cabinetPath,
+        dims: { openW, openH },
         onSubmit: async (p) => {
-          const opfs = await Opfs.forNavigator();
+          const opfs2 = await Opfs.forNavigator();
           await useAppStore.getState().bus.execute(
             new AddDrawerBankCommand({
               cabinetPath,
@@ -200,8 +208,9 @@ export default function FurnitureTab() {
                 count: p.count,
                 overlay: p.overlay,
                 thickness: p.thickness,
+                ...(p.heights !== undefined ? { heights: p.heights } : {}),
               },
-              opfs,
+              opfs: opfs2,
               store: useAppStore,
             }),
           );

@@ -12,7 +12,7 @@ describe('createOneComponentPicker', () => {
     const calls: Array<[string, ComponentPath]> = [];
     const picker = createOneComponentPicker(
       resolve,
-      (partPath, path) => calls.push([partPath, path]),
+      (partPath, path) => { calls.push([partPath, path]); },
     );
     picker.pick(['TOP1', 'C1']);
     expect(calls).toEqual([['C1.zipt', ['TOP1', 'C1']]]);
@@ -22,7 +22,7 @@ describe('createOneComponentPicker', () => {
     const calls: Array<string> = [];
     const picker = createOneComponentPicker(
       resolve,
-      (partPath) => calls.push(partPath),
+      (partPath) => { calls.push(partPath); },
     );
     picker.pick(['C1']);
     picker.pick(['C2']);
@@ -33,7 +33,7 @@ describe('createOneComponentPicker', () => {
     const calls: Array<string> = [];
     const picker = createOneComponentPicker(
       resolve,
-      (partPath) => calls.push(partPath),
+      (partPath) => { calls.push(partPath); },
     );
     picker.reset();
     picker.pick(['C3']);

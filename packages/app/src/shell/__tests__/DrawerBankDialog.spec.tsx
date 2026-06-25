@@ -32,6 +32,7 @@ describe('DrawerBankDialog — structural', () => {
   it('renders the drawer controls when open', () => {
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel: vi.fn(),
     });
@@ -46,6 +47,7 @@ describe('DrawerBankDialog — structural', () => {
   it('defaults: count=3, overlay=full, thickness=18', () => {
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel: vi.fn(),
     });
@@ -59,6 +61,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -81,6 +84,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('drawerBank.error.tooSmall'));
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -99,6 +103,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -114,6 +119,7 @@ describe('DrawerBankDialog — structural', () => {
     const onSubmit = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit,
       onCancel: vi.fn(),
     });
@@ -160,6 +166,7 @@ describe('DrawerBankDialog — structural', () => {
     const onCancel = vi.fn();
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: vi.fn(),
       onCancel,
     });
@@ -167,6 +174,77 @@ describe('DrawerBankDialog — structural', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().addDrawerBankDialog).toBeNull();
+  });
+});
+
+describe('DrawerBankDialog — per-drawer height inputs + submit gate', () => {
+  beforeEach(() => {
+    useAppStore.getState().setAddDrawerBankDialog(null);
+  });
+
+  it('(a) count=3 openH=700 → three height inputs pre-filled summing to openH, OK enabled', async () => {
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    // count=3 by default; wait for useEffect to populate height inputs
+    // The dialog has count + thickness inputs (2 spinbuttons) plus N height inputs.
+    await waitFor(() => {
+      expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(5);
+    });
+    // spinbuttons: count(0), thickness(1), height1(2), height2(3), height3(4)
+    const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+    const h1 = spinbuttons[2]!;
+    const h2 = spinbuttons[3]!;
+    const h3 = spinbuttons[4]!;
+    const sum = Number(h1.value) + Number(h2.value) + Number(h3.value);
+    expect(sum).toBe(700);
+    const okBtn = screen.getByRole('button', { name: 'OK' }) as HTMLButtonElement;
+    expect(okBtn.disabled).toBe(false);
+  });
+
+  it('(b) editing one height so Σ ≠ openH (>0.5mm) disables OK and remaining helper updates', async () => {
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    await waitFor(() => {
+      expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(5);
+    });
+    // Change height input 1 (index 2) to 100, so the sum will no longer equal 700
+    const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+    fireEvent.change(spinbuttons[2]!, { target: { value: '100' } });
+    const okBtn = screen.getByRole('button', { name: 'OK' }) as HTMLButtonElement;
+    expect(okBtn.disabled).toBe(true);
+    // Remaining helper should be visible (contains "Remaining:" or the raw key)
+    expect(screen.getByText(/Remaining:|drawerBank\.remaining/)).toBeTruthy();
+  });
+
+  it('(c) submitting calls onSubmit with heights array of length 3', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 600 },
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    await waitFor(() => {
+      expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(5);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const call = onSubmit.mock.calls[0]![0] as { heights: number[] };
+    expect(Array.isArray(call.heights)).toBe(true);
+    expect(call.heights).toHaveLength(3);
   });
 });
 
@@ -183,6 +261,7 @@ describe('DrawerBankDialog — dialog→command bus.execute assertion', () => {
     // Wire onSubmit the same way FurnitureTab does
     useAppStore.getState().setAddDrawerBankDialog({
       cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
       onSubmit: async (opts) => {
         await fakeBus.execute(
           new AddDrawerBankCommand({
