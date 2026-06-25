@@ -51,7 +51,7 @@ export interface AddLegLevelersParams {
 
 export class AddLegLevelersCommand implements Command {
   readonly name = 'AddLegLevelers';
-  private readonly store: typeof useAppStore;
+  private readonly store: typeof useAppStore; // reserved for Task 6 revert
 
   /** Prior bottom-panel bores — stashed on execute() for Task 6 revert. */
   priorBottomBores: BoreOp[] = [];
@@ -106,7 +106,7 @@ export class AddLegLevelersCommand implements Command {
 
     // ─── 3. Locate bottom panel component ────────────────────────────────────
     const bottomComp = cab.components.find((c) => c.role === 'bottom');
-    if (!bottomComp) throw new Error('legLeveler.error.noToekick'); // defensive
+    if (!bottomComp) throw new Error('legLeveler.error.noBottomPanel'); // structural invariant
 
     const face: FaceName = { featureId: 'panel', role: 'Bottom', instance: 0 };
 
@@ -127,7 +127,7 @@ export class AddLegLevelersCommand implements Command {
     doc.bores = [...this.priorBottomBores, ...newBores];
     await opfs.write(bottomPath, await packProject({
       manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
-      blobs: {},
+      blobs: project.blobs ?? {},
     }));
   }
 

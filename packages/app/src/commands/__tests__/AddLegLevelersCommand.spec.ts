@@ -182,4 +182,34 @@ describe('AddLegLevelersCommand', () => {
       new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: 1 }, opfs, kernel: makeKernel() }).execute(),
     ).rejects.toThrow('legLeveler.error.tooFewLegs');
   });
+
+  it('throws noSpec when skuId has no legLeveler spec; zero bores written', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    await expect(
+      new AddLegLevelersCommand({
+        cabinetPath,
+        params: { legsPerRow: R, skuId: 'hinge-35mm-cup-full' },
+        opfs,
+        kernel: makeKernel(),
+      }).execute(),
+    ).rejects.toThrow('legLeveler.error.noSpec');
+    expect(await boresOf(opfs, 'B.zipt')).toHaveLength(0); // no write happened
+  });
+
+  it('throws tooSmall when legs do not fit; zero bores written', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    // sideInset so large that 2*sideInset + patternW > CABW-2*Tc (564mm inner)
+    // spec.patternW = 36, so 2*290 + 36 = 616 > 564 → triggers tooSmall
+    await expect(
+      new AddLegLevelersCommand({
+        cabinetPath,
+        params: { legsPerRow: R, sideInset: 290 },
+        opfs,
+        kernel: makeKernel(),
+      }).execute(),
+    ).rejects.toThrow('legLeveler.error.tooSmall');
+    expect(await boresOf(opfs, 'B.zipt')).toHaveLength(0); // no write happened
+  });
 });
