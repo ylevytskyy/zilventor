@@ -18,7 +18,7 @@ export interface DrawerSlideCtx {
   slotH: number;
   bh: number; // box height = slotH − 2·BOX_VERT_CLEARANCE
   cabinet: { H: number; D: number; Tc: number };
-  box: { bd: number };
+  box: { bd: number; bw?: number };
   slideLength: number;
 }
 
