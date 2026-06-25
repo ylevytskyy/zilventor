@@ -1,0 +1,9 @@
+{
+  "id": "e2e-acme-pull-128",
+  "name": "E2E ACME Bar Pull 128mm",
+  "category": "drawerHandles",
+  "vendor": "ACME",
+  "notes": "e2e fixture",
+  "bboxMm": { "l": 140, "w": 12, "h": 30 },
+  "attachPoints": [{ "name": "screw-a", "position": { "x": 6, "y": 0, "z": 0 } }]
+}
