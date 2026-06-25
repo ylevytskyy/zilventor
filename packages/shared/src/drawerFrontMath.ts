@@ -7,6 +7,7 @@
 
 import { DRAWER_FRONT_GAP, DRAWER_FRONT_THICKNESS, overlayOverhang } from './drawerConventions';
 import { DOOR_POSE } from './prisadkaFaceConventions';
+import type { Slot } from './drawerBankLayout';
 import type { Vec3 } from './types';
 
 export interface DrawerFrontParams {
@@ -53,23 +54,24 @@ export interface DrawerFrontResult {
  *
  * @param index   0-based drawer index (bottom drawer = 0).
  * @param n       Total number of drawers in the bank.
- * @param opening Cabinet opening geometry.
+ * @param slot    Pre-computed slot edges from drawerBankLayout.
+ * @param opening Cabinet opening geometry (width + front Y; Z edges come from slot).
  * @param overlay 'full' | 'half' | 'inset'.
  * @param params  Tc, reveal, insetClearance.
  */
 export function drawerFrontMath(
   index: number,
   n: number,
-  opening: { openBottomZ: number; openH: number; openW: number; frontY: number },
+  slot: Slot,
+  opening: { openW: number; frontY: number },
   overlay: 'full' | 'half' | 'inset',
   params: DrawerFrontParams,
 ): DrawerFrontResult {
-  const { openBottomZ, openH, openW, frontY } = opening;
+  const { openW, frontY } = opening;
   const { Tc, insetClearance: c } = params;
 
-  const slotH = openH / n;
-  const slotBottomZ = openBottomZ + index * slotH;
-  const slotTopZ = openBottomZ + (index + 1) * slotH;
+  const slotBottomZ = slot.bottomZ;
+  const slotTopZ = slot.topZ;
 
   let bottomZ: number;
   let topZ: number;
