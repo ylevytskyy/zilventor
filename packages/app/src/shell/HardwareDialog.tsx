@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
 import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
-import { parseCustomHardwareImport, CustomHardwareValidationError } from '@zilventor/shared/src/hardware/customHardware';
+import { parseCustomHardwareImport } from '@zilventor/shared/src/hardware/customHardware';
 import { ImportCustomHardwareCommand } from '../commands/ImportCustomHardwareCommand';
 import { pickFile } from './fsaFallback';
 import type { HardwareCategory } from '@zilventor/shared';
@@ -37,6 +37,7 @@ export function HardwareDialog(): JSX.Element | null {
     setCategory('hinges');
     setSelectedSkuId('hinge-35mm-cup-full');
     setQty(1);
+    setImportError(null);
   }, [dialog]);
 
   React.useEffect(() => {
@@ -70,11 +71,7 @@ export function HardwareDialog(): JSX.Element | null {
       await useAppStore.getState().bus.execute(new ImportCustomHardwareCommand({ entries }));
       setImportError(null);
     } catch (e) {
-      if (e instanceof CustomHardwareValidationError) {
-        setImportError(t('dialog.hardware.import.error', { message: e.message }));
-      } else {
-        setImportError(t('dialog.hardware.import.error', { message: (e as Error).message }));
-      }
+      setImportError(t('dialog.hardware.import.error', { message: (e as Error).message }));
     }
   };
 
