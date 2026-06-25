@@ -23,6 +23,8 @@ const btnStyle: React.CSSProperties = {
 };
 const okBtnStyle: React.CSSProperties = { ...btnStyle, background: '#3b5a8a', borderColor: '#6a8ec4' };
 const errorStyle: React.CSSProperties = { color: '#ff6b6b', fontSize: 11, marginBottom: 6 };
+const helperStyle: React.CSSProperties = { color: '#aaa', fontSize: 11, marginBottom: 6 };
+const sectionStyle: React.CSSProperties = { fontWeight: 600, marginTop: 8, marginBottom: 4, fontSize: 11 };
 
 export interface DrawerBankDialogOpts {
   count: number;
@@ -53,6 +55,7 @@ export function DrawerBankDialog(): JSX.Element | null {
   const [overlay, setOverlay] = React.useState<'full' | 'half' | 'inset'>('full');
   const [thicknessStr, setThicknessStr] = React.useState('18');
   const [error, setError] = React.useState<string | null>(null);
+  const [heightStrs, setHeightStrs] = React.useState<string[]>([]);
 
   // Reset defaults each time the dialog opens.
   React.useEffect(() => {
@@ -64,10 +67,32 @@ export function DrawerBankDialog(): JSX.Element | null {
     }
   }, [dialog]);
 
-  if (!dialog) return null;
-
+  // (Re)initialize height inputs when count or openH changes.
   const count = parseInt(countStr, 10);
   const countValid = Number.isInteger(count) && count >= 2 && count <= 10;
+  const openH = dialog?.dims?.openH;
+
+  React.useEffect(() => {
+    if (!countValid || openH == null) {
+      setHeightStrs([]);
+      return;
+    }
+    const base = Math.round(openH / count);
+    const others = Array.from({ length: count - 1 }, () => base);
+    const othersSum = others.reduce((a, b) => a + b, 0);
+    const last = openH - othersSum;
+    setHeightStrs([...others.map(String), String(last)]);
+  }, [count, openH, countValid]);
+
+  if (!dialog) return null;
+
+  // Parse heights and compute validity.
+  const heights = heightStrs.map(Number);
+  const sum = heights.reduce((a, b) => a + b, 0);
+  const remaining = openH != null ? openH - sum : 0;
+  const heightsValid = openH == null
+    ? true
+    : Number.isFinite(sum) && Math.abs(remaining) <= 0.5 && heights.every((h) => Number.isFinite(h) && h > 0);
 
   const handleOk = async (): Promise<void> => {
     if (!countValid) {
@@ -86,6 +111,7 @@ export function DrawerBankDialog(): JSX.Element | null {
         count,
         overlay,
         thickness: Number(thicknessStr),
+        ...(openH != null ? { heights } : {}),
       });
       setDialog(null);
     } catch (err: unknown) {
@@ -162,13 +188,37 @@ export function DrawerBankDialog(): JSX.Element | null {
           />
         </div>
 
+        {countValid && openH != null && (
+          <>
+            <div style={sectionStyle}>{t('dialog.drawerBank.heights')}</div>
+            {heightStrs.map((hStr, i) => (
+              <div key={i} style={rowStyle}>
+                <label htmlFor={`drawerbank-height-${i}`}>{t('dialog.drawerBank.heightN', { n: i + 1 })}</label>
+                <input
+                  id={`drawerbank-height-${i}`}
+                  aria-label={t('dialog.drawerBank.heightN', { n: i + 1 })}
+                  style={fieldStyle}
+                  type="number"
+                  value={hStr}
+                  onChange={(e) => {
+                    const next = [...heightStrs];
+                    next[i] = e.target.value;
+                    setHeightStrs(next);
+                  }}
+                />
+              </div>
+            ))}
+            <div style={helperStyle}>{t('dialog.drawerBank.remaining', { mm: Math.round(remaining) })}</div>
+          </>
+        )}
+
         {error && (
           <div style={errorStyle} role="alert">{error}</div>
         )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>
-          <button style={okBtnStyle} onClick={() => { void handleOk(); }} disabled={!countValid}>{t('common.ok')}</button>
+          <button style={okBtnStyle} onClick={() => { void handleOk(); }} disabled={!countValid || !heightsValid}>{t('common.ok')}</button>
         </div>
       </div>
     </div>
