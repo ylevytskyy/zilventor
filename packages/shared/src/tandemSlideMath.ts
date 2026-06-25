@@ -44,7 +44,7 @@ export function tandemSlideMath(
   boxBottomBores: BoreOp[];
   boxBackBores: BoreOp[];
 } {
-  const { drawerIndex: i, openBottomZ, slotH, bh, cabinet, box } = ctx;
+  const { drawerIndex: i, openBottomZ, slotH, cabinet, box } = ctx;
   const { D, Tc } = cabinet;
   const { bd, bw } = box;
 
