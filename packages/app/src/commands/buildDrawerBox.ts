@@ -211,6 +211,72 @@ export async function writeBoxSideBores(
 }
 
 /**
+ * Write box-bottom BoreOps into the drawerBox-bottom panel .zipt.
+ * Routes all bores to the component whose role === 'drawerBox-bottom'.
+ */
+export async function writeBoxBottomBores(
+  boxBytes: Uint8Array,
+  bores: BoreOp[],
+  opfs: OpfsRWD,
+  asm?: AssemblyDocument,
+): Promise<{ bytes: Uint8Array; priorBores: BoxSidePriorBores }> {
+  const boxDoc = asm ?? await unpackAssembly(boxBytes);
+  const priorBores: BoxSidePriorBores = new Map();
+  const bottomComp = boxDoc.components.find((c) => c.role === 'drawerBox-bottom');
+  if (!bottomComp || bores.length === 0) {
+    return { bytes: await packAssembly(boxDoc, new Uint8Array()), priorBores };
+  }
+  const project = await unpackProject(await opfs.read(bottomComp.partPath));
+  const doc = (project.manifest as { document: { bores?: BoreOp[] } }).document;
+  const existing = doc.bores ?? [];
+  if (!priorBores.has(bottomComp.partPath)) {
+    priorBores.set(bottomComp.partPath, existing);
+  }
+  doc.bores = [...existing, ...bores];
+  await opfs.write(
+    bottomComp.partPath,
+    await packProject({
+      manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
+      blobs: (project as { blobs?: Record<string, Uint8Array> }).blobs ?? {},
+    }),
+  );
+  return { bytes: await packAssembly(boxDoc, new Uint8Array()), priorBores };
+}
+
+/**
+ * Write box-back BoreOps into the drawerBox-back panel .zipt.
+ * Routes all bores to the component whose role === 'drawerBox-back'.
+ */
+export async function writeBoxBackBores(
+  boxBytes: Uint8Array,
+  bores: BoreOp[],
+  opfs: OpfsRWD,
+  asm?: AssemblyDocument,
+): Promise<{ bytes: Uint8Array; priorBores: BoxSidePriorBores }> {
+  const boxDoc = asm ?? await unpackAssembly(boxBytes);
+  const priorBores: BoxSidePriorBores = new Map();
+  const backComp = boxDoc.components.find((c) => c.role === 'drawerBox-back');
+  if (!backComp || bores.length === 0) {
+    return { bytes: await packAssembly(boxDoc, new Uint8Array()), priorBores };
+  }
+  const project = await unpackProject(await opfs.read(backComp.partPath));
+  const doc = (project.manifest as { document: { bores?: BoreOp[] } }).document;
+  const existing = doc.bores ?? [];
+  if (!priorBores.has(backComp.partPath)) {
+    priorBores.set(backComp.partPath, existing);
+  }
+  doc.bores = [...existing, ...bores];
+  await opfs.write(
+    backComp.partPath,
+    await packProject({
+      manifest: { ...(project.manifest as object), formatVersion: CURRENT_FORMAT_VERSION, document: doc },
+      blobs: (project as { blobs?: Record<string, Uint8Array> }).blobs ?? {},
+    }),
+  );
+  return { bytes: await packAssembly(boxDoc, new Uint8Array()), priorBores };
+}
+
+/**
  * Restore box-side panel .zipt bores to their prior state (undo of writeBoxSideBores).
  *
  * Returns updated .ziasm bytes (structurally identical to input; side-panel OPFS files restored).
