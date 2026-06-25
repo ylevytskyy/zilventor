@@ -134,6 +134,7 @@ export type AddDrawerBankDialogState = {
     overlay: 'full' | 'half' | 'inset';
     thickness: number;
     heights?: number[];
+    slideSystem: 'sideMount' | 'tandem';
   }) => void;
   onCancel: () => void;
 };

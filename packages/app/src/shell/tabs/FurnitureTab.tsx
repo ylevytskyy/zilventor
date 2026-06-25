@@ -209,6 +209,7 @@ export default function FurnitureTab() {
                 count: p.count,
                 overlay: p.overlay,
                 thickness: p.thickness,
+                slideSystem: p.slideSystem,
                 ...(p.heights !== undefined ? { heights: p.heights } : {}),
               },
               opfs: opfs2,

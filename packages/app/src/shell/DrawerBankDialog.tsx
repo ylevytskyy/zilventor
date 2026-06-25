@@ -30,6 +30,7 @@ export interface DrawerBankDialogOpts {
   count: number;
   overlay: 'full' | 'half' | 'inset';
   thickness: number;
+  slideSystem: 'sideMount' | 'tandem';
 }
 
 /**
@@ -54,6 +55,7 @@ export function DrawerBankDialog(): JSX.Element | null {
   const [countStr, setCountStr] = React.useState('3');
   const [overlay, setOverlay] = React.useState<'full' | 'half' | 'inset'>('full');
   const [thicknessStr, setThicknessStr] = React.useState('18');
+  const [slideSystem, setSlideSystem] = React.useState<'sideMount' | 'tandem'>('sideMount');
   const [error, setError] = React.useState<string | null>(null);
   const [heightStrs, setHeightStrs] = React.useState<string[]>([]);
 
@@ -63,6 +65,7 @@ export function DrawerBankDialog(): JSX.Element | null {
       setCountStr('3');
       setOverlay('full');
       setThicknessStr('18');
+      setSlideSystem('sideMount');
       setError(null);
     }
   }, [dialog]);
@@ -111,6 +114,7 @@ export function DrawerBankDialog(): JSX.Element | null {
         count,
         overlay,
         thickness: Number(thicknessStr),
+        slideSystem,
         ...(openH != null ? { heights } : {}),
       });
       setDialog(null);
@@ -186,6 +190,20 @@ export function DrawerBankDialog(): JSX.Element | null {
             value={thicknessStr}
             onChange={(e) => setThicknessStr(e.target.value)}
           />
+        </div>
+
+        <div style={rowStyle}>
+          <label htmlFor="drawerbank-slidesystem">{t('dialog.drawerBank.slideSystem')}</label>
+          <select
+            id="drawerbank-slidesystem"
+            aria-label={t('dialog.drawerBank.slideSystem')}
+            style={fieldStyle}
+            value={slideSystem}
+            onChange={(e) => setSlideSystem(e.target.value as 'sideMount' | 'tandem')}
+          >
+            <option value="sideMount">{t('dialog.drawerBank.slideSystemSideMount')}</option>
+            <option value="tandem">{t('dialog.drawerBank.slideSystemTandem')}</option>
+          </select>
         </div>
 
         {countValid && openH != null && (
