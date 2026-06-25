@@ -138,6 +138,13 @@ export type AddDrawerBankDialogState = {
   onCancel: () => void;
 };
 
+/** M4-B: "Add Leg Levelers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
+export type AddLegLevelersDialogState = {
+  cabinetPath: string;
+  onSubmit: (params: { legsPerRow: number; skuId: string }) => void;
+  onCancel: () => void;
+};
+
 /** "Add Face Frame" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddFaceFrameDialogState = {
   cabinetPath: string;
@@ -436,6 +443,8 @@ type AppState = {
   setAddFaceFrameDialog: (s: AddFaceFrameDialogState | null) => void;
   addDrawerHandleDialog: AddDrawerHandleDialogState | null;
   setAddDrawerHandleDialog: (s: AddDrawerHandleDialogState | null) => void;
+  addLegLevelersDialog: AddLegLevelersDialogState | null;
+  setAddLegLevelersDialog: (s: AddLegLevelersDialogState | null) => void;
   shelfPinDialog: ShelfPinDialogState | null;
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
   grooveDialog: GrooveDialogState | null;
@@ -1014,6 +1023,8 @@ export const useAppStore = create<AppState>((set) => ({
   setAddFaceFrameDialog: (s) => set({ addFaceFrameDialog: s }),
   addDrawerHandleDialog: null,
   setAddDrawerHandleDialog: (s) => set({ addDrawerHandleDialog: s }),
+  addLegLevelersDialog: null,
+  setAddLegLevelersDialog: (s) => set({ addLegLevelersDialog: s }),
   shelfPinDialog: null,
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
   grooveDialog: null,

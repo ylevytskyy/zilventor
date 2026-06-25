@@ -26,6 +26,7 @@ import { ExportPanelLabelsCommand } from '../../commands/ExportPanelLabelsComman
 import { usePanelManufacturingInputs } from '../usePanelManufacturingInputs';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
 import { AddDrawerBankCommand } from '../../commands/AddDrawerBankCommand';
+import { AddLegLevelersCommand } from '../../commands/AddLegLevelersCommand';
 import { AddDrawerHandlesCommand } from '../../commands/AddDrawerHandlesCommand';
 import { AddFaceFrameCommand } from '../../commands/AddFaceFrameCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
@@ -216,6 +217,38 @@ export default function FurnitureTab() {
           );
         },
         onCancel: () => useAppStore.getState().setAddDrawerBankDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
+  /**
+   * M4-B: "Add Leg Levelers" button — mirrors the Add Drawers flow.
+   * Picks a cabinet via beginOneComponentPick, then sets addLegLevelersDialog with
+   * cabinetPath, onSubmit (builds AddLegLevelersCommand), and onCancel.
+   */
+  const handleAddLegLevelers = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setAddLegLevelersDialog({
+        cabinetPath,
+        onSubmit: async (p) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddLegLevelersCommand({
+              cabinetPath,
+              params: {
+                legsPerRow: p.legsPerRow,
+                ...(p.skuId !== undefined ? { skuId: p.skuId } : {}),
+              },
+              opfs,
+              store: useAppStore,
+            }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setAddLegLevelersDialog(null),
       });
     });
     useAppStore.getState().setOneComponentPickHandle(handle);
@@ -453,6 +486,16 @@ export default function FurnitureTab() {
             aria-label={t('aria.add_drawers')}
           >
             {t('ribbon.furniture.addDrawers')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddLegLevelers(); }}
+            aria-label={t('dialog.legLevelers.title')}
+          >
+            {t('dialog.legLevelers.title')}
           </button>
           <button
             type="button"
