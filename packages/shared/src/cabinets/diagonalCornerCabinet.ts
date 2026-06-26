@@ -35,13 +35,16 @@ const Td = DEFAULT_DOOR_THICKNESS; // 18 mm
 const MIN_DOOR_WIDTH = 100;        // mm (spec §4.2)
 
 /**
- * The stile's inner face (faces toward the door space) in the stile's local
- * boring frame. Derivation mirrors LEFT_SIDE_INNER_FACE in prisadkaFaceConventions.ts:
- * the stile is placed with rz=θ (rotation around world-Z only); part-Z (Top) stays
- * in world+Z, which is the "broad face" direction used by hingePlateBores. The actual
- * face toward the opening is encoded by the hinge geometry (cup setback on door side
- * equals plate setback from stile front edge per spec §4.6).
- * REQUIRES a Phase-0 integration test for final verification (spec §11 Risk 2).
+ * The stile's inner face (faces toward the door space) in the stile's local boring
+ * frame. Both stile and door use intrinsic Euler (rx=−90°, ry=arcsin(dY), rz=−90°)
+ * which maps:
+ *   part-X (length=doorH) → world+Z  (panel stands upright)
+ *   part-Z (+local-Z = Top outward normal) → (dY,−dX,0)  (outward from cabinet front)
+ *
+ * Derivation of 'Top': Top face outward normal is +local-Z, which maps to the outward
+ * normal of the diagonal face (dY,−dX,0) — i.e. toward the door opening. Therefore
+ * the Top face IS the inner (door-facing) face. Proven by the Phase-0 world-space
+ * alignment test in diagonalCornerCabinet.spec.ts (spec §11 Risk 2).
  */
 const DIAGONAL_STILE_INNER_FACE = 'Top' as const;
 
@@ -119,13 +122,16 @@ export function buildDiagonalCornerCabinet(
   // ─── Pentagon geometry (spec §4.3) ──────────────────────────────────────
   // diagonalLength = |V2V3| = sqrt((W1−D2)² + (D1−W2)²)
   const diagLen = Math.sqrt((W1 - D2) ** 2 + (D1 - W2) ** 2);
+  if (diagLen <= 0) throw new CabinetTemplateError({ kind: 'diagonalDoorTooNarrow' });
 
   // Unit vector along diagonal V2→V3
   const dX = (D2 - W1) / diagLen;
   const dY = (W2 - D1) / diagLen;
 
-  // Rotation angle of diagonal direction around +Z (degrees)
-  const thetaDeg = Math.atan2(dY, dX) * 180 / Math.PI;
+  // Upright rotation: part-X→world+Z, part-Z→outward normal (dY,−dX,0).
+  // Intrinsic XYZ Euler: rx=−90°, ry=arcsin(dY), rz=−90°.
+  // Valid for typical configs where D2≤W1 (dX≤0); spec §4.4.
+  const ryDeg = Math.asin(dY) * 180 / Math.PI;
 
   // Door dimensions (spec §4.5)
   const doorW = diagLen - 2 * stileWidth - 2 * DEFAULT_REVEAL;
@@ -152,8 +158,8 @@ export function buildDiagonalCornerCabinet(
     makePanel('rightSide',  'Return Side 2', H,             D2,        Tc, params.carcassMaterialId),
     makePanel('toekick',    'Toekick 1',     W1 - 2 * Tc,  tkH,       Tc, params.carcassMaterialId),
     makePanel('toekick',    'Toekick 2',     W2 - 2 * Tc,  tkH,       Tc, params.carcassMaterialId),
-    makePanel('frontStile', 'Front Stile 1', H,             stileWidth, Tc, params.carcassMaterialId),
-    makePanel('frontStile', 'Front Stile 2', H,             stileWidth, Tc, params.carcassMaterialId),
+    makePanel('frontStile', 'Front Stile 1', doorH,         stileWidth, Tc, params.carcassMaterialId),
+    makePanel('frontStile', 'Front Stile 2', doorH,         stileWidth, Tc, params.carcassMaterialId),
     makePanel('door',       'Door',          doorH,         doorW,     Td, params.carcassMaterialId),
   ];
 
@@ -170,12 +176,11 @@ export function buildDiagonalCornerCabinet(
   const doorCenterX = (W1 + D2) / 2;
   const doorCenterY = (D1 + W2) / 2;
 
-  // Door rotation (spec §4.4): rx=90 to stand door upright, rz to align with
-  // outward normal direction. Outward normal: nX=dY, nY=−dX (rotate d by −90°).
-  // doorRzDeg = angle from world+Y to outward normal in XY plane.
-  const doorRzDeg = Math.atan2(-dX, dY) * 180 / Math.PI;
-
   // ─── Layout (spec §4.4) ─────────────────────────────────────────────────
+  // Stile and door use the SAME upright rotation (rx=−90, ry=ryDeg, rz=−90)
+  // so that part-X (length=doorH) → world+Z and both panels stand vertically.
+  const uprightRot = { rx: -90, ry: ryDeg, rz: -90 } as const;
+
   const layout: CabinetComponentDef[] = [
     makeLayout('Bottom',        0,          0,          0),
     makeLayout('Top',           0,          0,          H - Tc),
@@ -188,17 +193,17 @@ export function buildDiagonalCornerCabinet(
     {
       fileNameSuffix: 'Front Stile 1',
       position: { x: stile1X, y: stile1Y, z: H / 2 },
-      rotation: { rx: 0, ry: 0, rz: thetaDeg },
+      rotation: uprightRot,
     },
     {
       fileNameSuffix: 'Front Stile 2',
       position: { x: stile2X, y: stile2Y, z: H / 2 },
-      rotation: { rx: 0, ry: 0, rz: thetaDeg },
+      rotation: uprightRot,
     },
     {
       fileNameSuffix: 'Door',
       position: { x: doorCenterX, y: doorCenterY, z: H / 2 },
-      rotation: { rx: 90, ry: 0, rz: doorRzDeg },
+      rotation: uprightRot,
     },
   ];
 
@@ -219,7 +224,7 @@ export function buildDiagonalCornerCabinet(
   // frontSetback per spec §4.6: Td + (CUP_SETBACK['full'] − Tc/2)
   const frontSetback = Td + (CUP_SETBACK['full'] - Tc / 2);
   const plateBoresList = hingePlateBores(
-    { length: H, width: stileWidth, thickness: Tc },
+    { length: doorH, width: stileWidth, thickness: Tc },
     DIAGONAL_STILE_INNER_FACE,
     uPositions,
     frontSetback,

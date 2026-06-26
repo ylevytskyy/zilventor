@@ -7,6 +7,10 @@
  * DISCREPANCY NOTE: The task-5-brief.md uses W1=W2=600, D1=D2=560 which produces
  * diagLen≈56.57mm — invalid with stileWidth=50 (doorW<0). The spec §4.3 formula
  * gives the correct diagLen. Corrected params: W1=W2=900, D1=D2=560 → diagLen=340√2≈480.83mm.
+ *
+ * PHASE-0 WORLD-SPACE ALIGNMENT — proves that cup and plate bores share the same
+ * world-Z (height) to within 0.1mm. Requires the upright rotation
+ * {rx:−90, ry:arcsin(dY)*180/π, rz:−90} on both door and stile.
  */
 import { describe, it, expect } from 'vitest';
 import type { MaterialEntry } from '../../material';
@@ -14,6 +18,7 @@ import { buildDiagonalCornerCabinet } from '../diagonalCornerCabinet';
 import type { DiagonalCornerCabinetParams } from '../types';
 import { hingeCountForHeight, CUP_SETBACK } from '../../hingeMath';
 import { DEFAULT_DOOR_THICKNESS, DEFAULT_REVEAL } from '../../doorMath';
+import { face2DFrame } from '../../bore';
 
 const carcass: MaterialEntry = { id: 'm-birch-18', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' };
 const back: MaterialEntry = { id: 'm-hb-6', name: 'Hardboard 6mm', defaultThickness: 6, color: '#8b6f47' };
@@ -46,10 +51,63 @@ const doorH = H - 2 * r;                           // 716
 // spec §4.3 — diagonal direction unit vector
 const dX = (D2 - W1) / diagLen; // −1/√2
 const dY = (W2 - D1) / diagLen; // +1/√2
-const thetaDeg = Math.atan2(dY, dX) * 180 / Math.PI; // 135°
 
 // spec §4.6 — stile plate-bore v setback
 const frontSetback = Td + (CUP_SETBACK['full'] - Tc / 2); // 18 + (21 − 9) = 30
+
+// ─── Inline quat helpers (kernel not in shared deps) ────────────────────────
+
+type Quat = [number, number, number, number];
+type Vec3 = { x: number; y: number; z: number };
+
+function quatFromEulerXYZ(rxDeg: number, ryDeg: number, rzDeg: number): Quat {
+  const rx = (rxDeg * Math.PI) / 180;
+  const ry = (ryDeg * Math.PI) / 180;
+  const rz = (rzDeg * Math.PI) / 180;
+  const cx = Math.cos(rx / 2), sx = Math.sin(rx / 2);
+  const cy = Math.cos(ry / 2), sy = Math.sin(ry / 2);
+  const cz = Math.cos(rz / 2), sz = Math.sin(rz / 2);
+  return [
+    sx * cy * cz + cx * sy * sz,
+    cx * sy * cz - sx * cy * sz,
+    cx * cy * sz + sx * sy * cz,
+    cx * cy * cz - sx * sy * sz,
+  ];
+}
+
+function quatRotateVec(q: Quat, v: Vec3): Vec3 {
+  const [x, y, z, w] = q;
+  const cx = y * v.z - z * v.y + w * v.x;
+  const cy = z * v.x - x * v.z + w * v.y;
+  const cz = x * v.y - y * v.x + w * v.z;
+  return {
+    x: v.x + 2 * (y * cz - z * cy),
+    y: v.y + 2 * (z * cx - x * cz),
+    z: v.z + 2 * (x * cy - y * cx),
+  };
+}
+
+/** Bore (u,v) on face → world 3D using component pose. */
+function boreWorldPos(
+  bore: { u: number; v: number },
+  panelDims: { length: number; width: number; thickness: number },
+  faceName: 'Top' | 'Bottom',
+  component: { position: { x: number; y: number; z: number }; rotation: { rx: number; ry: number; rz: number } },
+): Vec3 {
+  const frame = face2DFrame(panelDims, faceName);
+  const local: Vec3 = {
+    x: frame.origin.x + bore.u * frame.uDir.x + bore.v * frame.vDir.x,
+    y: frame.origin.y + bore.u * frame.uDir.y + bore.v * frame.vDir.y,
+    z: frame.origin.z + bore.u * frame.uDir.z + bore.v * frame.vDir.z,
+  };
+  const q = quatFromEulerXYZ(component.rotation.rx, component.rotation.ry, component.rotation.rz);
+  const rotated = quatRotateVec(q, local);
+  return {
+    x: rotated.x + component.position.x,
+    y: rotated.y + component.position.y,
+    z: rotated.z + component.position.z,
+  };
+}
 
 // ─── panels ─────────────────────────────────────────────────────────────────
 
@@ -116,24 +174,74 @@ describe('buildDiagonalCornerCabinet — panels', () => {
 // ─── layout rotations ───────────────────────────────────────────────────────
 
 describe('buildDiagonalCornerCabinet — layout rotations', () => {
-  it('stile 1 rz = θ ≈ 135° for symmetric params (spec §4.3 + §4.4)', () => {
-    const out = buildDiagonalCornerCabinet(P, REGISTRY);
-    const stile1 = out.layout.find(c => c.fileNameSuffix === 'Front Stile 1')!;
-    expect(stile1).toBeDefined();
-    expect(stile1.rotation.rz).toBeCloseTo(thetaDeg, 1); // 135°
-  });
-
-  it('stile 2 also has rz = θ', () => {
-    const out = buildDiagonalCornerCabinet(P, REGISTRY);
-    const stile2 = out.layout.find(c => c.fileNameSuffix === 'Front Stile 2')!;
-    expect(stile2.rotation.rz).toBeCloseTo(thetaDeg, 1);
-  });
-
-  it('door layout entry has non-zero rz encoding the diagonal angle (spec §4.4)', () => {
+  // BLOCKER B — Phase-0 door Euler derivation test (replaces vacuous rz≠0 check).
+  //
+  // The door and stile use intrinsic XYZ Euler (rx=−90, ry=arcsin(dY)*180/π, rz=−90)
+  // which produces R = [[0,−dX,dY],[0,−dY,−dX],[1,0,0]]. Asserts:
+  //   part+X → world+Z (door stands upright, height along world Z)
+  //   part+Z → outward normal (dY,−dX,0) (door faces diagonal opening)
+  // Covers symmetric (dY=1/√2) AND a representative asymmetric case.
+  it('BLOCKER B: door rotation (rx=−90, ry=arcsin(dY)*180/π, rz=−90) maps part+X→world+Z for symmetric case', () => {
     const out = buildDiagonalCornerCabinet(P, REGISTRY);
     const doorComp = out.layout.find(c => c.fileNameSuffix === 'Door')!;
     expect(doorComp).toBeDefined();
-    expect(doorComp.rotation.rz).not.toBe(0);
+    const { rx, ry, rz } = doorComp.rotation;
+    const q = quatFromEulerXYZ(rx, ry, rz);
+
+    // part+X must map to world+Z (door length = doorH stands vertical)
+    const worldX = quatRotateVec(q, { x: 1, y: 0, z: 0 });
+    expect(worldX.x).toBeCloseTo(0, 9);
+    expect(worldX.y).toBeCloseTo(0, 9);
+    expect(worldX.z).toBeCloseTo(1, 9);
+
+    // part+Z must map to outward normal (dY,−dX,0) for symmetric: (1/√2, 1/√2, 0)
+    const worldZ = quatRotateVec(q, { x: 0, y: 0, z: 1 });
+    expect(worldZ.x).toBeCloseTo(dY, 6);   // nX = dY = 1/√2
+    expect(worldZ.y).toBeCloseTo(-dX, 6);  // nY = −dX = 1/√2
+    expect(worldZ.z).toBeCloseTo(0, 9);
+  });
+
+  it('BLOCKER B: door rotation maps part+X→world+Z and part+Z→outward normal for ASYMMETRIC case', () => {
+    // Asymmetric: W1=1000, W2=600, D1=480, D2=350 → dX≈−0.983, dY≈0.182, diagLen≈661mm
+    const PA: DiagonalCornerCabinetParams = {
+      ...P,
+      wallWidth1: 1000, wallWidth2: 600,
+      returnDepth1: 480, returnDepth2: 350,
+    };
+    const out = buildDiagonalCornerCabinet(PA, REGISTRY);
+    const doorComp = out.layout.find(c => c.fileNameSuffix === 'Door')!;
+    const { rx, ry, rz } = doorComp.rotation;
+    const q = quatFromEulerXYZ(rx, ry, rz);
+
+    const dL = Math.sqrt((1000-350)**2 + (480-600)**2);
+    const adX = (350-1000)/dL, adY = (600-480)/dL;
+
+    const worldX = quatRotateVec(q, { x: 1, y: 0, z: 0 });
+    expect(worldX.x).toBeCloseTo(0, 6);
+    expect(worldX.y).toBeCloseTo(0, 6);
+    expect(worldX.z).toBeCloseTo(1, 6);
+
+    const worldZ = quatRotateVec(q, { x: 0, y: 0, z: 1 });
+    expect(worldZ.x).toBeCloseTo(adY, 6);
+    expect(worldZ.y).toBeCloseTo(-adX, 6);
+    expect(worldZ.z).toBeCloseTo(0, 6);
+  });
+
+  it('stile 1 has upright rotation (rx=−90, ry=arcsin(dY)*180/π, rz=−90) (spec §4.4)', () => {
+    const out = buildDiagonalCornerCabinet(P, REGISTRY);
+    const stile1 = out.layout.find(c => c.fileNameSuffix === 'Front Stile 1')!;
+    expect(stile1).toBeDefined();
+    expect(stile1.rotation.rx).toBeCloseTo(-90, 6);
+    expect(stile1.rotation.ry).toBeCloseTo(Math.asin(dY) * 180 / Math.PI, 6); // 45° symmetric
+    expect(stile1.rotation.rz).toBeCloseTo(-90, 6);
+  });
+
+  it('stile 2 has the same upright rotation as stile 1', () => {
+    const out = buildDiagonalCornerCabinet(P, REGISTRY);
+    const stile2 = out.layout.find(c => c.fileNameSuffix === 'Front Stile 2')!;
+    expect(stile2.rotation.rx).toBeCloseTo(-90, 6);
+    expect(stile2.rotation.ry).toBeCloseTo(Math.asin(dY) * 180 / Math.PI, 6);
+    expect(stile2.rotation.rz).toBeCloseTo(-90, 6);
   });
 
   it('door center position equals diagonal midpoint ((W1+D2)/2, (D1+W2)/2) (spec §4.4)', () => {
@@ -197,6 +305,91 @@ describe('buildDiagonalCornerCabinet — hinge boring', () => {
     const plateBores = out.plateBores![0]!.plateBores;
     plateBores.forEach(b => expect(b.v).toBeCloseTo(frontSetback, 1)); // 30mm
   });
+
+  // ─── BLOCKER A — Phase-0 world-space hinge alignment ─────────────────────────
+  //
+  // Maps each cup/plate bore (face,u,v) → part-local 3D via face2DFrame, applies
+  // the component's Euler pose → world point. Asserts cup center and plate-pair
+  // midpoint share the SAME world-Z to within 0.1mm. Proves the upright rotation
+  // and stile length=doorH (not H) are correct (spec §4.4 / §4.6 / §11 Risk 2).
+
+  it('BLOCKER A: cup bore and plate-pair midpoint share world-Z within 0.1mm — SYMMETRIC', () => {
+    const out = buildDiagonalCornerCabinet(P, REGISTRY);
+
+    const doorComp = out.layout.find(c => c.fileNameSuffix === 'Door')!;
+    const stileComp = out.layout.find(c => c.fileNameSuffix === 'Front Stile 1')!;
+    const doorPanel = out.panels.find(p => p.fileNameSuffix === 'Door')!;
+    const stilePanel = out.panels.find(p => p.fileNameSuffix === 'Front Stile 1')!;
+
+    const doorDims = {
+      length: (doorPanel.panel.length as { value: number }).value,
+      width:  (doorPanel.panel.width  as { value: number }).value,
+      thickness: (doorPanel.panel.thickness as { value: number }).value,
+    };
+    const stileDims = {
+      length: (stilePanel.panel.length as { value: number }).value,
+      width:  (stilePanel.panel.width  as { value: number }).value,
+      thickness: (stilePanel.panel.thickness as { value: number }).value,
+    };
+
+    const cupBores   = out.doorBores![0]!.cupBores;
+    const plateBores = out.plateBores![0]!.plateBores;
+    const hingeCount = cupBores.length;
+
+    for (let i = 0; i < hingeCount; i++) {
+      const cup = cupBores[i]!;
+      const p0 = plateBores[i * 2]!;
+      const p1 = plateBores[i * 2 + 1]!;
+
+      const cupWorld  = boreWorldPos(cup, doorDims, 'Bottom', doorComp);
+      const midpointU = (p0.u + p1.u) / 2;
+      const midpointV = (p0.v + p1.v) / 2;
+      const plateMid  = boreWorldPos({ u: midpointU, v: midpointV }, stileDims, 'Top', stileComp);
+
+      expect(Math.abs(cupWorld.z - plateMid.z)).toBeLessThan(0.1);
+    }
+  });
+
+  it('BLOCKER A: cup bore and plate-pair midpoint share world-Z within 0.1mm — ASYMMETRIC', () => {
+    // W1=1000, W2=600, D1=480, D2=350 → dX≈−0.983, dY≈0.182
+    const PA: DiagonalCornerCabinetParams = {
+      ...P,
+      wallWidth1: 1000, wallWidth2: 600,
+      returnDepth1: 480, returnDepth2: 350,
+    };
+    const out = buildDiagonalCornerCabinet(PA, REGISTRY);
+
+    const doorComp  = out.layout.find(c => c.fileNameSuffix === 'Door')!;
+    const stileComp = out.layout.find(c => c.fileNameSuffix === 'Front Stile 1')!;
+    const doorPanel  = out.panels.find(p => p.fileNameSuffix === 'Door')!;
+    const stilePanel = out.panels.find(p => p.fileNameSuffix === 'Front Stile 1')!;
+
+    const doorDims = {
+      length:    (doorPanel.panel.length    as { value: number }).value,
+      width:     (doorPanel.panel.width     as { value: number }).value,
+      thickness: (doorPanel.panel.thickness as { value: number }).value,
+    };
+    const stileDims = {
+      length:    (stilePanel.panel.length    as { value: number }).value,
+      width:     (stilePanel.panel.width     as { value: number }).value,
+      thickness: (stilePanel.panel.thickness as { value: number }).value,
+    };
+
+    const cupBores   = out.doorBores![0]!.cupBores;
+    const plateBores = out.plateBores![0]!.plateBores;
+    const hingeCount = cupBores.length;
+
+    for (let i = 0; i < hingeCount; i++) {
+      const cup = cupBores[i]!;
+      const p0  = plateBores[i * 2]!;
+      const p1  = plateBores[i * 2 + 1]!;
+
+      const cupWorld = boreWorldPos(cup, doorDims, 'Bottom', doorComp);
+      const midW     = boreWorldPos({ u: (p0.u+p1.u)/2, v: (p0.v+p1.v)/2 }, stileDims, 'Top', stileComp);
+
+      expect(Math.abs(cupWorld.z - midW.z)).toBeLessThan(0.1);
+    }
+  });
 });
 
 // ─── hardware ───────────────────────────────────────────────────────────────
@@ -222,6 +415,16 @@ describe('buildDiagonalCornerCabinet — validation', () => {
     // diagLen≈480.83, stileWidth=200 → doorW=480.83−400−4=76.83<100 → throws
     expect(() => buildDiagonalCornerCabinet({ ...P, stileWidth: 200 }, REGISTRY))
       .toThrow(expect.objectContaining({ kind: 'diagonalDoorTooNarrow' }));
+  });
+
+  it('MINOR D: rejects degenerate pentagon (diagLen=0) with diagonalDoorTooNarrow', () => {
+    // W1=D2=900, D1=W2=560 → V2=(900,560) coincides with V3=(560,900)?
+    // diagLen = sqrt((900−560)²+(560−900)²) ≠ 0. Need W1=D2 AND D1=W2:
+    // wallWidth2=560, returnDepth2=900 → D2=900=W1, D1=560=W2 ✓ → diagLen=0
+    expect(() => buildDiagonalCornerCabinet(
+      { ...P, wallWidth2: 560, returnDepth2: 900 },
+      REGISTRY,
+    )).toThrow(expect.objectContaining({ kind: 'diagonalDoorTooNarrow' }));
   });
 
   it('rejects missing carcass material with carcassMaterialMissing', () => {
