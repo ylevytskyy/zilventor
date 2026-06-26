@@ -100,6 +100,43 @@ export type ExecutionResult = {
  *     `finalSolid` so the caller never has to reason about half-built
  *     state.
  */
+/**
+ * Determine the panel face role from centroid offset and Z extents.
+ * For outline panels, uses Z-proximity (spec §2.3). For rectangular panels,
+ * uses dominant-axis. Exported for low-level tests.
+ * @internal
+ */
+export function classifyPanelFaceRole(
+  dx: number,
+  dy: number,
+  dz: number,
+  faceZ: number,
+  minZ: number,
+  maxZ: number,
+  isOutline: boolean,
+): 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right' | null {
+  if (isOutline) {
+    // Outline panels: classify caps by Z-proximity (spec §2.3).
+    // Dominant-axis fails here because asymmetric polygon centroid XY
+    // offset (~28 mm for a 600×600 pentagon) exceeds Z half-thickness (9 mm).
+    // Side faces are intentionally unclassified (side naming deferred).
+    const zRange = maxZ - minZ;
+    const zEps = zRange * 0.1;
+    if (Math.abs(faceZ - maxZ) < zEps) return 'Top';
+    if (Math.abs(faceZ - minZ) < zEps) return 'Bottom';
+    return null;
+  }
+  // Rectangular panels: dominant-axis classification (unchanged).
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const az = Math.abs(dz);
+  const eps = 1e-6;
+  if (az >= ax && az >= ay && az > eps) return dz > 0 ? 'Top' : 'Bottom';
+  if (ay >= ax && ay >= az && ay > eps) return dy > 0 ? 'Front' : 'Back';
+  if (ax >= ay && ax >= az && ax > eps) return dx > 0 ? 'Right' : 'Left';
+  return null;
+}
+
 export async function executeTree(
   oc: OcctInstance,
   part: PartDocument,
@@ -825,6 +862,7 @@ export async function executeTree(
       // centroid-vs-bbox-center logic so the same face gets the same name
       // across rebuilds. (We reclassify here rather than threading face
       // handles out of buildPanelBox to keep the PanelOps API minimal.)
+      const isOutline = feature.outline !== undefined;
       const rawShape = panelResult.shape;
       const panelFaceNames = panelResult.faceNames!;
       const named: NamedShape = {
@@ -860,6 +898,8 @@ export async function executeTree(
       const cx = (cmin.X() + cmax.X()) / 2;
       const cy = (cmin.Y() + cmax.Y()) / 2;
       const cz = (cmin.Z() + cmax.Z()) / 2;
+      const minZ = cmin.Z();
+      const maxZ = cmax.Z();
       (cmin as unknown as { delete: () => void }).delete();
       (cmax as unknown as { delete: () => void }).delete();
       bb.delete();
@@ -878,15 +918,12 @@ export async function executeTree(
         const dz = com.Z() - cz;
         (com as unknown as { delete: () => void }).delete();
         props.delete();
-        const ax = Math.abs(dx);
-        const ay = Math.abs(dy);
-        const az = Math.abs(dz);
-        const eps = 1e-6;
-        let role: 'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right' | null = null;
-        if (az >= ax && az >= ay && az > eps) role = dz > 0 ? 'Top' : 'Bottom';
-        else if (ay >= ax && ay >= az && ay > eps) role = dy > 0 ? 'Front' : 'Back';
-        else if (ax >= ay && ax >= az && ax > eps) role = dx > 0 ? 'Right' : 'Left';
-        if (role) attachName(named, face, panelFaceNames[role]);
+        const faceZ = cz + dz;
+        const role = classifyPanelFaceRole(dx, dy, dz, faceZ, minZ, maxZ, isOutline);
+        if (role) {
+          const fn = panelFaceNames[role];
+          if (fn) attachName(named, face, fn);
+        }
         expl.Next();
       }
       expl.delete();

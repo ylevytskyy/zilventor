@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next';
-import type { BaseCabinetParams, CornerCabinetParams, PanelFeature } from '@zilventor/shared';
+import type { BaseCabinetParams, BlindCornerCabinetParams, CornerCabinetParams, DiagonalCornerCabinetParams, PanelFeature } from '@zilventor/shared';
 import { PanelIcon } from '@zilventor/icons';
 import RibbonPanel from '../RibbonPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { OpenPanelDialogCommand } from '../../commands/OpenPanelDialogCommand';
 import { OpenCabinetDialogCommand } from '../../commands/OpenCabinetDialogCommand';
 import { OpenCornerCabinetDialogCommand } from '../../commands/OpenCornerCabinetDialogCommand';
+import { OpenBlindCornerCabinetDialogCommand } from '../../commands/OpenBlindCornerCabinetDialogCommand';
+import { OpenDiagonalCornerCabinetDialogCommand } from '../../commands/OpenDiagonalCornerCabinetDialogCommand';
 import { OpenHardwareDialogCommand } from '../../commands/OpenHardwareDialogCommand';
 import { AddHardwareCommand } from '../../commands/AddHardwareCommand';
 import { AddPanelFeatureCommand } from '../../commands/AddPanelFeatureCommand';
@@ -91,6 +93,26 @@ export default function FurnitureTab() {
       );
     };
     await new OpenCornerCabinetDialogCommand({ onSubmit }).apply();
+  };
+
+  const handleBlindCornerCabinet = async () => {
+    const onSubmit = async (params: BlindCornerCabinetParams) => {
+      const opfs = await Opfs.forNavigator();
+      await useAppStore.getState().bus.execute(
+        new CreateCabinetCommand({ template: 'blindCornerCabinet', params, opfs }),
+      );
+    };
+    await new OpenBlindCornerCabinetDialogCommand({ onSubmit }).apply();
+  };
+
+  const handleDiagonalCornerCabinet = async () => {
+    const onSubmit = async (params: DiagonalCornerCabinetParams) => {
+      const opfs = await Opfs.forNavigator();
+      await useAppStore.getState().bus.execute(
+        new CreateCabinetCommand({ template: 'diagonalCornerCabinet', params, opfs }),
+      );
+    };
+    await new OpenDiagonalCornerCabinetDialogCommand({ onSubmit }).apply();
   };
 
   const handleHardware = async () => {
@@ -425,6 +447,26 @@ export default function FurnitureTab() {
             title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
           >
             {t('ribbon.furniture.cornerCabinet')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            onClick={() => { void handleBlindCornerCabinet(); }}
+            aria-label={t('ribbon.furniture.blindCornerCabinet')}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+          >
+            {t('ribbon.furniture.blindCornerCabinet')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            onClick={() => { void handleDiagonalCornerCabinet(); }}
+            aria-label={t('ribbon.furniture.diagonalCornerCabinet')}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+          >
+            {t('ribbon.furniture.diagonalCornerCabinet')}
           </button>
         </RibbonPanel>
       </div>

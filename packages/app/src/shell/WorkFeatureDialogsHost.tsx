@@ -5,6 +5,8 @@ import { WorkAxisDialog, type WorkAxisCommit } from './WorkAxisDialog';
 import { WorkPointDialog, type WorkPointCommit } from './WorkPointDialog';
 import { CabinetDialog } from './CabinetDialog';
 import { CornerCabinetDialog } from './CornerCabinetDialog';
+import { BlindCornerCabinetDialog } from './BlindCornerCabinetDialog';
+import { DiagonalCornerCabinetDialog } from './DiagonalCornerCabinetDialog';
 import { HardwareDialog } from './HardwareDialog';
 import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
@@ -59,6 +61,8 @@ export function WorkFeatureDialogsHost({
       )}
       <CabinetDialog />
       <CornerCabinetDialog />
+      <BlindCornerCabinetDialog />
+      <DiagonalCornerCabinetDialog />
       <HardwareDialog />
       <NestDialog />
       <BoringDialog />

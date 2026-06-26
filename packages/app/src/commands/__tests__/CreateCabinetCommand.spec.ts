@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { CreateCabinetCommand } from '../CreateCabinetCommand';
 import type { OpfsLike } from '../../assembly/SubAssemblyCache';
 import { useAppStore } from '../../store/useAppStore';
-import type { AssemblyDocument, MaterialEntry } from '@zilventor/shared';
+import type { AssemblyDocument, MaterialEntry, PartDocument, Feature } from '@zilventor/shared';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { PanelRole } from '@zilventor/shared';
 
@@ -256,5 +256,144 @@ describe('CreateCabinetCommand — persists ComponentInstance.role', () => {
     const doc = (project.manifest as { document: { components: Array<{ role?: PanelRole }> } }).document;
     expect(doc.components.length).toBe(7);
     for (const c of doc.components) expect(c.role).toBeDefined();
+  });
+});
+
+describe('CreateCabinetCommand — blindCornerCabinet template', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  const BLIND = {
+    name: 'Blind Cab 1',
+    width: 900, depth: 560, height: 720,
+    toekickHeight: 100, toekickSetback: 60,
+    openingWidth: 450, blindSide: 'left' as const,
+    shelfCount: 0,
+    carcassMaterialId: 'm-birch-18',
+    backMaterialId: 'm-hb-6',
+    bandMaterialId: null,
+  };
+
+  it('writes 8 .zipt + 1 .ziasm for blindCornerCabinet', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+    const ziptCount = (await opfs.list()).filter(p => p.endsWith('.zipt') && !p.startsWith('hardware/')).length;
+    expect(ziptCount).toBe(8); // Left+Right+Bottom+Top+Back+Toekick+BlindFiller+Door
+    expect(await opfs.list()).toContain('Blind Cab 1.ziasm');
+  });
+
+  it('door .zipt contains bores (cup bores)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+    const doorBytes = await opfs.read('Blind Cab 1 - Door.zipt');
+    const project = await unpackProject(doorBytes);
+    const doc = (project.manifest as { document: { bores?: unknown[] } }).document;
+    expect(doc.bores).toBeDefined();
+    expect((doc.bores!).length).toBeGreaterThan(0);
+  });
+
+  it('hinge side panel .zipt contains plate bores', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+    // blindSide=left → live side = right → Right Side
+    const bytes = await opfs.read('Blind Cab 1 - Right Side.zipt');
+    const project = await unpackProject(bytes);
+    const doc = (project.manifest as { document: { bores?: unknown[] } }).document;
+    expect(doc.bores).toBeDefined();
+    expect((doc.bores!).length).toBeGreaterThan(0);
+  });
+
+  it('cabinet .ziasm has hardware component paths for hinges', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+    const project = await unpackProject(await opfs.read('Blind Cab 1.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string }> } }).document;
+    const hingeComponents = doc.components.filter(c => c.partPath.startsWith('hardware/'));
+    expect(hingeComponents.length).toBeGreaterThan(0);
+    expect(hingeComponents.every(c => c.partPath === 'hardware/hinge-35mm-cup-full.zipt')).toBe(true);
+  });
+
+  it('revert removes the placed component and all written files', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    const cmd = new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
+    expect(await opfs.list()).toEqual([]);
+  });
+
+  it('cabinet-written hardware/<sku>.zipt contains sketch+extrude+hardware features (full renderable part)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+
+    const bytes = await opfs.read('hardware/hinge-35mm-cup-full.zipt');
+    const { manifest } = await unpackProject(bytes);
+    const doc = (manifest as { document: PartDocument }).document;
+    const tree: Feature[] = doc.featureTree;
+
+    // Full renderable part: 7 origin + sketch + extrude + hardware = 10 features.
+    expect(tree).toHaveLength(10);
+    expect(tree.some(f => f.kind === 'sketch')).toBe(true);
+    expect(tree.some(f => f.kind === 'extrude')).toBe(true);
+    expect(tree.some(f => f.kind === 'hardware')).toBe(true);
+  });
+});
+
+describe('CreateCabinetCommand — diagonalCornerCabinet template', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  // wallWidth1=900, returnDepth=560 → diagLen=340*sqrt(2)≈480mm → doorW≈376mm > 100mm threshold
+  const DIAG = {
+    name: 'Diag Cab 1',
+    wallWidth1: 900, wallWidth2: 900,
+    returnDepth1: 560, returnDepth2: 560,
+    height: 720, toekickHeight: 100, toekickSetback: 60,
+    stileWidth: 50,
+    carcassMaterialId: 'm-birch-18',
+    backMaterialId: 'm-hb-6',
+    bandMaterialId: null,
+  };
+
+  it('writes 11 .zipt + 1 .ziasm for diagonalCornerCabinet', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'diagonalCornerCabinet', params: DIAG, opfs }).apply();
+    const ziptCount = (await opfs.list()).filter(p => p.endsWith('.zipt') && !p.startsWith('hardware/')).length;
+    expect(ziptCount).toBe(11);
+    expect(await opfs.list()).toContain('Diag Cab 1.ziasm');
+  });
+
+  it('door .zipt contains cup bores', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'diagonalCornerCabinet', params: DIAG, opfs }).apply();
+    const project = await unpackProject(await opfs.read('Diag Cab 1 - Door.zipt'));
+    const doc = (project.manifest as { document: { bores?: unknown[] } }).document;
+    expect(doc.bores).toBeDefined();
+    expect(doc.bores!.length).toBeGreaterThan(0);
+  });
+
+  it('hinge SKU appears as assembly component', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'diagonalCornerCabinet', params: DIAG, opfs }).apply();
+    const project = await unpackProject(await opfs.read('Diag Cab 1.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string }> } }).document;
+    expect(doc.components.some(c => c.partPath === 'hardware/hinge-35mm-cup-full.zipt')).toBe(true);
+  });
+
+  it('revert cleans up all written files', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    const cmd = new CreateCabinetCommand({ template: 'diagonalCornerCabinet', params: DIAG, opfs });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
+    expect(await opfs.list()).toEqual([]);
   });
 });

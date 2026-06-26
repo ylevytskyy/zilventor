@@ -16,6 +16,12 @@ export interface DoorMathInput {
   reveal: number;              // r, default 2 (overlay)
   clearance: number;           // c, default 2 (inset)
   centerReveal: number;        // cr, default 3 (double)
+  /** Blind-corner override: effective opening width (mm). When present, door is
+   *  sized against this width instead of cabinet.width. Absent → cabinet.width. */
+  readonly openingWidth?: number;
+  /** Blind-corner override: X offset of the opening's left edge from the cabinet
+   *  X origin (mm). Door center X = openingXOffset + doorW/2. Absent → 0. */
+  readonly openingXOffset?: number;
   /** Door construction style. Absent/'slab' = single panel (legacy). 'shaker'/
    *  'raisedPanel' = framed door built as a nested rail+stile+panel .ziasm.
    *  Additive (v27) — no migration; doorMath itself is style-agnostic (it sizes
@@ -40,7 +46,8 @@ interface Sizing {
 }
 
 function sizing(input: DoorMathInput): Sizing {
-  const { width: W, height: H, Tc, toekickHeight: tkH } = input.cabinet;
+  const W = input.openingWidth ?? input.cabinet.width;
+  const { height: H, Tc, toekickHeight: tkH } = input.cabinet;
   const r = input.reveal;
   const c = input.clearance;
   if (input.overlay === 'inset') {
@@ -76,7 +83,13 @@ export function doorMath(input: DoorMathInput): DoorPanel[] {
       {
         dims: { length: doorH, width: doorW, thickness: Td },
         pose: {
-          translation: { x: input.cabinet.width / 2, y: frontY, z: input.cabinet.height / 2 },
+          translation: {
+            x: input.openingXOffset !== undefined
+              ? input.openingXOffset + doorW / 2
+              : input.cabinet.width / 2,
+            y: frontY,
+            z: input.cabinet.height / 2,
+          },
           quaternion,
         },
         doorSpec: {

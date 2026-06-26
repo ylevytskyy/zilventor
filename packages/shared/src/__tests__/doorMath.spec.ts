@@ -117,3 +117,37 @@ describe('doorMath — pose', () => {
     expect(same).toBe(false);
   });
 });
+
+describe('doorMath — openingWidth + openingXOffset (blind corner)', () => {
+  it('openingWidth sizes door to opening, not cabinet width', () => {
+    const result = doorMath({
+      cabinet: { width: 900, height: 720, depth: 560, Tc: 18, toekickHeight: 100 },
+      count: 'single', overlay: 'full', hingeSide: 'left',
+      thickness: 18, reveal: 2, clearance: 2, centerReveal: 3,
+      openingWidth: 450,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.dims.width).toBeCloseTo(446, 1);   // 450 - 2*2
+    expect(result[0]!.dims.length).toBeCloseTo(716, 1);  // 720 - 2*2
+  });
+
+  it('openingXOffset shifts door center X', () => {
+    const result = doorMath({
+      cabinet: { width: 900, height: 720, depth: 560, Tc: 18, toekickHeight: 100 },
+      count: 'single', overlay: 'full', hingeSide: 'right',
+      thickness: 18, reveal: 2, clearance: 2, centerReveal: 3,
+      openingWidth: 450, openingXOffset: 450,
+    });
+    expect(result[0]!.pose.translation.x).toBeCloseTo(450 + 223, 1); // xOffset + doorW/2
+  });
+
+  it('legacy call without new fields produces unchanged output', () => {
+    const result = doorMath({
+      cabinet: { width: 600, height: 720, depth: 560, Tc: 18, toekickHeight: 100 },
+      count: 'single', overlay: 'full', hingeSide: 'left',
+      thickness: 18, reveal: 2, clearance: 2, centerReveal: 3,
+    });
+    expect(result[0]!.dims.width).toBeCloseTo(596, 1);        // 600 - 2*2
+    expect(result[0]!.pose.translation.x).toBeCloseTo(300, 1); // 600/2
+  });
+});

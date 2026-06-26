@@ -73,7 +73,9 @@
     "text_input": "Текст",
     "circular_pattern": "Круговий масив",
     "visible": "видимий",
-    "cornerCabinet": "Кутова шафа"
+    "cornerCabinet": "Кутова шафа",
+    "blindCornerCabinet": "Глухий кутовий корпус",
+    "diagonalCornerCabinet": "Діагональний кутовий корпус"
   },
   "browser": {
     "assembly_label": "Збірка: {{name}}",
@@ -322,6 +324,31 @@
       "title": "Кутова шафа",
       "width1": "Ширина 1 (мм)",
       "width2": "Ширина 2 (мм)"
+    },
+    "blindCornerCabinet": {
+      "title": "Глухий кутовий корпус",
+      "width": "Ширина (мм)",
+      "depth": "Глибина (мм)",
+      "height": "Висота (мм)",
+      "toekickHeight": "Висота цокольної планки (мм)",
+      "toekickSetback": "Відступ цокольної планки (мм)",
+      "opening_section": "Проріз",
+      "blindSide": "Сторона під кут",
+      "blindLeft": "Ліворуч",
+      "blindRight": "Праворуч",
+      "openingWidth": "Ширина прорізу (мм)"
+    },
+    "diagonalCornerCabinet": {
+      "title": "Діагональний кутовий корпус",
+      "wallWidth1": "Ширина стіни 1 (мм)",
+      "wallWidth2": "Ширина стіни 2 (мм)",
+      "returnDepth1": "Глибина торця 1 (мм)",
+      "returnDepth2": "Глибина торця 2 (мм)",
+      "height": "Висота (мм)",
+      "toekickHeight": "Висота цокольної планки (мм)",
+      "toekickSetback": "Відступ цокольної планки (мм)",
+      "stile_section": "Лицьовий стояк",
+      "stileWidth": "Ширина стояка (мм)"
     },
     "dimension": {
       "name": "Назва",
@@ -817,6 +844,10 @@
       "sheetInfo": "Аркуш {{index}} — {{pct}}% завантаженість"
     }
   },
+  "errors": {
+    "diagonalDoorTooNarrow": "Після стояків недостатньо місця для дверцят (мін 100 мм)",
+    "stileWidthInvalid": "Ширина стояка має бути більше нуля"
+  },
   "ribbon": {
     "drawing": {
       "addBreak": "Додати розрив",
@@ -903,6 +934,8 @@
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
       "cornerCabinet": "Кутова шафа",
+      "blindCornerCabinet": "Глухий кутовий корпус",
+      "diagonalCornerCabinet": "Діагональний кутовий корпус",
       "cabinetsPanel": "Панель шаф",
       "clearPresadku": "Очистити присадку",
       "create": "Створити",

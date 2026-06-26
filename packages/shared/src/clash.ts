@@ -49,6 +49,8 @@ const ROLE_IS_CARCASS: Record<ComponentRole, boolean> = {
   drawerHandle: false,
   faceFrameStile: false,
   faceFrameRail: false,
+  blindFiller: true,
+  frontStile: false,
 };
 
 /**

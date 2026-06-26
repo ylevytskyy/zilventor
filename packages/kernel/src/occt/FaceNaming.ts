@@ -18,6 +18,9 @@ export function namedFace(featureId: string, role: string, instance: number = 0)
 }
 
 export function faceNamesEqual(a: FaceName, b: FaceName): boolean {
+  // Defensive guard: callers may pass undefined if a panel face name is absent
+  // (e.g. outline panels omit side face names).  Return false rather than throw.
+  if (!a || !b) return false;
   return a.featureId === b.featureId && a.role === b.role && (a.instance ?? 0) === (b.instance ?? 0);
 }
 

@@ -74,7 +74,9 @@ export function evaluatePanel(
   const width = resolveParamOrLiteral(feature.width, ctx.parameters, 'width');
   const thickness = resolveParamOrLiteral(feature.thickness, ctx.parameters, 'thickness');
 
-  const r = buildPanelBox(occt, { length, width, thickness });
+  const r = feature.outline !== undefined
+    ? buildPanelBox(occt, { length, width, thickness }, feature.outline)
+    : buildPanelBox(occt, { length, width, thickness });
   return { shape: r.shape, bbox: r.bbox, faceNames: r.faceNames, edgeNames: r.edgeNames };
 }
 
