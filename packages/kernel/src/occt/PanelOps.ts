@@ -18,7 +18,20 @@ import { canonicalEdgeName } from '@zilventor/shared';
 export interface PanelBoxResult {
   shape: unknown;
   bbox: [number, number, number, number, number, number];
-  faceNames: Record<'Top' | 'Bottom' | 'Front' | 'Back' | 'Left' | 'Right', FaceName>;
+  /**
+   * Top and Bottom are always populated (both rect and outline paths).
+   * Front, Back, Left, Right are populated only for rectangular panels;
+   * outline panels omit them (side face naming deferred to a future slice).
+   * exactOptionalPropertyTypes is on: absent keys are truly absent, not undefined.
+   */
+  faceNames: {
+    Top: FaceName;
+    Bottom: FaceName;
+    Front?: FaceName;
+    Back?: FaceName;
+    Left?: FaceName;
+    Right?: FaceName;
+  };
   edgeNames: Record<PanelEdgeKey, EdgeName>;
 }
 
@@ -140,6 +153,19 @@ export function buildPanelBox(
  * Only Top and Bottom face names are emitted; side faces are unnamed.
  * edgeNames is empty (no top-rim edge classification for non-rect panels).
  */
+/**
+ * Compute twice the signed area of a 2-D polygon (positive = CCW viewed from +Z).
+ * Used to normalise winding order before building the outline prism wire.
+ */
+function signedArea2(verts: ReadonlyArray<{ readonly x: number; readonly y: number }>): number {
+  let a = 0;
+  for (let i = 0; i < verts.length; i++) {
+    const j = (i + 1) % verts.length;
+    a += verts[i]!.x * verts[j]!.y - verts[j]!.x * verts[i]!.y;
+  }
+  return a;
+}
+
 function buildOutlinePrism(
   occt: OcctInstance,
   dims: { length: number; width: number; thickness: number },
@@ -149,9 +175,13 @@ function buildOutlinePrism(
   const halfL = L / 2;
   const halfW = W / 2;
 
+  // Normalise to CCW (viewed from +Z): a CCW wire yields a +Z face normal,
+  // which produces a valid solid when extruded by +Z.  CW input is reversed.
+  const orderedOutline = signedArea2(outline) >= 0 ? outline : [...outline].reverse();
+
   // Build centered points: outline coords are (0,0)→(L,W) panel space;
   // subtract (L/2, W/2) to centre the prism on origin.
-  const pts = outline.map(v => new occt.gp_Pnt_3(v.x - halfL, v.y - halfW, 0));
+  const pts = orderedOutline.map(v => new occt.gp_Pnt_3(v.x - halfL, v.y - halfW, 0));
 
   // Build one edge per adjacent vertex pair, closing the polygon.
   const mkEdges = pts.map((p, i) => {
@@ -190,16 +220,16 @@ function buildOutlinePrism(
   (face as unknown as { delete: () => void }).delete();
   vec.delete();
 
-  // Only Top and Bottom are named; side faces are left for future classification.
-  // The cast suppresses TypeScript's requirement for the full 6-role record —
-  // callers that need side-face names must check for undefined at runtime.
+  // Only Top and Bottom are named; side faces are left for future classification
+  // (per spec §2.3).  The type is now honest: Front/Back/Left/Right are optional,
+  // so callers that access them must null-guard (no `as unknown as` suppression).
   return {
     shape,
     bbox: [-halfL, -halfW, 0, halfL, halfW, T],
     faceNames: {
       Top: namedFace('Top'),
       Bottom: namedFace('Bottom'),
-    } as unknown as PanelBoxResult['faceNames'],
+    },
     edgeNames: {} as unknown as Record<PanelEdgeKey, EdgeName>,
   };
 }
@@ -384,7 +414,14 @@ function classifyPanelEdges(
     if (!findSharedEdge(top, faceByRole[sideRole])) {
       throw new Error(`Panel: no shared edge between Top and ${sideRole}`);
     }
-    out[key] = canonicalEdgeName(faceNames.Top, faceNames[sideRole]);
+    const sideName = faceNames[sideRole];
+    if (!sideName) {
+      // Unreachable for rectangular panels (all six faces are named), but
+      // TypeScript requires the guard after faceNames.Front/Back/Left/Right
+      // became optional in PanelBoxResult (outline panels omit side names).
+      throw new Error(`Panel: side face name for ${sideRole} not available`);
+    }
+    out[key] = canonicalEdgeName(faceNames.Top, sideName);
   }
 
   return out as Record<PanelEdgeKey, EdgeName>;

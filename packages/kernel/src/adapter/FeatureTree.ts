@@ -886,7 +886,13 @@ export async function executeTree(
         if (az >= ax && az >= ay && az > eps) role = dz > 0 ? 'Top' : 'Bottom';
         else if (ay >= ax && ay >= az && ay > eps) role = dy > 0 ? 'Front' : 'Back';
         else if (ax >= ay && ax >= az && ax > eps) role = dx > 0 ? 'Right' : 'Left';
-        if (role) attachName(named, face, panelFaceNames[role]);
+        if (role) {
+          // null-guard: outline panels omit side face names (Front/Back/Left/Right
+          // are optional in PanelBoxResult.faceNames); skip rather than attaching
+          // undefined, which would crash faceNamesEqual later.
+          const fn = panelFaceNames[role];
+          if (fn) attachName(named, face, fn);
+        }
         expl.Next();
       }
       expl.delete();
