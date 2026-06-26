@@ -73,7 +73,8 @@
     "text_input": "Текст",
     "circular_pattern": "Круговий масив",
     "visible": "видимий",
-    "cornerCabinet": "Кутова шафа"
+    "cornerCabinet": "Кутова шафа",
+    "blindCornerCabinet": "Глухий кутовий корпус"
   },
   "browser": {
     "assembly_label": "Збірка: {{name}}",
@@ -322,6 +323,19 @@
       "title": "Кутова шафа",
       "width1": "Ширина 1 (мм)",
       "width2": "Ширина 2 (мм)"
+    },
+    "blindCornerCabinet": {
+      "title": "Глухий кутовий корпус",
+      "width": "Ширина (мм)",
+      "depth": "Глибина (мм)",
+      "height": "Висота (мм)",
+      "toekickHeight": "Висота цокольної планки (мм)",
+      "toekickSetback": "Відступ цокольної планки (мм)",
+      "opening_section": "Проріз",
+      "blindSide": "Сторона під кут",
+      "blindLeft": "Ліворуч",
+      "blindRight": "Праворуч",
+      "openingWidth": "Ширина прорізу (мм)"
     },
     "dimension": {
       "name": "Назва",
@@ -903,6 +917,7 @@
       "baseCabinet": "Нижня шафа",
       "cabinets": "Шафи",
       "cornerCabinet": "Кутова шафа",
+      "blindCornerCabinet": "Глухий кутовий корпус",
       "cabinetsPanel": "Панель шаф",
       "clearPresadku": "Очистити присадку",
       "create": "Створити",

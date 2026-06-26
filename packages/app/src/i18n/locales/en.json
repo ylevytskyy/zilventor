@@ -73,7 +73,8 @@
     "text_input": "Text",
     "circular_pattern": "Circular Pattern",
     "visible": "visible",
-    "cornerCabinet": "Corner Cabinet"
+    "cornerCabinet": "Corner Cabinet",
+    "blindCornerCabinet": "Blind Corner Cabinet"
   },
   "browser": {
     "assembly_label": "Assembly: {{name}}",
@@ -322,6 +323,19 @@
       "title": "Corner Cabinet",
       "width1": "Width 1 (mm)",
       "width2": "Width 2 (mm)"
+    },
+    "blindCornerCabinet": {
+      "title": "Blind Corner Cabinet",
+      "width": "Width (mm)",
+      "depth": "Depth (mm)",
+      "height": "Height (mm)",
+      "toekickHeight": "Toekick height (mm)",
+      "toekickSetback": "Toekick setback (mm)",
+      "opening_section": "Opening",
+      "blindSide": "Blind side",
+      "blindLeft": "Left",
+      "blindRight": "Right",
+      "openingWidth": "Opening width (mm)"
     },
     "dimension": {
       "name": "Name",
@@ -903,6 +917,7 @@
       "baseCabinet": "Base Cabinet",
       "cabinets": "Cabinets",
       "cornerCabinet": "Corner Cabinet",
+      "blindCornerCabinet": "Blind Corner Cabinet",
       "cabinetsPanel": "Cabinets panel",
       "clearPresadku": "Очистити присадку",
       "create": "Create",
