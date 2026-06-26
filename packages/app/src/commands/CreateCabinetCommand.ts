@@ -1,13 +1,24 @@
 import type {
   AssemblyDocument,
   BaseCabinetParams,
+  BlindCornerCabinetParams,
+  BoreOp,
   CabinetBuildOutput,
   ComponentInstance,
   CornerCabinetParams,
+  DiagonalCornerCabinetParams,
+  HardwareFeature,
   PanelFeature,
   PartDocument,
 } from '@zilventor/shared';
-import { CURRENT_FORMAT_VERSION, buildBaseCabinet, buildCornerCabinet } from '@zilventor/shared';
+import {
+  CURRENT_FORMAT_VERSION,
+  buildBaseCabinet,
+  buildBlindCornerCabinet,
+  buildCornerCabinet,
+  buildDiagonalCornerCabinet,
+} from '@zilventor/shared';
+import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
 import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { packAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -24,8 +35,10 @@ interface OpfsWriteDeleteCapable {
 type OpfsArg = OpfsLike & OpfsWriteDeleteCapable;
 
 export type CreateCabinetOpts =
-  | { template: 'baseCabinet'; params: BaseCabinetParams; opfs: OpfsArg }
-  | { template: 'cornerCabinet'; params: CornerCabinetParams; opfs: OpfsArg };
+  | { template: 'baseCabinet';           params: BaseCabinetParams;           opfs: OpfsArg }
+  | { template: 'cornerCabinet';         params: CornerCabinetParams;         opfs: OpfsArg }
+  | { template: 'blindCornerCabinet';    params: BlindCornerCabinetParams;    opfs: OpfsArg }
+  | { template: 'diagonalCornerCabinet'; params: DiagonalCornerCabinetParams; opfs: OpfsArg };
 
 const SUFFIX_LIMIT = 999;
 
@@ -45,20 +58,54 @@ export class CreateCabinetCommand implements Command {
     const finalName = await this.resolveCollisionFreeName(this.opts.params.name);
     this.resolvedName = finalName;
 
-    const built = this.opts.template === 'cornerCabinet'
-      ? buildCornerCabinet({ ...this.opts.params, name: finalName }, asm.materials)
-      : buildBaseCabinet({ ...this.opts.params, name: finalName }, asm.materials);
+    let built: CabinetBuildOutput;
+    if (this.opts.template === 'cornerCabinet') {
+      built = buildCornerCabinet({ ...this.opts.params, name: finalName }, asm.materials);
+    } else if (this.opts.template === 'blindCornerCabinet') {
+      built = buildBlindCornerCabinet({ ...this.opts.params, name: finalName }, asm.materials);
+    } else if (this.opts.template === 'diagonalCornerCabinet') {
+      built = buildDiagonalCornerCabinet({ ...this.opts.params, name: finalName }, asm.materials);
+    } else {
+      built = buildBaseCabinet({ ...this.opts.params, name: finalName }, asm.materials);
+    }
 
     try {
       for (const p of built.panels) {
         const path = `${finalName} - ${p.fileNameSuffix}.zipt`;
-        const bytes = await this.packPanelPart(p.panel, p.fileNameSuffix, asm);
+        const cupBores = built.doorBores?.find(d => d.doorSuffix === p.fileNameSuffix)?.cupBores;
+        const plateBores = built.plateBores?.find(d => d.panelSuffix === p.fileNameSuffix)?.plateBores;
+        const bores: BoreOp[] = [...(cupBores ?? []), ...(plateBores ?? [])];
+        const bytes = await this.packPanelPart(
+          p.panel,
+          p.fileNameSuffix,
+          asm,
+          bores.length > 0 ? bores : undefined,
+        );
         await this.opts.opfs.write(path, bytes);
         this.writtenFiles.push(path);
       }
 
+      const hardwareComponents: Array<{ partPath: string }> = [];
+      if (built.hardware) {
+        const catalog = resolveHardwareCatalog(asm);
+        for (const hw of built.hardware) {
+          const hwPath = `hardware/${hw.skuId}.zipt`;
+          if (!(await this.opts.opfs.exists(hwPath))) {
+            const entry = catalog.find(e => e.id === hw.skuId);
+            if (entry) {
+              const bytes = await this.synthesizeHardwarePart(entry);
+              await this.opts.opfs.write(hwPath, bytes);
+              this.writtenFiles.push(hwPath);
+            }
+          }
+          for (let i = 0; i < hw.count; i++) {
+            hardwareComponents.push({ partPath: hwPath });
+          }
+        }
+      }
+
       const ziasmPath = `${finalName}.ziasm`;
-      const cabinetDoc = this.buildCabinetAssembly(finalName, built, asm);
+      const cabinetDoc = this.buildCabinetAssembly(finalName, built, asm, hardwareComponents);
       const ziasmBytes = await packAssembly(cabinetDoc, new Uint8Array());
       await this.opts.opfs.write(ziasmPath, ziasmBytes);
       this.writtenFiles.push(ziasmPath);
@@ -104,6 +151,7 @@ export class CreateCabinetCommand implements Command {
     panel: PanelFeature,
     nameSuffix: string,
     asm: AssemblyDocument,
+    bores?: BoreOp[],
   ): Promise<Uint8Array> {
     const basePart = newPart(`${this.resolvedName} - ${nameSuffix}`);
     const partWithMaterials: PartDocument = {
@@ -111,21 +159,45 @@ export class CreateCabinetCommand implements Command {
       materials: [...asm.materials],
     };
     const partWithPanel = addFeature(partWithMaterials, panel);
+    const partDoc = bores && bores.length > 0
+      ? { ...partWithPanel, bores }
+      : partWithPanel;
     const manifest = {
       formatVersion: CURRENT_FORMAT_VERSION,
       kind: 'part' as const,
-      document: partWithPanel,
+      document: partDoc,
     };
     const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
     return writeTarGz([{ name: 'manifest.json', data: manifestBytes }]);
+  }
+
+  private async synthesizeHardwarePart(
+    entry: ReturnType<typeof resolveHardwareCatalog>[number],
+  ): Promise<Uint8Array> {
+    const basePart = newPart(entry.name);
+    const hwFeature: HardwareFeature = {
+      kind: 'hardware',
+      id: `hf-${entry.id}`,
+      hardwareSkuId: entry.id,
+      bboxMm: entry.bboxMm,
+      attachPoints: entry.attachPoints,
+    };
+    const partDoc = addFeature(basePart, hwFeature as never);
+    const manifest = {
+      formatVersion: CURRENT_FORMAT_VERSION,
+      kind: 'part' as const,
+      document: partDoc,
+    };
+    return writeTarGz([{ name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest)) }]);
   }
 
   private buildCabinetAssembly(
     cabinetName: string,
     built: CabinetBuildOutput,
     asm: AssemblyDocument,
+    hardwareComponents: Array<{ partPath: string }>,
   ): AssemblyDocument {
-    const components: ComponentInstance[] = built.layout.map((c, i) => ({
+    const panelComps: ComponentInstance[] = built.layout.map((c, i) => ({
       id: `C${i + 1}`,
       partPath: `${cabinetName} - ${c.fileNameSuffix}.zipt`,
       position: { x: c.position.x, y: c.position.y, z: c.position.z },
@@ -133,6 +205,14 @@ export class CreateCabinetCommand implements Command {
       visible: true,
       role: built.panels.find((p) => p.fileNameSuffix === c.fileNameSuffix)!.role,
     }));
+    const hwComps: ComponentInstance[] = hardwareComponents.map((hw, i) => ({
+      id: `HW${i + 1}`,
+      partPath: hw.partPath,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      visible: false,
+    }));
+    const components = [...panelComps, ...hwComps];
     return {
       id: `A${Date.now()}`,
       name: cabinetName,
