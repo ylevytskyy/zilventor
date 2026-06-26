@@ -1,4 +1,3 @@
-import type { BoreOp } from '../bore';
 import type { MaterialEntry } from '../material';
 import type { PanelFeature } from '../panel-feature';
 import {
@@ -12,10 +11,8 @@ import {
   hingeCountForHeight,
   hingePositions,
   hingeCupBores,
-  CUP_SETBACK,
-  PLATE_DIAMETER,
+  hingePlateBores,
   PLATE_DEPTH,
-  PLATE_PAIR_SPACING,
 } from '../hingeMath';
 import { DOOR_CUP_FACE, LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '../prisadkaFaceConventions';
 import type {
@@ -83,8 +80,11 @@ export function buildBlindCornerCabinet(
   const blindFillerW = W - openingWidth - Tc;
   // live side (where door is) is opposite to the blind side
   const openingSide: 'left' | 'right' = blindSide === 'left' ? 'right' : 'left';
-  // X offset of opening's left edge from cabinet origin
-  const openingXOffset = blindSide === 'left' ? W - openingWidth : 0;
+  // X offset of opening's left edge from cabinet origin.
+  // For blindSide='left': opening is on the right → offset = W − openingWidth.
+  // For blindSide='right': opening is on the left, whose left edge is the inner
+  //   face of the Left Side panel at x = Tc.
+  const openingXOffset = blindSide === 'left' ? W - openingWidth : Tc;
 
   // ─── Panels ─────────────────────────────────────────────────────────────────
   const panels: CabinetPanelDef[] = [
@@ -95,7 +95,6 @@ export function buildBlindCornerCabinet(
     makePanel('back',        'Back',         W - 2 * Tc,  H - 2 * Tc, Tb, params.backMaterialId),
     makePanel('toekick',     'Toekick',      W - 2 * Tc,  tkH,    Tc, params.carcassMaterialId),
     makePanel('blindFiller', 'Blind Filler', H - 2 * Tc,  blindFillerW, Tc, params.carcassMaterialId),
-    makePanel('frontStile',  'Front Stile',  H - 2 * Tc,  Tc,     Tc, params.carcassMaterialId),
   ];
 
   for (let i = 0; i < shelfCount; i++) {
@@ -144,12 +143,8 @@ export function buildBlindCornerCabinet(
   // Blind filler: face-forward on the dead side, between side panel and opening
   if (blindSide === 'left') {
     layout.push(makeLayout('Blind Filler', Tc, D - blindFillerW, Tc));
-    // Front stile: live side (right), at the front face, inner edge of the opening
-    layout.push(makeLayout('Front Stile', W - Tc, D - Tc, Tc));
   } else {
     layout.push(makeLayout('Blind Filler', W - Tc - blindFillerW, D - blindFillerW, Tc));
-    // Front stile: live side (left), at the front face
-    layout.push(makeLayout('Front Stile', Tc, D - Tc, Tc));
   }
 
   // Shelves: evenly distributed in the inner height
@@ -179,38 +174,18 @@ export function buildBlindCornerCabinet(
     uPositions,
   );
 
-  // Plate bores on the live-side carcass panel: 2 bores per hinge at the SAME
-  // U (same height as the cup, so alignment holds) but different V (depth from
-  // cabinet front). This satisfies both the count assertion (hingeCount*2) and
-  // the alignment assertion (unique plate U == cup U set).
+  // Plate bores on the live-side carcass panel via the shared `hingePlateBores`
+  // helper (System-32 convention): 2 bores per hinge at u ± PLATE_PAIR_SPACING/2
+  // (= ±16 mm along the panel height), all at the same v = frontSetback.
   const hingeSidePanel = openingSide === 'right' ? 'Right Side' : 'Left Side';
   const innerFace = openingSide === 'right' ? RIGHT_SIDE_INNER_FACE : LEFT_SIDE_INNER_FACE;
-  const frontSetback = D - Td - CUP_SETBACK['full'];
-  const half = PLATE_PAIR_SPACING / 2;
-  const plateBoresList: BoreOp[] = uPositions.flatMap((u, i) => [
-    {
-      id: `hinge-${i}-plate-0`,
-      face: { featureId: 'panel' as const, role: innerFace, instance: 0 },
-      u,
-      v: frontSetback - half,
-      diameter: PLATE_DIAMETER,
-      depth: PLATE_DEPTH,
-      role: 'hingePlate' as const,
-      connectorId: `hinge-${i}`,
-      connectorKind: 'hinge' as const,
-    },
-    {
-      id: `hinge-${i}-plate-1`,
-      face: { featureId: 'panel' as const, role: innerFace, instance: 0 },
-      u,
-      v: frontSetback + half,
-      diameter: PLATE_DIAMETER,
-      depth: PLATE_DEPTH,
-      role: 'hingePlate' as const,
-      connectorId: `hinge-${i}`,
-      connectorKind: 'hinge' as const,
-    },
-  ]);
+  const frontSetback = D - Td - PLATE_DEPTH;
+  const plateBoresList = hingePlateBores(
+    { length: H, width: D, thickness: Tc },
+    innerFace,
+    uPositions,
+    frontSetback,
+  );
 
   return {
     panels,
