@@ -94,6 +94,12 @@ export type BlindCornerCabinetDialogState = {
   onCancel: () => void;
 };
 
+export type DiagonalCornerCabinetDialogState = {
+  initial?: import('@zilventor/shared').DiagonalCornerCabinetParams;
+  onSubmit: (params: import('@zilventor/shared').DiagonalCornerCabinetParams) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 export type HardwareDialogState = {
   onSubmit: (skuId: string, qty: number) => void;
   onCancel: () => void;
@@ -437,6 +443,8 @@ type AppState = {
   setCornerCabinetDialog(s: CornerCabinetDialogState | null): void;
   blindCornerCabinetDialog: BlindCornerCabinetDialogState | null;
   setBlindCornerCabinetDialog(s: BlindCornerCabinetDialogState | null): void;
+  diagonalCornerCabinetDialog: DiagonalCornerCabinetDialogState | null;
+  setDiagonalCornerCabinetDialog(s: DiagonalCornerCabinetDialogState | null): void;
   hardwareDialog: HardwareDialogState | null;
   setHardwareDialog(s: HardwareDialogState | null): void;
   nestingTabActive: boolean;
@@ -1037,6 +1045,8 @@ export const useAppStore = create<AppState>((set) => ({
   setCornerCabinetDialog: (s) => set({ cornerCabinetDialog: s }),
   blindCornerCabinetDialog: null,
   setBlindCornerCabinetDialog: (s) => set({ blindCornerCabinetDialog: s }),
+  diagonalCornerCabinetDialog: null,
+  setDiagonalCornerCabinetDialog: (s) => set({ diagonalCornerCabinetDialog: s }),
   hardwareDialog: null,
   setHardwareDialog: (s) => set({ hardwareDialog: s }),
   nestingTabActive: false,

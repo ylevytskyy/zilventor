@@ -74,7 +74,8 @@
     "circular_pattern": "Circular Pattern",
     "visible": "visible",
     "cornerCabinet": "Corner Cabinet",
-    "blindCornerCabinet": "Blind Corner Cabinet"
+    "blindCornerCabinet": "Blind Corner Cabinet",
+    "diagonalCornerCabinet": "Diagonal Corner Cabinet"
   },
   "browser": {
     "assembly_label": "Assembly: {{name}}",
@@ -336,6 +337,18 @@
       "blindLeft": "Left",
       "blindRight": "Right",
       "openingWidth": "Opening width (mm)"
+    },
+    "diagonalCornerCabinet": {
+      "title": "Diagonal Corner Cabinet",
+      "wallWidth1": "Wall width 1 (mm)",
+      "wallWidth2": "Wall width 2 (mm)",
+      "returnDepth1": "Return depth 1 (mm)",
+      "returnDepth2": "Return depth 2 (mm)",
+      "height": "Height (mm)",
+      "toekickHeight": "Toekick height (mm)",
+      "toekickSetback": "Toekick setback (mm)",
+      "stile_section": "Door stile",
+      "stileWidth": "Stile width (mm)"
     },
     "dimension": {
       "name": "Name",
@@ -831,6 +844,10 @@
       "sheetInfo": "Sheet {{index}} — {{pct}}% utilisation"
     }
   },
+  "errors": {
+    "diagonalDoorTooNarrow": "Stile width leaves insufficient door opening (min 100 mm)",
+    "stileWidthInvalid": "Stile width must be positive"
+  },
   "ribbon": {
     "drawing": {
       "addBreak": "Add Break",
@@ -918,6 +935,7 @@
       "cabinets": "Cabinets",
       "cornerCabinet": "Corner Cabinet",
       "blindCornerCabinet": "Blind Corner Cabinet",
+      "diagonalCornerCabinet": "Diagonal Corner Cabinet",
       "cabinetsPanel": "Cabinets panel",
       "clearPresadku": "Очистити присадку",
       "create": "Create",
