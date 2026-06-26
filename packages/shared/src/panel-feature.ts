@@ -22,6 +22,10 @@ export interface PanelFeature {
   readonly grain: GrainDirection;
   readonly edgeBands: { readonly [K in PanelEdgeKey]: EdgeBand | null };
   readonly suppressed?: boolean;
+  /** Optional 2-D polygon defining the panel footprint (CCW from +Z).
+   *  When absent: plain axis-aligned box. When present: kernel builds a prism.
+   *  `length` and `width` remain the AABB extents. ≥ 3 vertices required. */
+  readonly outline?: ReadonlyArray<{ readonly x: number; readonly y: number }>;
 }
 
 const GRAIN_VALUES = new Set<GrainDirection>(['length', 'width', 'none']);
@@ -97,6 +101,15 @@ export function isPanelFeature(v: unknown): v is PanelFeature {
   if (!eb || typeof eb !== 'object') return false;
   for (const k of EDGE_KEYS) {
     if (!isEdgeBandSlot((eb as Record<string, unknown>)[k])) return false;
+  }
+  const outline = f.outline;
+  if (outline !== undefined) {
+    if (!Array.isArray(outline)) return false;
+    for (const v of outline as unknown[]) {
+      if (!v || typeof v !== 'object') return false;
+      if (typeof (v as { x?: unknown }).x !== 'number') return false;
+      if (typeof (v as { y?: unknown }).y !== 'number') return false;
+    }
   }
   return true;
 }

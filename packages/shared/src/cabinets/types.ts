@@ -1,5 +1,6 @@
 import type { PanelFeature } from '../panel-feature';
 import type { MaterialEntry, MaterialId } from '../material';
+import type { BoreOp } from '../bore';
 
 export type PanelRole =
   | 'leftSide'
@@ -18,7 +19,9 @@ export type PanelRole =
   | 'drawerBox-back'
   | 'drawerBox-bottom'
   | 'faceFrameStile'
-  | 'faceFrameRail';
+  | 'faceFrameRail'
+  | 'blindFiller'
+  | 'frontStile';
 
 /**
  * Cabinet body type. 'base' (default when absent) is a floor-standing carcass
@@ -77,9 +80,27 @@ export interface CabinetComponentDef {
   readonly rotation: { readonly rx: number; readonly ry: number; readonly rz: number };
 }
 
+export interface DoorBoresDef {
+  readonly doorSuffix: string;
+  readonly cupBores: ReadonlyArray<BoreOp>;
+}
+
+export interface PanelBoresDef {
+  readonly panelSuffix: string;
+  readonly plateBores: ReadonlyArray<BoreOp>;
+}
+
+export interface HardwareInstanceDef {
+  readonly skuId: string;
+  readonly count: number;
+}
+
 export interface CabinetBuildOutput {
   readonly panels: ReadonlyArray<CabinetPanelDef>;
   readonly layout: ReadonlyArray<CabinetComponentDef>;
+  readonly doorBores?: ReadonlyArray<DoorBoresDef>;
+  readonly plateBores?: ReadonlyArray<PanelBoresDef>;
+  readonly hardware?: ReadonlyArray<HardwareInstanceDef>;
 }
 
 export type CabinetTemplateErrorKind =
@@ -94,7 +115,11 @@ export type CabinetTemplateErrorKind =
   | 'cornerDepthTooSmall'
   | 'cornerLegTooShort'
   | 'carcassMaterialMissing'
-  | 'backMaterialMissing';
+  | 'backMaterialMissing'
+  | 'blindOpeningTooSmall'
+  | 'blindOpeningTooLarge'
+  | 'diagonalDoorTooNarrow'
+  | 'stileWidthInvalid';
 
 export interface CabinetTemplateErrorDetails {
   readonly kind: CabinetTemplateErrorKind;
@@ -117,4 +142,34 @@ export interface ResolvedCabinetMaterials {
   readonly carcass: MaterialEntry;
   readonly back: MaterialEntry;
   readonly band: MaterialEntry | null;
+}
+
+export interface BlindCornerCabinetParams {
+  readonly name: string;
+  readonly width: number;
+  readonly depth: number;
+  readonly height: number;
+  readonly toekickHeight: number;
+  readonly toekickSetback: number;
+  readonly openingWidth: number;
+  readonly blindSide: 'left' | 'right';
+  readonly shelfCount?: number;
+  readonly carcassMaterialId: MaterialId;
+  readonly backMaterialId: MaterialId;
+  readonly bandMaterialId: MaterialId | null;
+}
+
+export interface DiagonalCornerCabinetParams {
+  readonly name: string;
+  readonly wallWidth1: number;
+  readonly wallWidth2: number;
+  readonly returnDepth1: number;
+  readonly returnDepth2: number;
+  readonly height: number;
+  readonly toekickHeight: number;
+  readonly toekickSetback: number;
+  readonly stileWidth: number;
+  readonly carcassMaterialId: MaterialId;
+  readonly backMaterialId: MaterialId;
+  readonly bandMaterialId: MaterialId | null;
 }
