@@ -7,7 +7,6 @@ import type {
   ComponentInstance,
   CornerCabinetParams,
   DiagonalCornerCabinetParams,
-  HardwareFeature,
   PanelFeature,
   PartDocument,
 } from '@zilventor/shared';
@@ -26,6 +25,7 @@ import type { Command } from './Command';
 import type { OpfsLike } from '../assembly/SubAssemblyCache';
 import { useAppStore } from '../store/useAppStore';
 import { PlaceComponentCommand } from './PlaceComponentCommand';
+import { synthesizeHardwarePartBytes } from './synthesizeHardwarePartBytes';
 
 interface OpfsWriteDeleteCapable {
   write(path: string, bytes: Uint8Array): Promise<void>;
@@ -93,7 +93,7 @@ export class CreateCabinetCommand implements Command {
           if (!(await this.opts.opfs.exists(hwPath))) {
             const entry = catalog.find(e => e.id === hw.skuId);
             if (entry) {
-              const bytes = await this.synthesizeHardwarePart(entry);
+              const bytes = await synthesizeHardwarePartBytes(entry);
               await this.opts.opfs.write(hwPath, bytes);
               this.writtenFiles.push(hwPath);
             }
@@ -169,26 +169,6 @@ export class CreateCabinetCommand implements Command {
     };
     const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
     return writeTarGz([{ name: 'manifest.json', data: manifestBytes }]);
-  }
-
-  private async synthesizeHardwarePart(
-    entry: ReturnType<typeof resolveHardwareCatalog>[number],
-  ): Promise<Uint8Array> {
-    const basePart = newPart(entry.name);
-    const hwFeature: HardwareFeature = {
-      kind: 'hardware',
-      id: `hf-${entry.id}`,
-      hardwareSkuId: entry.id,
-      bboxMm: entry.bboxMm,
-      attachPoints: entry.attachPoints,
-    };
-    const partDoc = addFeature(basePart, hwFeature as never);
-    const manifest = {
-      formatVersion: CURRENT_FORMAT_VERSION,
-      kind: 'part' as const,
-      document: partDoc,
-    };
-    return writeTarGz([{ name: 'manifest.json', data: new TextEncoder().encode(JSON.stringify(manifest)) }]);
   }
 
   private buildCabinetAssembly(

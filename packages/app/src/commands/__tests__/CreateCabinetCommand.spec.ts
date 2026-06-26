@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { CreateCabinetCommand } from '../CreateCabinetCommand';
 import type { OpfsLike } from '../../assembly/SubAssemblyCache';
 import { useAppStore } from '../../store/useAppStore';
-import type { AssemblyDocument, MaterialEntry } from '@zilventor/shared';
+import type { AssemblyDocument, MaterialEntry, PartDocument, Feature } from '@zilventor/shared';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { PanelRole } from '@zilventor/shared';
 
@@ -324,6 +324,23 @@ describe('CreateCabinetCommand — blindCornerCabinet template', () => {
     await cmd.revert();
     expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
     expect(await opfs.list()).toEqual([]);
+  });
+
+  it('cabinet-written hardware/<sku>.zipt contains sketch+extrude+hardware features (full renderable part)', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'blindCornerCabinet', params: BLIND, opfs }).apply();
+
+    const bytes = await opfs.read('hardware/hinge-35mm-cup-full.zipt');
+    const { manifest } = await unpackProject(bytes);
+    const doc = (manifest as { document: PartDocument }).document;
+    const tree: Feature[] = doc.featureTree;
+
+    // Full renderable part: 7 origin + sketch + extrude + hardware = 10 features.
+    expect(tree).toHaveLength(10);
+    expect(tree.some(f => f.kind === 'sketch')).toBe(true);
+    expect(tree.some(f => f.kind === 'extrude')).toBe(true);
+    expect(tree.some(f => f.kind === 'hardware')).toBe(true);
   });
 });
 
