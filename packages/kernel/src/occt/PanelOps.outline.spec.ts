@@ -5,6 +5,7 @@ import { faceNamesEqual } from './FaceNaming';
 import { loadOcct } from './occtLoader';
 import type { OcctInstance } from './occtLoader';
 import type { FaceName } from '@zilventor/shared';
+import { classifyPanelFaceRole } from '../adapter/FeatureTree';
 
 let occt: OcctInstance;
 
@@ -97,12 +98,16 @@ describe('buildPanelBox — outline path (prism from polygon)', () => {
     ).toThrow(/at least 3 vertices/);
   });
 
-  it('outline panel: FeatureTree face-attachment simulation produces no undefined-named entries (Defect 1)', () => {
-    // Simulates what FeatureTree.ts:829-892 does after the Defect-1 null-guard fix.
-    // Classification uses Z-position (face centroid Z relative to top/bottom Z planes),
-    // not dominant-axis, because an asymmetric pentagon has a centroid XY offset (~28 mm)
-    // that would dominate the 9 mm Z half-thickness under dominant-axis logic.
-    // The null guard models Fixed FeatureTree.ts behaviour: skip faces whose role has no name.
+  it('outline panel: classifyPanelFaceRole (real FeatureTree logic) produces exactly Top+Bottom for pentagon caps', () => {
+    // This test locks the REAL classification function used by FeatureTree.ts's
+    // panel face-attachment loop (exported as classifyPanelFaceRole).
+    // The old "FeatureTree simulation" reimplemented Z-proximity in the test,
+    // giving false confidence: production used dominant-axis and would misclassify
+    // a 600×600 pentagon (XY centroid offset ~28 mm > Z half-thickness 9 mm →
+    // both caps classified as 'Back' → panelFaceNames['Back']=undefined → skipped).
+    //
+    // This test was RED against the dominant-axis implementation and GREEN only
+    // after classifyPanelFaceRole was fixed to use Z-proximity for outline panels.
     const result = buildPanelBox(occt, { length: 600, width: 600, thickness: 18 }, PENTAGON);
 
     const ocAny = occt as unknown as {
@@ -130,7 +135,11 @@ describe('buildPanelBox — outline path (prism from polygon)', () => {
     ocAny.BRepBndLib.Add(result.shape, bb, false as never);
     const cmin = bb.CornerMin();
     const cmax = bb.CornerMax();
-    const minZ = cmin.Z(); const maxZ = cmax.Z();
+    const cx = (cmin.X() + cmax.X()) / 2;
+    const cy = (cmin.Y() + cmax.Y()) / 2;
+    const cz = (cmin.Z() + cmax.Z()) / 2;
+    const minZ = cmin.Z();
+    const maxZ = cmax.Z();
     (cmin as unknown as { delete: () => void }).delete();
     (cmax as unknown as { delete: () => void }).delete();
     bb.delete();
@@ -146,20 +155,15 @@ describe('buildPanelBox — outline path (prism from polygon)', () => {
       const props = new ocAny.GProp_GProps_1();
       ocAny.BRepGProp.SurfaceProperties_1(face, props, 1e-7, false);
       const com = props.CentreOfMass();
-      const faceZ = com.Z();
+      const dx = com.X() - cx;
+      const dy = com.Y() - cy;
+      const dz = com.Z() - cz;
+      const faceZ = cz + dz;
       (com as unknown as { delete: () => void }).delete();
       props.delete();
-      // Classify Top/Bottom by Z proximity (robust for non-symmetric polygons).
-      const zRange = maxZ - minZ;
-      const zEps = zRange * 0.01; // 1% of thickness tolerance
-      let role: string | null = null;
-      if (Math.abs(faceZ - maxZ) < zEps) role = 'Top';
-      else if (Math.abs(faceZ - minZ) < zEps) role = 'Bottom';
-      // Side faces: no role assigned (per §2.3, side naming deferred).
+      // Call the REAL FeatureTree classifier (not a reimplementation).
+      const role = classifyPanelFaceRole(dx, dy, dz, faceZ, minZ, maxZ, /*isOutline=*/true);
       if (role) {
-        // Mirror the FIXED FeatureTree.ts behaviour: null-guard before attaching.
-        // Without Fix A (optional type) + Fix D (null guard), undefined names slip through,
-        // eventually causing faceNamesEqual(undefined, …) to throw TypeError.
         const fn = (result.faceNames as Record<string, FaceName | undefined>)[role];
         if (fn !== undefined) namedFaces.push({ name: fn, face });
       }
@@ -167,15 +171,15 @@ describe('buildPanelBox — outline path (prism from polygon)', () => {
     }
     expl.delete();
 
-    // All attached entries must have a real FaceName (no undefined names).
+    // Exactly Top and Bottom named (§2.3: side faces deferred).
+    expect(namedFaces.length).toBe(2);
+    expect(namedFaces.some(e => e.name.role === 'Top')).toBe(true);
+    expect(namedFaces.some(e => e.name.role === 'Bottom')).toBe(true);
+    // No undefined-named entries.
     for (const entry of namedFaces) {
       expect(entry.name.featureId).toBeDefined();
       expect(entry.name.role).toBeDefined();
     }
-    // Exactly Top and Bottom are attached (§2.3: side faces deferred).
-    expect(namedFaces.length).toBe(2);
-    expect(namedFaces.some(e => e.name.role === 'Top')).toBe(true);
-    expect(namedFaces.some(e => e.name.role === 'Bottom')).toBe(true);
   });
 
   it('faceNamesEqual does not crash when first arg is undefined (Defect 1 — Fix E defensive guard)', () => {
