@@ -43,7 +43,14 @@ const namedFace = (role: FaceRole): FaceName => ({
  * overload, then classifies the six faces by face-centroid offset from
  * the box center and the four top-rim edges by face-pair adjacency.
  *
+ * When `outline` is provided (≥ 3 vertices), builds a prism instead:
+ * the polygon is extruded along +Z by `thickness`. Only Top and Bottom
+ * face names are populated; side faces are left unnamed. The `bbox` is
+ * the conservative axis-aligned bounding rectangle of the dims (not the
+ * polygon's true AABB), matching the cut-list convention.
+ *
  * Throws when any dimension is non-positive (test asserts via /positive/).
+ * Throws when `outline` is provided but has fewer than 3 vertices.
  *
  * Lifecycle:
  *   - The two `gp_Pnt_3` corners and the `BRepPrimAPI_MakeBox_4` are
@@ -56,10 +63,19 @@ const namedFace = (role: FaceRole): FaceName => ({
 export function buildPanelBox(
   occt: OcctInstance,
   dims: { length: number; width: number; thickness: number },
+  outline?: ReadonlyArray<{ readonly x: number; readonly y: number }>,
 ): PanelBoxResult {
   const { length: L, width: W, thickness: T } = dims;
   if (L <= 0 || W <= 0 || T <= 0) {
     throw new Error(`Panel dimensions must be positive (got L=${L}, W=${W}, T=${T})`);
+  }
+
+  // Outline path: build a prism from the polygon instead of a rectangular box.
+  if (outline !== undefined) {
+    if (outline.length < 3) {
+      throw new Error(`Panel outline must have at least 3 vertices (got ${outline.length})`);
+    }
+    return buildOutlinePrism(occt, dims, outline);
   }
 
   const halfL = L / 2;
@@ -95,6 +111,96 @@ export function buildPanelBox(
     bbox: [-halfL, -halfW, 0, halfL, halfW, T],
     faceNames,
     edgeNames,
+  };
+}
+
+/**
+ * Build a prismatic solid from an arbitrary closed polygon outline.
+ *
+ * The outline vertices are in panel-local coords (top-left = (0,0),
+ * x = length axis, y = width axis). They are offset to centered coords
+ * (x - L/2, y - W/2) before building the wire, so the prism is centred
+ * on the origin in X/Y with its bottom at Z=0, matching the rect path.
+ *
+ * Winding order: the pentagon test polygon is CCW (viewed from +Z), which
+ * produces a face with +Z normal — extruding by +Z gives a valid solid.
+ * If a caller supplies CW vertices, OCCT may still produce a valid solid
+ * (BRepPrimAPI_MakePrism handles both orientations), but the empirical
+ * winding resolution is documented in task-4-report.md.
+ *
+ * OCCT binding notes (all verified against working code in SketchOps.ts
+ * and ExtrudeFeature.ts):
+ *   - `gp_Pnt_3(x, y, z)` — three-real ctor (SketchOps.ts:76)
+ *   - `BRepBuilderAPI_MakeEdge_3(p1, p2)` — two-point ctor (SketchOps.ts:81)
+ *   - `BRepBuilderAPI_MakeWire_1()` — default ctor, Add_1(edge) (SketchOps.ts:91)
+ *   - `BRepBuilderAPI_MakeFace_15(wire, onlyPlane)` — wire→face (ExtrudeFeature.ts:65)
+ *   - `gp_Vec_4(x, y, z)` — three-real vector ctor (ExtrudeFeature.ts:72)
+ *   - `BRepPrimAPI_MakePrism_1(shape, vec, copy, canonize)` (ExtrudeFeature.ts:74)
+ *
+ * Only Top and Bottom face names are emitted; side faces are unnamed.
+ * edgeNames is empty (no top-rim edge classification for non-rect panels).
+ */
+function buildOutlinePrism(
+  occt: OcctInstance,
+  dims: { length: number; width: number; thickness: number },
+  outline: ReadonlyArray<{ readonly x: number; readonly y: number }>,
+): PanelBoxResult {
+  const { length: L, width: W, thickness: T } = dims;
+  const halfL = L / 2;
+  const halfW = W / 2;
+
+  // Build centered points: outline coords are (0,0)→(L,W) panel space;
+  // subtract (L/2, W/2) to centre the prism on origin.
+  const pts = outline.map(v => new occt.gp_Pnt_3(v.x - halfL, v.y - halfW, 0));
+
+  // Build one edge per adjacent vertex pair, closing the polygon.
+  const mkEdges = pts.map((p, i) => {
+    const next = pts[(i + 1) % pts.length]!;
+    return new occt.BRepBuilderAPI_MakeEdge_3(p as never, next as never);
+  });
+  const edges = mkEdges.map(mk => mk.Edge());
+
+  // Wire from all edges.
+  const mkWire = new occt.BRepBuilderAPI_MakeWire_1();
+  for (const e of edges) mkWire.Add_1(e as never);
+  const wire = mkWire.Wire();
+
+  // Dispose builders and intermediates (edge topology is copied into wire).
+  mkWire.delete();
+  for (const mk of mkEdges) mk.delete();
+  for (const e of edges) (e as unknown as { delete: () => void }).delete();
+  for (const p of pts) (p as unknown as { delete: () => void }).delete();
+
+  // Planar face from closed wire (onlyPlane=true: infer support from wire).
+  const mkFace = new occt.BRepBuilderAPI_MakeFace_15(wire as never, true as never);
+  const face = mkFace.Face();
+  mkFace.delete();
+  (wire as unknown as { delete: () => void }).delete();
+
+  // Extrude along +Z by thickness.
+  const vec = new occt.gp_Vec_4(0, 0, T);
+  const mkPrism = new occt.BRepPrimAPI_MakePrism_1(
+    face as never,
+    vec as never,
+    false as never,  // Copy=false: we own `face` and drop it next
+    true as never,   // Canonize=true: downgrade to simpler shape type when possible
+  );
+  const shape = mkPrism.Shape();
+  mkPrism.delete();
+  (face as unknown as { delete: () => void }).delete();
+  vec.delete();
+
+  // Only Top and Bottom are named; side faces are left for future classification.
+  // The cast suppresses TypeScript's requirement for the full 6-role record —
+  // callers that need side-face names must check for undefined at runtime.
+  return {
+    shape,
+    bbox: [-halfL, -halfW, 0, halfL, halfW, T],
+    faceNames: {
+      Top: namedFace('Top'),
+      Bottom: namedFace('Bottom'),
+    } as unknown as PanelBoxResult['faceNames'],
+    edgeNames: {} as unknown as Record<PanelEdgeKey, EdgeName>,
   };
 }
 
