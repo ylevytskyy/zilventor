@@ -17,3 +17,26 @@ describe('buildImportedPartDocument color', () => {
     expect(imp?.color).toBeUndefined();
   });
 });
+
+describe('buildImportedPartDocument solidColors', () => {
+  it('sets solidColors on the ImportedFeature when provided', () => {
+    const colors: (string | null)[] = ['#ff0000', '#00ff00'];
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, '#ff0000', colors);
+    const imp = doc.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.solidColors).toEqual(colors);
+  });
+
+  it('solidColors survives JSON round-trip (persistence)', () => {
+    const colors: (string | null)[] = ['#ff0000', null, '#0000ff'];
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, '#ff0000', colors);
+    const restored = JSON.parse(JSON.stringify(doc)) as typeof doc;
+    const imp = restored.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.solidColors).toEqual(colors);
+  });
+
+  it('leaves solidColors undefined when not provided', () => {
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, '#ff0000');
+    const imp = doc.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.solidColors).toBeUndefined();
+  });
+});

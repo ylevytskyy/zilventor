@@ -529,9 +529,10 @@ export function createKernelApi(): KernelApi {
       return part.id;
     },
 
-    // KNOWN GAP: importedColorCache is NOT restored here — per-solid colors survive only the session
-    // in which importStep was called (per-body STEP colors vanish after file reload).
-    // Follow-up: persist solidColors into ImportedFeature.
+    // importedColorCache is NOT restored here; per-solid colors for parts saved after
+    // the fix/step-import-tessellate-location branch survive reload via ImportedFeature.solidColors
+    // (persisted on the feature). The cache fallback in executeTree still handles
+    // freshly-imported parts within the same session whose feature predates this field.
     async loadFromBytes(bytes) {
       if (!occt) throw new Error('kernel not initialized');
       const { manifest, blobs, textures } = await unpackProject(bytes);

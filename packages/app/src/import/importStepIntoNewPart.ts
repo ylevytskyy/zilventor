@@ -27,7 +27,7 @@ export async function importStepIntoNewPart(
   // toward showing "something" rather than no color at all). undefined → gray.
   const firstSolidColor = importResult.solidColors?.find((c) => c !== null) ?? undefined;
 
-  const part = buildImportedPartDocument(partName, importResult.brepBlobId, file.name, undefined, firstSolidColor);
+  const part = buildImportedPartDocument(partName, importResult.brepBlobId, file.name, undefined, firstSolidColor, importResult.solidColors);
 
   await kernel.registerPart(part);
   return { partId: part.id, part };

@@ -234,7 +234,7 @@ export default function FileTab() {
             const baseName = stepFilenameBasename(file.name);
             const importResult = await kernel.importStep({ stepBytes, partName: baseName });
             const firstSolidColor = importResult.solidColors?.find((c) => c !== null) ?? undefined;
-            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name, undefined, firstSolidColor);
+            const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name, undefined, firstSolidColor, importResult.solidColors);
             await kernel.registerPart(part);
             stopTicker();
             setActivePart(part);

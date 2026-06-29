@@ -943,7 +943,10 @@ export async function executeTree(
           featureId: feature.id
         });
       }
-      importedSolidColors = lookupImportedColors?.(feature.bodyRef);
+      // Prefer persisted colors from the feature (present on parts saved after
+      // this fix); fall back to the in-memory importedColorCache for parts
+      // imported in the current session whose feature predates this field.
+      importedSolidColors = feature.solidColors ?? lookupImportedColors?.(feature.bodyRef);
       // Imported feature semantically replaces the running solid (operation:
       // implicit 'new'). Dispose any prior running body before installing
       // the imported one.
