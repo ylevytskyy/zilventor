@@ -12,7 +12,6 @@ import { saveBlob, pickFile, hasDirectoryPicker } from '../fsaFallback';
 import { activateDrawingDocument } from '../../drawing/activateDrawingDocument';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { startImportTicker } from '../../import/importTicker';
-import { shouldAutoExplode } from '../../import/autoExplodeHeuristic';
 import { isSolidWorksNativeFile, SOLIDWORKS_GUIDANCE } from '../../import/solidworksGuidance';
 import { triggerDownload } from '../../nesting/triggerDownload';
 
@@ -196,8 +195,6 @@ export default function FileTab() {
             // importStepIntoNewPart expects a File; synthesize one from the extracted bytes
             const stepFile = new File([extracted.stepBytes], extracted.fileName, { type: 'application/step' });
             const { part } = await importStepIntoNewPart(stepFile, kernel);
-            // TODO: importStepIntoNewPart does not yet return solidColors, so auto-explode
-            // is not wired for the ZIP→STEP path. Wire it once solidColors is exposed.
             stopTicker();
             setActivePart(part);
             setStatus(t('status.imported'));
@@ -230,8 +227,7 @@ export default function FileTab() {
             await bus.execute(cmd);
           } else {
             // Part-mode: import the whole compound shape (all solids + non-solid geometry).
-            // If the result has multiple distinct per-solid colors, auto-explode into an
-            // assembly so each body renders with its own color immediately.
+            // Use the Explode-into-Assembly command if individual bodies are needed.
             const stepBytes = await file.arrayBuffer();
             const { buildImportedPartDocument } = await import('../../import/buildImportedPartDocument');
             const { stepFilenameBasename } = await import('../../import/originFeatures');
@@ -240,20 +236,9 @@ export default function FileTab() {
             const firstSolidColor = importResult.solidColors?.find((c) => c !== null) ?? undefined;
             const part = buildImportedPartDocument(baseName, importResult.brepBlobId, file.name, undefined, firstSolidColor);
             await kernel.registerPart(part);
-            if (shouldAutoExplode(importResult.solidCount, importResult.solidColors)) {
-              // Multi-body, multi-color: explode into assembly + enable per-component colors.
-              // Keep the loading overlay up during the (async) explode — stopTicker fires in
-              // the finally block below once the entire branch settles.
-              setActivePart(part);
-              const { ExplodeIntoAssemblyCommand } = await import('../../commands/ExplodeIntoAssemblyCommand');
-              const opfs = await Opfs.forNavigator();
-              await bus.execute(new ExplodeIntoAssemblyCommand({ kernel, opfs }));
-              useAppStore.getState().setShowComponentColors(true);
-            } else {
-              stopTicker();
-              setActivePart(part);
-              setStatus(t('status.imported'));
-            }
+            stopTicker();
+            setActivePart(part);
+            setStatus(t('status.imported'));
           }
         } finally {
           stopTicker();
