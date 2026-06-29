@@ -279,6 +279,9 @@ export function createKernelApi(): KernelApi {
   function lookupImportedShape(bodyRef: string): OcctShape | undefined {
     return importedShapeCache.get(bodyRef);
   }
+  function lookupImportedColors(bodyRef: string): (string | null)[] | undefined {
+    return importedColorCache.get(bodyRef);
+  }
 
   /**
    * Ensure namedShapeCache has a warm entry for `partId`. If the cache is cold
@@ -411,7 +414,7 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
-      const r = await executeTree(occt, p, lookupImportedShape);
+      const r = await executeTree(occt, p, lookupImportedShape, lookupImportedColors);
       if (!r.ok) return r;
       // Cache the NamedShape (with live OCCT face handles) for assembly ref
       // resolution. The cache takes ownership of namedShape; do NOT dispose
@@ -526,6 +529,9 @@ export function createKernelApi(): KernelApi {
       return part.id;
     },
 
+    // KNOWN GAP: importedColorCache is NOT restored here — per-solid colors survive only the session
+    // in which importStep was called (per-body STEP colors vanish after file reload).
+    // Follow-up: persist solidColors into ImportedFeature.
     async loadFromBytes(bytes) {
       if (!occt) throw new Error('kernel not initialized');
       const { manifest, blobs, textures } = await unpackProject(bytes);

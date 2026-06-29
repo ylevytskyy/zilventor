@@ -26,6 +26,9 @@ export type Mesh = {
   indices: Uint32Array;
   boundingBox: BoundingBox;
   uv?: Float32Array;
+  /** Per-vertex linear-RGB colors (R,G,B per vertex), present only when the
+   *  mesh was tessellated with per-solid XCAF colors (imported STEP). */
+  colors?: Float32Array;
 };
 
 export type SketchPrimitive =

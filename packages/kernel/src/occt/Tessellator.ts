@@ -48,7 +48,8 @@ export function tessellate(
   oc: OcctInstance,
   shape: OcctShape,
   opts: TessellateOptions,
-  projection?: UvProjection
+  projection?: UvProjection,
+  solidColors?: (string | null)[]
 ): Mesh {
   const angular = opts.angularDeflection ?? 0.5;
   const meshTool = new oc.BRepMesh_IncrementalMesh_2(
@@ -62,6 +63,95 @@ export function tessellate(
   meshTool.Perform_1(progress);
   progress.delete();
 
+  // When solidColors is supplied and at least one solid has a color, traverse
+  // solid-by-solid so we can assign per-solid color to every vertex.
+  const hasColors = solidColors !== undefined && solidColors.some((c) => c !== null);
+
+  if (hasColors) {
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const colorsArr: number[] = [];
+
+    const solidExplorer = new oc.TopExp_Explorer_2(
+      shape.handle as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SOLID as never,
+      oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+    );
+
+    let solidIdx = 0;
+    while (solidExplorer.More()) {
+      const solidShape = solidExplorer.Current();
+      const hex = solidColors![solidIdx] ?? null;
+      const [cr, cg, cb] = parseHexColor(hex);
+      const lr = srgbToLinear(cr);
+      const lg = srgbToLinear(cg);
+      const lb = srgbToLinear(cb);
+
+      const faceExplorer = new oc.TopExp_Explorer_2(
+        solidShape as never,
+        oc.TopAbs_ShapeEnum.TopAbs_FACE as never,
+        oc.TopAbs_ShapeEnum.TopAbs_SHAPE as never
+      );
+
+      while (faceExplorer.More()) {
+        const faceShape = faceExplorer.Current();
+        const face = oc.TopoDS.Face_1(faceShape);
+        const loc = new oc.TopLoc_Location_1();
+        const triHandle = oc.BRep_Tool.Triangulation(
+          face,
+          loc,
+          POLY_MESH_PURPOSE_NONE as never
+        );
+
+        if (!triHandle.IsNull()) {
+          const t = triHandle.get();
+          const nbNodes = t.NbNodes();
+          const nbTris = t.NbTriangles();
+          const baseIndex = positions.length / 3;
+          const transformation = (loc as { Transformation: () => unknown }).Transformation();
+
+          for (let i = 1; i <= nbNodes; i++) {
+            const p = t.Node(i);
+            p.Transform(transformation as never);
+            positions.push(p.X(), p.Y(), p.Z());
+            colorsArr.push(lr, lg, lb);
+            p.delete();
+          }
+          for (let i = 1; i <= nbTris; i++) {
+            const tri = t.Triangle(i);
+            indices.push(
+              baseIndex + tri.Value(1) - 1,
+              baseIndex + tri.Value(2) - 1,
+              baseIndex + tri.Value(3) - 1
+            );
+            tri.delete();
+          }
+        }
+
+        triHandle.delete();
+        loc.delete();
+        face.delete();
+        faceShape.delete();
+        faceExplorer.Next();
+      }
+      faceExplorer.delete();
+
+      solidShape.delete();
+      solidExplorer.Next();
+      solidIdx++;
+    }
+    solidExplorer.delete();
+    meshTool.delete();
+
+    return {
+      positions: new Float32Array(positions),
+      indices: new Uint32Array(indices),
+      boundingBox: computeBoundingBox(oc, shape),
+      colors: new Float32Array(colorsArr),
+    };
+  }
+
+  // --- existing face-level path (no solidColors) ---
   const positions: number[] = [];
   const indices: number[] = [];
 
@@ -146,6 +236,22 @@ export function tessellate(
     boundingBox: computeBoundingBox(oc, shape),
     ...(uv !== undefined ? { uv } : {}),
   };
+}
+
+/** Convert a component value (0–1 linear scale) from sRGB to linear light. */
+function srgbToLinear(v: number): number {
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+
+/** Parse a #rrggbb hex string to [r,g,b] in [0,1]. null → default gray 0xc8c8c8. */
+function parseHexColor(hex: string | null): [number, number, number] {
+  if (!hex) return [0xc8 / 255, 0xc8 / 255, 0xc8 / 255];
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+  ];
 }
 
 /**

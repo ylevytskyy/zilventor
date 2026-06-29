@@ -1352,7 +1352,7 @@ export default function App() {
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
         const panelFeat = activePart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
         const panelMat = panelFeat ? activePart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
-        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+        viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId, res.value.mesh.colors);
         tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
         setAvailableFaceNames(res.value.faceNames ?? []);
         facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1608,7 +1608,7 @@ export default function App() {
           const partHex = fresh.color?.kind === 'hex' ? fresh.color.hex : undefined;
           const panelFeat = fresh.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
           const panelMat = panelFeat ? fresh.materials.find((m) => m.id === panelFeat.materialId) : undefined;
-          viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+          viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId, res.value.mesh.colors);
           tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
           setAvailableFaceNames(res.value.faceNames ?? []);
           facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -1676,7 +1676,7 @@ export default function App() {
             const partHex = freshPart?.color?.kind === 'hex' ? freshPart.color.hex : undefined;
             const panelFeat = freshPart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
             const panelMat = panelFeat ? freshPart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId, res.value.mesh.colors);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);
@@ -2233,7 +2233,7 @@ export default function App() {
             const partHex = ap?.color?.kind === 'hex' ? ap.color.hex : undefined;
             const panelFeat = ap?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
             const panelMat = panelFeat ? ap?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
-            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId);
+            viewportRef.current.setMesh(res.value.mesh.positions, res.value.mesh.indices, partHex, res.value.mesh.uv, panelMat?.textureId, res.value.mesh.colors);
             tessellatedEdgesRef.current = res.value.tessellatedEdges ?? [];
             setAvailableFaceNames(res.value.faceNames ?? []);
             facePickerRef.current.setCandidates(res.value.tessellatedFaces ?? []);

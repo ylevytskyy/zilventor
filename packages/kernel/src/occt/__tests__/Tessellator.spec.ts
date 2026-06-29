@@ -4,6 +4,8 @@ import { makeBox, disposeShape, type OcctShape } from '../SolidOps';
 import { tessellate, tessellateEdges, adaptiveLinearDeflection } from '../Tessellator';
 import { namedFace, attachName, type NamedShape } from '../FaceNaming';
 import type { UvProjection } from '@zilventor/shared';
+import { readStep } from '../StepIO';
+import { makeColoredBoxStepBytes } from './stepColor.helper';
 
 let occt: OcctInstance;
 beforeAll(async () => {
@@ -218,6 +220,33 @@ describe('Tessellator — non-identity TopLoc_Location (STEP assembly positionin
     // Geometry must stay near origin — Transform(identity) must be a no-op
     expect(minX).toBeGreaterThanOrEqual(-1e-3);
     expect(maxX).toBeLessThanOrEqual(100 + 1e-3);
+    disposeShape(box);
+  });
+});
+
+describe('Tessellator — per-solid vertex colors', () => {
+  it('colors array is defined, length matches positions, and ≥2 distinct RGB triples when solidColors supplied', () => {
+    const bytes = makeColoredBoxStepBytes(occt, ['#ff0000', '#00ff00']);
+    const { shape, solidColors } = readStep(occt, bytes);
+    const mesh = tessellate(occt, shape, { linearDeflection: 1.0 }, undefined, solidColors);
+
+    expect(mesh.colors).toBeDefined();
+    expect(mesh.colors!.length).toBe(mesh.positions.length);
+
+    const seen = new Set<string>();
+    for (let i = 0; i < mesh.colors!.length; i += 3) {
+      const r = Math.round(mesh.colors![i]! * 100) / 100;
+      const g = Math.round(mesh.colors![i + 1]! * 100) / 100;
+      const b = Math.round(mesh.colors![i + 2]! * 100) / 100;
+      seen.add(`${r},${g},${b}`);
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no solidColors → mesh.colors is undefined (no regression)', () => {
+    const box = makeBox(occt, 100, 100, 100);
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 });
+    expect(mesh.colors).toBeUndefined();
     disposeShape(box);
   });
 });
