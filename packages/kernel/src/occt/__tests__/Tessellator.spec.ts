@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct, type OcctInstance } from '../occtLoader';
-import { makeBox, disposeShape } from '../SolidOps';
+import { makeBox, disposeShape, type OcctShape } from '../SolidOps';
 import { tessellate, tessellateEdges, adaptiveLinearDeflection } from '../Tessellator';
 import { namedFace, attachName, type NamedShape } from '../FaceNaming';
 import type { UvProjection } from '@zilventor/shared';
@@ -144,6 +144,80 @@ describe('Tessellator — UV projection', () => {
     const nVerts = mesh.positions.length / 3;
     const nTris = mesh.indices.length / 3;
     expect(nVerts).toBe(nTris * 3);
+    disposeShape(box);
+  });
+});
+
+describe('Tessellator — non-identity TopLoc_Location (STEP assembly positioning)', () => {
+  /**
+   * Regression test for the root-cause bug: tessellate() was ignoring the
+   * face's TopLoc_Location when pushing vertex coordinates, so shapes that
+   * carry a non-identity location (e.g. STEP imports with assembly structure)
+   * produced mesh vertices in LOCAL space instead of WORLD space.
+   *
+   * This test creates a box whose geometry lives at the origin but whose
+   * TopLoc_Location encodes a +1000mm X translation — exactly how
+   * STEPCAFControl_Reader positions assembly components without baking the
+   * transform into the triangulation nodes.
+   */
+  it('applies location transform: a box at +1000mm X has mesh vertices near +1000', () => {
+    const box = makeBox(occt, 100, 100, 100);
+
+    // Build a pure-translation gp_Trsf: +1000 in X
+    const vec = new occt.gp_Vec_4(1000, 0, 0);
+    const trsf = new occt.gp_Trsf_1();
+    (trsf as unknown as { SetTranslation_1(v: unknown): void }).SetTranslation_1(vec as never);
+
+    // Wrap in a TopLoc_Location (same pattern as StepExport.ts:127)
+    const TopLocCtor = (occt as { TopLoc_Location_2: new (t: unknown) => unknown }).TopLoc_Location_2;
+    const loc = new TopLocCtor(trsf);
+
+    // Moved(loc, false) — returns a shape with location set but geometry still in local space.
+    // This is what STEPCAFControl_Reader produces for assembly components.
+    const locatedHandle = (box.handle as {
+      Moved: (l: unknown, raiseExc: boolean) => unknown;
+    }).Moved(loc as never, false);
+
+    const locatedShape: OcctShape = { __brand: 'OcctShape', handle: locatedHandle };
+
+    const mesh = tessellate(occt, locatedShape, { linearDeflection: 0.1 });
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const x = mesh.positions[i]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+
+    // Before fix: positions remain in local space → minX ≈ 0, maxX ≈ 100.
+    // After fix:  location is applied  → minX ≈ 1000, maxX ≈ 1100.
+    expect(minX).toBeGreaterThan(900);   // must be at +1000, not at 0
+    expect(maxX).toBeLessThan(1200);
+
+    // Cleanup
+    (locatedHandle as { delete?: () => void }).delete?.();
+    (loc as { delete?: () => void }).delete?.();
+    (trsf as { delete?: () => void }).delete?.();
+    (vec as unknown as { delete?: () => void }).delete?.();
+    disposeShape(box);
+  });
+
+  it('identity-location box still tessellates at the origin (regression guard)', () => {
+    const box = makeBox(occt, 100, 100, 100);
+    const mesh = tessellate(occt, box, { linearDeflection: 0.1 });
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const x = mesh.positions[i]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+
+    // Geometry must stay near origin — Transform(identity) must be a no-op
+    expect(minX).toBeGreaterThanOrEqual(-1e-3);
+    expect(maxX).toBeLessThanOrEqual(100 + 1e-3);
     disposeShape(box);
   });
 });

@@ -86,9 +86,11 @@ export function tessellate(
       const nbNodes = t.NbNodes();
       const nbTris = t.NbTriangles();
       const baseIndex = positions.length / 3;
+      const transformation = (loc as { Transformation: () => unknown }).Transformation();
 
       for (let i = 1; i <= nbNodes; i++) {
         const p = t.Node(i);
+        p.Transform(transformation as never);
         positions.push(p.X(), p.Y(), p.Z());
         p.delete();
       }
