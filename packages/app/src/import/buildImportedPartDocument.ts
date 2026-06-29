@@ -6,11 +6,14 @@ import { ORIGIN_FEATURES } from './originFeatures';
  * The blob must already live in the kernel's importedShapeCache (put there
  * by kernel.importStep before this is called).
  *
- * @param partName   Human-readable name (file stem, already deduped).
- * @param brepBlobId The blob ref returned by kernel.importStep.
- * @param fileName   Original STEP filename (stored in ImportedFeature.sourceStep).
- * @param partId     Optional explicit UUID; one is generated if omitted.
- * @param color      Optional per-body color (#rrggbb) from STEP XCAF data.
+ * @param partName    Human-readable name (file stem, already deduped).
+ * @param brepBlobId  The blob ref returned by kernel.importStep.
+ * @param fileName    Original STEP filename (stored in ImportedFeature.sourceStep).
+ * @param partId      Optional explicit UUID; one is generated if omitted.
+ * @param color       Optional first-solid color (#rrggbb) from STEP XCAF data.
+ * @param solidColors Optional full per-solid color array (index-aligned with
+ *                    TopExp_Explorer SOLID order). Persisted on the feature so
+ *                    colors survive save→reload without the in-memory cache.
  */
 export function buildImportedPartDocument(
   partName: string,
@@ -18,6 +21,7 @@ export function buildImportedPartDocument(
   fileName: string,
   partId?: string,
   color?: string,
+  solidColors?: (string | null)[],
 ): PartDocument {
   const id = partId ?? crypto.randomUUID();
   const importedFeature: ImportedFeature = {
@@ -26,6 +30,7 @@ export function buildImportedPartDocument(
     sourceStep: fileName,
     bodyRef: brepBlobId,
     ...(color ? { color } : {}),
+    ...(solidColors ? { solidColors } : {}),
   };
   return {
     id,

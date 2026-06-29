@@ -26,6 +26,9 @@ export type Mesh = {
   indices: Uint32Array;
   boundingBox: BoundingBox;
   uv?: Float32Array;
+  /** Per-vertex linear-RGB colors (R,G,B per vertex), present only when the
+   *  mesh was tessellated with per-solid XCAF colors (imported STEP). */
+  colors?: Float32Array;
 };
 
 export type SketchPrimitive =
@@ -61,8 +64,16 @@ export type ImportedFeature = {
   /** Blob id of the cached B-rep body. The kernel keeps a runtime
    *  cache keyed by this id; ProjectPacker (un)packs it on save/load. */
   bodyRef: string;
-  /** Per-body color (#rrggbb) read from the STEP XCAF data, if any. */
+  /** Per-body color (#rrggbb) read from the STEP XCAF data, if any.
+   *  Set to the first non-null entry of solidColors for the single-color
+   *  fallback path (part-level color, component seed). */
   color?: string;
+  /** Full per-solid XCAF color array, index-aligned with the
+   *  TopExp_Explorer_2(shape, SOLID, SHAPE) enumeration that tessellate()
+   *  uses. null at an index means that solid carries no XCAF color.
+   *  Persisted so colors survive part save→reload without needing the
+   *  in-memory importedColorCache. Additive; absent on older documents. */
+  solidColors?: (string | null)[];
 };
 
 export type Feature =

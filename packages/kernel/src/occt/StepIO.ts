@@ -93,6 +93,7 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
       XCAFDoc_DocumentTool: {
         ColorTool(l: unknown): { get(): {
           GetColor_4(label: unknown, type: unknown, color: unknown): boolean;
+          GetColor_7(shape: unknown, type: unknown, color: unknown): boolean;
         } }
       }
     }).XCAFDoc_DocumentTool.ColorTool(mainLabel).get();
@@ -115,6 +116,27 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
     }).XCAFDoc_ShapeTool.GetComponents.bind((oc as { XCAFDoc_ShapeTool: unknown }).XCAFDoc_ShapeTool);
 
     const TDF_LabelSeqCtor = (oc as { TDF_LabelSequence_1: new () => { Length(): number; Value(i: number): unknown; delete?(): void } }).TDF_LabelSequence_1;
+
+    /** Extract surface or generic color from a TopoDS_Shape (shape-bound colors,
+     *  e.g. STYLED_ITEM on MANIFOLD_SOLID_BREP in AP214 files). Returns null if
+     *  none found. Mirrors extractLabelColor but uses GetColor_7 (shape overload). */
+    function extractShapeColor(shape: unknown): string | null {
+      const colSurf = new QColorCtor();
+      try {
+        const gotSurf = colorTool.GetColor_7(shape, ColorType.XCAFDoc_ColorSurf, colSurf);
+        if (gotSurf) return quantityColorToHex(colSurf);
+      } finally {
+        colSurf.delete?.();
+      }
+      const colGen = new QColorCtor();
+      try {
+        const gotGen = colorTool.GetColor_7(shape, ColorType.XCAFDoc_ColorGen, colGen);
+        if (gotGen) return quantityColorToHex(colGen);
+      } finally {
+        colGen.delete?.();
+      }
+      return null;
+    }
 
     /** Extract surface or generic color from a label. Returns null if none found. */
     function extractLabelColor(label: unknown): string | null {
@@ -187,10 +209,13 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
               const compShape = GetShapeStatic(compLabel);
 
               // Count solids within this component's posed shape.
+              // Try shape-bound color first (AP214 STYLED_ITEM on solid), fall back to label color.
               const solidExpC = new ExplorerCtor2(compShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
               try {
                 while (solidExpC.More()) {
-                  labelSolidColors.push(compColor);
+                  const solidShape = solidExpC.Current();
+                  const solidColor = extractShapeColor(solidShape) ?? compColor;
+                  labelSolidColors.push(solidColor);
                   solidExpC.Next();
                 }
               } finally {
@@ -204,11 +229,14 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
           // FLAT path: color is directly on the free label.
           const labelColor = extractLabelColor(label);
 
-          // Count solids inside this free shape and assign the label color to each
+          // Count solids inside this free shape and assign color to each.
+          // Try shape-bound color first (AP214 STYLED_ITEM on solid), fall back to label color.
           const solidExpL = new ExplorerCtor2(freeShape, TAS2.TopAbs_SOLID, TAS2.TopAbs_SHAPE);
           try {
             while (solidExpL.More()) {
-              labelSolidColors.push(labelColor);
+              const solidShape = solidExpL.Current();
+              const solidColor = extractShapeColor(solidShape) ?? labelColor;
+              labelSolidColors.push(solidColor);
               solidExpL.Next();
             }
           } finally {

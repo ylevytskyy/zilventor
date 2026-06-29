@@ -143,9 +143,14 @@ export async function executeTree(
   /** Lookup for ImportedFeature bodies. Required when the tree contains
    *  any kind:'imported' feature; T8 wires the dispatch. */
   lookupImportedShape?: (bodyRef: string) => OcctShape | undefined,
+  /** Lookup for per-solid XCAF colors keyed by bodyRef. When present and
+   *  the imported solid has at least one non-null color, tessellate() uses
+   *  per-solid vertex colors (vertexColors: true path). */
+  lookupImportedColors?: (bodyRef: string) => (string | null)[] | undefined,
 ): Promise<Result<ExecutionResult, KernelError>> {
   const sketches = new Map<string, SketchResult>();
   let finalSolid: NamedShape | null = null;
+  let importedSolidColors: (string | null)[] | undefined;
   const featureErrors = new Map<string, KernelError>();
   const workFeatureCache = new Map<string, WorkFeatureValue>();
 
@@ -938,6 +943,10 @@ export async function executeTree(
           featureId: feature.id
         });
       }
+      // Prefer persisted colors from the feature (present on parts saved after
+      // this fix); fall back to the in-memory importedColorCache for parts
+      // imported in the current session whose feature predates this field.
+      importedSolidColors = feature.solidColors ?? lookupImportedColors?.(feature.bodyRef);
       // Imported feature semantically replaces the running solid (operation:
       // implicit 'new'). Dispose any prior running body before installing
       // the imported one.
@@ -997,9 +1006,12 @@ export async function executeTree(
     ? panelUvProjection(firstUserFeature)
     : { mode: 'box' };
 
+  // When the part has per-solid XCAF colors, skip UV projection (vertexColors
+  // path in THREE does not use UVs) and pass the colors to tessellate().
+  const hasImportedColors = importedSolidColors?.some((c) => c !== null) ?? false;
   const mesh = tessellate(oc, finalSolid.shape, {
     linearDeflection: adaptiveLinearDeflection(computeBoundingBox(oc, finalSolid.shape)),
-  }, uvProjection);
+  }, hasImportedColors ? undefined : uvProjection, hasImportedColors ? importedSolidColors : undefined);
   const tessellatedEdges = tessellateEdges(oc, finalSolid);
   const tessellatedFaces = tessellateFaces(oc, finalSolid);
   // API compatibility: `ExecutionResult.finalSolid` is OcctShape (the raw

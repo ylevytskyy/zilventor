@@ -279,6 +279,9 @@ export function createKernelApi(): KernelApi {
   function lookupImportedShape(bodyRef: string): OcctShape | undefined {
     return importedShapeCache.get(bodyRef);
   }
+  function lookupImportedColors(bodyRef: string): (string | null)[] | undefined {
+    return importedColorCache.get(bodyRef);
+  }
 
   /**
    * Ensure namedShapeCache has a warm entry for `partId`. If the cache is cold
@@ -411,7 +414,7 @@ export function createKernelApi(): KernelApi {
       if (!occt) throw new Error('kernel not initialized');
       const p = parts.get(partId);
       if (!p) throw new Error(`no part ${partId}`);
-      const r = await executeTree(occt, p, lookupImportedShape);
+      const r = await executeTree(occt, p, lookupImportedShape, lookupImportedColors);
       if (!r.ok) return r;
       // Cache the NamedShape (with live OCCT face handles) for assembly ref
       // resolution. The cache takes ownership of namedShape; do NOT dispose
@@ -526,6 +529,10 @@ export function createKernelApi(): KernelApi {
       return part.id;
     },
 
+    // importedColorCache is NOT restored here; per-solid colors for parts saved after
+    // the fix/step-import-tessellate-location branch survive reload via ImportedFeature.solidColors
+    // (persisted on the feature). The cache fallback in executeTree still handles
+    // freshly-imported parts within the same session whose feature predates this field.
     async loadFromBytes(bytes) {
       if (!occt) throw new Error('kernel not initialized');
       const { manifest, blobs, textures } = await unpackProject(bytes);
