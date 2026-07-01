@@ -25,7 +25,12 @@ import { useCutListResult } from './useCutListResult';
 import { useCutListCacheContext } from './CutListCacheContext';
 import { NestingTab } from './NestingTab';
 
-type Props = { part: PartDocument | null; sketchPicker?: SketchPickController | null; partInfo?: Map<string, PartInfo> };
+type Props = {
+  part: PartDocument | null;
+  sketchPicker?: SketchPickController | null;
+  partInfo?: Map<string, PartInfo>;
+  showToast?: ((message: string) => void) | undefined;
+};
 
 type WorkFeature = Extract<Feature, { kind: 'workAxis' | 'workPlane' | 'workPoint' }>;
 
@@ -160,7 +165,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
 }
 
 
-function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null; partInfo: Map<string, PartInfo> }): JSX.Element {
+function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocument | null; partInfo: Map<string, PartInfo>; showToast?: ((message: string) => void) | undefined }): JSX.Element {
   const { t } = useTranslation();
   const activeDoc = useAppStore((s) => s.activeDocument);
   const bomTabActive = useAppStore((s) => s.bomTabActive);
@@ -220,7 +225,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
       <button
         type="button"
         aria-label={t('aria.nesting_tab')}
-        onClick={() => void new OpenNestingTabCommand().apply()}
+        onClick={() => void new OpenNestingTabCommand({ diagnostics: cutListResult.diagnostics, showToast }).apply()}
         className={`px-2 py-0.5 text-xs ${nestingTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
         {t('tab.nesting')}
@@ -282,7 +287,7 @@ function AssemblyModePane({ part: _part, partInfo }: { part: PartDocument | null
   );
 }
 
-export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }: Props) {
+export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), showToast }: Props) {
   const { t } = useTranslation();
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
@@ -292,7 +297,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map() }
     return <DrawingTreePane />;
   }
   if (activeDoc?.kind === 'assembly') {
-    return <AssemblyModePane part={part} partInfo={partInfo} />;
+    return <AssemblyModePane part={part} partInfo={partInfo} showToast={showToast} />;
   }
 
   if (!part) {

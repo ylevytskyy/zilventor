@@ -28,3 +28,36 @@ describe('ExportBoringDxfCommand', () => {
     expect(text).toContain('D5_T34');
   });
 });
+
+// R1: a bored panel that failed the panelPreflight check (missing name/material/
+// non-manifold/split-required) must surface a user-facing toast at export time,
+// not just a console.warn dropped by the walker.
+describe('ExportBoringDxfCommand — R1 preflight diagnostics', () => {
+  it('shows a toast for each collected preflight diagnostic', async () => {
+    const resultWithDiagnostics: BoringAggregateResult = {
+      ...result,
+      diagnostics: [
+        { partPath: 'side.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'Side' } },
+      ],
+    };
+    const toasts: string[] = [];
+    await new ExportBoringDxfCommand({
+      result: resultWithDiagnostics,
+      suggestedName: 'boring.dxf',
+      showToast: (msg) => toasts.push(msg),
+    }).apply();
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatch(/Side/);
+    expect(toasts[0]).toMatch(/material/i);
+  });
+
+  it('shows no toast when the result has no diagnostics', async () => {
+    const toasts: string[] = [];
+    await new ExportBoringDxfCommand({
+      result,
+      suggestedName: 'boring.dxf',
+      showToast: (msg) => toasts.push(msg),
+    }).apply();
+    expect(toasts).toHaveLength(0);
+  });
+});

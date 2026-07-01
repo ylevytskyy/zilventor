@@ -1,4 +1,4 @@
-import type { AssemblyDocument, PartInfo } from '@zilventor/shared';
+import type { AssemblyDocument, PartInfo, PanelPreflightDiagnostic } from '@zilventor/shared';
 import type { MaterialRegistry, MaterialId } from '@zilventor/shared/src/material';
 import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
 import {
@@ -29,6 +29,9 @@ export function aggregateCutListRecursive(
   panelSpecs: Map<string, PanelSpec | null>,
   materials: MaterialRegistry,
   partInfo: Map<string, PartInfo>,
+  /** R1 preflight diagnostics collected upstream (resolvePanelSpec via
+   *  loadCutListInputs) — threaded through onto the result unchanged. */
+  diagnostics?: PanelPreflightDiagnostic[],
 ): CutListResult {
   const groups = new Map<string, GroupAcc>();
   let nonPanelComponentCount = 0;
@@ -112,9 +115,8 @@ export function aggregateCutListRecursive(
   }));
   bandTotals.sort((a, b) => a.materialName.localeCompare(b.materialName));
 
-  return {
-    rows,
-    bandTotals,
-    excluded: { componentCount: nonPanelComponentCount, partCount: nonPanelPaths.size },
-  };
+  const excluded = { componentCount: nonPanelComponentCount, partCount: nonPanelPaths.size };
+  return diagnostics && diagnostics.length > 0
+    ? { rows, bandTotals, excluded, diagnostics }
+    : { rows, bandTotals, excluded };
 }

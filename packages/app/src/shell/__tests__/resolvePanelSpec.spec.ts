@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolvePanelSpec, type PanelSpecCache } from '../resolvePanelSpec';
 import { packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import { isPanelFeature, resolvePanelSpecFromFeature } from '@zilventor/shared';
+import { isPanelFeature, resolvePanelSpecFromFeature, type PanelPreflightDiagnostic } from '@zilventor/shared';
 
 // Build an in-memory OPFS shim. Real Opfs has read(path): Promise<Uint8Array>.
 function makeOpfs(files: Record<string, Uint8Array>): { read: (p: string) => Promise<Uint8Array> } {
@@ -71,6 +71,115 @@ describe('resolvePanelSpec', () => {
     expect(spec).toBeNull();
     expect(cache.has('p/missing.zipt')).toBe(true);
     expect(cache.get('p/missing.zipt')).toBeNull();
+  });
+});
+
+// R1 preflight wiring: a resolved PanelFeature whose name/material is missing must
+// surface a named diagnostic instead of silently flowing downstream as a valid spec.
+describe('resolvePanelSpec — R1 preflight diagnostics', () => {
+  it('logs a named diagnostic and returns null when the panel has no material assigned', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Left Side', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'panel', id: 'pf1',
+          length: { kind: 'literal', value: 600 },
+          width: { kind: 'literal', value: 400 },
+          thickness: { kind: 'literal', value: 18 },
+          thicknessFromMaterial: false,
+          materialId: '', grain: 'length',
+          edgeBands: { front: null, back: null, left: null, right: null },
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/a.zipt': bytes });
+    const spec = await resolvePanelSpec(opfs, 'p/a.zipt', cache);
+    expect(spec).toBeNull();
+    expect(cache.get('p/a.zipt')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('panel.preflight.missingMaterial'));
+    warn.mockRestore();
+  });
+
+  it('logs a named diagnostic and returns null when the part has no name', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: '', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'panel', id: 'pf1',
+          length: { kind: 'literal', value: 600 },
+          width: { kind: 'literal', value: 400 },
+          thickness: { kind: 'literal', value: 18 },
+          thicknessFromMaterial: false,
+          materialId: 'm-birch', grain: 'length',
+          edgeBands: { front: null, back: null, left: null, right: null },
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/a.zipt': bytes });
+    const spec = await resolvePanelSpec(opfs, 'p/a.zipt', cache);
+    expect(spec).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('panel.preflight.missingName'));
+    warn.mockRestore();
+  });
+
+  it('collects a PanelPreflightDiagnostic into the optional out-param array when material is missing', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Left Side', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'panel', id: 'pf1',
+          length: { kind: 'literal', value: 600 },
+          width: { kind: 'literal', value: 400 },
+          thickness: { kind: 'literal', value: 18 },
+          thicknessFromMaterial: false,
+          materialId: '', grain: 'length',
+          edgeBands: { front: null, back: null, left: null, right: null },
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/a.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    await resolvePanelSpec(opfs, 'p/a.zipt', cache, diagnostics);
+    expect(diagnostics).toEqual([
+      { partPath: 'p/a.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'Left Side' } },
+    ]);
+    warn.mockRestore();
+  });
+
+  it('does not push to the out-param array when preflight passes', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Left Side', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'panel', id: 'pf1',
+          length: { kind: 'literal', value: 600 },
+          width: { kind: 'literal', value: 400 },
+          thickness: { kind: 'literal', value: 18 },
+          thicknessFromMaterial: false,
+          materialId: 'm-birch', grain: 'length',
+          edgeBands: { front: null, back: null, left: null, right: null },
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/a.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    await resolvePanelSpec(opfs, 'p/a.zipt', cache, diagnostics);
+    expect(diagnostics).toEqual([]);
   });
 });
 

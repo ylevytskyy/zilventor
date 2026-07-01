@@ -19,4 +19,15 @@ describe('loadCutListInputs', () => {
     expect(map.get('p/a.zipt')).not.toBeNull();
     expect(map.get('p/b.zipt')).toBeNull();
   });
+
+  it('forwards an optional diagnostics out-param to every resolvePanelSpec call', async () => {
+    const { resolvePanelSpec } = await import('../resolvePanelSpec');
+    vi.mocked(resolvePanelSpec).mockClear();
+    const opfs = { read: vi.fn() };
+    const cache: PanelSpecCache = new Map();
+    const diagnostics: unknown[] = [];
+    await loadCutListInputs(opfs, ['p/a.zipt', 'p/b.zipt'], cache, diagnostics as never);
+    expect(vi.mocked(resolvePanelSpec).mock.calls[0]?.[3]).toBe(diagnostics);
+    expect(vi.mocked(resolvePanelSpec).mock.calls[1]?.[3]).toBe(diagnostics);
+  });
 });

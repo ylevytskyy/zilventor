@@ -1,8 +1,9 @@
 import { renderBoringDxf } from '../drawing/renderBoringDxf';
 import type { BoringAggregateResult } from '../assembly/walkers/aggregateBoresRecursive';
+import i18n from '../i18n';
 
 declare global {
-   
+
   var __zilventorBoringDxfBytes: Uint8Array | undefined;
 }
 
@@ -12,9 +13,14 @@ interface FsHandle {
 type SaveFilePicker = (opts: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FsHandle>;
 
 export class ExportBoringDxfCommand {
-  constructor(private opts: { result: BoringAggregateResult; suggestedName: string }) {}
+  constructor(private opts: { result: BoringAggregateResult; suggestedName: string; showToast?: ((message: string) => void) | undefined }) {}
 
   async apply(): Promise<void> {
+    // R1: surface each collected preflight diagnostic (name/material/geometry)
+    // as a user-facing toast instead of leaving it as a console.warn only.
+    for (const d of this.opts.result.diagnostics ?? []) {
+      this.opts.showToast?.(i18n.t(d.reasonKey, d.params ?? {}));
+    }
     const dxf = renderBoringDxf(this.opts.result);
     const bytes = new TextEncoder().encode(dxf);
     globalThis.__zilventorBoringDxfBytes = bytes;

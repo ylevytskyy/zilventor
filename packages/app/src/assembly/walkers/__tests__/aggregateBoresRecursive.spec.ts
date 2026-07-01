@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { aggregateBoresRecursive } from '../aggregateBoresRecursive';
 import type { AssemblyDocument, ComponentInstance, BoreOp, PartInfo, PanelSpec } from '@zilventor/shared';
 
@@ -136,5 +136,48 @@ describe('aggregateBoresRecursive', () => {
       expect(g.width).toBeNull();
       expect(g.thickness).toBeNull();
     }
+  });
+
+  // R1 preflight wiring: a bored panel whose PanelSpec has no material assignment
+  // must surface a named diagnostic instead of a silent null/skip. The group is
+  // still returned (existing behavior for downstream null-spec handling is unchanged).
+  it('logs a named preflight diagnostic when a bored panel has no material assigned', () => {
+    const a = asm('a', [cmp('c1', 'p/side.zipt')]);
+    const partBores = new Map<string, BoreOp[]>([['p/side.zipt', [bore('b1')]]]);
+    const spec = { length: 600, width: 400, thickness: 18, materialId: '' } as PanelSpec;
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/side.zipt', spec]]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([['p/side.zipt', 'Side']]), panelSpecs,
+    );
+    expect(result.panels).toHaveLength(1); // still surfaced, not silently dropped
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('panel.preflight.missingMaterial'));
+    warn.mockRestore();
+  });
+
+  it('collects a diagnostics entry (partPath + reasonKey) for a bored panel with no material assigned', () => {
+    const a = asm('a', [cmp('c1', 'p/side.zipt')]);
+    const partBores = new Map<string, BoreOp[]>([['p/side.zipt', [bore('b1')]]]);
+    const spec = { length: 600, width: 400, thickness: 18, materialId: '' } as PanelSpec;
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/side.zipt', spec]]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([['p/side.zipt', 'Side']]), panelSpecs,
+    );
+    expect(result.diagnostics).toEqual([
+      { partPath: 'p/side.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'Side' } },
+    ]);
+    warn.mockRestore();
+  });
+
+  it('omits diagnostics entirely when every bored panel passes preflight', () => {
+    const a = asm('a', [cmp('c1', 'p/side.zipt')]);
+    const partBores = new Map<string, BoreOp[]>([['p/side.zipt', [bore('b1')]]]);
+    const spec = { length: 600, width: 400, thickness: 18, materialId: 'm-birch' } as PanelSpec;
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/side.zipt', spec]]);
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([['p/side.zipt', 'Side']]), panelSpecs,
+    );
+    expect(result.diagnostics).toBeUndefined();
   });
 });
