@@ -3,13 +3,17 @@ import type { BoreConnectorKind } from '@zilventor/shared';
 import { SceneManager } from '../SceneManager';
 
 describe('SceneManager.BORE_COLORS — exhaustive over BoreConnectorKind', () => {
-  // Listing the union members literally is the guard: if BoreConnectorKind grows
-  // and this array is not updated, the `satisfies` below is a compile error.
+  // A Record keyed by the union is the guard: if BoreConnectorKind grows and
+  // this object is not updated, the annotation below is a compile error
+  // (a `satisfies readonly BoreConnectorKind[]` array is NOT exhaustive — that
+  // is how legLeveler/tandem slipped through unnoticed).
   // If BORE_COLORS lacks a member's entry, the runtime assertion below fails.
   // No SceneManager instance is needed — BORE_COLORS is a static field.
-  const ALL_KINDS = [
-    'confirmat', 'minifix', 'dowel', 'shelfPin', 'hinge', 'drawerSlide', 'handleScrew',
-  ] as const satisfies readonly BoreConnectorKind[];
+  const KINDS_EXHAUSTIVE: Record<BoreConnectorKind, 0> = {
+    confirmat: 0, minifix: 0, dowel: 0, shelfPin: 0, hinge: 0,
+    drawerSlide: 0, handleScrew: 0, legLeveler: 0, tandem: 0,
+  };
+  const ALL_KINDS = Object.keys(KINDS_EXHAUSTIVE) as BoreConnectorKind[];
 
   it('has a non-empty color string for every connector kind (no SceneManager instance needed)', () => {
     for (const kind of ALL_KINDS) {
