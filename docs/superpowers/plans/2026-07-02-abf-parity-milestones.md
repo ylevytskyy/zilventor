@@ -24,7 +24,7 @@ Assumed defaults (user was AFK — each overridable; confidence per §1b):
 
 ## Milestones
 
-- [ ] **P1 — Guardrails & verification quick wins** (R6, R1, R3-verify, R4.3) — active, tasks below
+- [x] **P1 — Guardrails & verification quick wins** (R6, R1, R3-verify, R4.3) — done, see P1 tasks below
 - [ ] **P2 — DXF export modes** (R4.1, R4.4): user-selectable per-material-folder ZIP vs. single combined DXF, layer scheme identical in both
 - [ ] **P3 — Machining presets + CAM metadata** (R2): app-global preset CRUD UI for every operation type (editable dia/depth/offset + DXF layer name + toolNumber + speed), snapshot-on-apply, JSON preset import/export, XDATA + sidecar CSV in manufacturing DXF
 - [ ] **P4 — Statistics & cost report** (R5.3–R5.5): five-category report incl. linear-material cut-piece breakdown, per-line unit price → section subtotals → grand total (quote), xlsx + CSV export
@@ -37,11 +37,11 @@ Ordering rationale (D9): P1 is cheap and converts three "done — verify explici
 
 ## P1 tasks (red → green)
 
-1. **R6 non-mutation regression test** — hash source `.ziasm`/part bytes before/after drawing generation (assembly-sourced view = highest-risk path); second test proves regen isn't a no-op (mutate source → drawing reflects change, source untouched by regen). Red must fail via a deliberately-broken fixture, not import errors.
-2. **R4.3 arc-fidelity assertion** — automated parser test over per-panel manufacturing DXF (M2.1) and nest DXF (M2.2): every hole/curved feature is `CIRCLE`/`ARC`, zero polyline-approximated circles. Expected green already (codec writes true CIRCLE) — the test locks it.
-3. **R3 grain-propagation check** — test nesting one grain-marked panel at 0° and 90°: label PDF grain arrow and nest DXF grain annotation differ by exactly the rotation. Code-inspect first (`renderNestSheetDxf.ts`, M2.3 label diagram); fix whatever fails, add `GRAIN` annotation to nest DXF if absent.
-4. **R1 pre-flight check** — extract a named `panelPreflight(part)` (single closed manifold solid, name present, material present) returning typed pass / split-required / fail-with-reason; wire into boring, nesting, manufacturing-DXF entry points; i18n en/uk for the diagnostics. Acceptance = R1's three-fixture criteria (parametric part / multi-solid STEP / non-manifold solid) + missing-name/material cases.
-5. **Traceability sync (R7)** — update status tags in `03-processing-parity-requirements.md` for everything P1 proved or changed.
+1. **R6 non-mutation regression test** — hash source `.ziasm`/part bytes before/after drawing generation (assembly-sourced view = highest-risk path); second test proves regen isn't a no-op (mutate source → drawing reflects change, source untouched by regen). Red must fail via a deliberately-broken fixture, not import errors. **DONE** — `packages/app/src/drawing/__tests__/loadAssemblyForProjection.nonMutation.spec.ts`; commit `3bfe9b33`.
+2. **R4.3 arc-fidelity assertion** — automated parser test over per-panel manufacturing DXF (M2.1) and nest DXF (M2.2): every hole/curved feature is `CIRCLE`/`ARC`, zero polyline-approximated circles. Expected green already (codec writes true CIRCLE) — the test locks it. **DONE** — commit `f96e32b8`.
+3. **R3 grain-propagation check** — test nesting one grain-marked panel at 0° and 90°: label PDF grain arrow and nest DXF grain annotation differ by exactly the rotation. Code-inspect first (`renderNestSheetDxf.ts`, M2.3 label diagram); fix whatever fails, add `GRAIN` annotation to nest DXF if absent. **R3.2 DONE** — `PlacedPanel` carries grain, `packGuillotine` propagates it, `renderNestSheetDxf` draws a `GRAIN`-layer arrow flipped 90° on rotated placements; commit `eb13a307`. **R3.4 still open** — neither `CutListRow` nor `PlacedPanel` carries a per-copy instance index, so a qty-expanded label can't be matched to its specific placed (possibly rotated) instance; label grain arrow still reflects modeling-time orientation. Candidate for P7 or its own slice.
+4. **R1 pre-flight check** — extract a named `panelPreflight(part)` (single closed manifold solid, name present, material present) returning typed pass / split-required / fail-with-reason; wire into boring, nesting, manufacturing-DXF entry points; i18n en/uk for the diagnostics. Acceptance = R1's three-fixture criteria (parametric part / multi-solid STEP / non-manifold solid) + missing-name/material cases. **DONE** — commit `eac95e4d`. Two caveats: (a) split-required path unreachable in practice — call sites pass `solidCount: 1` since parametric parts are single-solid by construction and STEP imports don't carry a `PanelFeature`; (b) `isManifold` is a caller-supplied extension point, not wired to a live geometry check.
+5. **Traceability sync (R7)** — update status tags in `03-processing-parity-requirements.md` for everything P1 proved or changed. **DONE** — this sync.
 
 Verification gate per project rules: tsc 0, lint 0, unit+e2e green, evidence graded EXEC before ticking.
 
