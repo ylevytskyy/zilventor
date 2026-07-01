@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderNestSheetDxf } from '../renderNestSheetDxf';
 import type { NestSheet } from '@zilventor/shared';
+import { parseDxf } from '@zilventor/shared';
 
 // Extract every LWPOLYLINE as { layer, bbox } — format-agnostic (parseFloat).
 function lwpolys(dxf: string): Array<{ layer: string; minX: number; minY: number; w: number; h: number }> {
@@ -123,5 +124,21 @@ describe('renderNestSheetDxf', () => {
     const norm = (a: number): number => ((a % 180) + 180) % 180;
     const diff = Math.abs(norm(angle1) - norm(angle2));
     expect(Math.min(diff, 180 - diff)).toBeCloseTo(90, 5);
+  });
+});
+
+// R4.3 (docs/abf-plugin/05-parity/03-processing-parity-requirements.md lines 73-90): lock
+// DXF fidelity via real parsing rather than regex. Current-state finding (as of commit
+// eb13a307, which added the GRAIN layer): nest-sheet DXF still carries zero circular/hole
+// geometry — only SHEET/OUTLINE lwpolylines, GRAIN lines, and INFO text. So there is nothing
+// to assert as CIRCLE/ARC here; instead we lock that no LWPOLYLINE in the output approximates
+// a circle (heuristic: no closed polyline with more than 4 vertices — rectangles only).
+describe('renderNestSheetDxf — DXF fidelity (parse-based)', () => {
+  it('emits no closed LWPOLYLINE with more than 4 vertices anywhere (no polyline circles)', () => {
+    const dxf = renderNestSheetDxf(sheet, { sheetCount: 3, materialName: 'White 18' });
+    const parsed = parseDxf(dxf);
+    const closedPolys = parsed.entities.filter((e) => e.type === 'LWPOLYLINE' && e.closed);
+    expect(closedPolys.length).toBeGreaterThan(0);
+    expect(closedPolys.every((e) => e.type === 'LWPOLYLINE' && e.vertices.length <= 4)).toBe(true);
   });
 });
