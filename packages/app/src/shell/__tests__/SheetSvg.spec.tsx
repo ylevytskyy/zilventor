@@ -11,7 +11,7 @@ const baseSheet: NestSheet = {
   sheetWidthMm: 1220,
   utilizationPct: 50.0,
   panels: [
-    { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false },
+    { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
   ],
 };
 
@@ -30,8 +30,8 @@ describe('SheetSvg', () => {
     const sheet: NestSheet = {
       ...baseSheet,
       panels: [
-        { itemNumber: 3, rowKey: 'r3', x: 10, y: 20, length: 600, width: 400, rotated: false },
-        { itemNumber: 7, rowKey: 'r7', x: 620, y: 20, length: 300, width: 200, rotated: false },
+        { itemNumber: 3, rowKey: 'r3', x: 10, y: 20, length: 600, width: 400, rotated: false, grain: 'none' },
+        { itemNumber: 7, rowKey: 'r7', x: 620, y: 20, length: 300, width: 200, rotated: false, grain: 'none' },
       ],
     };
     render(<SheetSvg sheet={sheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}} />);
@@ -46,7 +46,7 @@ describe('SheetSvg', () => {
     const smallSheet: NestSheet = {
       ...baseSheet,
       panels: [
-        { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 150, width: 100, rotated: false },
+        { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 150, width: 100, rotated: false, grain: 'none' },
       ],
     };
     render(<SheetSvg sheet={smallSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}} />);

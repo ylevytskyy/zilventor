@@ -6,7 +6,7 @@ import type { MaterialRegistry } from '@zilventor/shared/src/material';
 const sheet = (i: number, panels: number): NestSheet => ({
   materialId: 'm1', sheetIndex: i, sheetLengthMm: 2440, sheetWidthMm: 1220, utilizationPct: 50.0,
   panels: Array.from({ length: panels }, (_, k) => ({
-    itemNumber: k + 1, rowKey: `r${k}`, x: k * 700, y: 0, length: 600, width: 400, rotated: false,
+    itemNumber: k + 1, rowKey: `r${k}`, x: k * 700, y: 0, length: 600, width: 400, rotated: false, grain: 'none' as const,
   })),
 });
 

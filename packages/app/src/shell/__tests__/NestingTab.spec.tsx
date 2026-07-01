@@ -55,7 +55,7 @@ const NEST_WITH_SHEETS: NestState = {
       materialId: 'm1', sheetIndex: 1, sheetLengthMm: 2440, sheetWidthMm: 1220,
       utilizationPct: 75.0,
       panels: [
-        { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false },
+        { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
       ],
     },
   ],
