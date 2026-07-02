@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v34 → v35 (P3 W1 — machining presets / CAM metadata fields)', () => {
   it('CURRENT_FORMAT_VERSION is 35', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(35);
+    expect(CURRENT_FORMAT_VERSION).toBe(36);
   });
 
   it('migrates a v34 part manifest to v35 (additive no-op)', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v34 → v35 (P3 W1 — machining presets / CAM metadat
       document: { id: 'p1', featureTree: [{ kind: 'panel', id: 'pf1' }] },
     };
     const out = migrateManifest(v34);
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     const tree = (out.document as { featureTree: unknown[] }).featureTree;
     const panel = tree.find((f) => (f as { kind?: string }).kind === 'panel') as { id: string } | undefined;
     expect(panel?.id).toBe('pf1');
@@ -27,7 +27,7 @@ describe('migrateManifest v34 → v35 (P3 W1 — machining presets / CAM metadat
       toolNumber: 3, speed: 3200, presetLayerName: 'DRILL_D5',
     };
     const manifest: AnyManifest = {
-      formatVersion: 35,
+      formatVersion: 36,
       kind: 'part',
       document: {
         id: 'p2', featureTree: [], properties: {}, materials: [], hardware: [], bores: [bore],

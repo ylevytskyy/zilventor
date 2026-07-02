@@ -11,6 +11,10 @@ export interface MaterialEntry {
   readonly hatchSpacingMm?: number;  // default 3 — spacing between hatch lines
   readonly textureId?: string;
   readonly bandThicknessMm?: number; // default 0.4 — edge-band tape thickness for gross sizing
+  /** Stock kind for BOM/cut-list categorization. Absent === 'sheet' (panel/sheet stock).
+   *  'linear' materials (e.g. edge trim, moulding rods) are excluded from the panel/sheet
+   *  BOM and instead roll into the linear-material cut-length breakdown. Additive v36. */
+  readonly kind?: 'sheet' | 'linear';
 }
 
 export type MaterialRegistry = readonly MaterialEntry[];
@@ -51,5 +55,6 @@ export function isMaterialEntry(v: unknown): v is MaterialEntry {
     if (typeof m.textureId !== 'string' || m.textureId.length === 0) return false;
   }
   if (m.bandThicknessMm !== undefined && !isPositiveFiniteNumber(m.bandThicknessMm)) return false;
+  if (m.kind !== undefined && m.kind !== 'sheet' && m.kind !== 'linear') return false;
   return true;
 }

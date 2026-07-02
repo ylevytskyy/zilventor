@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v29 → v30 (iPart configurations)', () => {
   it('CURRENT_FORMAT_VERSION is 30', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(35);
+    expect(CURRENT_FORMAT_VERSION).toBe(36);
   });
 
   it('injects configurations:[] onto a v29 part document missing it', () => {
@@ -20,7 +20,7 @@ describe('migrateManifest v29 → v30 (iPart configurations)', () => {
       formatVersion: number;
       document: { configurations?: unknown[] };
     };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     expect(out.document.configurations).toEqual([]);
   });
 
@@ -50,7 +50,7 @@ describe('migrateManifest v29 → v30 (iPart configurations)', () => {
       formatVersion: number;
       document: Record<string, unknown>;
     };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     expect(out.document.configurations).toBeUndefined();
   });
 });
