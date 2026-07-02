@@ -19,13 +19,13 @@
 
 ## Slices
 
-- [ ] **W1** — Data model: `MaterialEntry.kind`, `AssemblyDocument.unitPrices?`, `defaultPriceBook` store slice (localStorage), manifest v35→v36 + fixture sweep.
-- [ ] **W2** — `partitionLinearMaterial(rows, materials)` pure fn in `packages/shared/src/linearMaterial.ts` (panelRows + per-material piece breakdowns, desc length order).
-- [ ] **W3** — `buildStatisticsReport(...)` pure builder: five sections, per-line effective price, section subtotals, grand total, unpricedLineCount. `packages/app/src/commands/buildStatisticsReport.ts`.
-- [ ] **W4** (∥ W5) — Exports: `buildStatisticsCsv` (multi-section, buildCutListCsv pattern) + `buildStatisticsXlsx` (exceljs, sheet per category + Summary) + export commands (ExportBomCsvCommand save pattern); xlsx test = round-trip re-parse via exceljs; dev-server smoke for optimizeDeps gotcha.
-- [ ] **W5** (∥ W4) — UI: `StatisticsReportTable`, `useStatisticsReport` hook, `OpenStatisticsReportTabCommand`, `SetUnitPriceCommand` (undo restores field ABSENCE), ribbon panel, i18n en/uk (i18n files owned by W5 only).
+- [x] **W1** — Data model: `MaterialEntry.kind`, `AssemblyDocument.unitPrices?`, `defaultPriceBook` store slice (localStorage), manifest v35→v36 + fixture sweep.
+- [x] **W2** — `partitionLinearMaterial(rows, materials)` pure fn in `packages/shared/src/linearMaterial.ts` (panelRows + per-material piece breakdowns, desc length order).
+- [x] **W3** — `buildStatisticsReport(...)` pure builder: five sections, per-line effective price, section subtotals, grand total, unpricedLineCount. `packages/app/src/commands/buildStatisticsReport.ts`.
+- [x] **W4** (∥ W5) — Exports: `buildStatisticsCsv` (multi-section, buildCutListCsv pattern) + `buildStatisticsXlsx` (exceljs, sheet per category + Summary) + export commands (ExportBomCsvCommand save pattern); xlsx test = round-trip re-parse via exceljs; dev-server smoke for optimizeDeps gotcha.
+- [x] **W5** (∥ W4) — UI: `StatisticsReportTable`, `useStatisticsReport` hook, `OpenStatisticsReportTabCommand`, `SetUnitPriceCommand` (undo restores field ABSENCE), ribbon panel, i18n en/uk (i18n files owned by W5 only).
 
-Order: W1 → W2 → W3 → (W4 ∥ W5, disjoint files). Gate before merge: typecheck 0, per-package vitest green, e2e green (fresh dev server), then `--no-ff` to local master.
+Order: W1 → W2 → W3 → (W4 ∥ W5, disjoint files). **ALL DONE 2026-07-02; gate MERGE-READY (typecheck 0×5, units 1414/306/3376, e2e 224+7-serial green).** Gate before merge: typecheck 0, per-package vitest green, e2e green (fresh dev server), then `--no-ff` to local master.
 
 ## Known follow-ups / risks
 
