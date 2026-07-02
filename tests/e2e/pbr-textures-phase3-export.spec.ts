@@ -268,17 +268,70 @@ test.describe('PBR Textures Phase 3 — Export Image + autosave thumbnail', () =
     await page.goto('/');
     await waitForKernelReady(page);
 
-    // Capture write count BEFORE part setup (setup itself triggers autosave).
+    await setupTexturedPart(page, 'Tile Wood', 'Tile Tex', 'pf-tile-e2e');
+
+    // The debounced autosave (fires 500ms after the *last* store mutation,
+    // i.e. AddPanelFeatureCommand here) races independently of
+    // setupTexturedPart's own waits (triangle-count + networkidle + 500ms).
+    // On a loaded machine the debounce can elapse and capture the
+    // thumbnail a few dozen ms *before* the GPU texture upload finishes,
+    // producing a near-blank capture even though the viewport is fully
+    // textured moments later. Confirm the texture is actually visible
+    // live (same check "Export Image opaque" above relies on) before
+    // trusting any autosave write.
+    await expect(async () => {
+      const variance = await page.evaluate(async () => {
+        const store = (window as unknown as {
+          __zilventorStore: {
+            getState(): {
+              viewport: { captureViewportPng(o: { transparent: boolean }): Promise<Uint8Array> } | null;
+            };
+          };
+        }).__zilventorStore;
+        const vp = store.getState().viewport;
+        if (!vp) return -1;
+        const bytes = await vp.captureViewportPng({ transparent: false });
+        const blob = new Blob([bytes], { type: 'image/png' });
+        const bmp = await createImageBitmap(blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = bmp.width;
+        canvas.height = bmp.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(bmp, 0, 0);
+        const w = Math.min(bmp.width, 100);
+        const h = Math.min(bmp.height, 100);
+        const imgData = ctx.getImageData(
+          Math.floor(bmp.width / 2 - w / 2),
+          Math.floor(bmp.height / 2 - h / 2),
+          w, h,
+        );
+        const reds = Array.from({ length: w * h }, (_, i) => imgData.data[i * 4]!);
+        const mean = reds.reduce((a, b) => a + b, 0) / reds.length;
+        return reds.reduce((a, b) => a + (b - mean) ** 2, 0) / reds.length;
+      });
+      expect(variance, 'live viewport must show texture grain before trusting an autosave write').toBeGreaterThan(10);
+    }).toPass({ timeout: 10_000 });
+
+    // Autosave only re-captures the thumbnail at most once per
+    // THUMB_THROTTLE_MS (5000ms in App.tsx) — any write inside that window
+    // reuses the cached bytes from the capture that already fired during
+    // setupTexturedPart, which can race ahead of the GPU texture upload.
+    // Wait out the throttle window so the next write is guaranteed to
+    // re-capture, then force one more store mutation to trigger it.
+    await page.waitForTimeout(5200);
     const writeCountBefore = await page.evaluate(() => {
       const fn = (window as unknown as { __zilventorAutosaveStats?: () => { writeCount: number } }).__zilventorAutosaveStats;
       return fn ? fn().writeCount : 0;
     });
+    await page.evaluate(async () => {
+      const { AddMaterialCommand } = await import('/src/commands/AddMaterialCommand.ts');
+      const store = (window as unknown as ZilventorStore).__zilventorStore;
+      await store.getState().bus.execute(
+        new AddMaterialCommand({ name: 'Touch Material (autosave sync)', defaultThickness: 18, color: '#888888' }),
+      );
+    });
 
-    await setupTexturedPart(page, 'Tile Wood', 'Tile Tex', 'pf-tile-e2e');
-
-    // Wait for autosave to run (must increment from writtenBefore).
-    // setupTexturedPart already waited for networkidle + 500ms; autosave fires
-    // 500ms after activeDoc changes, so we give up to 8000ms more from here.
+    // Wait for the fresh autosave write triggered by the touch mutation.
     await page.waitForFunction(
       (before: number) => {
         const fn = (window as unknown as { __zilventorAutosaveStats?: () => { writeCount: number } }).__zilventorAutosaveStats;

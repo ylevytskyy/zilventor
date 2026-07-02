@@ -94,6 +94,20 @@ test('F2.4 mid-flight: ribbon button enters edit mode; handles visible; before/a
   // so it should be enabled. This exercises the button→mode→handle-render path end-to-end.
   const editBtn = page.getByRole('button', { name: /edit detail region/i });
   await expect(editBtn).toBeEnabled({ timeout: 5_000 });
+  // eslint-disable-next-line no-console
+  console.log('[DEBUG-f24] rects:', await page.evaluate(() => {
+    const q = (label: RegExp) =>
+      Array.from(document.querySelectorAll('button')).find((b) => label.test(b.textContent ?? ''));
+    const edit = q(/edit detail region/i);
+    const aligned = q(/^aligned$/i);
+    return {
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+      docScrollWidth: document.documentElement.scrollWidth,
+      editRect: edit?.getBoundingClientRect(),
+      alignedRect: aligned?.getBoundingClientRect(),
+      editParentRect: edit?.closest('div')?.parentElement?.getBoundingClientRect(),
+    };
+  }));
   await editBtn.click();
 
   // Assert handle overlay renders

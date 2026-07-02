@@ -23,9 +23,14 @@
 import { test, expect } from '@playwright/test';
 import { waitForKernelReady } from './helpers/buildBox';
 
-/** Parse DXF text into [groupCode, value] pairs (from T-6-22). */
+/** Parse DXF text into [groupCode, value] pairs (from T-6-22).
+ *  NOTE: some group values are legitimately empty strings (e.g. the STYLE table's
+ *  group-4 secondary-font field) — only the single trailing blank line produced by
+ *  the writer's final '\n' is dropped, so code/value pairing stays aligned. */
 function parseDxf(text: string): Array<[number, string]> {
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  const raw = text.split('\n');
+  while (raw.length > 0 && raw[raw.length - 1] === '') raw.pop();
+  const lines = raw.map((l) => l.trim());
   const pairs: Array<[number, string]> = [];
   for (let i = 0; i + 1 < lines.length; i += 2) {
     const code = parseInt(lines[i]!, 10);

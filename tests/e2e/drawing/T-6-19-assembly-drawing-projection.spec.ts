@@ -50,6 +50,17 @@ test('T-6-19: 2-part assembly drawing — base view + pack→unpack + stale + re
   await page.goto('/');
   await waitForKernelReady(page);
 
+  // Disable autoRegen: DrawingCanvas's own auto-regen effect races this spec's manual
+  // "assert stale → click Regenerate" flow in step 9 (see debug-loop root-cause notes
+  // on T-6-4-stale-banner-regen.spec.ts / T-6-18-drawing-reopen.spec.ts for the first
+  // occurrences of this race).
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { setAutoRegen: (v: boolean) => void } };
+    };
+    w.__zilventorStore.getState().setAutoRegen(false);
+  });
+
   // ── Step 1: Build Part A (50×50×30) via UI ──────────────────────────────────
   await buildBox(page, { width: 50, height: 50, depth: 30 });
 

@@ -52,8 +52,8 @@ test('T26 — 600x400 panel PVC front+back × 3 → 3600 mm edge-band total', as
     materialId: 'm-birch',
     grain: 'length',
     edgeBands: {
-      front: { materialId: 'm-pvc' },
-      back: { materialId: 'm-pvc' },
+      front: { materialId: 'm-pvc', thickness: 1 },
+      back: { materialId: 'm-pvc', thickness: 1 },
     },
     materials: [
       { id: 'm-birch', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' },
