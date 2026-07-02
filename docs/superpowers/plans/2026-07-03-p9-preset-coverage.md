@@ -88,6 +88,11 @@ Plus: the requirements doc's R2 section and R7 traceability row are wrong and ne
 - No manifest version bump (D5) — confirm `CURRENT_FORMAT_VERSION` unchanged at 39 as a gate check, not an assumption.
 - `docs/abf-plugin/05-parity/03-processing-parity-requirements.md` R2 + R7 rows read back and confirmed to match shipped reality (W0).
 
+**AS-BUILT SCOPE CALLS (W2, 58a1a702):**
+- **S-W2b (conf 60, REVIEW):** leg-levelers got FULL preset transfer (diameter/depth/CAM) per this doc's literal "same shape as W2a" — but leg-leveler screw diameter/depth are catalog-derived (`LegLevelerSpec`), structurally like TANDEM's, which got CAM-only. Inconsistent by design-doc compliance; flip W2b to CAM-only if the user prefers consistency with W2c.
+- W2a also extended `AddManualShelfPinBoresCommand` (not named here) since it shares `ShelfPinDialog` — avoids a silent no-op path (conf 70).
+- W2c merged drawer-bottom + drawer-back opTypes into one drawer-side picker, applied uniformly to both roles (harmless under CAM-only transfer; conf 75).
+
 ## Out of scope
 
 - Hinge-creation preset picker (`AddDoorCommand.ts`) — deferred per D2, needs its own research pass on the door dialog first.
