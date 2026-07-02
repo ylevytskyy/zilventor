@@ -34,9 +34,12 @@ export function LegLevelersDialog(): JSX.Element | null {
   const { t } = useTranslation();
   const dialog = useAppStore((s) => s.addLegLevelersDialog);
   const setDialog = useAppStore((s) => s.setAddLegLevelersDialog);
+  const machiningPresets = useAppStore((s) => s.machiningPresets);
+  const matchingPresets = machiningPresets.filter((p) => p.opType === 'legLeveler');
 
   const [legsPerRowStr, setLegsPerRowStr] = React.useState(String(DEFAULT_LEGS_PER_ROW));
   const [skuId, setSkuId] = React.useState(DEFAULT_SKU);
+  const [presetId, setPresetId] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
 
   // Reset defaults each time the dialog opens.
@@ -44,6 +47,7 @@ export function LegLevelersDialog(): JSX.Element | null {
     if (dialog) {
       setLegsPerRowStr(String(DEFAULT_LEGS_PER_ROW));
       setSkuId(DEFAULT_SKU);
+      setPresetId('');
       setError(null);
     }
   }, [dialog]);
@@ -60,8 +64,18 @@ export function LegLevelersDialog(): JSX.Element | null {
       return;
     }
     setError(null);
+    const preset = matchingPresets.find((p) => p.id === presetId);
+    const presetValues = preset
+      ? {
+          diameter: preset.diameter,
+          depth: preset.depth,
+          layerName: preset.layerName,
+          ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+          ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+        }
+      : undefined;
     try {
-      await dialog.onSubmit({ legsPerRow, skuId });
+      await dialog.onSubmit({ legsPerRow, skuId, ...(presetValues ? { presetValues } : {}) });
       setDialog(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -126,6 +140,24 @@ export function LegLevelersDialog(): JSX.Element | null {
 
         {legsPerRowValid && (
           <div style={helperStyle}>{t('dialog.legLevelers.total', { n: totalLegs })}</div>
+        )}
+
+        {matchingPresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="leglevelers-preset">{t('bore.machining_preset', 'Machining preset')}</label>
+            <select
+              id="leglevelers-preset"
+              aria-label={t('bore.machining_preset', 'Machining preset')}
+              style={fieldStyle}
+              value={presetId}
+              onChange={(e) => setPresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {matchingPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {error && (

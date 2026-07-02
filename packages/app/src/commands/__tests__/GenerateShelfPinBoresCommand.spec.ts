@@ -189,6 +189,57 @@ describe('GenerateShelfPinBoresCommand — auto recurse', () => {
   });
 });
 
+describe('GenerateShelfPinBoresCommand — presetValues snapshot (P9 W2a)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('overrides diameter/depth/presetLayerName/toolNumber/speed on every generated bore when presetValues is given', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+    const presetValues = { diameter: 6, depth: 14, layerName: 'SHELF', toolNumber: 3, speed: 12000 };
+
+    await new GenerateShelfPinBoresCommand({ params: DEFAULT_SHELF_PIN_PARAMS, presetValues, opfs }).apply();
+
+    for (const b of [...(await boresOf(opfs, LP)), ...(await boresOf(opfs, RP))]) {
+      expect(b.diameter).toBe(6);
+      expect(b.depth).toBe(14);
+      expect(b.presetLayerName).toBe('SHELF');
+      expect(b.toolNumber).toBe(3);
+      expect(b.speed).toBe(12000);
+    }
+  });
+
+  it('a later mutation of the source presetValues object never changes already-created bores (snapshot, not a live reference)', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+    const presetValues = { diameter: 6, depth: 14, layerName: 'SHELF' };
+
+    await new GenerateShelfPinBoresCommand({ params: DEFAULT_SHELF_PIN_PARAMS, presetValues, opfs }).apply();
+    presetValues.diameter = 999;
+    presetValues.layerName = 'MUTATED';
+
+    for (const b of await boresOf(opfs, LP)) {
+      expect(b.diameter).toBe(6);
+      expect(b.presetLayerName).toBe('SHELF');
+    }
+  });
+
+  it('without presetValues, behavior is unchanged (no presetLayerName/toolNumber/speed on generated bores)', async () => {
+    const opfs = new MemOpfs();
+    await buildNestedStructure(opfs);
+
+    await new GenerateShelfPinBoresCommand({ params: DEFAULT_SHELF_PIN_PARAMS, opfs }).apply();
+
+    for (const b of await boresOf(opfs, LP)) {
+      expect('presetLayerName' in b).toBe(false);
+      expect('toolNumber' in b).toBe(false);
+      expect('speed' in b).toBe(false);
+    }
+  });
+});
+
 async function shelfPinParamsOf(opfs: MemOpfs, path: string) {
   const project = await unpackProject(await opfs.read(path));
   return (project.manifest as { document: { shelfPinParams?: unknown } }).document.shelfPinParams;

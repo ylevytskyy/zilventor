@@ -432,6 +432,113 @@ describe('AddDrawerBankCommand — revert (H2)', () => {
   });
 });
 
+describe('AddDrawerBankCommand — tandem preset CAM tagging (P9 W2c)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('tags tandem-cabinet bores with cabinetPresetValues, tandem-drawer-bottom/-back bores with drawerPresetValues, WITHOUT touching diameter/depth (structural, catalog-dictated)', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const cabinetPresetValues = { layerName: 'TANDEM-CAB', toolNumber: 5, speed: 8000 };
+    const drawerPresetValues = { layerName: 'TANDEM-DRW', toolNumber: 6, speed: 7500 };
+
+    const cmd = new AddDrawerBankCommand({
+      cabinetPath,
+      params: { count: 2, overlay: 'full', thickness: 18, slideSystem: 'tandem' },
+      cabinetPresetValues,
+      drawerPresetValues,
+      opfs,
+      kernel,
+      store: useAppStore,
+    });
+    await cmd.apply();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const leftBores = await boresOf(opfs, 'L.zipt');
+    const rightBores = await boresOf(opfs, 'R.zipt');
+    const cabinetSideBores = [...leftBores, ...rightBores].filter((b) => b.role === 'tandem-cabinet');
+    expect(cabinetSideBores.length).toBeGreaterThan(0);
+    for (const b of cabinetSideBores) {
+      expect(b.presetLayerName).toBe('TANDEM-CAB');
+      expect(b.toolNumber).toBe(5);
+      expect(b.speed).toBe(8000);
+      expect(b.diameter).toBe(5); // TANDEM_CABINET_HOLE_DIAMETER — untouched, structural
+    }
+
+    // Box bottom + back bores live in each box's panel .zipt files.
+    const boxes = cab.components.filter((c) => c.role === 'drawerBox');
+    let drawerBoresChecked = 0;
+    for (const box of boxes) {
+      const boxAsm = await unpackAssembly(await opfs.read(box.partPath));
+      for (const panel of boxAsm.components) {
+        const bores = (await boresOf(opfs, panel.partPath)).filter(
+          (b) => b.role === 'tandem-drawer-bottom' || b.role === 'tandem-drawer-back',
+        );
+        for (const b of bores) {
+          expect(b.presetLayerName).toBe('TANDEM-DRW');
+          expect(b.toolNumber).toBe(6);
+          expect(b.speed).toBe(7500);
+          drawerBoresChecked++;
+        }
+      }
+    }
+    expect(drawerBoresChecked).toBeGreaterThan(0);
+  });
+
+  it('a later mutation of the source preset objects never changes already-created bores (snapshot, not a live reference)', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const cabinetPresetValues = { layerName: 'TANDEM-CAB' };
+    const cmd = new AddDrawerBankCommand({
+      cabinetPath,
+      params: { count: 2, overlay: 'full', thickness: 18, slideSystem: 'tandem' },
+      cabinetPresetValues,
+      opfs,
+      kernel,
+      store: useAppStore,
+    });
+    await cmd.apply();
+    cabinetPresetValues.layerName = 'MUTATED';
+
+    const leftBores = await boresOf(opfs, 'L.zipt');
+    const rightBores = await boresOf(opfs, 'R.zipt');
+    const cabinetSideBores = [...leftBores, ...rightBores].filter((b) => b.role === 'tandem-cabinet');
+    expect(cabinetSideBores.length).toBeGreaterThan(0);
+    for (const b of cabinetSideBores) {
+      expect(b.presetLayerName).toBe('TANDEM-CAB');
+    }
+  });
+
+  it('without preset values, tandem behavior is unchanged (no presetLayerName/toolNumber/speed on generated bores)', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+    await new AddDrawerBankCommand({
+      cabinetPath,
+      params: { count: 2, overlay: 'full', thickness: 18, slideSystem: 'tandem' },
+      opfs,
+      kernel,
+      store: useAppStore,
+    }).apply();
+
+    const leftBores = await boresOf(opfs, 'L.zipt');
+    const cabinetSideBores = leftBores.filter((b) => b.role === 'tandem-cabinet');
+    expect(cabinetSideBores.length).toBeGreaterThan(0);
+    for (const b of cabinetSideBores) {
+      expect('presetLayerName' in b).toBe(false);
+      expect('toolNumber' in b).toBe(false);
+      expect('speed' in b).toBe(false);
+    }
+  });
+});
+
 // ─── Helpers for variable-height tests ───────────────────────────────────────
 
 /** Derive openH for the seeded cabinet (H - toekick - 2*Tc). */

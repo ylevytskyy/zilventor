@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MachiningPreset, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MachiningPreset, MachiningPresetCamValues, MachiningPresetValues, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -202,6 +202,12 @@ export type AddDrawerBankDialogState = {
     thickness: number;
     heights?: number[];
     slideSystem: 'sideMount' | 'tandem';
+    /** Tandem-only: snapshotted CAM-only preset values (P9 W2c, ADR 0001) for
+     *  tandem-cabinet bores — absent when "None" is picked. */
+    cabinetPresetValues?: MachiningPresetCamValues;
+    /** Tandem-only: snapshotted CAM-only preset values (P9 W2c, ADR 0001) for
+     *  tandem-drawer-bottom/-back bores — absent when "None" is picked. */
+    drawerPresetValues?: MachiningPresetCamValues;
   }) => void;
   onCancel: () => void;
 };
@@ -209,7 +215,12 @@ export type AddDrawerBankDialogState = {
 /** M4-B: "Add Leg Levelers" dialog. cabinetPath is the picked cabinet `.ziasm`. */
 export type AddLegLevelersDialogState = {
   cabinetPath: string;
-  onSubmit: (params: { legsPerRow: number; skuId: string }) => void | Promise<void>;
+  onSubmit: (params: {
+    legsPerRow: number;
+    skuId: string;
+    /** Snapshotted machining-preset values (P9 W2b, ADR 0001) — absent when "None" is picked. */
+    presetValues?: MachiningPresetValues;
+  }) => void | Promise<void>;
   onCancel: () => void;
 };
 
@@ -255,6 +266,8 @@ export type ShelfPinDialogState = {
     bottomMargin: number;
     startOffset: number;
     columns: 1 | 2;
+    /** Snapshotted machining-preset values (P9 W2a, ADR 0001) — absent when "None" is picked. */
+    presetValues?: MachiningPresetValues;
   }) => void;
   onCancel: () => void;
 };
@@ -450,6 +463,12 @@ type AppState = {
   selectedBorePartPath: string | null;
   /** Slice-3: select a bore; clears component selection (mutual exclusion). */
   setSelectedBore(boreId: string | null, partPath: string | null): void;
+  /** P9 W1: currently selected groove id (null = nothing selected). */
+  selectedGrooveId: string | null;
+  /** P9 W1: OPFS path of the part owning the selected groove (null = nothing selected). */
+  selectedGroovePartPath: string | null;
+  /** P9 W1: select a groove; clears bore + component selection (mutual exclusion). */
+  setSelectedGroove(grooveId: string | null, partPath: string | null): void;
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   cutListTabActive: boolean;
@@ -880,6 +899,8 @@ export const useAppStore = create<AppState>((set) => ({
   selectedComponentPaths: [],
   selectedBoreId: null,
   selectedBorePartPath: null,
+  selectedGrooveId: null,
+  selectedGroovePartPath: null,
   componentDiagnostics: [],
   bomTabActive: false,
   cutListTabActive: false,
@@ -912,11 +933,22 @@ export const useAppStore = create<AppState>((set) => ({
     selectedBoreId: boreId,
     selectedBorePartPath: partPath,
     selectedComponentPaths: [],
+    selectedGrooveId: null,
+    selectedGroovePartPath: null,
+  }),
+  setSelectedGroove: (grooveId, partPath) => set({
+    selectedGrooveId: grooveId,
+    selectedGroovePartPath: partPath,
+    selectedComponentPaths: [],
+    selectedBoreId: null,
+    selectedBorePartPath: null,
   }),
   selectComponentPaths: (paths) => set({
     selectedComponentPaths: [...paths],
     selectedBoreId: null,
     selectedBorePartPath: null,
+    selectedGrooveId: null,
+    selectedGroovePartPath: null,
   }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),

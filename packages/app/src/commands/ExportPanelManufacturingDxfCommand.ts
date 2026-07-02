@@ -1,6 +1,7 @@
 import { renderPanelManufacturingDxf, renderCombinedManufacturingDxf, type PanelManufacturingInput } from '../drawing/renderPanelManufacturingDxf';
 import { buildManufacturingCsv } from '../drawing/manufacturingCsv';
 import { buildDxfZip } from '../drawing/dxfZip';
+import { triggerDownload } from '../nesting/triggerDownload';
 import type { PanelPreflightDiagnostic } from '@zilventor/shared';
 import i18n from '../i18n';
 
@@ -59,6 +60,18 @@ function combinedDxfFileName(suggestedName: string): string {
   return `${base}-combined.dxf`;
 }
 
+// D6 (2026-07-03-p9-preset-coverage.md): gates the combined-mode CSV sidecar to only
+// fire when at least one bore/groove/tenonMortise actually carries a preset-derived
+// field — otherwise every combined export would drop an empty CSV into Downloads.
+function hasMachiningMetadata(inputs: PanelManufacturingInput[]): boolean {
+  const has = (op: { toolNumber?: number; speed?: number; presetLayerName?: string }): boolean =>
+    op.toolNumber !== undefined || op.speed !== undefined || op.presetLayerName !== undefined;
+  return inputs.some(
+    (input) =>
+      input.bores.some(has) || input.grooves.some(has) || (input.tenonMortises ?? []).some(has),
+  );
+}
+
 export class ExportPanelManufacturingDxfCommand {
   constructor(private opts: {
     inputs: PanelManufacturingInput[];
@@ -75,9 +88,13 @@ export class ExportPanelManufacturingDxfCommand {
       this.opts.showToast?.(i18n.t(d.reasonKey, d.params ?? {}));
     }
     const combined = this.opts.mode === 'combined';
-    // D2/S1: sidecar machining.csv ships only in the folders/zip mode, at the ZIP ROOT —
+    // D2/S1: sidecar machining.csv ships INLINE in the folders/zip mode, at the ZIP ROOT —
     // added here (not inside buildManufacturingZipEntries) so that function's per-material
-    // DXF-entries contract stays exactly as tested; combined mode is untouched.
+    // DXF-entries contract stays exactly as tested. D6 (2026-07-03-p9-preset-coverage.md):
+    // combined mode's single-DXF *bytes* stay byte-for-byte untouched (no CSV inlined —
+    // several e2e/unit contracts assert this) — instead, machining.csv ships as a second,
+    // sequential download after the primary .dxf, gated on hasMachiningMetadata() below.
+    // This supersedes the old "combined mode has no CSV at all" decision.
     const bytes = combined
       ? new TextEncoder().encode(buildCombinedManufacturingDxf(this.opts.inputs))
       : buildDxfZip({
@@ -90,21 +107,34 @@ export class ExportPanelManufacturingDxfCommand {
       ? [{ description: 'DXF', accept: { 'application/dxf': ['.dxf'] } }]
       : [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }];
     const picker = (globalThis as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+    let delivered = false;
     if (typeof picker === 'function') {
       try {
         const handle = await picker({ suggestedName, types });
         const w = await handle.createWritable();
         await w.write(bytes);
         await w.close();
+        delivered = true;
       } catch (err) {
         const e = err as { name?: string };
         if (e?.name === 'AbortError') return;
         if (typeof document === 'undefined') return;
         this.downloadFallback(bytes, suggestedName, combined);
+        delivered = true;
       }
-      return;
+    } else if (typeof document !== 'undefined') {
+      this.downloadFallback(bytes, suggestedName, combined);
+      delivered = true;
     }
-    if (typeof document !== 'undefined') this.downloadFallback(bytes, suggestedName, combined);
+    if (delivered && combined && hasMachiningMetadata(this.opts.inputs)) {
+      const csv = buildManufacturingCsv(this.opts.inputs);
+      await triggerDownload(new Blob([csv], { type: 'text/csv' }), {
+        suggestedName: 'machining.csv',
+        mimeType: 'text/csv',
+        extension: 'csv',
+        description: 'CSV',
+      });
+    }
   }
 
   private downloadFallback(bytes: Uint8Array, suggestedName: string, combined: boolean): void {

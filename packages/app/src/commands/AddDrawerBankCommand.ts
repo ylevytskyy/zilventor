@@ -30,6 +30,7 @@ import type {
   AssemblyDocument,
   BoreOp,
   ComponentInstance,
+  MachiningPresetCamValues,
   PanelFeature,
   PartDocument,
 } from '@zilventor/shared';
@@ -71,6 +72,22 @@ export interface AddDrawerBankParams {
   thickness: number;
   heights?: number[];
   slideSystem?: 'sideMount' | 'tandem';
+}
+
+/**
+ * Snapshot CAM-only preset values (P9 W2c, D1) onto tandem bores — diameter/depth
+ * are NEVER touched here: they are structural, dictated by the Blum TANDEM slide
+ * mounting spec (tandemConventions.ts), not shop-configurable. Only
+ * presetLayerName/toolNumber/speed transfer. Judgment call, see plan doc D2.
+ */
+function withCamPresetValues(bores: BoreOp[], preset?: MachiningPresetCamValues): BoreOp[] {
+  if (!preset) return bores;
+  return bores.map((b) => ({
+    ...b,
+    presetLayerName: preset.layerName,
+    ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+    ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+  }));
 }
 
 /** Artifacts created for one drawer slot during apply(). */
@@ -116,6 +133,14 @@ export class AddDrawerBankCommand implements Command {
   constructor(private readonly opts: {
     cabinetPath: string;
     params: AddDrawerBankParams;
+    /** Tandem-only: snapshotted CAM-only preset values (P9 W2c, ADR 0001) for
+     *  tandem-cabinet bores. VALUES, not a preset id — diameter/depth never
+     *  transfer (structural, catalog-dictated). */
+    cabinetPresetValues?: MachiningPresetCamValues;
+    /** Tandem-only: snapshotted CAM-only preset values (P9 W2c, ADR 0001) for
+     *  tandem-drawer-bottom AND tandem-drawer-back bores (both drawer-side roles
+     *  share one picker). VALUES, not a preset id. */
+    drawerPresetValues?: MachiningPresetCamValues;
     opfs: OpfsRWD;
     kernel?: KernelPartApi;
     store?: typeof useAppStore;
@@ -291,14 +316,16 @@ export class AddDrawerBankCommand implements Command {
 
       if (isTandem) {
         const { cabinetBores, boxBottomBores, boxBackBores } = tandemSlideMath(slideCtx);
+        const taggedBottomBores = withCamPresetValues(boxBottomBores, this.opts.drawerPresetValues);
+        const taggedBackBores = withCamPresetValues(boxBackBores, this.opts.drawerPresetValues);
         // Capture returned priorBores to extract panel paths for cache invalidation.
         // Without this, stale bore-marker cache entries persist on REDO (M4-B bug class).
-        const { priorBores: botPrior } = await writeBoxBottomBores(boxBytes, boxBottomBores, opfs);
-        const { priorBores: backPrior } = await writeBoxBackBores(boxBytes, boxBackBores, opfs);
+        const { priorBores: botPrior } = await writeBoxBottomBores(boxBytes, taggedBottomBores, opfs);
+        const { priorBores: backPrior } = await writeBoxBackBores(boxBytes, taggedBackBores, opfs);
         for (const p of [...botPrior.keys(), ...backPrior.keys()]) {
           this.tandemBoxBorePaths.add(p);
         }
-        await this.appendCabinetSideBores(cab, cabinetBores, opfs);
+        await this.appendCabinetSideBores(cab, withCamPresetValues(cabinetBores, this.opts.cabinetPresetValues), opfs);
       } else {
         const { cabinetBores, boxBores } = drawerSlideMath(slideCtx);
         // Write box-side bores into the box panel .zipt files

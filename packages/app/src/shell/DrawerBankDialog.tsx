@@ -51,11 +51,18 @@ export function DrawerBankDialog(): JSX.Element | null {
   const { t } = useTranslation();
   const dialog = useAppStore((s) => s.addDrawerBankDialog);
   const setDialog = useAppStore((s) => s.setAddDrawerBankDialog);
+  const machiningPresets = useAppStore((s) => s.machiningPresets);
+  const cabinetPresets = machiningPresets.filter((p) => p.opType === 'tandem-cabinet');
+  const drawerPresets = machiningPresets.filter(
+    (p) => p.opType === 'tandem-drawer-bottom' || p.opType === 'tandem-drawer-back',
+  );
 
   const [countStr, setCountStr] = React.useState('3');
   const [overlay, setOverlay] = React.useState<'full' | 'half' | 'inset'>('full');
   const [thicknessStr, setThicknessStr] = React.useState('18');
   const [slideSystem, setSlideSystem] = React.useState<'sideMount' | 'tandem'>('sideMount');
+  const [cabinetPresetId, setCabinetPresetId] = React.useState('');
+  const [drawerPresetId, setDrawerPresetId] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [heightStrs, setHeightStrs] = React.useState<string[]>([]);
 
@@ -66,6 +73,8 @@ export function DrawerBankDialog(): JSX.Element | null {
       setOverlay('full');
       setThicknessStr('18');
       setSlideSystem('sideMount');
+      setCabinetPresetId('');
+      setDrawerPresetId('');
       setError(null);
     }
   }, [dialog]);
@@ -109,6 +118,14 @@ export function DrawerBankDialog(): JSX.Element | null {
       return;
     }
     setError(null);
+    const isTandem = slideSystem === 'tandem';
+    const cabinetPreset = isTandem ? cabinetPresets.find((p) => p.id === cabinetPresetId) : undefined;
+    const drawerPreset = isTandem ? drawerPresets.find((p) => p.id === drawerPresetId) : undefined;
+    const camValues = (p: typeof cabinetPreset) => (p
+      ? { layerName: p.layerName, ...(p.toolNumber === undefined ? {} : { toolNumber: p.toolNumber }), ...(p.speed === undefined ? {} : { speed: p.speed }) }
+      : undefined);
+    const cabinetPresetValues = camValues(cabinetPreset);
+    const drawerPresetValues = camValues(drawerPreset);
     try {
       await dialog.onSubmit({
         count,
@@ -116,6 +133,8 @@ export function DrawerBankDialog(): JSX.Element | null {
         thickness: Number(thicknessStr),
         slideSystem,
         ...(openH != null ? { heights } : {}),
+        ...(cabinetPresetValues ? { cabinetPresetValues } : {}),
+        ...(drawerPresetValues ? { drawerPresetValues } : {}),
       });
       setDialog(null);
     } catch (err: unknown) {
@@ -205,6 +224,42 @@ export function DrawerBankDialog(): JSX.Element | null {
             <option value="tandem">{t('dialog.drawerBank.slideSystemTandem')}</option>
           </select>
         </div>
+
+        {slideSystem === 'tandem' && cabinetPresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="drawerbank-preset-cabinet">{t('dialog.drawerBank.presetCabinet')}</label>
+            <select
+              id="drawerbank-preset-cabinet"
+              aria-label={t('dialog.drawerBank.presetCabinet')}
+              style={fieldStyle}
+              value={cabinetPresetId}
+              onChange={(e) => setCabinetPresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {cabinetPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {slideSystem === 'tandem' && drawerPresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="drawerbank-preset-drawer">{t('dialog.drawerBank.presetDrawer')}</label>
+            <select
+              id="drawerbank-preset-drawer"
+              aria-label={t('dialog.drawerBank.presetDrawer')}
+              style={fieldStyle}
+              value={drawerPresetId}
+              onChange={(e) => setDrawerPresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {drawerPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {countValid && openH != null && (
           <>

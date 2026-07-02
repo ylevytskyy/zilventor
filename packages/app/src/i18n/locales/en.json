@@ -88,6 +88,7 @@
     "assembly_label": "Assembly: {{name}}",
     "components_count": "Components ({{count}})",
     "end_of_part": "End of Part",
+    "groove": "Groove",
     "no_part_open": "No part open",
     "origin": "Origin"
   },
@@ -173,6 +174,7 @@
     "save": "Save",
     "source": "Source",
     "bore_properties": "Bore properties",
+    "groove_properties": "Groove properties",
     "suppress": "Suppress",
     "type": "Type",
     "unsuppress": "Unsuppress"
@@ -187,6 +189,14 @@
     "machining_preset": "Machining preset",
     "regenerate_to_enable_move": "Regenerate bores to enable move",
     "start_offset_kept_edits": "Start offset regenerated the shelf-pin grid; manually moved holes stayed at their old positions."
+  },
+  "groove": {
+    "axis": "Axis",
+    "layer_name": "Layer",
+    "position_mm": "Position (mm)",
+    "speed_rpm": "Speed (RPM)",
+    "tool_number": "Tool #",
+    "width_mm": "Width (mm)"
   },
   "dialog": {
     "addBreak": {
@@ -210,6 +220,8 @@
       "slideSystem": "Slide system",
       "slideSystemSideMount": "Side mount",
       "slideSystemTandem": "Tandem (under-mount)",
+      "presetCabinet": "Cabinet-side machining preset",
+      "presetDrawer": "Drawer-side machining preset",
       "heights": "Drawer heights (mm)",
       "heightN": "Drawer {{n}}",
       "remaining": "Remaining: {{mm}} mm",

@@ -88,6 +88,7 @@
     "assembly_label": "Збірка: {{name}}",
     "components_count": "Компоненти ({{count}})",
     "end_of_part": "Кінець деталі",
+    "groove": "Паз",
     "no_part_open": "Немає відкритої деталі",
     "origin": "Початок координат"
   },
@@ -173,6 +174,7 @@
     "save": "Зберегти",
     "source": "Джерело",
     "bore_properties": "Властивості отвору",
+    "groove_properties": "Властивості паза",
     "suppress": "Заблокувати",
     "type": "Тип",
     "unsuppress": "Розблокувати"
@@ -187,6 +189,14 @@
     "machining_preset": "Пресет обробки",
     "regenerate_to_enable_move": "Регенеруйте присадку для переміщення",
     "start_offset_kept_edits": "Початковий відступ перегенерував сітку полицетримачів; вручну переміщені отвори залишилися на старих місцях."
+  },
+  "groove": {
+    "axis": "Вісь",
+    "layer_name": "Шар",
+    "position_mm": "Позиція (мм)",
+    "speed_rpm": "Швидкість (об/хв)",
+    "tool_number": "№ інструменту",
+    "width_mm": "Ширина (мм)"
   },
   "dialog": {
     "addBreak": {
@@ -210,6 +220,8 @@
       "slideSystem": "Система напрямних",
       "slideSystemSideMount": "Бокові напрямні",
       "slideSystemTandem": "Tandem (нижнє кріплення)",
+      "presetCabinet": "Пресет обробки — корпус",
+      "presetDrawer": "Пресет обробки — шухляда",
       "heights": "Висоти шухляд (мм)",
       "heightN": "Шухляда {{n}}",
       "remaining": "Залишок: {{mm}} мм",

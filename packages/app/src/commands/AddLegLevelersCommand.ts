@@ -23,7 +23,7 @@
  */
 
 import type { Command } from './Command';
-import type { AssemblyDocument, BoreOp, ComponentInstance, FaceName } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, ComponentInstance, FaceName, MachiningPresetValues } from '@zilventor/shared';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import { computeLegPositions, legLevelerBores } from '@zilventor/shared/src/cabinets/legLayout';
 import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
@@ -53,6 +53,22 @@ export interface AddLegLevelersParams {
   backInset?: number;       // default 25mm
 }
 
+/** Snapshot preset values (P9 W2b, D1) onto every generated leg-leveler bore —
+ *  same shape as the shelf-pin transfer (W2a): diameter/depth/presetLayerName/
+ *  toolNumber/speed all flow from the preset, mirroring
+ *  ApplyMachiningPresetCommand's bore branch. */
+function withPresetValues(bores: BoreOp[], preset?: MachiningPresetValues): BoreOp[] {
+  if (!preset) return bores;
+  return bores.map((b) => ({
+    ...b,
+    diameter: preset.diameter,
+    depth: preset.depth,
+    presetLayerName: preset.layerName,
+    ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+    ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+  }));
+}
+
 export class AddLegLevelersCommand implements Command {
   readonly name = 'AddLegLevelers';
   private readonly store: typeof useAppStore | undefined;
@@ -69,6 +85,9 @@ export class AddLegLevelersCommand implements Command {
   constructor(private readonly opts: {
     cabinetPath: string;
     params: AddLegLevelersParams;
+    /** Snapshotted machining-preset values (P9 W2b, ADR 0001) — VALUES, not a
+     *  preset id, so editing the preset later never changes already-created bores. */
+    presetValues?: MachiningPresetValues;
     opfs: OpfsRWD;
     kernel?: KernelPartApi;
     store?: typeof useAppStore;
@@ -131,11 +150,11 @@ export class AddLegLevelersCommand implements Command {
     //         = D - v  (since comp.y = Tb, the back-panel thickness)
     //   → v = dims.depth - pos.y
     // vDir = -Y means v grows toward the FRONT; confirmed by the co-location unit test.
-    const newBores = positions.flatMap((pos, i) => {
+    const newBores = withPresetValues(positions.flatMap((pos, i) => {
       const u = pos.x - bottomComp.position.x;
       const v = dims.depth - pos.y;
       return legLevelerBores({ u, v }, spec, face, `leg-${i}`);
-    });
+    }), this.opts.presetValues);
 
     // ─── 4. Append bores to bottom panel — one write ─────────────────────────
     const bottomPath = bottomComp.partPath;

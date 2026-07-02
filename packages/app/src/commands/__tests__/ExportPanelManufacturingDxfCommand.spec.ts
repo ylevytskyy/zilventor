@@ -189,6 +189,17 @@ describe('ExportPanelManufacturingDxfCommand — mode:combined', () => {
 // W7 (docs/superpowers/plans/2026-07-02-p3-machining-presets-cam-metadata.md, D2/S1):
 // machining sidecar CSV ships in the folders/zip export only, at the ZIP ROOT (not inside a
 // material folder) — combined single-DXF mode must stay byte-for-byte unaffected.
+// jsdom's Blob polyfill has no .text()/.arrayBuffer() — FileReader is the one API
+// jsdom does implement for reading Blob contents back out in a unit test.
+function blobToText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(fr.error);
+    fr.readAsText(blob);
+  });
+}
+
 function boreWithCam(faceRole: string, role: string): BoreOp {
   const face: BoreOp['face'] = { featureId: 'panel', role: faceRole, instance: 0 };
   return { id: 'b1', face, u: 100, v: 50, diameter: 5, depth: 12, role, connectorId: 'c1',
@@ -217,19 +228,61 @@ describe('ExportPanelManufacturingDxfCommand — W7 machining.csv sidecar', () =
     expect(Object.keys(zip)).toContain('White_18/item-1-Side.dxf');
   });
 
-  it('mode:combined output is byte-for-byte unaffected — no CSV, identical to buildCombinedManufacturingDxf', async () => {
+  // D6 (2026-07-03-p9-preset-coverage.md): the combined .dxf payload itself stays
+  // byte-for-byte unaffected — no CSV inlined into the DXF bytes — but machining.csv
+  // now ships as a SECOND, SEQUENTIAL showSaveFilePicker call when the inputs carry
+  // preset-derived metadata. This supersedes the pre-P9 "no CSV in combined mode at
+  // all" contract recorded at ExportPanelManufacturingDxfCommand.ts:78-80.
+  it('mode:combined: primary .dxf bytes stay byte-for-byte unchanged, and a second machining.csv download fires when metadata is present', async () => {
     const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [boreWithCam('Top', 'confirmat-face')] };
-    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    const calls: Array<{ suggestedName: string; text: string }> = [];
+    const stub = async (opts: { suggestedName: string }) => ({
+      createWritable: async () => ({
+        write: async (data: Uint8Array | Blob) => {
+          const text = data instanceof Blob ? await blobToText(data) : new TextDecoder().decode(data);
+          calls.push({ suggestedName: opts.suggestedName, text });
+        },
+        close: async () => {},
+      }),
+    });
     (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
     try {
       await new ExportPanelManufacturingDxfCommand({ inputs: [withBore], suggestedName: 'assembly-manufacturing.zip', mode: 'combined' }).apply();
     } finally {
       delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
     }
+
+    // Primary .dxf artifact — unchanged filename, unchanged bytes, no CSV inlined.
     const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
     const text = new TextDecoder().decode(bytes);
     expect(text).toBe(buildCombinedManufacturingDxf([withBore]));
     expect(text).not.toContain('machining.csv');
     expect(text).not.toContain('partName,opType,diameter,depth,layer,toolNumber,speed');
+
+    // Second, sequential download: machining.csv sidecar with the same CAM metadata.
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.suggestedName).toBe('assembly-manufacturing-combined.dxf');
+    expect(calls[1]!.suggestedName).toBe('machining.csv');
+    expect(calls[1]!.text.split('\n')[0]).toBe('partName,opType,diameter,depth,layer,toolNumber,speed');
+    expect(calls[1]!.text).toContain('Side,confirmat-face,5,12,BORES-FRONT-5MM,3,12000');
+  });
+
+  it('mode:combined: omits the second machining.csv download when no bore/groove carries preset-derived metadata', async () => {
+    const plain: PanelManufacturingInput = input(1, 'Side'); // no bores/grooves at all
+    const calls: Array<{ suggestedName: string }> = [];
+    const stub = async (opts: { suggestedName: string }) => ({
+      createWritable: async () => ({
+        write: async () => { calls.push({ suggestedName: opts.suggestedName }); },
+        close: async () => {},
+      }),
+    });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({ inputs: [plain], suggestedName: 'assembly-manufacturing.zip', mode: 'combined' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.suggestedName).toBe('assembly-manufacturing-combined.dxf');
   });
 });

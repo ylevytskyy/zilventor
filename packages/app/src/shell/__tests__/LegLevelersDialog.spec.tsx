@@ -161,3 +161,48 @@ describe('LegLevelersDialog — dialog→command bus.execute assertion', () => {
     expect(executedCommands[0]).toBeInstanceOf(AddLegLevelersCommand);
   });
 });
+
+describe('LegLevelersDialog — machining preset picker (P9 W2b)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setAddLegLevelersDialog(null);
+    useAppStore.setState({ machiningPresets: [] });
+  });
+
+  it('lists only legLeveler presets, defaulting to None, and submits no presetValues key when None stays selected', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Shop leg screw', opType: 'legLeveler', diameter: 7, depth: 15, layerName: 'LEG-CAM', toolNumber: 4, speed: 9000 },
+        { id: 'p2', name: 'Wrong opType', opType: 'shelfPin-system32', diameter: 5, depth: 13, layerName: 'SHELF' },
+      ],
+    });
+    const onSubmit = vi.fn();
+    useAppStore.getState().setAddLegLevelersDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<LegLevelersDialog />);
+    const select = screen.getByLabelText('Machining preset') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    expect(optionValues).toContain('p1');
+    expect(optionValues).not.toContain('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit).toHaveBeenCalledWith({ legsPerRow: 2, skuId: 'leg-leveler-100' });
+  });
+
+  it('selecting a preset snapshots its values into presetValues on submit', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Shop leg screw', opType: 'legLeveler', diameter: 7, depth: 15, layerName: 'LEG-CAM', toolNumber: 4, speed: 9000 },
+      ],
+    });
+    const onSubmit = vi.fn();
+    useAppStore.getState().setAddLegLevelersDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<LegLevelersDialog />);
+    fireEvent.change(screen.getByLabelText('Machining preset'), { target: { value: 'p1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit.mock.calls[0]![0]).toEqual({
+      legsPerRow: 2,
+      skuId: 'leg-leveler-100',
+      presetValues: { diameter: 7, depth: 15, layerName: 'LEG-CAM', toolNumber: 4, speed: 9000 },
+    });
+  });
+});
