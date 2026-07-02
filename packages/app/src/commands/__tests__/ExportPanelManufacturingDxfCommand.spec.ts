@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildManufacturingZipEntries, ExportPanelManufacturingDxfCommand } from '../ExportPanelManufacturingDxfCommand';
+import { buildManufacturingZipEntries, buildCombinedManufacturingDxf, ExportPanelManufacturingDxfCommand } from '../ExportPanelManufacturingDxfCommand';
 import type { PanelManufacturingInput } from '../../drawing/renderPanelManufacturingDxf';
 
 // jsdom doesn't implement URL.createObjectURL — stub it for the fallback path.
@@ -99,5 +99,61 @@ describe('ExportPanelManufacturingDxfCommand — R1 preflight diagnostics', () =
       showToast: (msg) => toasts.push(msg),
     }).apply();
     expect(toasts).toHaveLength(0);
+  });
+});
+
+describe('buildCombinedManufacturingDxf', () => {
+  it('returns a non-empty DXF string with one OUTLINE entry per input', () => {
+    const dxf = buildCombinedManufacturingDxf([input(1, 'Side'), input(2, 'Top Shelf'), input(3, 'Back')]);
+    expect(dxf.length).toBeGreaterThan(0);
+    expect((dxf.match(/LWPOLYLINE/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(dxf).toContain('#1 Side');
+    expect(dxf).toContain('#2 Top Shelf');
+    expect(dxf).toContain('#3 Back');
+  });
+});
+
+describe('ExportPanelManufacturingDxfCommand — mode:combined', () => {
+  it('saves one .dxf file (derived name) with combined DXF bytes instead of a zip', async () => {
+    let seenSuggestedName = '';
+    const stub = async (opts: { suggestedName: string }) => {
+      seenSuggestedName = opts.suggestedName;
+      return { createWritable: async () => ({ write: async () => {}, close: async () => {} }) };
+    };
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [input(1, 'Side'), input(2, 'Top Shelf')],
+        suggestedName: 'assembly-manufacturing.zip',
+        mode: 'combined',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+
+    expect(seenSuggestedName).toBe('assembly-manufacturing-combined.dxf');
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes;
+    expect(bytes?.constructor?.name).toBe('Uint8Array');
+    const text = new TextDecoder().decode(bytes!);
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toContain('#1 Side');
+    expect(text).toContain('#2 Top Shelf');
+  });
+
+  it('mode:folders (default) still produces the exact same zip entries as before', async () => {
+    const stub = async () => ({
+      createWritable: async () => ({ write: async () => {}, close: async () => {} }),
+    });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [input(1, 'Side'), input(2, 'Top Shelf')],
+        suggestedName: 'assembly-manufacturing.zip',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes;
+    expect(bytes?.constructor?.name).toBe('Uint8Array');
   });
 });

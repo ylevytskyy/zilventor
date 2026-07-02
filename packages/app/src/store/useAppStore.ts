@@ -393,6 +393,7 @@ type AppState = {
   showEdgeBands: boolean;
   showBores: boolean;
   autoRegen: boolean;
+  dxfExportMode: 'folders' | 'combined';
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -405,6 +406,7 @@ type AppState = {
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setCutListTabActive: (v: boolean) => void;
+  setDxfExportMode: (mode: 'folders' | 'combined') => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
   setShowBores: (v: boolean) => void;
@@ -791,6 +793,7 @@ export const useAppStore = create<AppState>((set) => ({
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
   autoRegen: typeof localStorage !== 'undefined' ? localStorage.getItem('autoRegen') !== 'false' : true,
+  dxfExportMode: 'folders',
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -816,6 +819,7 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
+  setDxfExportMode: (mode) => set({ dxfExportMode: mode }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
   setShowEdgeBands: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));

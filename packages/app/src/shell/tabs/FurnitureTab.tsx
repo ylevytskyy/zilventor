@@ -55,6 +55,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const connectorRows = useConnectorBomResult();
   const panelManufacturingInputs = usePanelManufacturingInputs();
   const showBores = useAppStore((s) => s.showBores);
+  const dxfExportMode = useAppStore((s) => s.dxfExportMode);
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -645,8 +646,24 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-manufacturing.zip`,
               diagnostics: cutListResult.diagnostics,
               showToast,
+              mode: dxfExportMode,
             }).apply()}>
             {t('ribbon.furniture.exportManufacturingDxf')}
+          </button>
+          <span className="text-xs text-neutral-500" aria-label={t('ribbon.furniture.dxfExportMode')}>
+            {t('ribbon.furniture.dxfExportMode')}
+          </span>
+          <button type="button"
+            className={dxfExportMode === 'folders' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={dxfExportMode === 'folders'}
+            onClick={() => useAppStore.getState().setDxfExportMode('folders')}>
+            {t('ribbon.furniture.dxfModeFolders')}
+          </button>
+          <button type="button"
+            className={dxfExportMode === 'combined' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={dxfExportMode === 'combined'}
+            onClick={() => useAppStore.getState().setDxfExportMode('combined')}>
+            {t('ribbon.furniture.dxfModeCombined')}
           </button>
         </RibbonPanel>
       </div>
@@ -677,6 +694,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
                 nest: activeAssembly.nest,
                 materials: activeAssembly.materials,
                 suggestedName: `${activeAssembly.name}-nest.zip`,
+                mode: dxfExportMode,
               }).apply();
             }}>
             {t('ribbon.furniture.exportNestDxf')}

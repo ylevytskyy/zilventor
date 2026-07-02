@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildNestZipEntries, ExportNestDxfCommand } from '../ExportNestDxfCommand';
+import { buildNestZipEntries, buildCombinedNestDxf, ExportNestDxfCommand } from '../ExportNestDxfCommand';
 import { unzipSync, strFromU8 } from 'fflate';
 import type { NestState } from '@zilventor/shared';
 import type { MaterialRegistry } from '@zilventor/shared';
@@ -134,5 +134,52 @@ describe('ExportNestDxfCommand.apply', () => {
       expect(dxf).toContain('INFO');
       expect(dxf).toContain('EOF');
     }
+  });
+});
+
+describe('buildCombinedNestDxf', () => {
+  it('returns a non-empty DXF string with one SHEET outline per nest sheet', () => {
+    const dxf = buildCombinedNestDxf(nest, materials);
+    expect(dxf.length).toBeGreaterThan(0);
+    expect((dxf.match(/\nSHEET\n/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(dxf).toContain('White 18');
+  });
+});
+
+describe('ExportNestDxfCommand — mode:combined', () => {
+  it('saves one .dxf file (derived name) with combined DXF bytes instead of a zip', async () => {
+    let seenSuggestedName = '';
+    const stub = async (opts: { suggestedName: string }) => {
+      seenSuggestedName = opts.suggestedName;
+      return { createWritable: async () => ({ write: async () => {}, close: async () => {} }) };
+    };
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportNestDxfCommand({ nest, materials, suggestedName: 'demo-nest.zip', mode: 'combined' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+
+    expect(seenSuggestedName).toBe('demo-nest-combined.dxf');
+    const bytes = (globalThis as unknown as { __zilventorNestDxfBytes?: Uint8Array }).__zilventorNestDxfBytes;
+    expect(bytes?.constructor?.name).toBe('Uint8Array');
+    const text = new TextDecoder().decode(bytes!);
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toContain('White 18');
+  });
+
+  it('mode:folders (default) still produces the exact same zip entries as before', async () => {
+    const stub = async () => ({
+      createWritable: async () => ({ write: async () => {}, close: async () => {} }),
+    });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportNestDxfCommand({ nest, materials, suggestedName: 'demo-nest.zip' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorNestDxfBytes?: Uint8Array }).__zilventorNestDxfBytes;
+    const back = unzipSync(bytes!);
+    expect(Object.keys(back).sort()).toEqual(['White_18/mdf18-sheet-1.dxf', 'White_18/mdf18-sheet-2.dxf']);
   });
 });
