@@ -255,3 +255,92 @@ test('T-M2.1b: manufacturing DXF export — combined mode via dxfExportMode stor
 
   expect(pageErrors, 'No browser page errors during combined-mode export').toHaveLength(0);
 });
+
+test('T-P3-W6: manufacturing DXF export — CAM metadata (XDATA) on a bore', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(`PAGEERROR: ${e.message}`));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    };
+  });
+
+  await page.evaluate(async () => {
+    const { ExportPanelManufacturingDxfCommand } = await import(
+      '/src/commands/ExportPanelManufacturingDxfCommand.ts'
+    );
+
+    // Bore with CAM fields (toolNumber/speed) set — as ApplyMachiningPresetCommand
+    // (a later slice) would set them. Set directly here since this slice (W6) only
+    // wires DXF export, not the apply-preset UI.
+    const bore = {
+      id: 'bore-t-p3-w6',
+      face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 100,
+      v: 80,
+      diameter: 5,
+      depth: 12,
+      role: 'confirmat-face',
+      connectorId: 'c0',
+      connectorKind: 'confirmat',
+      toolNumber: 3,
+      speed: 12000,
+    };
+
+    const input = {
+      itemNumber: 1,
+      partName: 'Side Panel',
+      spec: {
+        length: 600,
+        width: 720,
+        thickness: 18,
+        materialId: 'm-birch-18',
+        grain: 'none',
+        edgeBands: { front: null, back: null, left: null, right: null },
+      },
+      materialName: 'Birch 18mm',
+      bores: [bore],
+      grooves: [],
+      qty: 1,
+    };
+
+    await new ExportPanelManufacturingDxfCommand({
+      inputs: [input as never],
+      suggestedName: 'test-cam-metadata.zip',
+    }).apply();
+  });
+
+  const zipB64 = await page.evaluate((): string | null => {
+    const w = window as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array };
+    if (!w.__zilventorManufacturingDxfBytes) return null;
+    const bytes = w.__zilventorManufacturingDxfBytes;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
+  });
+  expect(zipB64, '__zilventorManufacturingDxfBytes must be set after command.apply()').not.toBeNull();
+
+  const zipBytes = new Uint8Array(Buffer.from(zipB64!, 'base64'));
+  const entries = unzipSync(zipBytes);
+  const names = Object.keys(entries);
+  expect(names, 'zip must have exactly 1 entry').toHaveLength(1);
+
+  const dxf = strFromU8(entries[names[0]!]!);
+
+  // XDATA convention (renderPanelManufacturingDxf.ts camXdata): 1001 ZILVENTOR
+  // + labeled TOOL_NUMBER (1070 int) / SPEED (1040 real) pairs on the bore's CIRCLE.
+  expect(dxf, 'DXF must carry the ZILVENTOR XDATA APPID marker').toContain('1001\nZILVENTOR');
+  expect(dxf, 'DXF must carry a TOOL_NUMBER XDATA label').toContain('1000\nTOOL_NUMBER');
+  expect(dxf, 'DXF must carry the toolNumber=3 value as XDATA 1070').toContain('1070\n3');
+  expect(dxf, 'DXF must carry a SPEED XDATA label').toContain('1000\nSPEED');
+  expect(dxf, 'DXF must carry the speed=12000 value as XDATA 1040').toContain('1040\n12000.0000');
+
+  expect(pageErrors, 'No browser page errors during CAM-metadata export').toHaveLength(0);
+});

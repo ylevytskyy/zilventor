@@ -1,7 +1,21 @@
-import { createDxfDocument, type DxfDocument } from './dxfWriter';
+import { createDxfDocument, type DxfDocument, type XdataItem } from './dxfWriter';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 import { layoutCombinedGrid } from './layoutCombinedGrid';
 import type { PanelSpec, BoreOp, GrooveFeature, PanelEdgeKey } from '@zilventor/shared';
+
+/**
+ * CAM metadata (R2.2) → DXF XDATA convention: a labeled key/value pair per
+ * present field — {1000:'TOOL_NUMBER'},{1070:toolNumber} and/or
+ * {1000:'SPEED'},{1040:speed} — under the ZILVENTOR APPID. Absent fields emit
+ * nothing (undefined arg to circle()/lwpolyline() → no XDATA at all), so
+ * entities with no CAM metadata are byte-identical to pre-CAM-metadata output.
+ */
+function camXdata(op: { toolNumber?: number; speed?: number }): XdataItem[] | undefined {
+  const items: XdataItem[] = [];
+  if (op.toolNumber !== undefined) items.push({ code: 1000, value: 'TOOL_NUMBER' }, { code: 1070, value: op.toolNumber });
+  if (op.speed !== undefined) items.push({ code: 1000, value: 'SPEED' }, { code: 1040, value: op.speed });
+  return items.length > 0 ? items : undefined;
+}
 
 export type PanelManufacturingInput = {
   itemNumber: number;
@@ -33,7 +47,7 @@ function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number, 
   for (const b of bores) {
     const f = boreToFlat(b, len, wid);
     if (!f) continue;
-    doc.circle(f.layer, f.x + dx, f.y + dy, b.diameter / 2);
+    doc.circle(b.presetLayerName ?? f.layer, f.x + dx, f.y + dy, b.diameter / 2, camXdata(b));
     doc.text(L.boreInfo, f.x + dx + b.diameter / 2 + 1, f.y + dy, 4, boreLabel(b));
   }
 }
@@ -95,7 +109,7 @@ function grooveRect(
 function drawGrooves(doc: DxfDocument, grooves: GrooveFeature[], len: number, wid: number, dx = 0, dy = 0): void {
   for (const g of grooves) {
     const r = grooveRect(g, len, wid);
-    if (r) doc.lwpolyline(L.grooves, r.map((p) => ({ x: p.x + dx, y: p.y + dy })), true);
+    if (r) doc.lwpolyline(g.presetLayerName ?? L.grooves, r.map((p) => ({ x: p.x + dx, y: p.y + dy })), true, camXdata(g));
   }
 }
 
@@ -153,9 +167,11 @@ function neededLayers(input: PanelManufacturingInput): string[] {
   const layers = new Set<string>([L.outline, L.info, L.dimensions]);
   for (const b of input.bores) {
     const f = boreToFlat(b, input.spec.length, input.spec.width);
-    if (f) { layers.add(f.layer); layers.add(L.boreInfo); }
+    if (f) { layers.add(b.presetLayerName ?? f.layer); layers.add(L.boreInfo); }
   }
-  if (input.grooves.some((g) => grooveRect(g, input.spec.length, input.spec.width))) layers.add(L.grooves);
+  for (const g of input.grooves) {
+    if (grooveRect(g, input.spec.length, input.spec.width)) layers.add(g.presetLayerName ?? L.grooves);
+  }
   if (Object.values(input.spec.edgeBands).some(Boolean)) layers.add(L.edgeband);
   if (input.spec.grain !== 'none') layers.add(L.grain);
   return [...layers];

@@ -114,6 +114,58 @@ describe('renderPanelManufacturingDxf — grooves/edgeband/grain', () => {
   });
 });
 
+// R2.2/R2.3 (docs/abf-plugin/05-parity/03-processing-parity-requirements.md): bores/grooves
+// carry optional toolNumber/speed → DXF XDATA, and an optional presetLayerName → layer routing.
+describe('renderPanelManufacturingDxf — CAM metadata (XDATA + preset layer routing)', () => {
+  it('a bore with toolNumber+speed emits TOOL_NUMBER/SPEED XDATA on its CIRCLE', () => {
+    const b = { ...bore('Top', 100, 50, 5, 12), toolNumber: 3, speed: 12000 };
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] });
+    expect(dxf).toContain('1001\nZILVENTOR');
+    expect(dxf).toContain('1000\nTOOL_NUMBER');
+    expect(dxf).toContain('1070\n3');
+    expect(dxf).toContain('1000\nSPEED');
+    expect(dxf).toContain('1040\n12000.0000');
+  });
+
+  it('a bore with no CAM fields emits no XDATA (regression — byte-identical to pre-CAM output)', () => {
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [bore('Top', 100, 50, 5, 12)] });
+    expect(dxf).not.toContain('1001');
+  });
+
+  it('a bore with presetLayerName routes its CIRCLE onto the custom layer, not the standard scheme', () => {
+    const b = { ...bore('Top', 100, 50, 5, 12), presetLayerName: 'CNC-TOOL-3' };
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] });
+    expect(dxf).toContain('CNC-TOOL-3');
+    expect(dxf).not.toContain('BORES-FRONT-5MM');
+  });
+
+  it('a groove with toolNumber+speed emits TOOL_NUMBER/SPEED XDATA on its LWPOLYLINE', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9, toolNumber: 7, speed: 18000 };
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).toContain('1001\nZILVENTOR');
+    expect(dxf).toContain('1000\nTOOL_NUMBER');
+    expect(dxf).toContain('1070\n7');
+    expect(dxf).toContain('1000\nSPEED');
+    expect(dxf).toContain('1040\n18000.0000');
+  });
+
+  it('a groove with no CAM fields emits no XDATA (regression — byte-identical to pre-CAM output)', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9 };
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).not.toContain('1001');
+  });
+
+  it('a groove with presetLayerName routes its LWPOLYLINE onto the custom layer, not GROOVES', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9, presetLayerName: 'CNC-GROOVE-1' };
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] });
+    expect(dxf).toContain('CNC-GROOVE-1');
+    expect(dxf).not.toContain('\nGROOVES\n');
+  });
+});
+
 // R4.3 (docs/abf-plugin/05-parity/03-processing-parity-requirements.md lines 73-90):
 // bores/curved features must be real CIRCLE/ARC entities, never LWPOLYLINE-approximated
 // circles. These tests parse the actual DXF output (instead of regexing raw text) to lock
