@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { PanelEdgeKey, GrainDirection } from '@zilventor/shared';
 import type { PanelLabel } from './buildPanelLabels';
 import { drawQr, qrMatrix } from './qr';
+import { installCyrillicFont } from '../vendor/pdfCyrillicFont';
 
 export const LABEL_LAYOUT = {
   cols: 2,
@@ -252,6 +253,7 @@ export interface RenderLabelsPdfOptions {
 export function renderLabelsPdf(labels: PanelLabel[], opts: RenderLabelsPdfOptions = {}): Uint8Array {
   const { layout = LABEL_LAYOUT, templateId = 'rich', headerLine1 = '', headerLine2 = '' } = opts;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  installCyrillicFont(pdf);
   const perPage = layout.cols * layout.rows;
   const drawCell = templateId === 'compact' ? drawCompactLabelCell : drawRichLabelCell;
   drawPageHeader(pdf, headerLine1, headerLine2);
