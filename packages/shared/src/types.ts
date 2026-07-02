@@ -244,6 +244,10 @@ export type AssemblyDocument = {
    *  Absent-not-empty contract (exactOptionalPropertyTypes): never write {}. */
   unitPrices?: Record<string, number>;
   nest?: NestState;
+  /** Which physical panel copies have been produced (shop-floor QR reconciliation, P8),
+   *  keyed by `${itemNumber}:${copyIndex}` (see production/qrPayload.ts producedPanelKey).
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write {}. */
+  producedPanels?: Record<string, boolean>;
 };
 
 export type AssemblyConstraintRef =

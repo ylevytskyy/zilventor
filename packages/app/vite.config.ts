@@ -73,9 +73,10 @@ export default defineConfig({
   // alone rather than try to transform it.
   optimizeDeps: {
     exclude: ['opencascade.js', 'opencascade.js/dist/node.js'],
-    // qrcode is CJS-only; force Vite to pre-bundle it so the browser gets a
-    // proper ESM chunk instead of hitting a 504 on on-demand optimisation.
-    include: ['qrcode']
+    // qrcode and jsqr are CJS-only (UMD/webpack bundles); force Vite to
+    // pre-bundle them so the browser gets a proper ESM chunk instead of
+    // hitting a 504 on on-demand optimisation.
+    include: ['qrcode', 'jsqr']
   },
   // Treat the wasm file as a static asset so `?url` imports resolve.
   // Also include /occt/*.js: Vite's import-analysis rejects dynamic import()

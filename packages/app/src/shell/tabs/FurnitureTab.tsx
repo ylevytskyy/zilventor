@@ -16,6 +16,9 @@ import { CreateCabinetCommand } from '../../commands/CreateCabinetCommand';
 import { OpenNestDialogCommand } from '../../commands/OpenNestDialogCommand';
 import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
 import { OpenStatisticsReportTabCommand } from '../../commands/OpenStatisticsReportTabCommand';
+import { OpenProductionTabCommand } from '../../commands/OpenProductionTabCommand';
+import { ExportPackingSlipPdfCommand } from '../../commands/ExportPackingSlipPdfCommand';
+import { buildPackingSlipRows } from '../../production/buildPackingSlipRows';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
@@ -854,6 +857,26 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
             aria-label={t('ribbon.furniture.manageHeaderPresets')}
             onClick={() => useAppStore.getState().toggleLabelHeaderPresetsDialog(true)}>
             {t('ribbon.furniture.manageHeaderPresets')}
+          </button>
+        </RibbonPanel>
+      </div>
+      <div aria-label={t('ribbon.furniture.productionPanel')}>
+        <RibbonPanel title={t('ribbon.furniture.production')}>
+          <button type="button" className="text-xs hover:text-white"
+            onClick={() => void new OpenProductionTabCommand().apply()}>
+            {t('ribbon.furniture.openProduction')}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cutListResult.rows.length === 0}
+            aria-disabled={cutListResult.rows.length === 0}
+            onClick={() => {
+              if (cutListResult.rows.length === 0) return;
+              void new ExportPackingSlipPdfCommand({
+                rows: buildPackingSlipRows(cutListResult, activeAssembly?.producedPanels),
+                suggestedName: `${activeAssembly?.name ?? 'assembly'}-packing-slip.pdf`,
+              }).apply();
+            }}>
+            {t('ribbon.furniture.exportPackingSlip')}
           </button>
         </RibbonPanel>
       </div>

@@ -541,6 +541,8 @@ type AppState = {
   setHardwareDialog(s: HardwareDialogState | null): void;
   nestingTabActive: boolean;
   setNestingTabActive: (v: boolean) => void;
+  productionTabActive: boolean;
+  setProductionTabActive: (v: boolean) => void;
   nestDialog: NestDialogState | null;
   setNestDialog: (s: NestDialogState | null) => void;
   boringDialog: BoringDialogState | null;
@@ -1203,6 +1205,8 @@ export const useAppStore = create<AppState>((set) => ({
   setHardwareDialog: (s) => set({ hardwareDialog: s }),
   nestingTabActive: false,
   setNestingTabActive: (v) => set({ nestingTabActive: v }),
+  productionTabActive: false,
+  setProductionTabActive: (v) => set({ productionTabActive: v }),
   nestDialog: null,
   setNestDialog: (s) => set({ nestDialog: s }),
   boringDialog: null,
