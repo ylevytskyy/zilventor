@@ -26,11 +26,13 @@ Branch: `feat/p5-label-templates`. Parent plan: `2026-07-02-abf-parity-milestone
 
 ## Slices
 
-- [ ] **W1 — store slice**: `labelHeaderPreset.ts` type + `useAppStore` CRUD/persist + session fields + spec (incl. reload-simulation + malformed-JSON + session-fields-not-persisted).
-- [ ] **W2 — renderer**: template dispatch (rich/compact) + header band as pure stub-tested functions; existing renderLabelsPdf/labelDiagram/labelCellRect specs stay green untouched. (Parallel with W1.)
-- [ ] **W3 — dialog**: `LabelHeaderPresetsDialog` CRUD + spec + one-line `WorkFeatureDialogsHost` wiring. Hardcoded EN strings + `TODO(i18n)` comments for W4. (After W1.)
-- [ ] **W4 — ribbon + command + i18n**: FurnitureTab controls, `ExportPanelLabelsCommand` option threading, ALL i18n keys en+uk (incl. W3's TODOs). (After W1–W3.)
+- [x] **W1 — store slice**: `labelHeaderPreset.ts` type + `useAppStore` CRUD/persist + session fields + spec (incl. reload-simulation + malformed-JSON + session-fields-not-persisted). 9/9 specs.
+- [x] **W2 — renderer**: template dispatch (rich/compact) + header band as pure stub-tested functions; existing renderLabelsPdf/labelDiagram/labelCellRect specs stay green untouched. (Parallel with W1.) 26/26 drawing specs.
+- [x] **W3 — dialog**: `LabelHeaderPresetsDialog` CRUD + spec + one-line `WorkFeatureDialogsHost` wiring. Hardcoded EN strings + `TODO(i18n)` comments for W4. (After W1.) 6/6 specs.
+- [x] **W4 — ribbon + command + i18n**: FurnitureTab controls, `ExportPanelLabelsCommand` option threading, ALL i18n keys en+uk (incl. W3's TODOs). (After W1–W3.) 17/17 specs; 12 keys en+uk.
 
 ## Gate (before `--no-ff` merge to local master)
 
 typecheck 0 across packages · app/shared/kernel unit suites at baseline+new · fresh-server e2e (panel-labels spec green; fix any "exactly N entries"-style assertions broken by deliberate new ribbon controls in tests, not product).
+
+**Gate results (2026-07-02, EXEC): PASS.** typecheck 0 ×5 pkgs · app 3408 (baseline 3376, +32) / shared 1414 / kernel 306, 0 failures · e2e 228/231 parallel, panel-labels green solo; 1 load-flake (auto-regen, passes serial); 2 deterministic failures PRE-EXISTING and unrelated to P5 (spec files byte-identical to master, zero diff overlap): `drag-gizmo.spec.ts:27` (lastCmd GenerateCarcassBores ≠ MoveConnector) and `drawing/T-6-20-drawing-opfs-autosave-reload.spec.ts:26` (pointer kind is part) — need their own debug-loop, not P5 scope · i18n parity 12/12 keys both locales, no untranslated copy-paste, zero TODO(i18n).
