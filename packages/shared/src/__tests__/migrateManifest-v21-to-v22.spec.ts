@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v21 → v22 (Phase 1 — присадка slice 2: doorSpec additive, no-op)', () => {
   it('CURRENT_FORMAT_VERSION is 22', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(35);
+    expect(CURRENT_FORMAT_VERSION).toBe(36);
   });
 
   it('v21 part round-trips to v22 unchanged (no bores injected)', () => {
@@ -11,7 +11,7 @@ describe('migrateManifest v21 → v22 (Phase 1 — присадка slice 2: doo
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: [] } };
     const out = migrateManifest(v21) as { formatVersion: number; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     expect(out.document.bores).toBeUndefined();
   });
 
@@ -24,7 +24,7 @@ describe('migrateManifest v21 → v22 (Phase 1 — присадка slice 2: doo
         cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [],
         hardware: [], customTextures: [] } };
     const out = migrateManifest(v21) as { formatVersion: number; document: { components: Array<Record<string, unknown>> } };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     // additive: migration does NOT inject doorSpec; absent === unset at runtime
     expect(out.document.components[0]!.doorSpec).toBeUndefined();
   });
@@ -33,7 +33,7 @@ describe('migrateManifest v21 → v22 (Phase 1 — присадка slice 2: doo
     const v21 = { formatVersion: 21, kind: 'drawing',
       document: { id: 'd', name: 'D', units: 'mm', sheets: [], properties: {} } };
     const out = migrateManifest(v21) as { formatVersion: number };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
   });
 
   it('is idempotent for an already-v22 manifest', () => {
@@ -41,7 +41,7 @@ describe('migrateManifest v21 → v22 (Phase 1 — присадка slice 2: doo
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: [] } };
     const out = migrateManifest(v22) as { formatVersion: number };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
   });
 
   it('normalizes a bare-kind (no kind) v22 part to kind:"part"', () => {

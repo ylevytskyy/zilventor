@@ -6,5 +6,6 @@ export class OpenCutListTabCommand {
     s.setCutListTabActive(true);
     s.setBomTabActive(false);
     s.setNestingTabActive(false);
+    s.setStatisticsTabActive(false);
   }
 }

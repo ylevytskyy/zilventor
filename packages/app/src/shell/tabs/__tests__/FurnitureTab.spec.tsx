@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 import FurnitureTab from '../FurnitureTab';
 import { useAppStore } from '../../../store/useAppStore';
 import { newPart } from '@zilventor/kernel/src/adapter/PartDocument';
@@ -75,10 +75,11 @@ describe('FurnitureTab Cut List panel (5d T21)', () => {
 
   it('renders the Cut List ribbon panel with three buttons', () => {
     render(<FurnitureTab />);
-    expect(screen.getByLabelText('Cut List panel')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cut List' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Renumber' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
+    const panel = screen.getByLabelText('Cut List panel');
+    expect(panel).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Cut List' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Renumber' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
   });
 
   it('clicking Cut List dispatches OpenCutListTabCommand', async () => {

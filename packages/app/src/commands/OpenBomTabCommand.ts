@@ -6,5 +6,6 @@ export class OpenBomTabCommand {
     s.setBomTabActive(true);
     s.setCutListTabActive(false);
     s.setNestingTabActive(false);
+    s.setStatisticsTabActive(false);
   }
 }

@@ -75,6 +75,26 @@ describe('isMaterialEntry — sheet-stock fields', () => {
   });
 });
 
+describe('isMaterialEntry — kind field', () => {
+  const base = { id: 'm1', name: 'Oak', defaultThickness: 18, color: '#8b6914' };
+
+  it('accepts entry without kind (absent === sheet)', () => {
+    expect(isMaterialEntry(base)).toBe(true);
+  });
+
+  it('accepts entry with kind: "sheet"', () => {
+    expect(isMaterialEntry({ ...base, kind: 'sheet' })).toBe(true);
+  });
+
+  it('accepts entry with kind: "linear"', () => {
+    expect(isMaterialEntry({ ...base, kind: 'linear' })).toBe(true);
+  });
+
+  it('rejects entry with an invalid kind value', () => {
+    expect(isMaterialEntry({ ...base, kind: 'invalid-value' })).toBe(false);
+  });
+});
+
 describe('isMaterialEntry — textureId field', () => {
   const base = { id: 'm1', name: 'Oak', defaultThickness: 18, color: '#8b6914' };
 

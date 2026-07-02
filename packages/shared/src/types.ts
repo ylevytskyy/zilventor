@@ -235,6 +235,12 @@ export type AssemblyDocument = {
   /** User-imported hardware SKU catalog entries for this assembly (M4 Slice D).
    *  Absent === [] at runtime; never seeded by migration. */
   customHardware?: HardwareCatalogEntry[];
+  /** Per-document unit price overrides, keyed by a price-key convention:
+   *  `material:<materialId>` | `hardware:<skuId>` | `connector:<kind>` |
+   *  `edgeband:<materialId>` | `linear:<materialId>`. Falls back to the
+   *  app-global default price book when a key is absent. (P4 — cost report)
+   *  Absent-not-empty contract (exactOptionalPropertyTypes): never write {}. */
+  unitPrices?: Record<string, number>;
   nest?: NestState;
 };
 
@@ -267,9 +273,9 @@ export type AssemblyConstraint =
 // Union includes every version the migration table can currently produce — when CURRENT_FORMAT_VERSION
 // bumps, add the new literal here too. Persisted files always migrate to CURRENT_FORMAT_VERSION at load.
 export type ProjectFile =
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
-  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
-  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 36; kind: 'part';     createdAt: string; appVersion: string; document: PartDocument }
+  | { formatVersion: 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 36; kind: 'assembly'; createdAt: string; appVersion: string; document: AssemblyDocument }
+  | { formatVersion: 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 36;                                  kind: 'drawing';  createdAt: string; appVersion: string; document: DrawingDocument };
 
 export type FaceName = {
   featureId: string;

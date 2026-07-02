@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role additive, no-op)', () => {
   it('CURRENT_FORMAT_VERSION is 22', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(35);
+    expect(CURRENT_FORMAT_VERSION).toBe(36);
   });
 
   it('v20 part round-trips to v22 unchanged (no bores injected)', () => {
@@ -11,7 +11,7 @@ describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role 
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: [] } };
     const out = migrateManifest(v20) as { formatVersion: number; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     // additive: absent === [] at runtime, migration does NOT inject the key
     expect(out.document.bores).toBeUndefined();
   });
@@ -25,7 +25,7 @@ describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role 
         cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [],
         hardware: [], customTextures: [] } };
     const out = migrateManifest(v20) as { formatVersion: number; document: { components: Array<Record<string, unknown>> } };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
     expect(out.document.components[0]!.role).toBeUndefined();
   });
 
@@ -33,7 +33,7 @@ describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role 
     const v20 = { formatVersion: 20, kind: 'drawing',
       document: { id: 'd', name: 'D', units: 'mm', sheets: [], properties: {} } };
     const out = migrateManifest(v20) as { formatVersion: number };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
   });
 
   it('v21 input migrates forward to v22', () => {
@@ -41,7 +41,7 @@ describe('migrateManifest v20 → v21 (Phase 1 — присадка: bores/role 
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [], customTextures: [] } };
     const out = migrateManifest(v21) as { formatVersion: number };
-    expect(out.formatVersion).toBe(35);
+    expect(out.formatVersion).toBe(36);
   });
 
   it('normalizes a bare-kind (no kind) v21 part to kind:"part"', () => {

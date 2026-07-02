@@ -15,6 +15,7 @@ import { CreateAndPlacePanelCommand } from '../../commands/CreateAndPlacePanelCo
 import { CreateCabinetCommand } from '../../commands/CreateCabinetCommand';
 import { OpenNestDialogCommand } from '../../commands/OpenNestDialogCommand';
 import { OpenCutListTabCommand } from '../../commands/OpenCutListTabCommand';
+import { OpenStatisticsReportTabCommand } from '../../commands/OpenStatisticsReportTabCommand';
 import { RenumberCutListCommand } from '../../commands/RenumberCutListCommand';
 import { ExportCutListCsvCommand } from '../../commands/ExportCutListCsvCommand';
 import { ExportNestPdfCommand } from '../../commands/ExportNestPdfCommand';
@@ -39,6 +40,9 @@ import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
 import { useBoringResult } from '../useBoringResult';
 import { useConnectorBomResult } from '../useConnectorBomResult';
+import { useStatisticsReport } from '../useStatisticsReport';
+import { ExportStatisticsCsvCommand } from '../../commands/ExportStatisticsCsvCommand';
+import { ExportStatisticsXlsxCommand } from '../../commands/ExportStatisticsXlsxCommand';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { deriveCabinetDims } from '../../commands/cabinetDims';
@@ -53,6 +57,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const cutListResult = useCutListResult();
   const boringResult = useBoringResult();
   const connectorRows = useConnectorBomResult();
+  const statisticsReport = useStatisticsReport();
   const panelManufacturingInputs = usePanelManufacturingInputs();
   const showBores = useAppStore((s) => s.showBores);
   const dxfExportMode = useAppStore((s) => s.dxfExportMode);
@@ -497,6 +502,22 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
               connectorRows,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-cutlist.csv`,
             }).apply()}>{t('ribbon.furniture.exportCsv')}</button>
+        </RibbonPanel>
+      </div>
+      <div aria-label={t('ribbon.furniture.statisticsPanel')}>
+        <RibbonPanel title={t('ribbon.furniture.statistics')}>
+          <button type="button" className="text-xs hover:text-white"
+            onClick={() => void new OpenStatisticsReportTabCommand().apply()}>{t('ribbon.furniture.statistics')}</button>
+          <button type="button" className="text-xs hover:text-white"
+            onClick={() => void new ExportStatisticsCsvCommand({
+              report: statisticsReport,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-statistics.csv`,
+            }).apply()}>{t('common.export_csv')}</button>
+          <button type="button" className="text-xs hover:text-white"
+            onClick={() => void new ExportStatisticsXlsxCommand({
+              report: statisticsReport,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-statistics.xlsx`,
+            }).apply()}>{t('common.export_xlsx')}</button>
         </RibbonPanel>
       </div>
       <div aria-label={t('ribbon.furniture.presadka')}>

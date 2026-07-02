@@ -58,6 +58,7 @@
     "leader_text": "Leader Text",
     "machiningPresets": "Machining Presets",
     "nesting_tab": "Nesting tab",
+    "statistics_tab": "Statistics tab",
     "offset1": "offset 1",
     "offset2": "offset 2",
     "opening_file": "Opening file",
@@ -109,6 +110,7 @@
     "error": "Error",
     "export": "Export",
     "export_csv": "Export CSV",
+    "export_xlsx": "Export XLSX",
     "faceFeatureId": "Face featureId",
     "faceFeatureIdAria": "face featureId",
     "cycle": "cycle",
@@ -989,6 +991,8 @@
       "panel": "Panel",
       "presadka": "Присадка",
       "showBores": "Show Bores",
+      "statistics": "Statistics",
+      "statisticsPanel": "Statistics panel",
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (pick)",
       "groove": "Groove"
@@ -1098,6 +1102,10 @@
       "empty": "Exported empty BOM",
       "rows": "Exported {{count}} BOM rows"
     },
+    "exportStatistics": {
+      "empty": "Exported empty statistics report",
+      "lines": "Exported {{count}} statistics lines"
+    },
     "importingStep": "Importing STEP… (this can take several minutes for large assemblies)",
     "importingStepElapsed": "Importing STEP… {{elapsed}} elapsed (large assemblies can take several minutes)",
     "importStep": {
@@ -1168,6 +1176,7 @@
     "model": "Model",
     "nesting": "Nesting",
     "sketch": "Sketch",
+    "statistics": "Statistics",
     "view": "View"
   },
   "table": {
@@ -1211,6 +1220,24 @@
       "notes": "Notes",
       "qty": "Qty",
       "sku": "SKU"
+    },
+    "statistics": {
+      "hardware": "Hardware",
+      "connectors": "Connectors",
+      "edgeband": "Edge Band",
+      "linear": "Linear Material",
+      "panels": "Panels",
+      "label": "Label",
+      "qty": "Qty",
+      "unit": "Unit",
+      "unitPrice": "Unit Price",
+      "lineTotal": "Line Total",
+      "subtotal": "Subtotal",
+      "grandTotal": "Grand Total",
+      "unpriced": "{{count}} unpriced line(s)",
+      "pieces": "Pieces",
+      "setAsDefault": "Save as default price",
+      "noLines": "No lines"
     }
   },
   "clash": {

@@ -30,6 +30,25 @@ function persistMachiningPresets(presets: MachiningPreset[]): void {
   localStorage.setItem('machiningPresets', JSON.stringify(presets));
 }
 
+function readDefaultPriceBookFromStorage(): Record<string, number> {
+  if (typeof localStorage === 'undefined') return {};
+  const raw = localStorage.getItem('defaultPriceBook');
+  if (raw === null) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, number>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistDefaultPriceBook(book: Record<string, number>): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('defaultPriceBook', JSON.stringify(book));
+}
+
 export type ToolKind =
   | 'select'
   | 'line' | 'rect' | 'circle' | 'arc' | 'spline'
@@ -406,6 +425,7 @@ type AppState = {
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   cutListTabActive: boolean;
+  statisticsTabActive: boolean;
   showComponentColors: boolean;
   showEdgeBands: boolean;
   showBores: boolean;
@@ -418,6 +438,11 @@ type AppState = {
   importMachiningPresets: (presets: MachiningPreset[]) => void;
   machiningPresetsDialogOpen: boolean;
   toggleMachiningPresetsDialog: (open: boolean) => void;
+  /** App-global default price book (fallback when a document has no unitPrices
+   *  override for a given key). Keyed by the same price-key convention as
+   *  AssemblyDocument.unitPrices. (P4 — cost report) */
+  defaultPriceBook: Record<string, number>;
+  setDefaultPrice: (key: string, price: number) => void;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -430,6 +455,7 @@ type AppState = {
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setCutListTabActive: (v: boolean) => void;
+  setStatisticsTabActive: (v: boolean) => void;
   setDxfExportMode: (mode: 'folders' | 'combined') => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
@@ -813,6 +839,7 @@ export const useAppStore = create<AppState>((set) => ({
   componentDiagnostics: [],
   bomTabActive: false,
   cutListTabActive: false,
+  statisticsTabActive: false,
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
@@ -844,6 +871,7 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
+  setStatisticsTabActive: (v) => set({ statisticsTabActive: v }),
   setDxfExportMode: (mode) => set({ dxfExportMode: mode }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
   setShowEdgeBands: (v) => {
@@ -880,6 +908,12 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   machiningPresetsDialogOpen: false,
   toggleMachiningPresetsDialog: (open) => set({ machiningPresetsDialogOpen: open }),
+  defaultPriceBook: readDefaultPriceBookFromStorage(),
+  setDefaultPrice: (key, price) => set((s) => {
+    const next = { ...s.defaultPriceBook, [key]: price };
+    persistDefaultPriceBook(next);
+    return { defaultPriceBook: next };
+  }),
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
     const next = { ...s.activeDocument.document.colorOverrides };
