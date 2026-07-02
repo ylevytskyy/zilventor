@@ -7,5 +7,6 @@ export class OpenStatisticsReportTabCommand {
     s.setBomTabActive(false);
     s.setCutListTabActive(false);
     s.setNestingTabActive(false);
+    s.setProductionTabActive(false);
   }
 }

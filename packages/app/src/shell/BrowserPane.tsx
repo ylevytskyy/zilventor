@@ -20,6 +20,7 @@ import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
 import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
 import { OpenNestingTabCommand } from '../commands/OpenNestingTabCommand';
 import { OpenStatisticsReportTabCommand } from '../commands/OpenStatisticsReportTabCommand';
+import { OpenProductionTabCommand } from '../commands/OpenProductionTabCommand';
 import { SetCutListItemNumberCommand } from '../commands/SetCutListItemNumberCommand';
 import { ExportCutListCsvCommand } from '../commands/ExportCutListCsvCommand';
 import { useCutListResult } from './useCutListResult';
@@ -27,6 +28,7 @@ import { useCutListCacheContext } from './CutListCacheContext';
 import { useStatisticsReport } from './useStatisticsReport';
 import { StatisticsReportTable } from './StatisticsReportTable';
 import { NestingTab } from './NestingTab';
+import { ProductionTab } from './ProductionTab';
 
 type Props = {
   part: PartDocument | null;
@@ -175,6 +177,7 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
   const cutListTabActive = useAppStore((s) => s.cutListTabActive);
   const nestingTabActive = useAppStore((s) => s.nestingTabActive);
   const statisticsTabActive = useAppStore((s) => s.statisticsTabActive);
+  const productionTabActive = useAppStore((s) => s.productionTabActive);
   const cutListResult = useCutListResult();
   const connectorRows = useConnectorBomResult();
   const statisticsReport = useStatisticsReport();
@@ -206,15 +209,15 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
       <button
         type="button"
         aria-label={t('aria.assembly_tab')}
-        onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); useAppStore.getState().setNestingTabActive(false); useAppStore.getState().setStatisticsTabActive(false); }}
-        className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive && !nestingTabActive && !statisticsTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+        onClick={() => { setBomTabActive(false); useAppStore.getState().setCutListTabActive(false); useAppStore.getState().setNestingTabActive(false); useAppStore.getState().setStatisticsTabActive(false); useAppStore.getState().setProductionTabActive(false); }}
+        className={`px-2 py-0.5 text-xs ${!bomTabActive && !cutListTabActive && !nestingTabActive && !statisticsTabActive && !productionTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
         {t('tab.assembly')}
       </button>
       <button
         type="button"
         aria-label={t('aria.bom_tab')}
-        onClick={() => setBomTabActive(true)}
+        onClick={() => { setBomTabActive(true); useAppStore.getState().setProductionTabActive(false); }}
         className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
         {t('tab.bom')}
@@ -243,6 +246,14 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
       >
         {t('tab.statistics')}
       </button>
+      <button
+        type="button"
+        aria-label={t('aria.production_tab')}
+        onClick={() => void new OpenProductionTabCommand().apply()}
+        className={`px-2 py-0.5 text-xs ${productionTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
+      >
+        {t('tab.production')}
+      </button>
     </div>
   );
 
@@ -251,6 +262,15 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
       <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
         {tabStrip}
         <NestingTab />
+      </div>
+    );
+  }
+
+  if (productionTabActive) {
+    return (
+      <div className="px-3 py-2 text-xs text-neutral-200" data-testid="browser-pane">
+        {tabStrip}
+        <ProductionTab />
       </div>
     );
   }
