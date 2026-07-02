@@ -58,7 +58,7 @@ test('from-sketch simple through hole drills per circle center', async ({ page }
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'S2',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'C1', kind: 'circle', cx: 5, cy: 5, r: 1 },
         { id: 'C2', kind: 'circle', cx: 15, cy: 15, r: 1 },

@@ -49,8 +49,8 @@ test('T30 — cut-list CSV export captures 3-section content', async ({ page }) 
     materialId: 'm-birch',
     grain: 'length',
     edgeBands: {
-      front: { materialId: 'm-pvc' },
-      back: { materialId: 'm-pvc' },
+      front: { materialId: 'm-pvc', thickness: 1 },
+      back: { materialId: 'm-pvc', thickness: 1 },
     },
     materials: [
       { id: 'm-birch', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' },
@@ -106,9 +106,9 @@ test('T30 — cut-list CSV export captures 3-section content', async ({ page }) 
 
   expect(csv).not.toBeNull();
   // Section 1: panel rows header.
-  expect(csv).toContain('Item#,QTY,Material,L (mm),W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
+  expect(csv).toContain('Item#,QTY,Material,L (mm),W (mm),Gross L (mm),Gross W (mm),T (mm),Grain,Front,Back,Left,Right,Part Name,Part Path');
   // Birch 18mm panel row with QTY 2.
-  expect(csv).toMatch(/\d+,2,Birch 18mm,600,400,18,length/);
+  expect(csv).toMatch(/\d+,2,Birch 18mm,600,400,600,402,18,length/);
   // Section 2: edge-band totals header.
   expect(csv).toContain('Edge Band Material,Total Length (mm),Total Length (m)');
   // PVC band row: front+back × 600 × 2 instances = 2400 mm.

@@ -81,7 +81,7 @@ export default function DrawingTab(): JSX.Element {
 
   return (
     <>
-    <div className="flex gap-2 px-3 py-2">
+    <div className="flex gap-2 px-3 py-2 overflow-x-auto">
       {/* Sheet panel */}
       <RibbonPanel title={t('ribbon.drawing.sheet')}>
         <button

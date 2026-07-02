@@ -78,6 +78,6 @@ test('T35 — place a rigid sub-asm twice; render + BOM aggregate', async ({ pag
   const rows = bomTable.locator('tbody tr');
   await expect(rows).toHaveCount(1);
 
-  // QTY (col 1) — 3 panels × 2 drawers = 6.
-  await expect(rows.first().locator('td').nth(1)).toHaveText('6');
+  // QTY (col 3) — 3 panels × 2 drawers = 6.
+  await expect(rows.first().locator('td').nth(3)).toHaveText('6');
 });

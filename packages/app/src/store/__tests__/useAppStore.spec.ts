@@ -360,8 +360,11 @@ describe('useAppStore assembly dialog + component CRUD slice', () => {
       hardware: [],
     };
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().setSolverDirty(false);
     useAppStore.getState().updateComponent('C1', { position: { x: 50, y: 0, z: 0 } });
-    expect(useAppStore.getState().activeAssembly?.components[0]!.position.x).toBe(50);
+    const s = useAppStore.getState();
+    expect(s.activeAssembly?.components[0]!.position.x).toBe(50);
+    expect(s.solverDirty, 'updateComponent must mark solverDirty so the pose recomputes').toBe(true);
   });
 
   it('removeComponent removes by id', () => {

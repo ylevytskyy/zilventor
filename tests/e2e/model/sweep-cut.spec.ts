@@ -82,7 +82,7 @@ test('sweep cut operation carves a channel through a body', async ({ page }) => 
     await s.kernel.addFeature(partId, {
       kind: 'sketch',
       id: 'PROF',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 5, cy: 5, r: 1 }],
       constraints: [],
     });
@@ -91,7 +91,7 @@ test('sweep cut operation carves a channel through a body', async ({ page }) => 
     await s.kernel.addFeature(partId, {
       kind: 'sketch',
       id: 'PATH',
-      plane: 'XZ',
+      plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 5, y1: -1, x2: 5, y2: 11 }],
       constraints: [],
     });

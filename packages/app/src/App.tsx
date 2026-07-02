@@ -4572,7 +4572,13 @@ export default function App() {
             geom.computeVertexNormals();
             cache.set(partPath, geom);
           } catch (e) {
-            diagnostics.push({ componentId: partPath, message: `Failed to load ${partPath}: ${(e as Error).message}` });
+            // One diagnostic per component instance referencing the failed part —
+            // componentId must be the component's id, not the part path.
+            for (const l of leaves) {
+              if (l.kind === 'leaf' && l.partPath === partPath) {
+                diagnostics.push({ componentId: l.componentPath[l.componentPath.length - 1] ?? partPath, message: `Failed to load ${partPath}: ${(e as Error).message}` });
+              }
+            }
             geom = new THREE.BoxGeometry(50, 50, 50);
           }
         }

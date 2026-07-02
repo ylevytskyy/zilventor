@@ -88,7 +88,7 @@ test('T42 — 3-level sub-asm BOM aggregates to qty=12 + CSV export', async ({ p
 
   const rows = bomTable.locator('tbody tr');
   await expect(rows).toHaveCount(1);
-  await expect(rows.first().locator('td').nth(1)).toHaveText('12');
+  await expect(rows.first().locator('td').nth(3)).toHaveText('12');
 
   // Export CSV (mock the save picker with AbortError so the dev hook
   // captures bytes without a save dialog). The partNames cache effect
@@ -109,7 +109,8 @@ test('T42 — 3-level sub-asm BOM aggregates to qty=12 + CSV export', async ({ p
     return bytes ? new TextDecoder().decode(bytes) : null;
   });
   expect(csv).not.toBeNull();
-  expect(csv).toContain('Item#,QTY,Part Name,Color,Part Path\n');
-  // One row, qty=12, no color, parts/cube.zipt.
-  expect(csv).toMatch(/\n\d+,12,[^,]*,,parts\/cube\.zipt\n/);
+  expect(csv).toContain('Item#,Part #,Description,QTY,Part Name,Color,Part Path\n');
+  // One row, qty=12, no color, parts/cube.zipt (Part#/Description/Part Name
+  // vary — nested resolution not asserted here, see comment above).
+  expect(csv).toMatch(/\n\d+,[^,]*,[^,]*,12,[^,]*,,parts\/cube\.zipt\n/);
 });

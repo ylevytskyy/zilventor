@@ -900,6 +900,7 @@ export const useAppStore = create<AppState>((set) => ({
     return {
       activeDocument: { kind: 'assembly', document: next },
       activeAssembly: next,
+      solverDirty: true,
     };
   }),
 

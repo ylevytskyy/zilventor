@@ -64,9 +64,8 @@ test('part-mode multi-body STEP opens as one whole-compound part (status Importe
   );
 
   // 4. Read the final store state for assertions.
-  const state = await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    const s = useAppStore.getState();
+  const state = await page.evaluate(() => {
+    const s = (window as any).__zilventorStore.getState();
     const part = s.activePart;
     const importedFeature = part?.featureTree?.find((f: any) => f.kind === 'imported') as
       | { kind: string; bodyRef: string }

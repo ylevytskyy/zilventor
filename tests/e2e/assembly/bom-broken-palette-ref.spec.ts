@@ -47,7 +47,7 @@ test('T38 — orphan palette refs aggregate as no-color and viewport falls back 
 
   const bomTable = page.locator('[data-testid=bom-table]');
   await expect(bomTable).toBeVisible();
-  await expect(bomTable.locator('tbody tr td').nth(3)).toHaveText('Maple');
+  await expect(bomTable.locator('tbody tr td').nth(5)).toHaveText('Maple');
 
   await expect.poll(async () => {
     return await page.evaluate(() => {
@@ -65,7 +65,7 @@ test('T38 — orphan palette refs aggregate as no-color and viewport falls back 
     w.__zilventorStore.getState().removeAssemblyPaletteColor('Maple');
   });
 
-  await expect(bomTable.locator('tbody tr td').nth(3)).toHaveText('—');
+  await expect(bomTable.locator('tbody tr td').nth(5)).toHaveText('—');
 
   const greyHex = await page.evaluate(() => {
     const w = window as any;

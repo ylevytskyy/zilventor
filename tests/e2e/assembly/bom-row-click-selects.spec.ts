@@ -48,14 +48,14 @@ test('T35 — BOM row click multi-selects and overlays matching components', asy
   // Click the QTY cell of the cube row — it does not stopPropagation, so the
   // row's onClick fires. (Item# / Color cells stop propagation by design.)
   const cubeRow = bomTable.locator('tbody tr', { hasText: 'parts/cube.zipt' }).first();
-  await cubeRow.locator('td').nth(1).click();
+  await cubeRow.locator('td').nth(3).click();
 
-  // selectedComponentIds contains both cube ids.
+  // selectedComponentPaths contains both cube ids (each a single-segment path).
   const selected = await page.evaluate(() => {
     const w = window as any;
-    return w.__zilventorStore.getState().selectedComponentIds;
+    return w.__zilventorStore.getState().selectedComponentPaths as string[][];
   });
-  expect(new Set(selected)).toEqual(new Set(['CUBE_A', 'CUBE_B']));
+  expect(new Set(selected.map((p) => p[0]))).toEqual(new Set(['CUBE_A', 'CUBE_B']));
 
   // Outline overlays exist for both cubes and not for the cylinder.
   const overlays = await page.evaluate(() => {

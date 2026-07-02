@@ -45,7 +45,7 @@ test('LinearPatternDialog L shortcut commits a pattern feature', async ({ page }
   await expect(dialog).toBeVisible();
 
   // Source dropdown has both extrudes. Pick E2 (the disjoint source).
-  await dialog.getByLabel('Source feature').selectOption('E2');
+  await dialog.getByLabel('Source').selectOption('E2');
 
   // Default axis X is fine. Set spacing + count.
   await dialog.getByLabel('Spacing').fill('40');

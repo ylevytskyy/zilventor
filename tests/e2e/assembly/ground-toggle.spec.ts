@@ -53,7 +53,8 @@ test('T42 — grounded toggle causes auto-anchor diagnostic', async ({ page }) =
   // Verify first component is grounded.
   const c1Grounded = await page.evaluate((id) => {
     const w = window as any;
-    return w.__zilventorStore.getState().activeAssembly.groundedComponentIds.includes(id);
+    const paths = w.__zilventorStore.getState().activeAssembly.groundedComponentPaths as string[][];
+    return paths.some((p) => p.length === 1 && p[0] === id);
   }, c1);
   expect(c1Grounded).toBe(true);
 

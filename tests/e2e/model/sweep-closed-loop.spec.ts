@@ -46,7 +46,7 @@ test('sweep with closed-loop path + circle profile produces a ring', async ({ pa
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PROF',
-      plane: 'XZ',
+      plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 0.5 }],
       constraints: [],
     });
@@ -54,7 +54,7 @@ test('sweep with closed-loop path + circle profile produces a ring', async ({ pa
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PATH',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0,  y1: 0,  x2: 10, y2: 0  },
         { id: 'L2', kind: 'line', x1: 10, y1: 0,  x2: 10, y2: 10 },

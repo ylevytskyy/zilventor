@@ -24,6 +24,17 @@ test('T-6-17: real-geometry projection pipeline — base + iso placement + stale
   await page.goto('/');
   await waitForKernelReady(page);
 
+  // Disable autoRegen: DrawingCanvas's own auto-regen effect races this spec's manual
+  // "assert stale → click Regenerate" flow in step 9-10 (see debug-loop root-cause notes
+  // on T-6-4-stale-banner-regen.spec.ts / T-6-18-drawing-reopen.spec.ts for the first
+  // occurrences of this race).
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { setAutoRegen: (v: boolean) => void } };
+    };
+    w.__zilventorStore.getState().setAutoRegen(false);
+  });
+
   // 1. Build a real box part in the kernel.
   await buildBox(page, { width: 50, height: 50, depth: 30 });
 

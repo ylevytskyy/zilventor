@@ -68,7 +68,7 @@ test('T-6-14: Edit Detail Region — center drag + radius drag + real command-bu
       };
       const detailView = {
         id: detailViewId, kind: 'detail', parentViewId: baseViewId,
-        regionParent: { center: { x: 25, y: 15 }, radiusMm: 10 },
+        regionParent: { kind: 'circle', center: { x: 25, y: 15 }, radiusMm: 10 },
         label: 'A', positionMm: { x: 250, y: 80 },
         scale: { numerator: 2, denominator: 1 }, showHidden: false,
         projection: {
@@ -107,7 +107,7 @@ test('T-6-14: Edit Detail Region — center drag + radius drag + real command-bu
       };
       w.__zilventorStore.getState().updateDetailRegionLive?.(
         sheetId, detailViewId,
-        { center: { x: 50, y: 20 }, radiusMm: 10 },
+        { kind: 'circle', center: { x: 50, y: 20 }, radiusMm: 10 },
       );
     },
     { sheetId, detailViewId },
@@ -141,7 +141,7 @@ test('T-6-14: Edit Detail Region — center drag + radius drag + real command-bu
       };
       w.__zilventorStore.getState().updateDetailRegionLive?.(
         sheetId, detailViewId,
-        { center: { x: 50, y: 20 }, radiusMm: 18 },
+        { kind: 'circle', center: { x: 50, y: 20 }, radiusMm: 18 },
       );
     },
     { sheetId, detailViewId },
@@ -176,7 +176,7 @@ test('T-6-14: Edit Detail Region — center drag + radius drag + real command-bu
       };
       w.__zilventorStore.getState().updateDetailRegionLive?.(
         sheetId, detailViewId,
-        { center: { x: 25, y: 15 }, radiusMm: 10 },
+        { kind: 'circle', center: { x: 25, y: 15 }, radiusMm: 10 },
       );
     },
     { sheetId, detailViewId },
@@ -222,8 +222,8 @@ test('T-6-14: Edit Detail Region — center drag + radius drag + real command-bu
       const cmd = new EditDetailRegionCommand({
         sheetId,
         detailViewId,
-        prevRegion: { center: { x: 25, y: 15 }, radiusMm: 10 },
-        newRegion:  { center: { x: 60, y: 25 }, radiusMm: 15 },
+        prevRegion: { kind: 'circle', center: { x: 25, y: 15 }, radiusMm: 10 },
+        newRegion:  { kind: 'circle', center: { x: 60, y: 25 }, radiusMm: 15 },
       });
 
       try {

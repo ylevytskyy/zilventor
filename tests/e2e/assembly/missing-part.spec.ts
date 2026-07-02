@@ -18,6 +18,15 @@ test('an assembly referencing a missing partPath records a diagnostic + still lo
         { id: 'C1', partPath: 'nonexistent.zipt',
           position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
       ],
+      constraints: [],
+      groundedComponentPaths: [],
+      colors: {},
+      bomItemNumbers: {},
+      cutListItemNumbers: {},
+      colorOverrides: {},
+      properties: {},
+      materials: [],
+      hardware: [],
     };
     w.__zilventorStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
   });

@@ -59,7 +59,7 @@ test('concentric placement drills CSK hole on extruded cylinder', async ({ page 
     await s.kernel.addFeature(partId, {
       kind: 'sketch',
       id: 'S1',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 7 }],
       constraints: [],
     });

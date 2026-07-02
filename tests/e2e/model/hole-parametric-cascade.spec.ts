@@ -53,7 +53,7 @@ test('editing hole diameter parameter regenerates the hole', async ({ page }) =>
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'S2',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
       constraints: [],
     });

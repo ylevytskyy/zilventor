@@ -8,7 +8,7 @@ export type SeedPanelPartArgs = {
   thickness: number;
   materialId: string;
   grain?: 'length' | 'width' | 'none';
-  edgeBands?: Partial<Record<'front' | 'back' | 'left' | 'right', { materialId: string } | null>>;
+  edgeBands?: Partial<Record<'front' | 'back' | 'left' | 'right', { materialId: string; thickness?: number } | null>>;
   /** Materials registry to embed at the part level (will reconcile on placement). */
   materials?: Array<{ id: string; name: string; defaultThickness: number; color: string }>;
 };
