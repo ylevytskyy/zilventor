@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { PackingSlipRow } from './buildPackingSlipRows';
+import { installCyrillicFont } from '../vendor/pdfCyrillicFont';
 
 export interface RenderPackingSlipPdfOpts {
   headerLine1?: string;
@@ -24,6 +25,7 @@ export function renderPackingSlipPdfBytes(rows: PackingSlipRow[], opts?: RenderP
 
 function buildPdf(rows: PackingSlipRow[], opts: RenderPackingSlipPdfOpts | undefined): jsPDF {
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  installCyrillicFont(pdf);
   const pageH = pdf.internal.pageSize.getHeight();
   let y = MARGIN_MM;
 

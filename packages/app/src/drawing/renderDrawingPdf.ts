@@ -6,6 +6,7 @@ import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
 import { resolveTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import type { ResolvedTitleBlock } from '@zilventor/shared/src/drawing/titleBlock';
 import { resolveCenterMarkGeometry } from '@zilventor/shared/src/drawing/resolveCenterMarkGeometry';
+import { installCyrillicFont } from '../vendor/pdfCyrillicFont';
 
 // ISO sheet dimensions (mm, landscape).
 const ISO_SIZES_MM: Record<string, { w: number; h: number }> = {
@@ -45,6 +46,7 @@ function buildPdf(
 
   const { format: firstFormat, orientation: firstOrientation } = sheetFormat(sheets[0]!);
   const pdf = new jsPDF({ unit: 'mm', format: firstFormat, orientation: firstOrientation });
+  installCyrillicFont(pdf);
 
   sheets.forEach((sheet, i) => {
     const { format, orientation } = sheetFormat(sheet);

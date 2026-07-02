@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderLabelsPdf, drawLabelDiagram, type DiagramPdf } from '../renderLabelsPdf';
 import { buildPanelLabels, type PanelLabel } from '../buildPanelLabels';
+import { CYRILLIC_FONT_ID } from '../../vendor/pdfCyrillicFont';
 import type { CutListResult, CutListRow } from '@zilventor/shared';
 
 function row(over: Partial<CutListRow>): CutListRow {
@@ -89,5 +90,19 @@ describe('renderLabelsPdf', () => {
     const [x1, y1, x2, y2] = lines[0]!;
     expect(y1).toBe(y2); // horizontal
     expect(x1).not.toBe(x2);
+  });
+
+  it('renders Cyrillic materialName/partName via the embedded Cyrillic font (no throw, valid PDF, font referenced)', () => {
+    const result: CutListResult = {
+      rows: [row({
+        itemNumber: 1, qty: 1,
+        materialName: 'ДСП 18', partName: 'Бічна стінка',
+      })],
+      bandTotals: [], excluded: { rows: [], reasons: [] } as unknown as CutListResult['excluded'],
+    };
+    const bytes = renderLabelsPdf(buildPanelLabels(result));
+    expect([bytes[0], bytes[1], bytes[2], bytes[3]]).toEqual([0x25, 0x50, 0x44, 0x46]); // %PDF
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain(`/BaseFont /${CYRILLIC_FONT_ID}`);
   });
 });

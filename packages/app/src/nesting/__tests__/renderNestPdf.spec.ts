@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderNestPdf, renderNestPdfBytes } from '../renderNestPdf';
 import type { NestState, NestSheet } from '@zilventor/shared';
 import type { MaterialRegistry } from '@zilventor/shared/src/material';
+import { CYRILLIC_FONT_ID } from '../../vendor/pdfCyrillicFont';
 
 // jsPDF's text operators are literal ASCII/WinAnsi bytes in the content stream
 // (verified: no font subsetting for the default Helvetica), so a plain latin1
@@ -54,5 +55,16 @@ describe('renderNestPdf — remnant', () => {
   it('draws no remnant label when the sheet has no remnant', () => {
     const bytes = renderNestPdfBytes(nestState([sheet(1, 1)]), materials);
     expect(pdfText(bytes)).not.toContain('REMNANT');
+  });
+});
+
+describe('renderNestPdf — Cyrillic material name', () => {
+  it('renders a Cyrillic material name via the embedded Cyrillic font (no throw, valid PDF, font referenced)', () => {
+    const cyrillicMaterials: MaterialRegistry = [
+      { id: 'm1', name: 'Дуб', defaultThickness: 18, color: '#aabbcc', sheetLengthMm: 2440, sheetWidthMm: 1220 },
+    ];
+    const bytes = renderNestPdfBytes(nestState([sheet(1, 1)]), cyrillicMaterials);
+    expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('%PDF');
+    expect(pdfText(bytes)).toContain(`/BaseFont /${CYRILLIC_FONT_ID}`);
   });
 });
