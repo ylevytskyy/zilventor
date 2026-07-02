@@ -359,3 +359,109 @@ test('T-P3-W6: manufacturing DXF export — CAM metadata (XDATA) on a bore', asy
 
   expect(pageErrors, 'No browser page errors during CAM-metadata export').toHaveLength(0);
 });
+
+test('T-P9-W3b: combined-mode manufacturing DXF export — machining.csv fires as second sequential download when a bore carries CAM metadata', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(`PAGEERROR: ${e.message}`));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  // Unlike the AbortError stub used elsewhere in this file, this stub actually
+  // "succeeds" so ExportPanelManufacturingDxfCommand.apply() sets delivered=true and
+  // proceeds to the second, gated machining.csv download (see hasMachiningMetadata()
+  // in ExportPanelManufacturingDxfCommand.ts). Every write() call — primary .dxf, then
+  // the sidecar CSV via triggerDownload() — is captured into window.__savedFiles in
+  // call order, so we can assert both downloads arrived, in order, with real content.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __savedFiles: Array<{ name: string; text: string }>;
+      showSaveFilePicker: unknown;
+    };
+    w.__savedFiles = [];
+    w.showSaveFilePicker = async (opts: { suggestedName: string }) => ({
+      createWritable: async () => ({
+        write: async (data: Uint8Array | Blob) => {
+          const text = data instanceof Blob ? await data.text() : new TextDecoder().decode(data);
+          w.__savedFiles.push({ name: opts.suggestedName, text });
+        },
+        close: async () => {},
+      }),
+    });
+  });
+
+  await page.evaluate(async () => {
+    const { ExportPanelManufacturingDxfCommand } = await import(
+      '/src/commands/ExportPanelManufacturingDxfCommand.ts'
+    );
+
+    // Bore with CAM fields set — as ApplyMachiningPresetCommand would set them. This is
+    // what gates the second machining.csv download in combined mode.
+    const bore = {
+      id: 'bore-t-p9-w3b',
+      face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 100,
+      v: 80,
+      diameter: 5,
+      depth: 12,
+      role: 'confirmat-face',
+      connectorId: 'c0',
+      connectorKind: 'confirmat',
+      toolNumber: 7,
+      speed: 18000,
+    };
+
+    const input = {
+      itemNumber: 1,
+      partName: 'Side Panel',
+      spec: {
+        length: 600,
+        width: 720,
+        thickness: 18,
+        materialId: 'm-birch-18',
+        grain: 'none',
+        edgeBands: { front: null, back: null, left: null, right: null },
+      },
+      materialName: 'Birch 18mm',
+      bores: [bore],
+      grooves: [],
+      qty: 1,
+    };
+
+    await new ExportPanelManufacturingDxfCommand({
+      inputs: [input as never],
+      suggestedName: 'test-manufacturing.zip',
+      mode: 'combined',
+    }).apply();
+  });
+
+  const savedFiles = await page.evaluate(() => {
+    return (window as unknown as { __savedFiles: Array<{ name: string; text: string }> }).__savedFiles;
+  });
+
+  expect(savedFiles, 'both downloads must arrive: primary .dxf + secondary machining.csv').toHaveLength(2);
+
+  // First download: unchanged contract — combined single DXF, filename ends -combined.dxf.
+  expect(
+    savedFiles[0]?.name.endsWith('.dxf'),
+    `first download must be the .dxf, got: ${savedFiles[0]?.name}`,
+  ).toBe(true);
+  expect(savedFiles[0]?.text, 'primary combined DXF must contain OUTLINE layer reference').toContain(
+    'OUTLINE',
+  );
+
+  // Second download: machining.csv sidecar, fired only because the bore carries CAM metadata.
+  expect(savedFiles[1]?.name, 'second download must be machining.csv').toBe('machining.csv');
+  expect(savedFiles[1]?.text, 'machining.csv must carry the header row').toContain(
+    'partName,opType,diameter,depth,layer,toolNumber,speed',
+  );
+  expect(
+    savedFiles[1]?.text,
+    "machining.csv row must carry this bore's toolNumber=7 and speed=18000",
+  ).toMatch(/,7,18000$/m);
+
+  expect(pageErrors, 'No browser page errors during combined-mode CSV second-download export').toHaveLength(0);
+});
