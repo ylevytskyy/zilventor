@@ -220,6 +220,8 @@
       "slideSystem": "Slide system",
       "slideSystemSideMount": "Side mount",
       "slideSystemTandem": "Tandem (under-mount)",
+      "presetCabinet": "Cabinet-side machining preset",
+      "presetDrawer": "Drawer-side machining preset",
       "heights": "Drawer heights (mm)",
       "heightN": "Drawer {{n}}",
       "remaining": "Remaining: {{mm}} mm",

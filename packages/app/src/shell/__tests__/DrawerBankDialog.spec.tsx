@@ -286,3 +286,115 @@ describe('DrawerBankDialog — dialog→command bus.execute assertion', () => {
     expect(executedCommands[0]).toBeInstanceOf(AddDrawerBankCommand);
   });
 });
+
+describe('DrawerBankDialog — tandem machining preset pickers (P9 W2c)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setAddDrawerBankDialog(null);
+    useAppStore.setState({ machiningPresets: [] });
+  });
+
+  it('preset pickers are absent when slideSystem is sideMount (default)', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Cab CAM', opType: 'tandem-cabinet', diameter: 5, depth: 12, layerName: 'TANDEM-CAB' },
+      ],
+    });
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    expect(screen.queryByLabelText(/Cabinet-side machining preset/)).toBeNull();
+    expect(screen.queryByLabelText(/Drawer-side machining preset/)).toBeNull();
+  });
+
+  it('switching to tandem shows two preset dropdowns, filtered by opType (cabinet: tandem-cabinet; drawer: tandem-drawer-bottom OR tandem-drawer-back), defaulting to None', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Cab CAM', opType: 'tandem-cabinet', diameter: 5, depth: 12, layerName: 'TANDEM-CAB' },
+        { id: 'p2', name: 'Drawer bottom CAM', opType: 'tandem-drawer-bottom', diameter: 5, depth: 12, layerName: 'TANDEM-BOT' },
+        { id: 'p3', name: 'Drawer back CAM', opType: 'tandem-drawer-back', diameter: 10, depth: 12, layerName: 'TANDEM-BACK' },
+        { id: 'p4', name: 'Wrong opType', opType: 'legLeveler', diameter: 4, depth: 10, layerName: 'LEG' },
+      ],
+    });
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    fireEvent.change(screen.getByLabelText('Slide system'), { target: { value: 'tandem' } });
+
+    const cabSelect = screen.getByLabelText(/Cabinet-side machining preset/) as HTMLSelectElement;
+    const drwSelect = screen.getByLabelText(/Drawer-side machining preset/) as HTMLSelectElement;
+    expect(cabSelect.value).toBe('');
+    expect(drwSelect.value).toBe('');
+
+    const cabOptions = Array.from(cabSelect.options).map((o) => o.value);
+    expect(cabOptions).toContain('p1');
+    expect(cabOptions).not.toContain('p2');
+    expect(cabOptions).not.toContain('p4');
+
+    const drwOptions = Array.from(drwSelect.options).map((o) => o.value);
+    expect(drwOptions).toContain('p2');
+    expect(drwOptions).toContain('p3');
+    expect(drwOptions).not.toContain('p1');
+    expect(drwOptions).not.toContain('p4');
+  });
+
+  it('selecting both presets snapshots CAM-only values (no diameter/depth) into cabinetPresetValues/drawerPresetValues on submit', async () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Cab CAM', opType: 'tandem-cabinet', diameter: 5, depth: 12, layerName: 'TANDEM-CAB', toolNumber: 5, speed: 8000 },
+        { id: 'p2', name: 'Drawer bottom CAM', opType: 'tandem-drawer-bottom', diameter: 5, depth: 12, layerName: 'TANDEM-DRW', toolNumber: 6, speed: 7500 },
+      ],
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    fireEvent.change(screen.getByLabelText('Slide system'), { target: { value: 'tandem' } });
+    fireEvent.change(screen.getByLabelText(/Cabinet-side machining preset/), { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText(/Drawer-side machining preset/), { target: { value: 'p2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const call = onSubmit.mock.calls[0]![0];
+    expect(call.cabinetPresetValues).toEqual({ layerName: 'TANDEM-CAB', toolNumber: 5, speed: 8000 });
+    expect(call.drawerPresetValues).toEqual({ layerName: 'TANDEM-DRW', toolNumber: 6, speed: 7500 });
+  });
+
+  it('leaving both pickers at None omits cabinetPresetValues/drawerPresetValues from the submitted payload', async () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Cab CAM', opType: 'tandem-cabinet', diameter: 5, depth: 12, layerName: 'TANDEM-CAB' },
+      ],
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDrawerBankDialog({
+      cabinetPath: 'parts/cab.ziasm',
+      dims: { openW: 600, openH: 700 },
+      onSubmit,
+      onCancel: vi.fn(),
+    });
+    render(<DrawerBankDialog />);
+    fireEvent.change(screen.getByLabelText('Slide system'), { target: { value: 'tandem' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const call = onSubmit.mock.calls[0]![0];
+    expect(call).not.toHaveProperty('cabinetPresetValues');
+    expect(call).not.toHaveProperty('drawerPresetValues');
+  });
+});

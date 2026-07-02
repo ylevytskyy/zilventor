@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/useAppStore';
 describe('ShelfPinDialog — structural', () => {
   beforeEach(() => {
     useAppStore.getState().setShelfPinDialog(null);
+    useAppStore.setState({ machiningPresets: [] });
   });
 
   it('renders nothing when shelfPinDialog state is null', () => {
@@ -65,5 +66,49 @@ describe('ShelfPinDialog — structural', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().shelfPinDialog).toBeNull();
+  });
+});
+
+describe('ShelfPinDialog — machining preset picker (P9 W2a)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setShelfPinDialog(null);
+    useAppStore.setState({ machiningPresets: [] });
+  });
+
+  it('lists only shelfPin-system32 presets, defaulting to None, and submits no presetValues key when None stays selected', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Shop Ø6', opType: 'shelfPin-system32', diameter: 6, depth: 14, layerName: 'SHELF', toolNumber: 3, speed: 12000 },
+        { id: 'p2', name: 'Wrong opType', opType: 'legLeveler', diameter: 4, depth: 10, layerName: 'LEG' },
+      ],
+    });
+    const onSubmit = vi.fn();
+    useAppStore.getState().setShelfPinDialog({ mode: 'auto', onSubmit, onCancel: vi.fn() });
+    render(<ShelfPinDialog />);
+    const select = screen.getByLabelText('Machining preset') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    expect(optionValues).toContain('p1');
+    expect(optionValues).not.toContain('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty('presetValues');
+  });
+
+  it('selecting a preset snapshots its values into presetValues on submit', () => {
+    useAppStore.setState({
+      machiningPresets: [
+        { id: 'p1', name: 'Shop Ø6', opType: 'shelfPin-system32', diameter: 6, depth: 14, layerName: 'SHELF', toolNumber: 3, speed: 12000 },
+      ],
+    });
+    const onSubmit = vi.fn();
+    useAppStore.getState().setShelfPinDialog({ mode: 'auto', onSubmit, onCancel: vi.fn() });
+    render(<ShelfPinDialog />);
+    fireEvent.change(screen.getByLabelText('Machining preset'), { target: { value: 'p1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit.mock.calls[0]![0].presetValues).toEqual({
+      diameter: 6, depth: 14, layerName: 'SHELF', toolNumber: 3, speed: 12000,
+    });
   });
 });

@@ -220,6 +220,8 @@
       "slideSystem": "Система напрямних",
       "slideSystemSideMount": "Бокові напрямні",
       "slideSystemTandem": "Tandem (нижнє кріплення)",
+      "presetCabinet": "Пресет обробки — корпус",
+      "presetDrawer": "Пресет обробки — шухляда",
       "heights": "Висоти шухляд (мм)",
       "heightN": "Шухляда {{n}}",
       "remaining": "Залишок: {{mm}} мм",

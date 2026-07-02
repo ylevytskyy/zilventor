@@ -250,6 +250,8 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
                 slideSystem: p.slideSystem,
                 ...(p.heights !== undefined ? { heights: p.heights } : {}),
               },
+              ...(p.cabinetPresetValues ? { cabinetPresetValues: p.cabinetPresetValues } : {}),
+              ...(p.drawerPresetValues ? { drawerPresetValues: p.drawerPresetValues } : {}),
               opfs: opfs2,
               store: useAppStore,
             }),
@@ -282,6 +284,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
                 legsPerRow: p.legsPerRow,
                 skuId: p.skuId,
               },
+              ...(p.presetValues ? { presetValues: p.presetValues } : {}),
               opfs,
               store: useAppStore,
             }),
@@ -350,9 +353,15 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
     useAppStore.getState().setShelfPinDialog({
       mode: 'auto',
       onSubmit: async (params) => {
+        const { presetValues, ...shelfPinParams } = params;
         const opfs = await Opfs.forNavigator();
         await useAppStore.getState().bus.execute(
-          new GenerateShelfPinBoresCommand({ params, opfs, store: useAppStore }),
+          new GenerateShelfPinBoresCommand({
+            params: shelfPinParams,
+            ...(presetValues ? { presetValues } : {}),
+            opfs,
+            store: useAppStore,
+          }),
         );
       },
       onCancel: () => useAppStore.getState().setShelfPinDialog(null),
@@ -384,12 +393,14 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
         panelPath,
         face: defaultFace,
         onSubmit: async (params) => {
+          const { presetValues, ...shelfPinParams } = params;
           const opfs = await Opfs.forNavigator();
           await useAppStore.getState().bus.execute(
             new AddManualShelfPinBoresCommand({
               panelPath,
               face: defaultFace,
-              params,
+              params: shelfPinParams,
+              ...(presetValues ? { presetValues } : {}),
               opfs,
               store: useAppStore,
             }),

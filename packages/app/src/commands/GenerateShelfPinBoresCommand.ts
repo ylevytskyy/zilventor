@@ -1,5 +1,5 @@
 import type { Command } from './Command';
-import type { AssemblyDocument, BoreOp, ShelfPinParams } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, MachiningPresetValues, ShelfPinParams } from '@zilventor/shared';
 import {
   shelfPinGrid,
   CURRENT_FORMAT_VERSION,
@@ -7,6 +7,21 @@ import {
   RIGHT_SIDE_INNER_FACE,
   mergeBores,
 } from '@zilventor/shared';
+
+/** Snapshot preset values (P9 W2a, D1) onto every generated bore — diameter/depth
+ *  are shop-configurable here (plain dialog inputs, not catalog-dictated), so the
+ *  full preset transfers, mirroring ApplyMachiningPresetCommand's bore branch. */
+function withPresetValues(bores: BoreOp[], preset?: MachiningPresetValues): BoreOp[] {
+  if (!preset) return bores;
+  return bores.map((b) => ({
+    ...b,
+    diameter: preset.diameter,
+    depth: preset.depth,
+    presetLayerName: preset.layerName,
+    ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+    ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+  }));
+}
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { useAppStore } from '../store/useAppStore';
@@ -50,6 +65,9 @@ export class GenerateShelfPinBoresCommand implements Command {
   constructor(private readonly opts: {
     cabinetPath?: string; // reserved: explicit cabinet override (unused in v1 — recurse activeAssembly)
     params: ShelfPinParams;
+    /** Snapshotted machining-preset values (P9 W2a, ADR 0001) — VALUES, not a
+     *  preset id, so editing the preset later never changes already-created bores. */
+    presetValues?: MachiningPresetValues;
     opfs: OpfsRW;
     store?: typeof useAppStore;
   }) {
@@ -93,7 +111,7 @@ export class GenerateShelfPinBoresCommand implements Command {
         // NEVER re-declare local literals — they would break the single-source-of-truth
         // and reproduce the slice-1 false-green face-sign class.
         const innerFace = c.role === 'leftSide' ? LEFT_SIDE_INNER_FACE : RIGHT_SIDE_INNER_FACE;
-        appendBores(c.partPath, shelfPinGrid(dims, innerFace, this.opts.params));
+        appendBores(c.partPath, withPresetValues(shelfPinGrid(dims, innerFace, this.opts.params), this.opts.presetValues));
       }
     };
 

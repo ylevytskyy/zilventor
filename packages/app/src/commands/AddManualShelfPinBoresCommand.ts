@@ -1,9 +1,24 @@
 import type { Command } from './Command';
-import type { BoreOp, ShelfPinParams } from '@zilventor/shared';
+import type { BoreOp, MachiningPresetValues, ShelfPinParams } from '@zilventor/shared';
 import {
   shelfPinGrid,
   CURRENT_FORMAT_VERSION,
 } from '@zilventor/shared';
+
+/** Mirrors GenerateShelfPinBoresCommand's snapshot-preset helper (P9 W2a, D1) —
+ *  diameter/depth here are shop-configurable dialog inputs, not catalog-dictated,
+ *  so the full preset transfers onto every generated bore. */
+function withPresetValues(bores: BoreOp[], preset?: MachiningPresetValues): BoreOp[] {
+  if (!preset) return bores;
+  return bores.map((b) => ({
+    ...b,
+    diameter: preset.diameter,
+    depth: preset.depth,
+    presetLayerName: preset.layerName,
+    ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+    ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+  }));
+}
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { useAppStore } from '../store/useAppStore';
 
@@ -45,6 +60,9 @@ export class AddManualShelfPinBoresCommand implements Command {
     panelPath: string;
     face: 'Top' | 'Bottom';
     params: ShelfPinParams;
+    /** Snapshotted machining-preset values (P9 W2a, ADR 0001) — VALUES, not a
+     *  preset id, so editing the preset later never changes already-created bores. */
+    presetValues?: MachiningPresetValues;
     opfs: OpfsRW;
     store?: typeof useAppStore;
   }) {
@@ -58,7 +76,7 @@ export class AddManualShelfPinBoresCommand implements Command {
     const document = manifest.document;
 
     const dims = panelDimsFromDoc(document as { featureTree?: Array<Record<string, unknown>> });
-    const newBores = shelfPinGrid(dims, face, params);
+    const newBores = withPresetValues(shelfPinGrid(dims, face, params), this.opts.presetValues);
 
     const existing = (document.bores as BoreOp[] | undefined) ?? [];
     this.priorBores = existing;

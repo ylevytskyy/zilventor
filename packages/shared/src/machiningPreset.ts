@@ -22,6 +22,35 @@ export interface MachiningPreset {
   speed?: number;
 }
 
+/**
+ * Snapshotted preset values for a hardware-creation-time apply (P9 W2a/W2b —
+ * shelf-pin, leg-levelers): the target bore's diameter/depth are shop-configurable
+ * (not dictated by a hardware catalog/convention), so the full preset transfers,
+ * mirroring ApplyMachiningPresetCommand's bore branch. VALUES, not a preset id —
+ * editing the preset later must never retroactively change already-created bores
+ * (ADR 0001).
+ */
+export interface MachiningPresetValues {
+  diameter: number;
+  depth: number;
+  layerName: string;
+  toolNumber?: number;
+  speed?: number;
+}
+
+/**
+ * Snapshotted CAM-only preset values for a hardware-creation-time apply where the
+ * target bore's diameter/depth are structural — dictated by a hardware
+ * catalog/convention, not shop-configurable (P9 W2c — TANDEM bores, whose
+ * diameter is fixed by the Blum slide mounting spec in tandemConventions.ts).
+ * Only CAM tagging fields ever transfer; diameter/depth are never touched.
+ */
+export interface MachiningPresetCamValues {
+  layerName: string;
+  toolNumber?: number;
+  speed?: number;
+}
+
 export class MachiningPresetValidationError extends Error {
   constructor(message: string) {
     super(message);

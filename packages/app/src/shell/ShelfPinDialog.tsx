@@ -27,6 +27,8 @@ export function ShelfPinDialog(): JSX.Element | null {
   const { t } = useTranslation();
   const dialog = useAppStore((s) => s.shelfPinDialog);
   const setDialog = useAppStore((s) => s.setShelfPinDialog);
+  const machiningPresets = useAppStore((s) => s.machiningPresets);
+  const matchingPresets = machiningPresets.filter((p) => p.opType === 'shelfPin-system32');
 
   const [pitch, setPitch] = React.useState('32');
   const [diameter, setDiameter] = React.useState('5');
@@ -37,6 +39,7 @@ export function ShelfPinDialog(): JSX.Element | null {
   const [bottomMargin, setBottomMargin] = React.useState('64');
   const [startOffset, setStartOffset] = React.useState('0');
   const [columns, setColumns] = React.useState<'1' | '2'>('2');
+  const [presetId, setPresetId] = React.useState('');
 
   // Reset defaults each time the dialog opens.
   React.useEffect(() => {
@@ -50,12 +53,23 @@ export function ShelfPinDialog(): JSX.Element | null {
       setBottomMargin('64');
       setStartOffset('0');
       setColumns('2');
+      setPresetId('');
     }
   }, [dialog]);
 
   if (!dialog) return null;
 
   const handleOk = (): void => {
+    const preset = matchingPresets.find((p) => p.id === presetId);
+    const presetValues = preset
+      ? {
+          diameter: preset.diameter,
+          depth: preset.depth,
+          layerName: preset.layerName,
+          ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+          ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+        }
+      : undefined;
     dialog.onSubmit({
       pitch: Number(pitch),
       diameter: Number(diameter),
@@ -66,6 +80,7 @@ export function ShelfPinDialog(): JSX.Element | null {
       bottomMargin: Number(bottomMargin),
       startOffset: Number(startOffset),
       columns: (columns === '1' ? 1 : 2),
+      ...(presetValues ? { presetValues } : {}),
     });
     setDialog(null);
   };
@@ -130,6 +145,24 @@ export function ShelfPinDialog(): JSX.Element | null {
             <option value="2">{t('dialog.shelfPin.columnsTwo')}</option>
           </select>
         </div>
+
+        {matchingPresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="shelfpin-preset">{t('bore.machining_preset', 'Machining preset')}</label>
+            <select
+              id="shelfpin-preset"
+              aria-label={t('bore.machining_preset', 'Machining preset')}
+              style={fieldStyle}
+              value={presetId}
+              onChange={(e) => setPresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {matchingPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 12 }}>
           <button style={btnStyle} onClick={handleCancel}>{t('common.cancel')}</button>

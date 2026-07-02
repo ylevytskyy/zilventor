@@ -284,3 +284,60 @@ describe('AddLegLevelersCommand', () => {
     expect((await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler')).toHaveLength(0);
   });
 });
+
+describe('AddLegLevelersCommand — presetValues snapshot (P9 W2b)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('overrides diameter/depth/presetLayerName/toolNumber/speed on every generated leg bore when presetValues is given', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    const presetValues = { diameter: 7, depth: 15, layerName: 'LEG-CAM', toolNumber: 4, speed: 9000 };
+    await new AddLegLevelersCommand({
+      cabinetPath, params: { legsPerRow: R }, presetValues, opfs, kernel: makeKernel(),
+    }).execute();
+
+    const legBores = (await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler');
+    expect(legBores.length).toBe(4 * (2 * R));
+    for (const b of legBores) {
+      expect(b.diameter).toBe(7);
+      expect(b.depth).toBe(15);
+      expect(b.presetLayerName).toBe('LEG-CAM');
+      expect(b.toolNumber).toBe(4);
+      expect(b.speed).toBe(9000);
+    }
+  });
+
+  it('a later mutation of the source presetValues object never changes already-created bores (snapshot, not a live reference)', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    const presetValues = { diameter: 7, depth: 15, layerName: 'LEG-CAM' };
+    await new AddLegLevelersCommand({
+      cabinetPath, params: { legsPerRow: R }, presetValues, opfs, kernel: makeKernel(),
+    }).execute();
+    presetValues.diameter = 999;
+    presetValues.layerName = 'MUTATED';
+
+    const legBores = (await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler');
+    for (const b of legBores) {
+      expect(b.diameter).toBe(7);
+      expect(b.presetLayerName).toBe('LEG-CAM');
+    }
+  });
+
+  it('without presetValues, behavior is unchanged (no presetLayerName/toolNumber/speed on generated bores)', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    await new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: R }, opfs, kernel: makeKernel() }).execute();
+
+    const legBores = (await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler');
+    for (const b of legBores) {
+      expect('presetLayerName' in b).toBe(false);
+      expect('toolNumber' in b).toBe(false);
+      expect('speed' in b).toBe(false);
+    }
+  });
+});
