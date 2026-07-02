@@ -30,8 +30,8 @@ const sheet: NestSheet = {
   sheetWidthMm: 2070,
   utilizationPct: 85.5,
   panels: [
-    { itemNumber: 1, rowKey: 'a', x: 10, y: 20, length: 600, width: 300, rotated: false, grain: 'none' },
-    { itemNumber: 2, rowKey: 'b', x: 700, y: 20, length: 300, width: 600, rotated: true, grain: 'none' },
+    { itemNumber: 1, rowKey: 'a', instanceIndex: 1, x: 10, y: 20, length: 600, width: 300, rotated: false, grain: 'none' },
+    { itemNumber: 2, rowKey: 'b', instanceIndex: 1, x: 700, y: 20, length: 300, width: 600, rotated: true, grain: 'none' },
   ],
 };
 
@@ -93,10 +93,10 @@ describe('renderNestSheetDxf', () => {
       utilizationPct: 50,
       panels: [
         // Original grain='length', placed unrotated: 600 long (X) x 300 wide (Y).
-        { itemNumber: 1, rowKey: 'a', x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'length' },
+        { itemNumber: 1, rowKey: 'a', instanceIndex: 1, x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'length' },
         // Same original grain='length', but nested rotated 90°: post-rotation extents
         // swapped (300 along X, 600 along Y) — the grain axis must follow the material.
-        { itemNumber: 2, rowKey: 'b', x: 1000, y: 0, length: 300, width: 600, rotated: true, grain: 'length' },
+        { itemNumber: 2, rowKey: 'b', instanceIndex: 1, x: 1000, y: 0, length: 300, width: 600, rotated: true, grain: 'length' },
       ],
     };
     const dxf = renderNestSheetDxf(grainSheet, { sheetCount: 1, materialName: 'White 18' });
@@ -124,6 +124,26 @@ describe('renderNestSheetDxf', () => {
     const norm = (a: number): number => ((a % 180) + 180) % 180;
     const diff = Math.abs(norm(angle1) - norm(angle2));
     expect(Math.min(diff, 180 - diff)).toBeCloseTo(90, 5);
+  });
+});
+
+describe('renderNestSheetDxf — remnant', () => {
+  const remnantSheet: NestSheet = {
+    ...sheet,
+    remnant: { x: 1200, y: 20, length: 500, width: 300 },
+  };
+
+  it('draws the remnant outline on the REMNANT layer with an ASCII dimension label', () => {
+    const dxf = renderNestSheetDxf(remnantSheet, { sheetCount: 3, materialName: 'White 18' });
+    const polys = lwpolys(dxf);
+    expect(polys).toContainEqual({ layer: 'REMNANT', minX: 1200, minY: 20, w: 500, h: 300 });
+    expect(dxf).toContain('REMNANT 500x300');
+  });
+
+  it('emits no REMNANT layer entities when the sheet has no remnant', () => {
+    const dxf = renderNestSheetDxf(sheet, { sheetCount: 3, materialName: 'White 18' });
+    expect(lwpolys(dxf).some((p) => p.layer === 'REMNANT')).toBe(false);
+    expect(dxf).not.toContain('REMNANT');
   });
 });
 

@@ -11,7 +11,7 @@ const sheetA: NestSheet = {
   sheetWidthMm: 2070,
   utilizationPct: 85.5,
   panels: [
-    { itemNumber: 1, rowKey: 'a', x: 10, y: 20, length: 600, width: 300, rotated: false, grain: 'none' },
+    { itemNumber: 1, rowKey: 'a', instanceIndex: 1, x: 10, y: 20, length: 600, width: 300, rotated: false, grain: 'none' },
   ],
 };
 
@@ -22,7 +22,7 @@ const sheetB: NestSheet = {
   sheetWidthMm: 900,
   utilizationPct: 40,
   panels: [
-    { itemNumber: 2, rowKey: 'b', x: 0, y: 0, length: 500, width: 400, rotated: false, grain: 'length' },
+    { itemNumber: 2, rowKey: 'b', instanceIndex: 1, x: 0, y: 0, length: 500, width: 400, rotated: false, grain: 'length' },
   ],
 };
 
@@ -114,5 +114,29 @@ describe('renderCombinedNestDxf', () => {
     const noGrainSheet: NestSheet = { ...sheetB, panels: [{ ...sheetB.panels[0]!, grain: 'none' }] };
     const dxf = renderCombinedNestDxf([sheetA, noGrainSheet], { materialNames: { mdf18: 'MDF 18', ply12: 'Ply 12' } });
     expect(layerTableNames(dxf)).not.toContain('GRAIN');
+  });
+
+  it('LAYER table includes REMNANT and draws its outline+label when a sheet has a remnant', () => {
+    const remnantSheetA: NestSheet = { ...sheetA, remnant: { x: 1500, y: 30, length: 500, width: 300 } };
+    const sheets = [remnantSheetA, sheetB];
+    const dxf = renderCombinedNestDxf(sheets, { materialNames: { mdf18: 'MDF 18', ply12: 'Ply 12' } });
+    expect(layerTableNames(dxf)).toContain('REMNANT');
+
+    const expectedOffsets = layoutCombinedGrid(
+      sheets.map((s) => ({ width: s.sheetLengthMm, height: s.sheetWidthMm })),
+      50,
+    );
+    const remnantOutlines = outlines(dxf, 'REMNANT');
+    expect(remnantOutlines).toContainEqual({
+      minX: remnantSheetA.remnant!.x + expectedOffsets[0]!.x,
+      minY: remnantSheetA.remnant!.y + expectedOffsets[0]!.y,
+      w: remnantSheetA.remnant!.length, h: remnantSheetA.remnant!.width,
+    });
+    expect(dxf).toContain('REMNANT 500x300');
+  });
+
+  it('omits the REMNANT layer entirely when no sheet has a remnant', () => {
+    const dxf = renderCombinedNestDxf([sheetA, sheetB], { materialNames: { mdf18: 'MDF 18', ply12: 'Ply 12' } });
+    expect(layerTableNames(dxf)).not.toContain('REMNANT');
   });
 });

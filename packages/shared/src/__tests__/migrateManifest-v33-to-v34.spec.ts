@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v33 → v34 (M4 Slice E — PanelFeature.outline)', () => {
   it('CURRENT_FORMAT_VERSION is 34', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(37);
+    expect(CURRENT_FORMAT_VERSION).toBe(38);
   });
 
   it('migrates a v33 part manifest to v34 (additive no-op)', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v33 → v34 (M4 Slice E — PanelFeature.outline)', ()
       document: { id: 'p1', featureTree: [{ kind: 'panel', id: 'pf1' }] },
     };
     const out = migrateManifest(v33);
-    expect(out.formatVersion).toBe(37);
+    expect(out.formatVersion).toBe(38);
     // panel feature is unchanged (use find: injectOriginFeatures prepends origin work-features)
     const tree = (out.document as { featureTree: unknown[] }).featureTree;
     const panel = tree.find((f) => (f as { kind?: string }).kind === 'panel') as { id: string } | undefined;

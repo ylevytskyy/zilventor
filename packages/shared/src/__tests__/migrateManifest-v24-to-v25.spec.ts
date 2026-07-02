@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v24 → v25 (присадка slice 6: handleScrew additive, no-op)', () => {
   it('CURRENT_FORMAT_VERSION is 25', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(37);
+    expect(CURRENT_FORMAT_VERSION).toBe(38);
   });
 
   it('migrates a v24 doc to v25 with no field loss', () => {
@@ -23,7 +23,7 @@ describe('migrateManifest v24 → v25 (присадка slice 6: handleScrew add
       },
     };
     const result = migrateManifest(v24) as { formatVersion: number; document: Record<string, unknown> };
-    expect(result.formatVersion).toBe(37);
+    expect(result.formatVersion).toBe(38);
     expect((result.document as { name: string }).name).toBe('Front Panel');
   });
 
@@ -58,7 +58,7 @@ describe('migrateManifest v24 → v25 (присадка slice 6: handleScrew add
       },
     };
     const result = migrateManifest(v24) as { formatVersion: number; document: Record<string, unknown> };
-    expect(result.formatVersion).toBe(37);
+    expect(result.formatVersion).toBe(38);
     const bores = (result.document as { bores: Array<Record<string, unknown>> }).bores;
     expect(bores).toHaveLength(1);
     expect(bores[0]!.connectorKind).toBe('handleScrew');

@@ -124,8 +124,11 @@ export function drawLabelDiagram(pdf: DiagramPdf, label: PanelLabel, rect: Box):
   pdf.setLineWidth(0.2);
   pdf.rect(box.x, box.y, box.w, box.h);
 
-  // Grain arrow.
-  const arrow = grainArrow(label.grain, box);
+  // Grain arrow — reflects this copy's as-nested rotation (same swap as renderNestSheetDxf's drawGrain).
+  const effectiveGrain: GrainDirection = !label.rotated || label.grain === 'none'
+    ? label.grain
+    : label.grain === 'length' ? 'width' : 'length';
+  const arrow = grainArrow(effectiveGrain, box);
   if (arrow) {
     pdf.setLineWidth(0.3);
     pdf.line(arrow[0], arrow[1], arrow[2], arrow[3]);

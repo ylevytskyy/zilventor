@@ -47,6 +47,18 @@ function drawSheet(
     doc.text(MANUFACTURING_LAYERS.info, p.x + w / 2 + dx, p.y + h / 2 + dy, 15, `#${p.itemNumber}  ${p.length}x${p.width}`);
   }
 
+  if (sheet.remnant) {
+    const r = sheet.remnant;
+    doc.lwpolyline(MANUFACTURING_LAYERS.remnant, [
+      { x: r.x + dx, y: r.y + dy }, { x: r.x + r.length + dx, y: r.y + dy },
+      { x: r.x + r.length + dx, y: r.y + r.width + dy }, { x: r.x + dx, y: r.y + r.width + dy },
+    ], true);
+    doc.text(
+      MANUFACTURING_LAYERS.remnant, r.x + r.length / 2 + dx, r.y + r.width / 2 + dy, 15,
+      `REMNANT ${r.length}x${r.width}`,
+    );
+  }
+
   doc.text(
     MANUFACTURING_LAYERS.info,
     dx, W + 30 + dy, 30,
@@ -58,6 +70,7 @@ function drawSheet(
 function neededLayers(sheet: NestSheet): string[] {
   const layers = new Set<string>([MANUFACTURING_LAYERS.sheet, MANUFACTURING_LAYERS.outline, MANUFACTURING_LAYERS.info]);
   if (sheet.panels.some((p) => p.grain !== 'none')) layers.add(MANUFACTURING_LAYERS.grain);
+  if (sheet.remnant) layers.add(MANUFACTURING_LAYERS.remnant);
   return [...layers];
 }
 

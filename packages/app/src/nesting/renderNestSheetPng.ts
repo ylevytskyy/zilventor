@@ -75,4 +75,24 @@ function drawSheetCanvas(
       ctx.textBaseline = 'top';
     }
   }
+
+  if (sheet.remnant) {
+    const r = sheet.remnant;
+    const x = r.x * scale;
+    const y = r.y * scale;
+    const w = r.length * scale;
+    const h = r.width * scale;
+    ctx.strokeStyle = '#c00';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#c00';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`REMNANT ${r.length}×${r.width}`, x + w / 2, y + h / 2);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'top';
+  }
 }

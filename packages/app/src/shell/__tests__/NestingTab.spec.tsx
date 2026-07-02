@@ -55,7 +55,7 @@ const NEST_WITH_SHEETS: NestState = {
       materialId: 'm1', sheetIndex: 1, sheetLengthMm: 2440, sheetWidthMm: 1220,
       utilizationPct: 75.0,
       panels: [
-        { itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
+        { itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
       ],
     },
   ],
@@ -149,5 +149,95 @@ describe('NestingTab', () => {
     await waitFor(() => {
       expect(ExportNestPngCommand).toHaveBeenCalledTimes(1);
     });
+  });
+
+  const NEST_TWO_PANELS: NestState = {
+    params: { kerfMm: 3 },
+    generatedAt: 1000,
+    inputFingerprint: 'current-fp',
+    sheets: [
+      {
+        materialId: 'm1', sheetIndex: 1, sheetLengthMm: 2440, sheetWidthMm: 1220,
+        utilizationPct: 75.0,
+        panels: [
+          { itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
+          { itemNumber: 2, rowKey: 'r2', instanceIndex: 1, x: 605, y: 0, length: 300, width: 200, rotated: false, grain: 'none' },
+        ],
+      },
+    ],
+    excluded: [],
+  };
+
+  it('shows an Edit Mode toggle', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument();
+    });
+  });
+
+  it('selecting a panel in edit mode shows the Rotate/Flip toolbar', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    fireEvent.click(screen.getByLabelText('Select panel #1'));
+    expect(screen.getByRole('button', { name: /Rotate 90/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Flip$/i })).toBeInTheDocument();
+  });
+
+  it('clicking Rotate dispatches the edit and swaps panel length/width', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    fireEvent.click(screen.getByLabelText('Select panel #1'));
+    fireEvent.click(screen.getByRole('button', { name: /Rotate 90/i }));
+    await waitFor(() => {
+      const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+      expect(panel).toMatchObject({ rotated: true, length: 400, width: 600 });
+    });
+  });
+
+  it('clicking Flip toggles mirrored and marks the sheet manually edited (warning badge shows)', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    fireEvent.click(screen.getByLabelText('Select panel #1'));
+    fireEvent.click(screen.getByRole('button', { name: /^Flip$/i }));
+    await waitFor(() => {
+      const sheet = useAppStore.getState().activeAssembly!.nest!.sheets[0]!;
+      expect(sheet.panels[0]!.mirrored).toBe(true);
+      expect(sheet.manuallyEdited).toBe(true);
+    });
+    expect(screen.getByLabelText(/guillotine cut order may no longer be valid/i)).toBeInTheDocument();
+  });
+
+  it('a plain nudge (no shift) moves the panel by 1mm', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    fireEvent.click(screen.getByLabelText('Select panel #1'));
+    fireEvent.click(screen.getByLabelText('Move selected panel right'));
+    await waitFor(() => {
+      const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+      expect(panel.x).toBe(1);
+    });
+  });
+
+  it('a shift-nudge (10mm) that overlaps another panel shows an inline error and does not mutate state', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    fireEvent.click(screen.getByLabelText('Select panel #1'));
+    fireEvent.click(screen.getByLabelText('Move selected panel right'), { shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/overlap/i);
+    });
+    const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+    expect(panel.x).toBe(0);
   });
 });

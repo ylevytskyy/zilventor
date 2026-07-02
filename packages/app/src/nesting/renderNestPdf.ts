@@ -81,6 +81,24 @@ function drawSheetPdf(
     }
   }
   pdf.setTextColor(0);
+
+  // Remnant offcut — dashed, distinctly colored outline + dimension label.
+  if (sheet.remnant) {
+    const r = sheet.remnant;
+    const x = ox + r.x * scale;
+    const y = oy + r.y * scale;
+    const w = r.length * scale;
+    const h = r.width * scale;
+    pdf.setDrawColor(200, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.setLineDashPattern([2, 1], 0);
+    pdf.rect(x, y, w, h, 'D');
+    pdf.setLineDashPattern([], 0);
+    pdf.setFontSize(8);
+    pdf.setTextColor(200, 0, 0);
+    pdf.text(`REMNANT ${r.length}×${r.width}`, x + w / 2, y + h / 2, { align: 'center', baseline: 'middle' });
+    pdf.setTextColor(0);
+  }
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
