@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 36 as const;
+export const CURRENT_FORMAT_VERSION = 37 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -454,6 +454,13 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 36 };
   },
+  // v36 → v37: P6 — mortise/tenon joinery. Additive: introduces the tenonMortise
+  // feature kind and MachiningPreset.opType 'tenon'/'mortise' values. No existing
+  // document needs mutation; the bump pins the new schema.
+  36: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 37 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -468,7 +475,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 29 || m.formatVersion === 30 ||
      m.formatVersion === 31 || m.formatVersion === 32 ||
      m.formatVersion === 33 || m.formatVersion === 34 || m.formatVersion === 35 ||
-     m.formatVersion === 36) &&
+     m.formatVersion === 36 || m.formatVersion === 37) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;

@@ -67,7 +67,7 @@ const FACE_OF = (j: JointInput, which: 'A' | 'B'): FaceName => ({
 // panel's thickness. For slice 1 it is the half-thickness of the OTHER panel
 // (placeholder — frame placement is refined in jointMath/Generate command);
 // the unit tests pin `u` (along-joint) + role/Ø/depth/pairing only.
-function crossCoord(boardThickness: number): number {
+export function crossCoord(boardThickness: number): number {
   return boardThickness / 2;
 }
 
@@ -77,7 +77,7 @@ function crossCoord(boardThickness: number): number {
  * For Top/Bottom: uDir=+X → u is along-joint, v is the thickness-centerline coord.
  * This controls the u↔v swap for boresB so the bore lands inside the panel face.
  */
-function endFaceUsesZforU(endFace: PanelFaceRole): boolean {
+export function endFaceUsesZforU(endFace: PanelFaceRole): boolean {
   return endFace === 'Left' || endFace === 'Right' || endFace === 'Front' || endFace === 'Back';
 }
 
