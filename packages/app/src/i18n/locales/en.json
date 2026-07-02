@@ -70,6 +70,7 @@
     "setback": "Setback",
     "shelf_pin_dialog": "Система-32 shelf-pin dialog",
     "groove": "Groove dialog",
+    "tenonMortise": "Tenon/Mortise dialog",
     "sheetContextMenu": "Sheet context menu",
     "start_radius": "Start radius",
     "termination": "Termination",
@@ -697,6 +698,17 @@
       "width": "Width (mm)",
       "depth": "Depth (mm)"
     },
+    "tenonMortise": {
+      "title": "Tenon/Mortise",
+      "panelA": "Panel A",
+      "panelB": "Panel B",
+      "width": "Width (mm)",
+      "depth": "Depth (mm)",
+      "count": "Count",
+      "spacing": "Spacing (mm)",
+      "fitClearance": "Fit clearance (mm)",
+      "position": "Position (mm)"
+    },
     "sketchRect": {
       "ariaLabel": "Rectangle dialog",
       "title": "Rectangle (two corner points)"
@@ -1009,7 +1021,8 @@
       "statisticsPanel": "Statistics panel",
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (pick)",
-      "groove": "Groove"
+      "groove": "Groove",
+      "tenonMortise": "Tenon/Mortise"
     },
     "model": {
       "axis": "Axis",
@@ -1288,6 +1301,7 @@
     "revolveFailed": "Revolve failed: {{message}}",
     "shellFailed": "Shell failed: {{message}}",
     "showConflict": "Show conflict",
+    "tenonMortiseNoJoint": "No tenon/mortise added — the two picked panels do not form a butt joint.",
     "valueMin": "Value must be greater than zero."
   },
   "face frame: opening collapses — too many columns for the cabinet width": "Opening collapses — too many columns for the cabinet width.",

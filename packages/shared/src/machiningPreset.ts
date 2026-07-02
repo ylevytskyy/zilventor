@@ -10,7 +10,7 @@ import type { BoreRole } from './bore';
 export interface MachiningPreset {
   id: string;
   name: string;
-  opType: BoreRole | 'groove';
+  opType: BoreRole | 'groove' | 'tenon' | 'mortise';
   diameter: number;
   depth: number;
   /** Absent-not-zero contract (exactOptionalPropertyTypes). */
@@ -44,7 +44,7 @@ const BORE_ROLES: ReadonlySet<string> = new Set<BoreRole>([
   'tandem-drawer-bottom',
   'tandem-drawer-back',
 ]);
-const OP_TYPES: ReadonlySet<string> = new Set([...BORE_ROLES, 'groove']);
+const OP_TYPES: ReadonlySet<string> = new Set([...BORE_ROLES, 'groove', 'tenon', 'mortise']);
 
 function fail(msg: string): never {
   throw new MachiningPresetValidationError(msg);

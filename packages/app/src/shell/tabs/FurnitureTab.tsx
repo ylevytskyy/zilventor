@@ -35,6 +35,9 @@ import { AddFaceFrameCommand } from '../../commands/AddFaceFrameCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
 import { AddGrooveCommand } from '../../commands/AddGrooveCommand';
+import { AddTenonMortiseCommand } from '../../commands/AddTenonMortiseCommand';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import type { TenonMortiseParams } from '@zilventor/shared';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
@@ -423,6 +426,62 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
     useAppStore.getState().setOneComponentPickHandle(handle);
   };
 
+  /**
+   * AddTenonMortiseCommand silently no-ops when the two picked panels don't form a
+   * butt joint (`inferManualJoint` returns null) — it has no return value/result object
+   * to signal that. Detect it from the UI side by diffing each panel's featureTree
+   * length before/after `bus.execute`, reusing the existing `showToast` mechanism
+   * (mirrors ExportBoringDxfCommand/ExportPanelManufacturingDxfCommand's diagnostics
+   * toasts) rather than inventing a new feedback channel or modifying the command.
+   */
+  const tenonMortiseFeatureCount = async (
+    opfs: { read(p: string): Promise<Uint8Array> },
+    partPath: string,
+  ): Promise<number | null> => {
+    try {
+      const bytes = await opfs.read(partPath);
+      const project = await unpackProject(bytes);
+      const doc = (project.manifest as { document?: { featureTree?: unknown[] } } | null)?.document;
+      return doc?.featureTree?.length ?? 0;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleAddTenonMortise = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handleA = viewport.beginOneComponentPick(resolvePartPath, (panelPathA: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      const handleB = viewport.beginOneComponentPick(resolvePartPath, (panelPathB: string) => {
+        useAppStore.getState().setOneComponentPickHandle(null);
+        useAppStore.getState().setTenonMortiseDialog({
+          panelPathA,
+          panelPathB,
+          onSubmit: async (params: TenonMortiseParams) => {
+            const opfs = await Opfs.forNavigator();
+            const beforeA = await tenonMortiseFeatureCount(opfs, panelPathA);
+            const beforeB = await tenonMortiseFeatureCount(opfs, panelPathB);
+            await useAppStore.getState().bus.execute(
+              new AddTenonMortiseCommand({ panelPathA, panelPathB, params, opfs, store: useAppStore }),
+            );
+            const afterA = await tenonMortiseFeatureCount(opfs, panelPathA);
+            const afterB = await tenonMortiseFeatureCount(opfs, panelPathB);
+            const unchanged =
+              beforeA !== null && afterA !== null && beforeB !== null && afterB !== null &&
+              afterA === beforeA && afterB === beforeB;
+            if (unchanged) {
+              showToast?.(t('toast.tenonMortiseNoJoint'));
+            }
+          },
+          onCancel: () => useAppStore.getState().setTenonMortiseDialog(null),
+        });
+      });
+      useAppStore.getState().setOneComponentPickHandle(handleB);
+    });
+    useAppStore.getState().setOneComponentPickHandle(handleA);
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2">
       <RibbonPanel title={t('ribbon.furniture.create')}>
@@ -615,6 +674,16 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
             aria-label={t('ribbon.furniture.groove')}
           >
             {t('ribbon.furniture.groove')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddTenonMortise(); }}
+            aria-label={t('ribbon.furniture.tenonMortise')}
+          >
+            {t('ribbon.furniture.tenonMortise')}
           </button>
           <button type="button" className="text-xs hover:text-white"
             aria-pressed={showBores}

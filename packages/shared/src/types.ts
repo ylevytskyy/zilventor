@@ -10,6 +10,7 @@ import type { CustomTextureDef } from './custom-texture-def';
 import type { HardwareCatalogEntry } from './hardware/resolveCatalog';
 import type { BoreOp } from './bore';
 import type { GrooveFeature } from './groove';
+import type { TenonMortiseFeature } from './tenonMortise';
 import type { ShelfPinParams } from './shelfPinGrid';
 import type { PanelRole } from './cabinets/types';
 
@@ -93,6 +94,7 @@ export type Feature =
   | ImportedFeature
   | PanelFeature
   | GrooveFeature
+  | TenonMortiseFeature
   | HardwareFeature;
 
 export type CachedGeometry = {

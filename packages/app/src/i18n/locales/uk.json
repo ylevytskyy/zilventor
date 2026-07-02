@@ -70,6 +70,7 @@
     "setback": "Відступ",
     "shelf_pin_dialog": "Діалог Система-32 (полицетримачі)",
     "groove": "Діалог паза",
+    "tenonMortise": "Діалог шипа/гнізда",
     "sheetContextMenu": "Контекстне меню аркуша",
     "start_radius": "Початковий радіус",
     "termination": "Завершення",
@@ -697,6 +698,17 @@
       "width": "Ширина (мм)",
       "depth": "Глибина (мм)"
     },
+    "tenonMortise": {
+      "title": "Шип/Гніздо",
+      "panelA": "Панель A",
+      "panelB": "Панель B",
+      "width": "Ширина (мм)",
+      "depth": "Глибина (мм)",
+      "count": "Кількість",
+      "spacing": "Крок (мм)",
+      "fitClearance": "Зазор посадки (мм)",
+      "position": "Положення (мм)"
+    },
     "sketchRect": {
       "ariaLabel": "Діалог прямокутника",
       "title": "Прямокутник (дві кутові точки)"
@@ -1009,7 +1021,8 @@
       "statisticsPanel": "Панель статистики",
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (вибір)",
-      "groove": "Паз"
+      "groove": "Паз",
+      "tenonMortise": "Шип/Гніздо"
     },
     "model": {
       "axis": "Вісь",
@@ -1288,6 +1301,7 @@
     "revolveFailed": "Помилка обертання: {{message}}",
     "shellFailed": "Помилка оболонки: {{message}}",
     "showConflict": "Показати конфлікт",
+    "tenonMortiseNoJoint": "Шип/гніздо не додано — вибрані панелі не утворюють кутове з'єднання встик.",
     "valueMin": "Значення має бути більше нуля."
   },
   "face frame: opening collapses — too many columns for the cabinet width": "Отвір зникає — забагато стовпців для ширини шафи.",

@@ -25,7 +25,7 @@ import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
 import { tessellate, tessellateEdges, tessellateFaces, adaptiveLinearDeflection } from '../occt/Tessellator';
-import { panelUvProjection, type UvProjection, buildGrooveCutter } from '@zilventor/shared';
+import { panelUvProjection, type UvProjection, buildGrooveCutter, buildTenonMortiseCutters } from '@zilventor/shared';
 import { disposeShape, computeBoundingBox, makeBoxFromCorners, type OcctShape } from '../occt/SolidOps';
 import { fuseShapes, cutShapes } from '../occt/BooleanOps';
 import { type NamedShape, attachName, mergeFaceNames } from '../occt/FaceNaming';
@@ -766,6 +766,65 @@ export async function executeTree(
           continue;
         }
         finalSolid = { shape: cut.value, faceNames: finalSolid.faceNames };
+      } catch (e) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+    } else if (feature.kind === 'tenonMortise') {
+      // Tenon/mortise adds (fuse) or removes (cut) `count` discrete boxes from
+      // an existing body — without one there's nothing to modify. Soft-fail
+      // (same convention as hole/groove/sweep).
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'TenonMortise needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        // Panel dims from the running body's bbox (same convention as groove).
+        const [xmin, ymin, zmin, xmax, ymax, zmax] = computeBoundingBox(oc, finalSolid.shape);
+        const panelDims = { length: xmax - xmin, width: ymax - ymin, thickness: zmax - zmin };
+        const boxes = buildTenonMortiseCutters(panelDims, feature);
+        // Apply all `count` boxes as a single all-or-nothing unit: if any box
+        // fails to fuse/cut, abandon the WHOLE feature and keep the
+        // pre-feature body intact (mirrors groove's soft-fail-keep-prior-body
+        // convention — there is no well-defined "half a tenon" state a
+        // downstream feature should ever see).
+        let current: OcctShape = finalSolid.shape;
+        // True once `current` is an intermediate shape WE created (must be
+        // disposed before being superseded, or on abort) — as opposed to the
+        // original finalSolid.shape, which the caller/tree still owns unless
+        // and until this feature fully succeeds.
+        let ownsCurrent = false;
+        let opError: KernelError | null = null;
+        for (const { p1, p2 } of boxes) {
+          const box = makeBoxFromCorners(oc, p1, p2);
+          const opResult = feature.role === 'tenon'
+            ? fuseShapes(oc, current, box)
+            : cutShapes(oc, current, box);
+          disposeShape(box);
+          if (!opResult.ok) {
+            opError = opResult.error;
+            break;
+          }
+          if (ownsCurrent) disposeShape(current);
+          current = opResult.value;
+          ownsCurrent = true;
+        }
+        if (opError) {
+          if (ownsCurrent) disposeShape(current);
+          featureErrors.set(feature.id, { ...opError, featureId: feature.id });
+          continue;
+        }
+        finalSolid = { shape: current, faceNames: finalSolid.faceNames };
       } catch (e) {
         featureErrors.set(feature.id, {
           kind: 'invalidParameter',

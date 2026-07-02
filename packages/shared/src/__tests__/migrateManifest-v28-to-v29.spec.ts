@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v28 → v29 (feature suppression)', () => {
   it('CURRENT_FORMAT_VERSION is 29', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(36);
+    expect(CURRENT_FORMAT_VERSION).toBe(37);
   });
 
   it('injects suppressedFeatureIds:[] onto a v28 part document missing it', () => {
@@ -20,7 +20,7 @@ describe('migrateManifest v28 → v29 (feature suppression)', () => {
       formatVersion: number;
       document: { suppressedFeatureIds?: string[] };
     };
-    expect(out.formatVersion).toBe(36);
+    expect(out.formatVersion).toBe(37);
     expect(out.document.suppressedFeatureIds).toEqual([]);
   });
 
@@ -50,7 +50,7 @@ describe('migrateManifest v28 → v29 (feature suppression)', () => {
       formatVersion: number;
       document: Record<string, unknown>;
     };
-    expect(out.formatVersion).toBe(36);
+    expect(out.formatVersion).toBe(37);
     expect(out.document.suppressedFeatureIds).toBeUndefined();
   });
 });

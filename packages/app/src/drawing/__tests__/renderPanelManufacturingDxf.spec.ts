@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderPanelManufacturingDxf } from '../renderPanelManufacturingDxf';
+import { renderPanelManufacturingDxf, tenonMortiseRects } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp, GrooveFeature } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature } from '@zilventor/shared';
 import { parseDxf } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
@@ -14,6 +14,14 @@ const base: PanelManufacturingInput = {
   bores: [],
   grooves: [],
 };
+
+function tenonMortise(over: Partial<TenonMortiseFeature> = {}): TenonMortiseFeature {
+  return {
+    kind: 'tenonMortise', id: 'tm1', pairId: 'pair1', role: 'mortise', faceRole: 'Top',
+    axis: 'u', position: 100, width: 10, depth: 8, count: 1, spacing: 0, fitClearance: 1,
+    ...over,
+  };
+}
 
 function bore(role: string, u: number, v: number, diameter: number,
               depth: number | 'throughAll'): BoreOp {
@@ -111,6 +119,112 @@ describe('renderPanelManufacturingDxf — grooves/edgeband/grain', () => {
   it('draws a GRAIN arrow when grain is length', () => {
     const dxf = renderPanelManufacturingDxf(base); // grain 'length'
     expect(dxf).toContain('GRAIN');
+  });
+});
+
+// P6 W4: tenon/mortise features surface as explicit rect entities, mirroring grooves —
+// tenonMortiseRects is the pure projection helper (reused by manufacturingCsv.ts), unlike
+// grooveRect it supports all 6 PanelFaceRole values (generateTenonMortisePair can place
+// either role on any face depending on the inferred joint's orientation).
+describe('tenonMortiseRects — projection helper', () => {
+  it('mortise on Top face, unbounded cross axis: spans full width, run axis widened by fitClearance', () => {
+    const f = tenonMortise({ faceRole: 'Top', axis: 'u', position: 100, width: 10, fitClearance: 1 });
+    const rects = tenonMortiseRects(f, 800, 600);
+    expect(rects).toHaveLength(1);
+    const xs = rects![0]!.map((p) => p.x);
+    const ys = rects![0]!.map((p) => p.y);
+    // run axis (x): position±(width/2+fitClearance) = 100±6
+    expect(Math.min(...xs)).toBeCloseTo(94, 6);
+    expect(Math.max(...xs)).toBeCloseTo(106, 6);
+    // cross axis (y): unbounded → full panel width 0..600
+    expect(Math.min(...ys)).toBeCloseTo(0, 6);
+    expect(Math.max(...ys)).toBeCloseTo(600, 6);
+  });
+
+  it('mortise with crossPosition/crossSpan: bounded pocket rect, NOT a through-dado across the full panel (regression guard)', () => {
+    // Left face, len=800 wid=600: crossPosition=9, crossSpan=18, fitClearance=1 →
+    // cross extent = 18 + 2*1 = 20, nowhere near the host's full 600mm width.
+    const f = tenonMortise({
+      faceRole: 'Left', axis: 'u', position: 100, width: 10, depth: 8,
+      fitClearance: 1, crossPosition: 9, crossSpan: 18,
+    });
+    const rects = tenonMortiseRects(f, 800, 600);
+    expect(rects).toHaveLength(1);
+    const ys = rects![0]!.map((p) => p.y);
+    const yMin = Math.min(...ys), yMax = Math.max(...ys);
+    expect(yMax - yMin).toBeCloseTo(20, 6);
+    expect(yMax).toBeLessThan(600); // not the full host width
+    expect(yMin).toBeCloseTo(-1, 6);
+    expect(yMax).toBeCloseTo(19, 6);
+  });
+
+  it('tenon on Right end face protrudes beyond the panel outline by depth (full-thickness footprint, no clearance widening)', () => {
+    const f = tenonMortise({
+      role: 'tenon', faceRole: 'Right', axis: 'v', position: 100, width: 10, depth: 8, fitClearance: 1,
+    });
+    const rects = tenonMortiseRects(f, 800, 600);
+    expect(rects).toHaveLength(1);
+    const xs = rects![0]!.map((p) => p.x);
+    const ys = rects![0]!.map((p) => p.y);
+    // protrudes past the Right edge (x=len=800) by depth=8; width nominal (no fitClearance widening for tenon)
+    expect(Math.min(...xs)).toBeCloseTo(800, 6);
+    expect(Math.max(...xs)).toBeCloseTo(808, 6);
+    expect(Math.min(...ys)).toBeCloseTo(495, 6);
+    expect(Math.max(...ys)).toBeCloseTo(505, 6);
+  });
+
+  it('count=2 produces two discrete tab rects at the correct run-axis spacing', () => {
+    const f = tenonMortise({
+      faceRole: 'Top', axis: 'u', position: 100, width: 10, depth: 8,
+      fitClearance: 0, count: 2, spacing: 40,
+    });
+    const rects = tenonMortiseRects(f, 800, 600);
+    expect(rects).toHaveLength(2);
+    const centers = rects!.map((r) => {
+      const xs = r.map((p) => p.x);
+      return (Math.min(...xs) + Math.max(...xs)) / 2;
+    }).sort((a, b) => a - b);
+    expect(centers[0]).toBeCloseTo(80, 6);
+    expect(centers[1]).toBeCloseTo(120, 6);
+  });
+
+  it('returns null for an unrecognized face role (defensive, mirrors grooveRect/boreToFlat not-representable convention)', () => {
+    const f = tenonMortise({ faceRole: 'Unknown' as unknown as TenonMortiseFeature['faceRole'] });
+    expect(tenonMortiseRects(f, 800, 600)).toBeNull();
+  });
+});
+
+describe('renderPanelManufacturingDxf — tenons/mortises', () => {
+  it('draws a mortise rect on the MORTISES layer', () => {
+    const m = tenonMortise({ role: 'mortise', faceRole: 'Top', axis: 'u', position: 100, width: 10, fitClearance: 1 });
+    const dxf = renderPanelManufacturingDxf({ ...base, tenonMortises: [m] });
+    expect(dxf).toContain('MORTISES');
+    expect(dxf).toMatch(/\n94\.0+\n/);
+    expect(dxf).toMatch(/\n106\.0+\n/);
+  });
+
+  it('draws a tenon rect on the TENONS layer', () => {
+    const t = tenonMortise({ role: 'tenon', faceRole: 'Right', axis: 'v', position: 100, width: 10, depth: 8, fitClearance: 1 });
+    const dxf = renderPanelManufacturingDxf({ ...base, tenonMortises: [t] });
+    expect(dxf).toContain('TENONS');
+    expect(dxf).toMatch(/\n808\.0+\n/);
+  });
+
+  it('a tenonMortise with toolNumber+speed emits CAM XDATA', () => {
+    const m = tenonMortise({ toolNumber: 4, speed: 15000 });
+    const dxf = renderPanelManufacturingDxf({ ...base, tenonMortises: [m] });
+    expect(dxf).toContain('1001\nZILVENTOR');
+    expect(dxf).toContain('1000\nTOOL_NUMBER');
+    expect(dxf).toContain('1070\n4');
+    expect(dxf).toContain('1000\nSPEED');
+    expect(dxf).toContain('1040\n15000.0000');
+  });
+
+  it('a tenonMortise with presetLayerName routes onto the custom layer, not MORTISES', () => {
+    const m = tenonMortise({ presetLayerName: 'CNC-TENON-1' });
+    const dxf = renderPanelManufacturingDxf({ ...base, tenonMortises: [m] });
+    expect(dxf).toContain('CNC-TENON-1');
+    expect(dxf).not.toContain('\nMORTISES\n');
   });
 });
 

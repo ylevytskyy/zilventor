@@ -17,6 +17,8 @@ export * from './cabinets';
 export * from './bore';
 export * from './groove';
 export * from './grooveMath';
+export * from './tenonMortise';
+export * from './tenonMortiseMath';
 export * from './machiningPreset';
 export * from './prisadkaFaceConventions';
 export * from './shelfPinGrid';

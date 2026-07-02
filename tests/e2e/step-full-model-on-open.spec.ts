@@ -63,6 +63,13 @@ test('part-mode multi-body STEP opens as one whole-compound part (status Importe
     { timeout: 60_000 },
   );
 
+  // 3b. The initial import triggers a redundant background re-tessellation pass
+  //     (App.tsx's activePart re-execute effect) that used to unconditionally clear
+  //     statusMessage on success. Settle past it deterministically instead of relying
+  //     on the evaluate() round-trip winning a race against that background pass —
+  //     otherwise this assertion is flaky depending on relative CPU/IPC timing.
+  await page.waitForTimeout(500);
+
   // 4. Read the final store state for assertions.
   const state = await page.evaluate(() => {
     const s = (window as any).__zilventorStore.getState();

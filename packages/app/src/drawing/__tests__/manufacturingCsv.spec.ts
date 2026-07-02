@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildManufacturingCsv } from '../manufacturingCsv';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp, GrooveFeature } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
   itemNumber: 1,
@@ -93,6 +93,38 @@ describe('buildManufacturingCsv', () => {
     const b = bore('Top', 'confirmat-face', 100, 50, 5, 12);
     const csv = buildManufacturingCsv([{ ...base, partName: 'Полка', bores: [b] }]);
     expect(csv).toContain('Полка,confirmat-face');
+  });
+
+  it('emits a mortise row with an empty diameter column, depth from the feature, and the MORTISES layer', () => {
+    const m: TenonMortiseFeature = { kind: 'tenonMortise', id: 'tm1', pairId: 'p1', role: 'mortise',
+      faceRole: 'Top', axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0, fitClearance: 1 };
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [m] }]);
+    expect(csv).toContain('SidePanel,mortise,,9,MORTISES,,');
+  });
+
+  it('emits a tenon row with the TENONS layer and CAM fields populated', () => {
+    const t: TenonMortiseFeature = { kind: 'tenonMortise', id: 'tm2', pairId: 'p1', role: 'tenon',
+      faceRole: 'Right', axis: 'v', position: 100, width: 10, depth: 8, count: 1, spacing: 0,
+      fitClearance: 1, toolNumber: 4, speed: 15000 };
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [t] }]);
+    expect(csv).toContain('SidePanel,tenon,,8,TENONS,4,15000');
+  });
+
+  it('routes a tenonMortise to presetLayerName when set', () => {
+    const m: TenonMortiseFeature = { kind: 'tenonMortise', id: 'tm3', pairId: 'p1', role: 'mortise',
+      faceRole: 'Top', axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0,
+      fitClearance: 1, presetLayerName: 'CNC-TENON-1' };
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [m] }]);
+    expect(csv).toContain('SidePanel,mortise,,9,CNC-TENON-1,,');
+    expect(csv).not.toContain('MORTISES');
+  });
+
+  it('skips a tenonMortise whose face role is not representable (matches tenonMortiseRects rejection — absent from the DXF too)', () => {
+    const m = { kind: 'tenonMortise', id: 'tm4', pairId: 'p1', role: 'mortise',
+      faceRole: 'Unknown', axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0,
+      fitClearance: 1 } as unknown as TenonMortiseFeature;
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [m] }]);
+    expect(csv.trim().split('\n')).toEqual(['partName,opType,diameter,depth,layer,toolNumber,speed']);
   });
 
   it('covers every panel in the input collection, in order', () => {

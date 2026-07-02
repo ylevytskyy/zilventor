@@ -2,6 +2,8 @@ export const MANUFACTURING_LAYERS = {
   sheet: 'SHEET',
   outline: 'OUTLINE',
   grooves: 'GROOVES',
+  tenons: 'TENONS',
+  mortises: 'MORTISES',
   edgeband: 'EDGEBAND',
   grain: 'GRAIN',
   info: 'INFO',
