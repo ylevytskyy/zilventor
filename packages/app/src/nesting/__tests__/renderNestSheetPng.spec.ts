@@ -39,6 +39,7 @@ const mockCtx = {
   fillRect: vi.fn(),
   strokeRect: vi.fn(),
   fillText: vi.fn(),
+  setLineDash: vi.fn(),
 };
 
 class MockOffscreenCanvas {
@@ -62,7 +63,7 @@ describe('renderNestSheetPng', () => {
     sheetLengthMm: 2440,
     sheetWidthMm: 1220,
     utilizationPct: 50.0,
-    panels: [{ itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' }],
+    panels: [{ itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' }],
   } as const;
   const materials = [
     {
@@ -114,5 +115,20 @@ describe('renderNestSheetPng', () => {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     expect(view.getUint32(16, false)).toBe(200);
     expect(view.getUint32(20, false)).toBe(100);
+  });
+
+  it('draws a dashed remnant outline and dimension label when present', async () => {
+    const { renderNestSheetPng } = await import('../renderNestSheetPng');
+    const withRemnant = { ...sheet, remnant: { x: 100, y: 50, length: 600, width: 400 } };
+    await renderNestSheetPng(withRemnant, materials, { canvasWidthPx: 256 });
+    expect(mockCtx.setLineDash).toHaveBeenCalled();
+    expect(mockCtx.fillText).toHaveBeenCalledWith('REMNANT 600×400', expect.any(Number), expect.any(Number));
+  });
+
+  it('draws no remnant outline or label when absent', async () => {
+    const { renderNestSheetPng } = await import('../renderNestSheetPng');
+    await renderNestSheetPng(sheet, materials, { canvasWidthPx: 256 });
+    expect(mockCtx.setLineDash).not.toHaveBeenCalled();
+    expect(mockCtx.fillText).not.toHaveBeenCalledWith('REMNANT 600×400', expect.any(Number), expect.any(Number));
   });
 });

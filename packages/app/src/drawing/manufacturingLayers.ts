@@ -6,6 +6,7 @@ export const MANUFACTURING_LAYERS = {
   mortises: 'MORTISES',
   edgeband: 'EDGEBAND',
   grain: 'GRAIN',
+  remnant: 'REMNANT',
   info: 'INFO',
   dimensions: 'DIMENSIONS',
   boreInfo: 'BORE-INFO',

@@ -1,12 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { renderNestPdf } from '../renderNestPdf';
+import { renderNestPdf, renderNestPdfBytes } from '../renderNestPdf';
 import type { NestState, NestSheet } from '@zilventor/shared';
 import type { MaterialRegistry } from '@zilventor/shared/src/material';
+
+// jsPDF's text operators are literal ASCII/WinAnsi bytes in the content stream
+// (verified: no font subsetting for the default Helvetica), so a plain latin1
+// decode is enough to assert on drawn text — no PDF parser needed.
+function pdfText(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('latin1');
+}
 
 const sheet = (i: number, panels: number): NestSheet => ({
   materialId: 'm1', sheetIndex: i, sheetLengthMm: 2440, sheetWidthMm: 1220, utilizationPct: 50.0,
   panels: Array.from({ length: panels }, (_, k) => ({
-    itemNumber: k + 1, rowKey: `r${k}`, x: k * 700, y: 0, length: 600, width: 400, rotated: false, grain: 'none' as const,
+    itemNumber: k + 1, rowKey: `r${k}`, instanceIndex: 1, x: k * 700, y: 0, length: 600, width: 400, rotated: false, grain: 'none' as const,
   })),
 });
 
@@ -34,5 +41,18 @@ describe('renderNestPdf', () => {
   it('zero-sheet nest → returns a one-page "No sheets" PDF', () => {
     const blob = renderNestPdf(nestState([]), materials);
     expect(blob.size).toBeGreaterThan(0);
+  });
+});
+
+describe('renderNestPdf — remnant', () => {
+  it('draws a labeled remnant outline with its dimensions when present', () => {
+    const withRemnant: NestSheet = { ...sheet(1, 1), remnant: { x: 1500, y: 100, length: 600, width: 400 } };
+    const bytes = renderNestPdfBytes(nestState([withRemnant]), materials);
+    expect(pdfText(bytes)).toContain('REMNANT 600×400');
+  });
+
+  it('draws no remnant label when the sheet has no remnant', () => {
+    const bytes = renderNestPdfBytes(nestState([sheet(1, 1)]), materials);
+    expect(pdfText(bytes)).not.toContain('REMNANT');
   });
 });
