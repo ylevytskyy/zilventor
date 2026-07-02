@@ -425,6 +425,7 @@ type AppState = {
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   cutListTabActive: boolean;
+  statisticsTabActive: boolean;
   showComponentColors: boolean;
   showEdgeBands: boolean;
   showBores: boolean;
@@ -454,6 +455,7 @@ type AppState = {
   selectComponentPaths: (paths: ComponentPath[]) => void;
   setBomTabActive: (v: boolean) => void;
   setCutListTabActive: (v: boolean) => void;
+  setStatisticsTabActive: (v: boolean) => void;
   setDxfExportMode: (mode: 'folders' | 'combined') => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
@@ -837,6 +839,7 @@ export const useAppStore = create<AppState>((set) => ({
   componentDiagnostics: [],
   bomTabActive: false,
   cutListTabActive: false,
+  statisticsTabActive: false,
   showComponentColors: false,
   showEdgeBands: typeof localStorage !== 'undefined' ? localStorage.getItem('showEdgeBands') !== 'false' : true,
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
@@ -868,6 +871,7 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
+  setStatisticsTabActive: (v) => set({ statisticsTabActive: v }),
   setDxfExportMode: (mode) => set({ dxfExportMode: mode }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
   setShowEdgeBands: (v) => {

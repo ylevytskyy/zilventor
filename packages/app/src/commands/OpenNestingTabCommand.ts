@@ -18,5 +18,6 @@ export class OpenNestingTabCommand {
     s.setNestingTabActive(true);
     s.setBomTabActive(false);
     s.setCutListTabActive(false);
+    s.setStatisticsTabActive(false);
   }
 }

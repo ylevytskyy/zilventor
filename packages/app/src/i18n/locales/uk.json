@@ -58,6 +58,7 @@
     "leader_text": "Текст з виноскою",
     "machiningPresets": "Пресети обробки",
     "nesting_tab": "Вкладка розкладки",
+    "statistics_tab": "Вкладка статистики",
     "offset1": "зміщення 1",
     "offset2": "зміщення 2",
     "opening_file": "Відкриття файлу",
@@ -109,6 +110,7 @@
     "error": "Помилка",
     "export": "Експортувати",
     "export_csv": "Експорт CSV",
+    "export_xlsx": "Експорт XLSX",
     "faceFeatureId": "ID грані",
     "faceFeatureIdAria": "ID грані",
     "cycle": "цикл",
@@ -989,6 +991,8 @@
       "panel": "Панель",
       "presadka": "Присадка",
       "showBores": "Показати присадку",
+      "statistics": "Статистика",
+      "statisticsPanel": "Панель статистики",
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (вибір)",
       "groove": "Паз"
@@ -1098,6 +1102,10 @@
       "empty": "Експортовано порожню специфікацію",
       "rows": "Експортовано {{count}} рядків специфікації"
     },
+    "exportStatistics": {
+      "empty": "Експортовано порожній звіт статистики",
+      "lines": "Експортовано {{count}} рядків статистики"
+    },
     "importingStep": "Імпорт STEP… (може тривати кілька хвилин для великих збірок)",
     "importingStepElapsed": "Імпорт STEP… {{elapsed}} минуло (великі збірки можуть тривати кілька хвилин)",
     "importStep": {
@@ -1168,6 +1176,7 @@
     "model": "Модель",
     "nesting": "Розкладка",
     "sketch": "Ескіз",
+    "statistics": "Статистика",
     "view": "Вигляд"
   },
   "table": {
@@ -1211,6 +1220,24 @@
       "notes": "Примітки",
       "qty": "Кіл.",
       "sku": "Арт."
+    },
+    "statistics": {
+      "hardware": "Фурнітура",
+      "connectors": "З'єднувачі",
+      "edgeband": "Кромка",
+      "linear": "Погонний матеріал",
+      "panels": "Плити",
+      "label": "Назва",
+      "qty": "Кіл.",
+      "unit": "Од.",
+      "unitPrice": "Ціна за од.",
+      "lineTotal": "Сума",
+      "subtotal": "Підсумок",
+      "grandTotal": "Загальна сума",
+      "unpriced": "{{count}} рядків без ціни",
+      "pieces": "Відрізки",
+      "setAsDefault": "Зберегти як ціну за замовчуванням",
+      "noLines": "Немає рядків"
     }
   },
   "clash": {
