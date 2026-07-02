@@ -105,7 +105,11 @@ export async function seedKernelPart(page: Page, opts: SeedKernelPartOptions): P
       await s.kernel.addFeature(s.activePart.id, {
         kind: 'sketch',
         id: sk.id,
-        plane: sk.plane ?? 'XY',
+        // SketchFeature.plane is a WorkPlaneRef object, not a bare axis
+        // string — the live kernel.addFeature path (unlike file-load,
+        // which runs migrateSketchPlanes) never migrates a raw 'XY'
+        // string, so it must be pre-encoded here.
+        plane: { source: 'workPlane', featureId: `origin.${sk.plane ?? 'XY'}` },
         primitives: sk.primitives,
         constraints: [],
       });
