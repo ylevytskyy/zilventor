@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
+import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColor, ComponentInstance, Configuration, DimensionConstraint, DrawingDocument, EdgeName, FaceName, FilletEdgeSpec, HoleFeature, KernelError, MachiningPreset, MaterialEntry, PartDocument, SketchConstraint, SketchParameter, SketchPrimitive, SweepFeature, WorkAxisFeature, WorkPlaneFeature, WorkPointFeature } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
@@ -11,6 +11,23 @@ import { reprojectDetailRegion } from '../commands/reprojectDetailRegion';
 function omitColor(c: ComponentInstance): ComponentInstance {
   const { color: _color, ...rest } = c;
   return rest;
+}
+
+function readMachiningPresetsFromStorage(): MachiningPreset[] {
+  if (typeof localStorage === 'undefined') return [];
+  const raw = localStorage.getItem('machiningPresets');
+  if (raw === null) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as MachiningPreset[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistMachiningPresets(presets: MachiningPreset[]): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('machiningPresets', JSON.stringify(presets));
 }
 
 export type ToolKind =
@@ -394,6 +411,11 @@ type AppState = {
   showBores: boolean;
   autoRegen: boolean;
   dxfExportMode: 'folders' | 'combined';
+  machiningPresets: MachiningPreset[];
+  addMachiningPreset: (p: MachiningPreset) => void;
+  updateMachiningPreset: (p: MachiningPreset) => void;
+  deleteMachiningPreset: (id: string) => void;
+  importMachiningPresets: (presets: MachiningPreset[]) => void;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -794,6 +816,7 @@ export const useAppStore = create<AppState>((set) => ({
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
   autoRegen: typeof localStorage !== 'undefined' ? localStorage.getItem('autoRegen') !== 'false' : true,
   dxfExportMode: 'folders',
+  machiningPresets: readMachiningPresetsFromStorage(),
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -833,6 +856,26 @@ export const useAppStore = create<AppState>((set) => ({
     if (typeof localStorage !== 'undefined') localStorage.setItem('autoRegen', String(v));
     set({ autoRegen: v });
   },
+  addMachiningPreset: (p) => set((s) => {
+    const next = [...s.machiningPresets, p];
+    persistMachiningPresets(next);
+    return { machiningPresets: next };
+  }),
+  updateMachiningPreset: (p) => set((s) => {
+    const next = s.machiningPresets.map((existing) => (existing.id === p.id ? p : existing));
+    persistMachiningPresets(next);
+    return { machiningPresets: next };
+  }),
+  deleteMachiningPreset: (id) => set((s) => {
+    const next = s.machiningPresets.filter((p) => p.id !== id);
+    persistMachiningPresets(next);
+    return { machiningPresets: next };
+  }),
+  importMachiningPresets: (presets) => set((s) => {
+    const next = [...s.machiningPresets, ...presets];
+    persistMachiningPresets(next);
+    return { machiningPresets: next };
+  }),
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
     const next = { ...s.activeDocument.document.colorOverrides };
