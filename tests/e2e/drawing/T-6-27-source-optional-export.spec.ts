@@ -33,9 +33,14 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'node:fs';
 import { buildBox, waitForKernelReady } from '../helpers/buildBox';
 
-/** Parse DXF text into an array of [groupCode, value] pairs. */
+/** Parse DXF text into an array of [groupCode, value] pairs.
+ *  NOTE: some group values are legitimately empty strings (e.g. the STYLE table's
+ *  group-4 secondary-font field) — only the single trailing blank line produced by
+ *  the writer's final '\n' is dropped, so code/value pairing stays aligned. */
 function parseDxf(text: string): Array<[number, string]> {
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  const raw = text.split('\n');
+  while (raw.length > 0 && raw[raw.length - 1] === '') raw.pop();
+  const lines = raw.map((l) => l.trim());
   const pairs: Array<[number, string]> = [];
   for (let i = 0; i + 1 < lines.length; i += 2) {
     const code = parseInt(lines[i]!, 10);
@@ -297,7 +302,10 @@ test('T-6-27: source-absent WYSIWYG DXF export — buttons enabled and geometry 
   const sectionCount = code0Values.filter((v) => v === 'SECTION').length;
   const endsecCount  = code0Values.filter((v) => v === 'ENDSEC').length;
   expect(sectionCount, 'SECTION and ENDSEC must be balanced').toBe(endsecCount);
-  expect(sectionCount, 'Must have exactly 4 DXF sections').toBe(4);
+  // DXF writer emits AC1015-style 6 sections (HEADER, CLASSES, TABLES, BLOCKS, ENTITIES,
+  // OBJECTS) — same count asserted by T-6-22-dxf-export.spec.ts. This spec's original "4"
+  // predates that format expansion (fixture drift).
+  expect(sectionCount, 'Must have exactly 6 DXF sections (HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, OBJECTS)').toBe(6);
 
   // ─── Step 13: No browser errors ──────────────────────────────────────────
   if (consoleErrors.length > 0) {

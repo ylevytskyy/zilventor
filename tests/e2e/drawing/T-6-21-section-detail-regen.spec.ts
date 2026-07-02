@@ -44,6 +44,18 @@ test('T-6-21: section + detail regenerate — real geometry round-trip', async (
   await page.goto('/');
   await waitForKernelReady(page);
 
+  // Disable autoRegen: DrawingCanvas's own auto-regen effect races this spec's manual
+  // "assert all 3 views stale → click Regenerate" flow (steps 12-14) — it can silently
+  // regenerate one of the 3 stale views (e.g. base) before the staleCountBefore read in
+  // step 12, undercounting (see debug-loop root-cause notes on T-6-4-stale-banner-regen.spec.ts
+  // / T-6-18-drawing-reopen.spec.ts for the first occurrences of this race).
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { setAutoRegen: (v: boolean) => void } };
+    };
+    w.__zilventorStore.getState().setAutoRegen(false);
+  });
+
   const SOURCE_PATH = 'parts/src-T621.zipt';
 
   // ─── Step 1+2: Build box A; save bytes to OPFS ─────────────────────────
