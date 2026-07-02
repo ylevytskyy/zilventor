@@ -132,6 +132,27 @@ test('T-6-23a: part-sourced drawing — export buttons enabled without activePar
 
       const { CreateDrawingCommand } = await import('/src/commands/CreateDrawingCommand.ts');
       await new CreateDrawingCommand({ sourcePath, sourceKind: 'part' }).apply();
+
+      // Place a base view: the export-button gate is `hasProjectedView`
+      // (DrawingTab.tsx — activeSheet?.views.some(v => v.projection != null)),
+      // NOT source-slot presence. Without a projected view all export buttons
+      // stay disabled ("No projected views to export") regardless of
+      // activeDrawingSourceDocument, so a view is required to reach step 5 below.
+      const store2 = window as unknown as {
+        __zilventorStore: {
+          getState(): {
+            activeDocument: { kind: string; document: { sheets: Array<{ id: string }> } } | null;
+          };
+        };
+      };
+      const sheetId = store2.__zilventorStore.getState().activeDocument!.document.sheets[0]!.id;
+      const { AddBaseViewCommand } = await import('/src/commands/AddBaseViewCommand.ts');
+      await new AddBaseViewCommand({
+        sheetId,
+        positionMm: { x: 80, y: 80 },
+        orientation: 'front',
+        scale: { numerator: 1, denominator: 1 },
+      }).apply();
     },
     { sourcePath: PART_SOURCE_PATH, partId: partIdA },
   );
@@ -144,8 +165,10 @@ test('T-6-23a: part-sourced drawing — export buttons enabled without activePar
 
   // Step 5: Assert all four export buttons enabled — WITHOUT any activePart stub.
   for (const label of ['Export PDF', 'Export SVG', 'Export PNG', 'Export DXF']) {
+    // exact: true — a later feature added "Export DXF (1:1)", whose accessible name is
+    // a superstring of "Export DXF"; without exact the locator hits strict-mode ambiguity.
     await expect(
-      page.getByRole('button', { name: label }),
+      page.getByRole('button', { name: label, exact: true }),
       `${label} button must be enabled (activeDrawingSourceDocument set by CreateDrawingCommand)`,
     ).toBeEnabled({ timeout: 5_000 });
   }
@@ -182,7 +205,7 @@ test('T-6-23a: part-sourced drawing — export buttons enabled without activePar
 
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 30_000 }),
-    page.getByRole('button', { name: 'Export DXF' }).click(),
+    page.getByRole('button', { name: 'Export DXF', exact: true }).click(),
   ]);
 
   expect(await download.path(), 'DXF download path must be truthy (file was written to disk)').toBeTruthy();
@@ -375,6 +398,24 @@ test('T-6-23b: assembly-sourced drawing — export buttons enabled without activ
     async ({ asmPath }: { asmPath: string }) => {
       const { CreateDrawingCommand } = await import('/src/commands/CreateDrawingCommand.ts');
       await new CreateDrawingCommand({ sourcePath: asmPath, sourceKind: 'assembly' }).apply();
+
+      // Place a base view: the export-button gate is `hasProjectedView`
+      // (DrawingTab.tsx), NOT source-slot presence — see T-6-23a note above.
+      const store2 = window as unknown as {
+        __zilventorStore: {
+          getState(): {
+            activeDocument: { kind: string; document: { sheets: Array<{ id: string }> } } | null;
+          };
+        };
+      };
+      const sheetId = store2.__zilventorStore.getState().activeDocument!.document.sheets[0]!.id;
+      const { AddBaseViewCommand } = await import('/src/commands/AddBaseViewCommand.ts');
+      await new AddBaseViewCommand({
+        sheetId,
+        positionMm: { x: 80, y: 80 },
+        orientation: 'front',
+        scale: { numerator: 1, denominator: 1 },
+      }).apply();
     },
     { asmPath: ASM_PATH_T623 },
   );
@@ -387,8 +428,10 @@ test('T-6-23b: assembly-sourced drawing — export buttons enabled without activ
 
   // Step 6: Assert all four export buttons enabled — WITHOUT any activeAssembly stub.
   for (const label of ['Export PDF', 'Export SVG', 'Export PNG', 'Export DXF']) {
+    // exact: true — a later feature added "Export DXF (1:1)", whose accessible name is
+    // a superstring of "Export DXF"; without exact the locator hits strict-mode ambiguity.
     await expect(
-      page.getByRole('button', { name: label }),
+      page.getByRole('button', { name: label, exact: true }),
       `${label} button must be enabled (activeDrawingSourceDocument set by assembly CreateDrawingCommand)`,
     ).toBeEnabled({ timeout: 5_000 });
   }

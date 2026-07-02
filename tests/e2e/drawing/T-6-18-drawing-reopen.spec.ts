@@ -54,6 +54,21 @@ test('T-6-18: drawing reopen — pack→unpack round-trip preserves views + muta
   await page.goto('/');
   await waitForKernelReady(page);
 
+  // Disable autoRegen: DrawingCanvas's own auto-regen effect (M3.2, DrawingCanvas.tsx
+  // ~line 1090, fires whenever the `autoRegen` store flag — default true — sees a stale
+  // view) races this spec's manual "assert stale → click Regenerate" flow. Once Regenerate
+  // succeeds for real (real box geometry, warm kernel cache), auto-regen can clear the
+  // stale marker between the `toBeVisible()` and the following `.count()` read below,
+  // making `staleCountBefore` read back 0. This spec is specifically about the manual-click
+  // path (see debug-loop root-cause notes on T-6-4-stale-banner-regen.spec.ts for the first
+  // occurrence of this race); disable autoRegen to remove it.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { setAutoRegen: (v: boolean) => void } };
+    };
+    w.__zilventorStore.getState().setAutoRegen(false);
+  });
+
   // 1. Build box A (50×50×30) — first source shape.
   await buildBox(page, { width: 50, height: 50, depth: 30 });
 

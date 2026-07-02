@@ -55,7 +55,7 @@ test('F2.4 mid-flight: ribbon button enters edit mode; handles visible; before/a
       };
       const detailView = {
         id: 'V614-detail', kind: 'detail', parentViewId: 'V614-base',
-        regionParent: { center: { x: 20, y: 15 }, radiusMm: 8 },
+        regionParent: { kind: 'circle', center: { x: 20, y: 15 }, radiusMm: 8 },
         label: 'A', positionMm: { x: 250, y: 80 },
         scale: { numerator: 2, denominator: 1 }, showHidden: false,
         projection: {
@@ -112,7 +112,7 @@ test('F2.4 mid-flight: ribbon button enters edit mode; handles visible; before/a
       (window as unknown as {
         __zilventorStore: { getState(): { updateDetailRegionLive?: (s: string, d: string, r: unknown) => void } };
       }).__zilventorStore.getState().updateDetailRegionLive?.(
-        sheetId, 'V614-detail', { center: { x: 60, y: 25 }, radiusMm: 8 }
+        sheetId, 'V614-detail', { kind: 'circle', center: { x: 60, y: 25 }, radiusMm: 8 }
       );
     },
     { sheetId },
@@ -129,7 +129,7 @@ test('F2.4 mid-flight: ribbon button enters edit mode; handles visible; before/a
       (window as unknown as {
         __zilventorStore: { getState(): { updateDetailRegionLive?: (s: string, d: string, r: unknown) => void } };
       }).__zilventorStore.getState().updateDetailRegionLive?.(
-        sheetId, 'V614-detail', { center: { x: 60, y: 25 }, radiusMm: 20 }
+        sheetId, 'V614-detail', { kind: 'circle', center: { x: 60, y: 25 }, radiusMm: 20 }
       );
     },
     { sheetId },
