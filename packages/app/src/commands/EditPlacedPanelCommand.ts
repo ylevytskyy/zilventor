@@ -27,6 +27,22 @@ function computeCandidate(panel: PlacedPanel, edit: PlacedPanelEdit): PlacedPane
   }
 }
 
+interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly length: number;
+  readonly width: number;
+}
+
+function rectsOverlap(a: Rect, b: Rect): boolean {
+  return !(
+    a.x + a.length <= b.x ||
+    b.x + b.length <= a.x ||
+    a.y + a.width <= b.y ||
+    b.y + b.width <= a.y
+  );
+}
+
 function validate(candidate: PlacedPanel, sheet: NestSheet, panelArrayIndex: number): void {
   const withinBounds =
     candidate.x >= 0 &&
@@ -37,12 +53,7 @@ function validate(candidate: PlacedPanel, sheet: NestSheet, panelArrayIndex: num
 
   const overlaps = sheet.panels.some((o, i) => {
     if (i === panelArrayIndex) return false;
-    return !(
-      candidate.x + candidate.length <= o.x ||
-      o.x + o.length <= candidate.x ||
-      candidate.y + candidate.width <= o.y ||
-      o.y + o.width <= candidate.y
-    );
+    return rectsOverlap(candidate, o);
   });
   if (overlaps) throw new EditRejectedError('overlap');
 }
@@ -79,7 +90,15 @@ export class EditPlacedPanelCommand implements Command {
     this.prevNest = nest;
 
     const nextPanels = sheet.panels.map((p, i) => (i === this.opts.panelArrayIndex ? candidate : p));
-    const nextSheet: NestSheet = { ...sheet, panels: nextPanels, manuallyEdited: true };
+
+    const dropsRemnant =
+      this.opts.edit.type !== 'flip' && sheet.remnant !== undefined && rectsOverlap(candidate, sheet.remnant);
+    const { remnant: _remnant, ...sheetWithoutRemnant } = sheet;
+    const nextSheet: NestSheet = {
+      ...(dropsRemnant ? sheetWithoutRemnant : sheet),
+      panels: nextPanels,
+      manuallyEdited: true,
+    };
     const nextSheets = nest.sheets.map((s, i) => (i === sheetIdx ? nextSheet : s));
     const nextNest: NestState = { ...nest, sheets: nextSheets };
 
