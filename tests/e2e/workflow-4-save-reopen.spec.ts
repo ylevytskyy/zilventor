@@ -26,6 +26,7 @@ const installFilePickerStubs = `
       async write(chunk) {
         const data = chunk instanceof Uint8Array ? chunk :
                      chunk instanceof ArrayBuffer ? new Uint8Array(chunk) :
+                     chunk instanceof Blob ? new Uint8Array(await chunk.arrayBuffer()) :
                      chunk && chunk.data ? new Uint8Array(chunk.data) : new Uint8Array(0);
         this._chunks.push(data);
       }
