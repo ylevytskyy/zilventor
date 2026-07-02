@@ -228,6 +228,15 @@ export type GrooveDialogState = {
   onCancel: () => void;
 };
 
+/** Tenon/mortise joinery dialog: targets two picked panels (unordered — which
+ *  becomes the tenon/mortise host is inferred by AddTenonMortiseCommand). */
+export type TenonMortiseDialogState = {
+  panelPathA: string;
+  panelPathB: string;
+  onSubmit: (params: import('@zilventor/shared').TenonMortiseParams) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 /**
  * Slice-2 присадка: система-32 shelf-pin dialog. `auto` recurses the active
  * assembly's side panels; `manual` targets one picked panel + chosen broad face.
@@ -550,6 +559,8 @@ type AppState = {
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
   grooveDialog: GrooveDialogState | null;
   setGrooveDialog: (s: GrooveDialogState | null) => void;
+  tenonMortiseDialog: TenonMortiseDialogState | null;
+  setTenonMortiseDialog: (s: TenonMortiseDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
   oneComponentPickHandle: OneComponentPickHandle | null;
   setOneComponentPickHandle: (h: OneComponentPickHandle | null) => void;
@@ -1210,6 +1221,8 @@ export const useAppStore = create<AppState>((set) => ({
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
   grooveDialog: null,
   setGrooveDialog: (s) => set({ grooveDialog: s }),
+  tenonMortiseDialog: null,
+  setTenonMortiseDialog: (s) => set({ tenonMortiseDialog: s }),
   oneComponentPickHandle: null,
   setOneComponentPickHandle: (h) => set({ oneComponentPickHandle: h }),
   boreCacheInvalidator: null,
