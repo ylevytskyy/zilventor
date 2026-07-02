@@ -5,13 +5,22 @@
  * Caller (renderDrawingDxf) owns the coordinate transform.
  */
 
+/**
+ * Extended entity data (DXF groups 1000-1071), attached under the `ZILVENTOR` APPID.
+ * 1000 = string, 1040 = real (double), 1070 = 16-bit integer.
+ */
+export type XdataItem =
+  | { code: 1000; value: string }
+  | { code: 1040; value: number }
+  | { code: 1070; value: number };
+
 export type DxfDocument = {
   /** Emit a LINE entity. Optional aci (AutoCAD Color Index, group 62) overrides layer color. */
   line(layer: string, x1: number, y1: number, x2: number, y2: number, aci?: number): void;
   /** Emit a POLYLINE/VERTEX[]/SEQEND entity sequence (R12 — not LWPOLYLINE). */
   polyline(layer: string, points: ReadonlyArray<readonly [number, number]>): void;
-  /** Emit a CIRCLE entity. */
-  circle(layer: string, cx: number, cy: number, r: number): void;
+  /** Emit a CIRCLE entity. Optional xdata (ZILVENTOR APPID) emitted last, per DXF spec. */
+  circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[]): void;
   /** Emit a native ARC entity. Angles in degrees (DXF group 50/51 convention). */
   arc(layer: string, cx: number, cy: number, r: number, startDeg: number, endDeg: number): void;
   /** Emit a native ELLIPSE. majorX/majorY are the major-axis endpoint RELATIVE to center; ratio = minor/major; params in radians. */
@@ -34,8 +43,8 @@ export type DxfDocument = {
   }): void;
   /** Emit a native SPLINE from control points. Generates a clamped uniform knot vector. */
   spline(layer: string, controlPoints: ReadonlyArray<{ x: number; y: number }>, degree: number, closed: boolean): void;
-  /** Emit a native LWPOLYLINE. Optional per-vertex bulge for arc segments. */
-  lwpolyline(layer: string, points: ReadonlyArray<{ x: number; y: number; bulge?: number }>, closed: boolean): void;
+  /** Emit a native LWPOLYLINE. Optional per-vertex bulge for arc segments. Optional xdata (ZILVENTOR APPID) emitted once, after all vertices. */
+  lwpolyline(layer: string, points: ReadonlyArray<{ x: number; y: number; bulge?: number }>, closed: boolean, xdata?: readonly XdataItem[]): void;
   /** Serialize to DXF string. */
   toString(): string;
 };
@@ -50,6 +59,17 @@ function fmt(n: number): string {
   // Guard against non-finite values and negative-zero — DXF parsers reject 'NaN'/'Infinity'.
   if (!Number.isFinite(n) || Object.is(n, -0)) return '0.0000';
   return n.toFixed(4);
+}
+
+/** Append XDATA groups (1001 ZILVENTOR + typed codes) to `sink`. No-op when `xdata` is absent/empty. */
+function emitXdata(sink: string[], xdata?: readonly XdataItem[]): void {
+  if (!xdata || xdata.length === 0) return;
+  sink.push('1001', 'ZILVENTOR');
+  for (const item of xdata) {
+    if (item.code === 1070) sink.push('1070', String(Math.trunc(item.value)));
+    else if (item.code === 1040) sink.push('1040', fmt(item.value));
+    else sink.push('1000', item.value);
+  }
 }
 
 // Minimal ACI palette (index → RGB). Enough to differentiate common furniture material colors.
@@ -135,9 +155,10 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
   // UCS (empty)
   tables.push('  0', 'TABLE', '  2', 'UCS', '  5', nextHandle(), ' 70', '     0', '  0', 'ENDTAB');
 
-  // APPID (ACAD)
-  tables.push('  0', 'TABLE', '  2', 'APPID', '  5', nextHandle(), ' 70', '     1');
+  // APPID (ACAD + ZILVENTOR — the latter carries XDATA emitted via circle()/lwpolyline() etc.)
+  tables.push('  0', 'TABLE', '  2', 'APPID', '  5', nextHandle(), ' 70', '     2');
   tables.push('  0', 'APPID', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbRegAppTableRecord', '  2', 'ACAD', ' 70', '     0');
+  tables.push('  0', 'APPID', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbRegAppTableRecord', '  2', 'ZILVENTOR', ' 70', '     0');
   tables.push('  0', 'ENDTAB');
 
   // DIMSTYLE — one shared STANDARD style (drives native DIMENSION regen)
@@ -188,8 +209,9 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
       sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
-    circle(layer, cx, cy, r) {
+    circle(layer, cx, cy, r, xdata) {
       sink.push('  0', 'CIRCLE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 40', fmt(r));
+      emitXdata(sink, xdata);
     },
 
     arc(layer, cx, cy, r, startDeg, endDeg) {
@@ -257,7 +279,7 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
       }
     },
 
-    lwpolyline(layer, points, closed) {
+    lwpolyline(layer, points, closed, xdata) {
       if (points.length < 2) return;
       sink.push('  0', 'LWPOLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbPolyline',
         ' 90', `     ${points.length}`, ' 70', `     ${closed ? 1 : 0}`);
@@ -265,6 +287,7 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
         sink.push(' 10', fmt(p.x), ' 20', fmt(p.y));
         if (p.bulge !== undefined && p.bulge !== 0) sink.push(' 42', fmt(p.bulge));
       }
+      emitXdata(sink, xdata);
     },
 
     spline(layer, controlPoints, degree, closed) {

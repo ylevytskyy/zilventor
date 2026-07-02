@@ -104,4 +104,14 @@ describe('renderCombinedManufacturingDxf', () => {
     const names = layerTableNames(dxf);
     expect(names).not.toContain('GRAIN');
   });
+
+  it('a bore presetLayerName is declared in the LAYER table union and carries its XDATA', () => {
+    const withPreset = { ...base, itemNumber: 2,
+      bores: [{ ...bore('Top', 100, 50, 5, 12), toolNumber: 3, speed: 12000, presetLayerName: 'CNC-TOOL-3' }] };
+    const dxf = renderCombinedManufacturingDxf([base, withPreset]);
+    const names = layerTableNames(dxf);
+    expect(names).toContain('CNC-TOOL-3');
+    expect(dxf).toContain('1000\nTOOL_NUMBER');
+    expect(dxf).toContain('1000\nSPEED');
+  });
 });

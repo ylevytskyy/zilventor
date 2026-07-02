@@ -5,6 +5,7 @@ import type { BoreOp, ShelfPinParams } from '@zilventor/shared';
 import { DEFAULT_SHELF_PIN_PARAMS } from '@zilventor/shared';
 import { rotate } from '@zilventor/shared/src/jointMath';
 import { EditBoreCommand } from '../commands/EditBoreCommand';
+import { ApplyMachiningPresetCommand } from '../commands/ApplyMachiningPresetCommand';
 import { DeleteConnectorCommand } from '../commands/DeleteConnectorCommand';
 import { MoveConnectorCommand } from '../commands/MoveConnectorCommand';
 import { UpdateShelfPinStartOffsetCommand } from '../commands/UpdateShelfPinStartOffsetCommand';
@@ -53,6 +54,7 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
   const selectedBoreId = useAppStore((s) => s.selectedBoreId);
   const selectedBorePartPath = useAppStore((s) => s.selectedBorePartPath);
   const bus = useAppStore((s) => s.bus);
+  const machiningPresets = useAppStore((s) => s.machiningPresets);
 
   // Resolve the live bore reference on every render — NOT cached.
   const bore = selectedBoreId && selectedBorePartPath
@@ -68,8 +70,34 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
   const [hingeDelta, setHingeDelta] = useState('0');
   // 1a.4 column start offset: null = show persisted value; string = user is editing.
   const [offsetDraft, setOffsetDraft] = useState<string | null>(null);
+  // W4: machining preset picker (snapshot-on-apply, ADR 0001).
+  const [selectedPresetId, setSelectedPresetId] = useState('');
 
   if (!bore || !selectedBorePartPath) return null;
+
+  const matchingPresets = machiningPresets.filter((p) => p.opType === bore.role);
+
+  function applyPreset() {
+    const preset = matchingPresets.find((p) => p.id === selectedPresetId);
+    if (!preset) return;
+    const liveDoc = getLiveDoc(selectedBorePartPath!);
+    if (!liveDoc) return;
+    const liveBore = (liveDoc.bores ?? []).find((b) => b.id === selectedBoreId);
+    if (!liveBore) return;
+    void new ApplyMachiningPresetCommand({
+      bore: liveBore,
+      values: {
+        diameter: preset.diameter,
+        depth: preset.depth,
+        layerName: preset.layerName,
+        ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+        ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+      },
+      partPath: selectedBorePartPath!,
+      doc: liveDoc,
+      opfs: opfs ?? null,
+    }).apply();
+  }
 
   function val(field: keyof Pick<BoreOp, 'u' | 'v' | 'diameter' | 'depth'>): string {
     if (field in draft) return draft[field]!;
@@ -288,6 +316,32 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
             onKeyDown={(e) => { if (e.key === 'Enter') { commitOffset(); } if (e.key === 'Escape') { setOffsetDraft(null); } }}
             onBlur={() => commitOffset()}
           />
+        </label>
+      )}
+      {matchingPresets.length > 0 && (
+        <label style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ minWidth: 80, color: '#aaa', fontSize: 11 }}>
+            {t('bore.machining_preset', 'Machining preset')}
+          </span>
+          <select
+            aria-label={t('bore.machining_preset', 'Machining preset')}
+            value={selectedPresetId}
+            style={{ width: 120, fontSize: 11, background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, padding: '1px 4px' }}
+            onChange={(e) => setSelectedPresetId(e.target.value)}
+          >
+            <option value="" />
+            {matchingPresets.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={applyPreset}
+            disabled={!selectedPresetId}
+            style={{ fontSize: 11, padding: '1px 8px', background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, cursor: 'pointer' }}
+          >
+            {t('common.apply')}
+          </button>
         </label>
       )}
       <button

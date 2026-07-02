@@ -4,10 +4,17 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { BorePropertiesPanel } from '../BorePropertiesPanel';
 import { useAppStore } from '../../store/useAppStore';
 import { DEFAULT_SHELF_PIN_PARAMS } from '@zilventor/shared';
-import type { BoreOp, ShelfPinParams } from '@zilventor/shared';
+import type { BoreOp, ShelfPinParams, MachiningPreset } from '@zilventor/shared';
 
 vi.mock('../../commands/EditBoreCommand', () => ({
   EditBoreCommand: class {
+    constructor(public opts: unknown) {}
+    async apply() {}
+  },
+}));
+
+vi.mock('../../commands/ApplyMachiningPresetCommand', () => ({
+  ApplyMachiningPresetCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
   },
@@ -114,6 +121,7 @@ function setSelectedBore(bore: BoreOp | null, partPath = 'parts/side.zipt') {
 describe('BorePropertiesPanel', () => {
   beforeEach(() => {
     useAppStore.getState().setSelectedBore(null, null);
+    useAppStore.setState({ machiningPresets: [] });
   });
 
   it('renders nothing when no bore is selected', () => {
@@ -376,5 +384,79 @@ describe('BorePropertiesPanel', () => {
     // Cup worldPose.quaternion = [0,0,0,1] (identity) → rotate({x:1,y:0,z:0}, [0,0,0,1]) = {x:1,y:0,z:0}
     expect(instance.opts.worldDir).toEqual({ x: 1, y: 0, z: 0 });
     expect(instance.opts.delta).toBe(10);
+  });
+
+  // ── W4: machining preset picker (snapshot-on-apply, ADR 0001) ─────────────
+  const confirmatPreset = (): MachiningPreset => ({
+    id: 'preset-confirmat', name: 'Confirmat std', opType: 'confirmat-face',
+    diameter: 8, depth: 15, layerName: 'BORE_CONFIRMAT', toolNumber: 3, speed: 12000,
+  });
+  const shelfPinPreset = (): MachiningPreset => ({
+    id: 'preset-shelfpin', name: 'Shelfpin std', opType: 'shelfPin-system32',
+    diameter: 5, depth: 13, layerName: 'BORE_SHELFPIN',
+  });
+
+  it('shows a preset picker listing only presets matching the selected bore role', () => {
+    useAppStore.setState({ machiningPresets: [confirmatPreset(), shelfPinPreset()] });
+    const bore = confirmatBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+
+    const select = screen.getByLabelText(/machining preset/i) as HTMLSelectElement;
+    const optionLabels = Array.from(select.options).map((o) => o.textContent);
+    expect(optionLabels).toContain('Confirmat std');
+    expect(optionLabels).not.toContain('Shelfpin std');
+  });
+
+  it('does NOT show the preset picker when no presets match the bore role', () => {
+    useAppStore.setState({ machiningPresets: [shelfPinPreset()] });
+    const bore = confirmatBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+    expect(screen.queryByLabelText(/machining preset/i)).toBeNull();
+  });
+
+  it('Apply dispatches ApplyMachiningPresetCommand with the snapshotted preset values', async () => {
+    const { ApplyMachiningPresetCommand } = await import('../../commands/ApplyMachiningPresetCommand');
+    const applySpy = vi.spyOn(ApplyMachiningPresetCommand.prototype, 'apply').mockResolvedValue(undefined);
+    const preset = confirmatPreset();
+    useAppStore.setState({ machiningPresets: [preset] });
+    const bore = confirmatBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+
+    const select = screen.getByLabelText(/machining preset/i) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: preset.id } });
+    const applyBtn = screen.getByRole('button', { name: /apply/i });
+    fireEvent.click(applyBtn);
+
+    expect(applySpy).toHaveBeenCalled();
+    const instance = applySpy.mock.instances[0] as unknown as {
+      opts: { values: { diameter: number; depth: number; layerName: string; toolNumber?: number; speed?: number } };
+    };
+    expect(instance.opts.values).toEqual({
+      diameter: 8, depth: 15, layerName: 'BORE_CONFIRMAT', toolNumber: 3, speed: 12000,
+    });
+  });
+
+  it('Apply omits toolNumber/speed from the snapshot when the preset has neither', async () => {
+    const { ApplyMachiningPresetCommand } = await import('../../commands/ApplyMachiningPresetCommand');
+    const applySpy = vi.spyOn(ApplyMachiningPresetCommand.prototype, 'apply').mockResolvedValue(undefined);
+    const preset = shelfPinPreset();
+    useAppStore.setState({ machiningPresets: [preset] });
+    const bore = shelfPinBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+
+    const select = screen.getByLabelText(/machining preset/i) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: preset.id } });
+    const applyBtn = screen.getByRole('button', { name: /apply/i });
+    fireEvent.click(applyBtn);
+
+    const instance = applySpy.mock.instances[0] as unknown as {
+      opts: { values: { diameter: number; depth: number; layerName: string; toolNumber?: number; speed?: number } };
+    };
+    expect('toolNumber' in instance.opts.values).toBe(false);
+    expect('speed' in instance.opts.values).toBe(false);
   });
 });

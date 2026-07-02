@@ -19,6 +19,16 @@ export interface GrooveSpec {
   width: number;
   depth: number;
   label?: string;
+  /** CAM tool-table index, set by ApplyMachiningPresetCommand from a MachiningPreset.
+   *  Absent-not-zero contract (exactOptionalPropertyTypes). */
+  toolNumber?: number;
+  /** CAM spindle speed (RPM), set by ApplyMachiningPresetCommand from a MachiningPreset.
+   *  Absent-not-zero contract (exactOptionalPropertyTypes). */
+  speed?: number;
+  /** DXF layer name override, set by ApplyMachiningPresetCommand from a MachiningPreset.layerName.
+   *  Falls back to the existing MANUFACTURING_LAYERS scheme when absent.
+   *  Absent-not-set contract (exactOptionalPropertyTypes). */
+  presetLayerName?: string;
 }
 
 /**

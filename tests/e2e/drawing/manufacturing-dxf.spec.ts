@@ -17,7 +17,8 @@
  *  4. Read __zilventorManufacturingDxfBytes (ZIP bytes) via page.evaluate.
  *  5. Unzip in Node with fflate.unzipSync; decode the first entry as UTF-8.
  *  6. Assert:
- *     a. ZIP has exactly 1 entry named Birch_18mm/item-1-Side_Panel.dxf
+ *     a. ZIP has exactly 2 entries: Birch_18mm/item-1-Side_Panel.dxf + root-level
+ *        machining.csv sidecar (W7/D2/S1)
  *     b. DXF contains "OUTLINE" (layer defined/referenced)
  *     c. DXF contains "BORES-FRONT-5MM" (layer for a Ø5 Top-face bore)
  *     d. Exactly 2 DIMENSION entities (horizontal L + vertical W dims)
@@ -134,11 +135,12 @@ test('T-M2.1: manufacturing DXF export — zip→unzip→layers/dims', async ({ 
 
   console.log('[T-M2.1] zip entries:', names);
 
-  // ── Step 6a: Exactly 1 entry named Birch_18mm/item-1-Side_Panel.dxf ──────────
-  expect(names, 'zip must have exactly 1 entry').toHaveLength(1);
+  // ── Step 6a: 2 entries — per-material DXF + root-level machining.csv sidecar (W7/D2/S1) ──
+  expect(names, 'zip must have exactly 2 entries: DXF + machining.csv sidecar').toHaveLength(2);
   expect(names[0], 'entry name must match Birch_18mm/item-1-Side_Panel.dxf').toBe(
     'Birch_18mm/item-1-Side_Panel.dxf',
   );
+  expect(names, 'zip must include root-level machining.csv sidecar').toContain('machining.csv');
 
   const dxf = strFromU8(entries[names[0]!]!);
   console.log('[T-M2.1] DXF length:', dxf.length, 'chars');
@@ -254,4 +256,106 @@ test('T-M2.1b: manufacturing DXF export — combined mode via dxfExportMode stor
   ).toBe(true);
 
   expect(pageErrors, 'No browser page errors during combined-mode export').toHaveLength(0);
+});
+
+test('T-P3-W6: manufacturing DXF export — CAM metadata (XDATA) on a bore', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(`PAGEERROR: ${e.message}`));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    };
+  });
+
+  await page.evaluate(async () => {
+    const { ExportPanelManufacturingDxfCommand } = await import(
+      '/src/commands/ExportPanelManufacturingDxfCommand.ts'
+    );
+
+    // Bore with CAM fields (toolNumber/speed) set — as ApplyMachiningPresetCommand
+    // (a later slice) would set them. Set directly here since this slice (W6) only
+    // wires DXF export, not the apply-preset UI.
+    const bore = {
+      id: 'bore-t-p3-w6',
+      face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 100,
+      v: 80,
+      diameter: 5,
+      depth: 12,
+      role: 'confirmat-face',
+      connectorId: 'c0',
+      connectorKind: 'confirmat',
+      toolNumber: 3,
+      speed: 12000,
+    };
+
+    const input = {
+      itemNumber: 1,
+      partName: 'Side Panel',
+      spec: {
+        length: 600,
+        width: 720,
+        thickness: 18,
+        materialId: 'm-birch-18',
+        grain: 'none',
+        edgeBands: { front: null, back: null, left: null, right: null },
+      },
+      materialName: 'Birch 18mm',
+      bores: [bore],
+      grooves: [],
+      qty: 1,
+    };
+
+    await new ExportPanelManufacturingDxfCommand({
+      inputs: [input as never],
+      suggestedName: 'test-cam-metadata.zip',
+    }).apply();
+  });
+
+  const zipB64 = await page.evaluate((): string | null => {
+    const w = window as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array };
+    if (!w.__zilventorManufacturingDxfBytes) return null;
+    const bytes = w.__zilventorManufacturingDxfBytes;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
+  });
+  expect(zipB64, '__zilventorManufacturingDxfBytes must be set after command.apply()').not.toBeNull();
+
+  const zipBytes = new Uint8Array(Buffer.from(zipB64!, 'base64'));
+  const entries = unzipSync(zipBytes);
+  const names = Object.keys(entries);
+  expect(names, 'zip must have exactly 2 entries: DXF + machining.csv sidecar').toHaveLength(2);
+  expect(names, 'zip must include root-level machining.csv sidecar').toContain('machining.csv');
+
+  const dxfName = names.find((n) => n.endsWith('.dxf'));
+  expect(dxfName, 'zip must contain a .dxf entry').toBeDefined();
+  const dxf = strFromU8(entries[dxfName!]!);
+
+  // XDATA convention (renderPanelManufacturingDxf.ts camXdata): 1001 ZILVENTOR
+  // + labeled TOOL_NUMBER (1070 int) / SPEED (1040 real) pairs on the bore's CIRCLE.
+  expect(dxf, 'DXF must carry the ZILVENTOR XDATA APPID marker').toContain('1001\nZILVENTOR');
+  expect(dxf, 'DXF must carry a TOOL_NUMBER XDATA label').toContain('1000\nTOOL_NUMBER');
+  expect(dxf, 'DXF must carry the toolNumber=3 value as XDATA 1070').toContain('1070\n3');
+  expect(dxf, 'DXF must carry a SPEED XDATA label').toContain('1000\nSPEED');
+  expect(dxf, 'DXF must carry the speed=12000 value as XDATA 1040').toContain('1040\n12000.0000');
+
+  // D2/S1: machining.csv sidecar carries the same CAM metadata as XDATA — closes the e2e loop.
+  const csv = strFromU8(entries['machining.csv']!);
+  expect(csv, 'machining.csv must carry the header row').toContain(
+    'partName,opType,diameter,depth,layer,toolNumber,speed',
+  );
+  expect(
+    csv,
+    'machining.csv must carry a row for the test bore with toolNumber=3 and speed=12000',
+  ).toMatch(/,3,12000$/m);
+
+  expect(pageErrors, 'No browser page errors during CAM-metadata export').toHaveLength(0);
 });

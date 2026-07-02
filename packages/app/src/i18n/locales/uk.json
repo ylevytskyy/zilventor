@@ -56,6 +56,7 @@
     "kernelOfflineBanner": "Ядро зупинено — натисніть для перезапуску",
     "sketcherCrashedBanner": "Вирішувач ескізу аварійно завершився — режим ескізу закрито",
     "leader_text": "Текст з виноскою",
+    "machiningPresets": "Пресети обробки",
     "nesting_tab": "Вкладка розкладки",
     "offset1": "зміщення 1",
     "offset2": "зміщення 2",
@@ -176,6 +177,7 @@
     "column_start_offset": "Початковий відступ колонки (мм)",
     "diameter_mm": "Ø (мм)",
     "height": "Висота",
+    "machining_preset": "Пресет обробки",
     "regenerate_to_enable_move": "Регенеруйте присадку для переміщення",
     "start_offset_kept_edits": "Початковий відступ перегенерував сітку полицетримачів; вручну переміщені отвори залишилися на старих місцях."
   },
@@ -453,6 +455,26 @@
       "source": "Джерело",
       "spacing": "Крок",
       "title": "Лінійний масив"
+    },
+    "machiningPresets": {
+      "addBtn": "Додати",
+      "depth": "Глибина (мм)",
+      "diameter": "Ø (мм)",
+      "empty": "Пресетів поки немає.",
+      "export": {
+        "button": "Експорт…"
+      },
+      "import": {
+        "button": "Імпорт…",
+        "error": "Помилка імпорту: {{message}}"
+      },
+      "layerName": "Назва шару",
+      "name": "Назва",
+      "offset": "Зміщення (мм)",
+      "opType": "Тип операції",
+      "speed": "Швидкість (об/хв)",
+      "title": "Пресети обробки",
+      "toolNumber": "№ інструменту"
     },
     "material": {
       "addBtn": "+ Додати",
@@ -950,6 +972,7 @@
       "exportBoringCsv": "Експорт CSV (присадка)",
       "exportBoringDxf": "Експорт DXF (присадка)",
       "exportManufacturingDxf": "Експорт DXF (Виробництво)",
+      "machiningPresets": "Пресети обробки",
       "exportCsv": "Експорт CSV",
       "exportNestDxf": "Експорт DXF (Розкладка)",
       "exportLabels": "Експорт етикеток (PDF)",

@@ -1,4 +1,5 @@
 import { renderPanelManufacturingDxf, renderCombinedManufacturingDxf, type PanelManufacturingInput } from '../drawing/renderPanelManufacturingDxf';
+import { buildManufacturingCsv } from '../drawing/manufacturingCsv';
 import { buildDxfZip } from '../drawing/dxfZip';
 import type { PanelPreflightDiagnostic } from '@zilventor/shared';
 import i18n from '../i18n';
@@ -74,9 +75,15 @@ export class ExportPanelManufacturingDxfCommand {
       this.opts.showToast?.(i18n.t(d.reasonKey, d.params ?? {}));
     }
     const combined = this.opts.mode === 'combined';
+    // D2/S1: sidecar machining.csv ships only in the folders/zip mode, at the ZIP ROOT —
+    // added here (not inside buildManufacturingZipEntries) so that function's per-material
+    // DXF-entries contract stays exactly as tested; combined mode is untouched.
     const bytes = combined
       ? new TextEncoder().encode(buildCombinedManufacturingDxf(this.opts.inputs))
-      : buildDxfZip(buildManufacturingZipEntries(this.opts.inputs));
+      : buildDxfZip({
+          ...buildManufacturingZipEntries(this.opts.inputs),
+          'machining.csv': buildManufacturingCsv(this.opts.inputs),
+        });
     globalThis.__zilventorManufacturingDxfBytes = bytes;
     const suggestedName = combined ? combinedDxfFileName(this.opts.suggestedName) : this.opts.suggestedName;
     const types = combined
