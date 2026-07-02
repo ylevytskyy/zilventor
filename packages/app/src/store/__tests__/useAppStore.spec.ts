@@ -806,3 +806,13 @@ describe('showBores', () => {
   });
 });
 
+describe('dxfExportMode', () => {
+  it('defaults to folders and setDxfExportMode switches it', () => {
+    expect(useAppStore.getState().dxfExportMode).toBe('folders');
+    useAppStore.getState().setDxfExportMode('combined');
+    expect(useAppStore.getState().dxfExportMode).toBe('combined');
+    useAppStore.getState().setDxfExportMode('folders');
+    expect(useAppStore.getState().dxfExportMode).toBe('folders');
+  });
+});
+

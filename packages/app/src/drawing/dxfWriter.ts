@@ -79,7 +79,13 @@ export function hexToAci(hex: string): number {
   return best;
 }
 
-export function createDxfDocument(): DxfDocument {
+/**
+ * @param extraLayers Additional LAYER table records to declare beyond the fixed
+ * `LAYERS` set, e.g. dynamic per-diameter bore layers for a combined multi-unit
+ * document. Deduped against `LAYERS` and against each other; omitting it (the
+ * default) reproduces the exact prior LAYER table byte-for-byte.
+ */
+export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocument {
   // ── Handle allocator (AC1015 requires handles on all named records) ───────
   // Starts at 0x100 so low handles are reserved for well-known table records.
   let handleSeq = 0x100;
@@ -108,9 +114,11 @@ export function createDxfDocument(): DxfDocument {
   tables.push('  0', 'LTYPE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLinetypeTableRecord', '  2', 'DASHED', ' 70', '     0', '  3', 'Dashed line', ' 72', '    65', ' 73', '     2', ' 40', '6.0', ' 49', '4.0', ' 49', '-2.0');
   tables.push('  0', 'ENDTAB');
 
-  // LAYER
-  tables.push('  0', 'TABLE', '  2', 'LAYER', '  5', nextHandle(), ' 70', `     ${LAYERS.length}`);
-  for (const name of LAYERS) {
+  // LAYER (fixed set + any deduped extraLayers requested by the caller)
+  const dedupedExtra = Array.from(new Set(extraLayers)).filter((name) => !(LAYERS as readonly string[]).includes(name));
+  const allLayers: readonly string[] = [...LAYERS, ...dedupedExtra];
+  tables.push('  0', 'TABLE', '  2', 'LAYER', '  5', nextHandle(), ' 70', `     ${allLayers.length}`);
+  for (const name of allLayers) {
     const ltype = name === 'HIDDEN' ? 'DASHED' : 'CONTINUOUS';
     const color = name === 'HIDDEN' ? '     3' : '     7';
     tables.push('  0', 'LAYER', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbLayerTableRecord', '  2', name, ' 70', '     0', ' 62', color, '  6', ltype);

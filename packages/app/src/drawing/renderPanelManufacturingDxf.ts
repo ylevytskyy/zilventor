@@ -1,5 +1,6 @@
 import { createDxfDocument, type DxfDocument } from './dxfWriter';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
+import { layoutCombinedGrid } from './layoutCombinedGrid';
 import type { PanelSpec, BoreOp, GrooveFeature, PanelEdgeKey } from '@zilventor/shared';
 
 export type PanelManufacturingInput = {
@@ -28,21 +29,21 @@ function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y: number
   }
 }
 
-function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number): void {
+function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number, dx = 0, dy = 0): void {
   for (const b of bores) {
     const f = boreToFlat(b, len, wid);
     if (!f) continue;
-    doc.circle(f.layer, f.x, f.y, b.diameter / 2);
-    doc.text(L.boreInfo, f.x + b.diameter / 2 + 1, f.y, 4, boreLabel(b));
+    doc.circle(f.layer, f.x + dx, f.y + dy, b.diameter / 2);
+    doc.text(L.boreInfo, f.x + dx + b.diameter / 2 + 1, f.y + dy, 4, boreLabel(b));
   }
 }
 
-function drawOutline(doc: DxfDocument, len: number, wid: number): void {
+function drawOutline(doc: DxfDocument, len: number, wid: number, dx = 0, dy = 0): void {
   doc.lwpolyline(L.outline,
-    [{ x: 0, y: 0 }, { x: len, y: 0 }, { x: len, y: wid }, { x: 0, y: wid }], true);
+    [{ x: dx, y: dy }, { x: len + dx, y: dy }, { x: len + dx, y: wid + dy }, { x: dx, y: wid + dy }], true);
 }
 
-function drawInfo(doc: DxfDocument, input: PanelManufacturingInput, wid: number): void {
+function drawInfo(doc: DxfDocument, input: PanelManufacturingInput, wid: number, dx = 0, dy = 0): void {
   const { spec } = input;
   const lines = [
     `#${input.itemNumber} ${input.partName}`,
@@ -51,24 +52,26 @@ function drawInfo(doc: DxfDocument, input: PanelManufacturingInput, wid: number)
     `Qty: ${input.qty}`,
   ];
   const h = 8;
-  lines.forEach((s, i) => doc.text(L.info, 0, wid + 20 + (lines.length - 1 - i) * (h + 4), h, s));
+  lines.forEach((s, i) => doc.text(L.info, dx, wid + dy + 20 + (lines.length - 1 - i) * (h + 4), h, s));
 }
 
 function drawDim(
   doc: DxfDocument, layer: string, p1: [number, number], p2: [number, number],
-  dimLine: [number, number], rotation: number, label: string,
+  dimLine: [number, number], rotation: number, label: string, dx = 0, dy = 0,
 ): void {
-  const mid: [number, number] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-  const textMid: [number, number] = [(dimLine[0] + mid[0]) / 2 + 1, (dimLine[1] + mid[1]) / 2 + 1];
+  const shift = (p: [number, number]): [number, number] => [p[0] + dx, p[1] + dy];
+  const [sp1, sp2, sDimLine] = [shift(p1), shift(p2), shift(dimLine)];
+  const mid: [number, number] = [(sp1[0] + sp2[0]) / 2, (sp1[1] + sp2[1]) / 2];
+  const textMid: [number, number] = [(sDimLine[0] + mid[0]) / 2 + 1, (sDimLine[1] + mid[1]) / 2 + 1];
   const blockName = doc.block(() => {
-    doc.line(layer, dimLine[0] === p1[0] ? dimLine[0] : p1[0], dimLine[1] === p1[1] ? dimLine[1] : p1[1],
-      dimLine[0] === p2[0] ? dimLine[0] : p2[0], dimLine[1] === p2[1] ? dimLine[1] : p2[1]);
+    doc.line(layer, sDimLine[0] === sp1[0] ? sDimLine[0] : sp1[0], sDimLine[1] === sp1[1] ? sDimLine[1] : sp1[1],
+      sDimLine[0] === sp2[0] ? sDimLine[0] : sp2[0], sDimLine[1] === sp2[1] ? sDimLine[1] : sp2[1]);
     doc.text(layer, textMid[0], textMid[1], 5, label);
   });
   doc.dimension({
     layer, blockName, dimStyle: 'STANDARD', dimType: 0,
-    defPoint: dimLine, textMid, text: label, rotation,
-    extraPoints: [[13, p1[0], p1[1]], [14, p2[0], p2[1]]],
+    defPoint: sDimLine, textMid, text: label, rotation,
+    extraPoints: [[13, sp1[0], sp1[1]], [14, sp2[0], sp2[1]]],
   });
 }
 
@@ -89,10 +92,10 @@ function grooveRect(
   }
 }
 
-function drawGrooves(doc: DxfDocument, grooves: GrooveFeature[], len: number, wid: number): void {
+function drawGrooves(doc: DxfDocument, grooves: GrooveFeature[], len: number, wid: number, dx = 0, dy = 0): void {
   for (const g of grooves) {
     const r = grooveRect(g, len, wid);
-    if (r) doc.lwpolyline(L.grooves, r, true);
+    if (r) doc.lwpolyline(L.grooves, r.map((p) => ({ x: p.x + dx, y: p.y + dy })), true);
   }
 }
 
@@ -103,18 +106,18 @@ const EDGE_LINE: Record<PanelEdgeKey, (len: number, wid: number) => [number, num
   right:  (len, wid)  => [len, 0, len, wid],
 };
 
-function drawEdgeBands(doc: DxfDocument, spec: PanelSpec, len: number, wid: number): void {
+function drawEdgeBands(doc: DxfDocument, spec: PanelSpec, len: number, wid: number, dx = 0, dy = 0): void {
   (Object.keys(EDGE_LINE) as PanelEdgeKey[]).forEach((edge) => {
     if (spec.edgeBands[edge]) {
       const [x1, y1, x2, y2] = EDGE_LINE[edge](len, wid);
-      doc.line(L.edgeband, x1, y1, x2, y2);
+      doc.line(L.edgeband, x1 + dx, y1 + dy, x2 + dx, y2 + dy);
     }
   });
 }
 
-function drawGrain(doc: DxfDocument, spec: PanelSpec, len: number, wid: number): void {
+function drawGrain(doc: DxfDocument, spec: PanelSpec, len: number, wid: number, dx = 0, dy = 0): void {
   if (spec.grain === 'none') return;
-  const cx = len / 2, cy = wid / 2;
+  const cx = len / 2 + dx, cy = wid / 2 + dy;
   if (spec.grain === 'length') {
     const a = len * 0.3;
     doc.line(L.grain, cx - a, cy, cx + a, cy);
@@ -142,5 +145,48 @@ export function renderPanelManufacturingDxf(input: PanelManufacturingInput): str
   // W dimension (vertical, left of the panel)
   drawDim(doc, L.dimensions, [-15, 0], [-15, wid], [-15, 0], 90, `${wid}`);
   drawInfo(doc, input, wid);
+  return doc.toString();
+}
+
+/** Layer names one panel's manufacturing entities actually draw into (mirrors renderPanelManufacturingDxf's calls). */
+function neededLayers(input: PanelManufacturingInput): string[] {
+  const layers = new Set<string>([L.outline, L.info, L.dimensions]);
+  for (const b of input.bores) {
+    const f = boreToFlat(b, input.spec.length, input.spec.width);
+    if (f) { layers.add(f.layer); layers.add(L.boreInfo); }
+  }
+  if (input.grooves.some((g) => grooveRect(g, input.spec.length, input.spec.width))) layers.add(L.grooves);
+  if (Object.values(input.spec.edgeBands).some(Boolean)) layers.add(L.edgeband);
+  if (input.spec.grain !== 'none') layers.add(L.grain);
+  return [...layers];
+}
+
+/**
+ * One DXF document containing ALL given panels' manufacturing geometry, laid out on a
+ * row-wrapped grid (50mm gutter, see layoutCombinedGrid) instead of one file per panel.
+ * Single header + single LAYER table (deduped union of every layer any panel needs).
+ */
+export function renderCombinedManufacturingDxf(inputs: PanelManufacturingInput[]): string {
+  const offsets = layoutCombinedGrid(
+    inputs.map((i) => ({ width: i.spec.length, height: i.spec.width })),
+    50,
+  );
+  const allLayers = new Set<string>();
+  for (const input of inputs) for (const layer of neededLayers(input)) allLayers.add(layer);
+
+  const doc = createDxfDocument([...allLayers]);
+  inputs.forEach((input, idx) => {
+    const { x: dx, y: dy } = offsets[idx]!;
+    const len = input.spec.length;
+    const wid = input.spec.width;
+    drawOutline(doc, len, wid, dx, dy);
+    drawBores(doc, input.bores, len, wid, dx, dy);
+    drawGrooves(doc, input.grooves, len, wid, dx, dy);
+    drawEdgeBands(doc, input.spec, len, wid, dx, dy);
+    drawGrain(doc, input.spec, len, wid, dx, dy);
+    drawDim(doc, L.dimensions, [0, -15], [len, -15], [0, -15], 0, `${len}`, dx, dy);
+    drawDim(doc, L.dimensions, [-15, 0], [-15, wid], [-15, 0], 90, `${wid}`, dx, dy);
+    drawInfo(doc, input, wid, dx, dy);
+  });
   return doc.toString();
 }

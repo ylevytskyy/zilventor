@@ -17,7 +17,7 @@
  *  4. Read __zilventorManufacturingDxfBytes (ZIP bytes) via page.evaluate.
  *  5. Unzip in Node with fflate.unzipSync; decode the first entry as UTF-8.
  *  6. Assert:
- *     a. ZIP has exactly 1 entry named item-1-Side_Panel.dxf
+ *     a. ZIP has exactly 1 entry named Birch_18mm/item-1-Side_Panel.dxf
  *     b. DXF contains "OUTLINE" (layer defined/referenced)
  *     c. DXF contains "BORES-FRONT-5MM" (layer for a Ø5 Top-face bore)
  *     d. Exactly 2 DIMENSION entities (horizontal L + vertical W dims)
@@ -134,9 +134,11 @@ test('T-M2.1: manufacturing DXF export — zip→unzip→layers/dims', async ({ 
 
   console.log('[T-M2.1] zip entries:', names);
 
-  // ── Step 6a: Exactly 1 entry named item-1-Side_Panel.dxf ─────────────────────
+  // ── Step 6a: Exactly 1 entry named Birch_18mm/item-1-Side_Panel.dxf ──────────
   expect(names, 'zip must have exactly 1 entry').toHaveLength(1);
-  expect(names[0], 'entry name must match item-1-Side_Panel.dxf').toBe('item-1-Side_Panel.dxf');
+  expect(names[0], 'entry name must match Birch_18mm/item-1-Side_Panel.dxf').toBe(
+    'Birch_18mm/item-1-Side_Panel.dxf',
+  );
 
   const dxf = strFromU8(entries[names[0]!]!);
   console.log('[T-M2.1] DXF length:', dxf.length, 'chars');
@@ -168,4 +170,88 @@ test('T-M2.1: manufacturing DXF export — zip→unzip→layers/dims', async ({ 
     `[T-M2.1] PASSED: entry=${names[0]}, dxfLen=${dxf.length}, ` +
     `OUTLINE=✓, BORES-FRONT-5MM=✓, DIMENSION count=${dimensionCount}`,
   );
+});
+
+test('T-M2.1b: manufacturing DXF export — combined mode via dxfExportMode store field', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(`PAGEERROR: ${e.message}`));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  // Stub showSaveFilePicker to capture its call args, then AbortError so
+  // apply() falls through and leaves globalThis.__zilventorManufacturingDxfBytes set.
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async (
+      opts: unknown,
+    ) => {
+      (window as unknown as { __lastPickerCall: unknown }).__lastPickerCall = opts;
+      throw new DOMException('cancelled', 'AbortError');
+    };
+  });
+
+  await page.evaluate(async () => {
+    const { ExportPanelManufacturingDxfCommand } = await import(
+      '/src/commands/ExportPanelManufacturingDxfCommand.ts'
+    );
+    const { useAppStore } = await import('/src/store/useAppStore.ts');
+    useAppStore.getState().setDxfExportMode('combined');
+    const mode = useAppStore.getState().dxfExportMode;
+
+    const input = {
+      itemNumber: 1,
+      partName: 'Side Panel',
+      spec: {
+        length: 600,
+        width: 720,
+        thickness: 18,
+        materialId: 'm-birch-18',
+        grain: 'length',
+        edgeBands: { front: null, back: null, left: null, right: null },
+      },
+      materialName: 'Birch 18mm',
+      bores: [],
+      grooves: [],
+      qty: 1,
+    };
+
+    await new ExportPanelManufacturingDxfCommand({
+      inputs: [input as never],
+      suggestedName: 'test-manufacturing.zip',
+      mode,
+    }).apply();
+  });
+
+  const dxfB64 = await page.evaluate((): string | null => {
+    const w = window as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array };
+    if (!w.__zilventorManufacturingDxfBytes) return null;
+    const bytes = w.__zilventorManufacturingDxfBytes;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
+  });
+  expect(dxfB64, '__zilventorManufacturingDxfBytes must be set after combined apply()').not.toBeNull();
+
+  const bytes = new Uint8Array(Buffer.from(dxfB64!, 'base64'));
+  // Combined mode must NOT be a zip (zip files start with the 'PK' signature).
+  expect(
+    bytes[0] === 0x50 && bytes[1] === 0x4b,
+    'combined-mode bytes must not be zip-signed (PK)',
+  ).toBe(false);
+
+  const dxf = Buffer.from(bytes).toString('utf8');
+  expect(dxf, 'combined DXF must contain OUTLINE layer reference').toContain('OUTLINE');
+
+  const pickerCall = await page.evaluate(() => {
+    return (window as unknown as { __lastPickerCall?: { suggestedName?: string } }).__lastPickerCall;
+  });
+  expect(
+    pickerCall?.suggestedName?.endsWith('-combined.dxf'),
+    `suggestedName must end with -combined.dxf, got: ${pickerCall?.suggestedName}`,
+  ).toBe(true);
+
+  expect(pageErrors, 'No browser page errors during combined-mode export').toHaveLength(0);
 });
