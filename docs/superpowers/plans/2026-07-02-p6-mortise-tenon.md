@@ -28,14 +28,16 @@ D6 (user-confirmed): "Parametric feature: rectangular tenon(s) on a panel edge +
 
 ## Slices
 
-- [ ] **W1 — shared types + math + pairing**: `TenonMortiseFeature`, `tenonMortiseMath.ts`, `generateTenonMortisePair` w/ per-face mapping. Lands first.
-- [ ] **W2 — kernel FeatureTree branch** for `kind:'tenonMortise'` (fuse tabs / cut pockets), suppression test, position-asserting integration tests. (Parallel after W1.)
-- [ ] **W3 — AddTenonMortiseCommand** two-file append + revert restores prior manifests. (Parallel after W1.)
-- [ ] **W4 — BOM/DXF/CSV/cache plumbing** + manifest v37 bump + migration + fixture sweep. (Parallel after W1.)
-- [ ] **W5 — UI dialog + ribbon + chained picks + i18n en/uk** (sole i18n owner, lands last; earlier workers hardcode + TODO(i18n)).
+- [x] **W1 — shared types + math + pairing**: `TenonMortiseFeature`, `tenonMortiseMath.ts`, `generateTenonMortisePair` w/ per-face mapping. Lands first. 16/16 specs; second pass REQUIRED+done: mortise cross-axis bounded via `crossPosition`/`crossSpan` from `crossCoord` + mating thickness (first pass produced a through-dado).
+- [x] **W2 — kernel FeatureTree branch** for `kind:'tenonMortise'` (fuse tabs / cut pockets), suppression test, position-asserting integration tests. (Parallel after W1.) 8/8 integration incl. Phase-0 verify + through-dado guard.
+- [x] **W3 — AddTenonMortiseCommand** two-file append + revert restores prior manifests. (Parallel after W1.) 6/6 specs; byte-identical revert both files.
+- [x] **W4 — BOM/DXF/CSV/cache plumbing** + manifest v37 bump + migration + fixture sweep (bump landed in W1). (Parallel after W1.) 52/52 specs; `tenonMortiseRects` covers all 6 face roles (deliberate extension beyond grooveRect).
+- [x] **W5 — UI dialog + ribbon + chained picks + i18n en/uk** (sole i18n owner, lands last). 9/9 specs; no-joint toast via featureTree-length diff; UA terms Шип/Гніздо (S6 — pending user confirmation).
 
 Full worker briefs: context-builder output (session scratchpad `p6-context.md`); orientation map §1, design §2 therein.
 
 ## Gate (before `--no-ff` merge to local master)
 
 typecheck 0 ×5 · app/shared/kernel unit suites at baseline+new (app 3408 / shared 1414 / kernel 306 at P5) · fresh-server e2e; deliberate new ribbon/dialog/layer/CSV entries may break "exactly N"-style assertions — fix tests, not product · Phase-0 verify tests mandatory in kernel slice (M4-E lesson) · positions asserted, not counts (M4-B lesson).
+
+**Gate results (2026-07-02, EXEC): READY after one debug-loop.** typecheck 0 ×5 · shared 1430 / app 3439 / kernel 306 unit + 372(+8 new) integration · manifest 37 + migration-from-36 verified · i18n 12/12 keys both locales. First gate NOT-READY: `step-full-model-on-open.spec.ts` failed 4/5 branch vs 0/4 master. Debug-loop root cause: PRE-EXISTING App.tsx race — re-execute effect's unconditional success-path `setStatus('')` clobbers the `'Imported'` status set by file open; P6's heavier load flipped the race winner. Fixed `dfa5095a` (`lastExecuteErrorRef` gating + deterministic 500ms settle in spec); post-fix 6/6 incl. under CPU contention + full parallel suite. Re-gate: 224/231 parallel, all 7 failures pass solo (load flakes; newly observed: material-hatch-pattern, pbr-textures-panel, m4-leg-levelers — add to flaky watchlist).
