@@ -25,8 +25,8 @@ Branch: `feat/p2-dxf-export-modes`. Base: local master (post P1 + e2e-repair mer
 
 ## Status
 
-- [ ] A1–A3
-- [ ] C1
-- [ ] D1–D2
-- [ ] Gates
-- [ ] Merge `--no-ff` to local master
+- [x] A1–A3 (`a2d57490`, `953288e5`, `c01fb819`)
+- [x] C1 (`1594eb7a`)
+- [x] D1–D2 (`29e03de5`)
+- [x] Gates — typecheck 0 ×3 pkgs; app 3270 / shared 1369 / kernel 306; e2e 230/230 (226 parallel + 4 serial-confirmed load-flakes); e2e spec fix `79c8865a`. Per-package lint scripts don't exist (N/A). Pre-existing (on master too): app test:unit exits 1 from 3 unhandled rejections in App.spec.tsx FakeOrbitControls mock — separate ticket.
+- [x] Merge `--no-ff` to local master
