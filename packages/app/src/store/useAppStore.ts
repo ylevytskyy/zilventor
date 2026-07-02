@@ -7,6 +7,8 @@ import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
 import { createCommandBus, type CommandBus } from '../commands/CommandBus';
 import { reprojectDetailRegion } from '../commands/reprojectDetailRegion';
+import type { LabelHeaderPreset } from './labelHeaderPreset';
+import type { LabelTemplateId } from '../drawing/renderLabelsPdf';
 
 function omitColor(c: ComponentInstance): ComponentInstance {
   const { color: _color, ...rest } = c;
@@ -28,6 +30,23 @@ function readMachiningPresetsFromStorage(): MachiningPreset[] {
 function persistMachiningPresets(presets: MachiningPreset[]): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem('machiningPresets', JSON.stringify(presets));
+}
+
+function readLabelHeaderPresetsFromStorage(): LabelHeaderPreset[] {
+  if (typeof localStorage === 'undefined') return [];
+  const raw = localStorage.getItem('labelHeaderPresets');
+  if (raw === null) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as LabelHeaderPreset[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistLabelHeaderPresets(presets: LabelHeaderPreset[]): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('labelHeaderPresets', JSON.stringify(presets));
 }
 
 function readDefaultPriceBookFromStorage(): Record<string, number> {
@@ -438,6 +457,18 @@ type AppState = {
   importMachiningPresets: (presets: MachiningPreset[]) => void;
   machiningPresetsDialogOpen: boolean;
   toggleMachiningPresetsDialog: (open: boolean) => void;
+  labelHeaderPresets: LabelHeaderPreset[];
+  addLabelHeaderPreset: (p: LabelHeaderPreset) => void;
+  updateLabelHeaderPreset: (p: LabelHeaderPreset) => void;
+  deleteLabelHeaderPreset: (id: string) => void;
+  labelHeaderPresetsDialogOpen: boolean;
+  toggleLabelHeaderPresetsDialog: (open: boolean) => void;
+  labelTemplate: LabelTemplateId;
+  setLabelTemplate: (id: LabelTemplateId) => void;
+  labelHeaderLine1: string;
+  labelHeaderLine2: string;
+  setLabelHeaderLine1: (v: string) => void;
+  setLabelHeaderLine2: (v: string) => void;
   /** App-global default price book (fallback when a document has no unitPrices
    *  override for a given key). Keyed by the same price-key convention as
    *  AssemblyDocument.unitPrices. (P4 — cost report) */
@@ -846,6 +877,11 @@ export const useAppStore = create<AppState>((set) => ({
   autoRegen: typeof localStorage !== 'undefined' ? localStorage.getItem('autoRegen') !== 'false' : true,
   dxfExportMode: 'folders',
   machiningPresets: readMachiningPresetsFromStorage(),
+  labelHeaderPresets: readLabelHeaderPresetsFromStorage(),
+  labelHeaderPresetsDialogOpen: false,
+  labelTemplate: 'rich',
+  labelHeaderLine1: '',
+  labelHeaderLine2: '',
   // 4d additions (T18)
   subAssemblyDocs: {},
   subAssemblyInnerPoses: {},
@@ -908,6 +944,25 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   machiningPresetsDialogOpen: false,
   toggleMachiningPresetsDialog: (open) => set({ machiningPresetsDialogOpen: open }),
+  addLabelHeaderPreset: (p) => set((s) => {
+    const next = [...s.labelHeaderPresets, p];
+    persistLabelHeaderPresets(next);
+    return { labelHeaderPresets: next };
+  }),
+  updateLabelHeaderPreset: (p) => set((s) => {
+    const next = s.labelHeaderPresets.map((existing) => (existing.id === p.id ? p : existing));
+    persistLabelHeaderPresets(next);
+    return { labelHeaderPresets: next };
+  }),
+  deleteLabelHeaderPreset: (id) => set((s) => {
+    const next = s.labelHeaderPresets.filter((p) => p.id !== id);
+    persistLabelHeaderPresets(next);
+    return { labelHeaderPresets: next };
+  }),
+  toggleLabelHeaderPresetsDialog: (open) => set({ labelHeaderPresetsDialogOpen: open }),
+  setLabelTemplate: (id) => set({ labelTemplate: id }),
+  setLabelHeaderLine1: (v) => set({ labelHeaderLine1: v }),
+  setLabelHeaderLine2: (v) => set({ labelHeaderLine2: v }),
   defaultPriceBook: readDefaultPriceBookFromStorage(),
   setDefaultPrice: (key, price) => set((s) => {
     const next = { ...s.defaultPriceBook, [key]: price };

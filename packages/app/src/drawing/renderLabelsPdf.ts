@@ -146,8 +146,19 @@ export function drawLabelDiagram(pdf: DiagramPdf, label: PanelLabel, rect: Box):
   }
 }
 
-/** Draw one label into its cell: border, text block, mini diagram, QR. */
-function drawLabelCell(pdf: jsPDF, label: PanelLabel, cell: CellRect): void {
+/** Minimal jspdf surface a label-cell template needs — keeps templates pure & stub-testable. */
+export interface LabelCellPdf {
+  setDrawColor(r: number, g: number, b: number): void;
+  setLineWidth(w: number): void;
+  line(x1: number, y1: number, x2: number, y2: number): void;
+  rect(x: number, y: number, w: number, h: number, style?: string): void;
+  setFontSize(s: number): void;
+  text(t: string, x: number, y: number): void;
+  setFillColor(r: number, g: number, b: number): void;
+}
+
+/** Draw one label into its cell: border, text block, mini diagram, QR. Today's unchanged layout. */
+export function drawRichLabelCell(pdf: LabelCellPdf, label: PanelLabel, cell: CellRect): void {
   const pad = 3;
   // Cell border.
   pdf.setDrawColor(0, 0, 0);
@@ -181,13 +192,72 @@ function drawLabelCell(pdf: jsPDF, label: PanelLabel, cell: CellRect): void {
   });
 }
 
+/** QR-forward template: no mini diagram, larger QR code, same text block. */
+export function drawCompactLabelCell(pdf: LabelCellPdf, label: PanelLabel, cell: CellRect): void {
+  const pad = 3;
+  // Cell border.
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setLineWidth(0.2);
+  pdf.rect(cell.x, cell.y, cell.w, cell.h);
+
+  // Text block (top-left) — same content as the rich template.
+  const tx = cell.x + pad;
+  let ty = cell.y + pad + 3;
+  pdf.setFontSize(9);
+  pdf.text(`#${label.itemNumber}  ${label.partName}`, tx, ty);
+  ty += 5;
+  pdf.setFontSize(7);
+  pdf.text(label.materialName, tx, ty);
+  ty += 4;
+  pdf.text(`${label.length} x ${label.width} x ${label.thickness} mm`, tx, ty);
+  ty += 4;
+  pdf.text(`copy ${label.copyIndex}/${label.copyCount}`, tx, ty);
+
+  // QR (top-right corner) — enlarged to use the space freed by dropping the diagram.
+  const qrSize = cell.h - 2 * pad;
+  drawQr(pdf, qrMatrix(label.qrPayload), cell.x + cell.w - pad - qrSize, cell.y + pad, qrSize);
+}
+
+/** Minimal jspdf surface drawPageHeader needs — keeps it pure & stub-testable. */
+export interface HeaderPdf {
+  setFontSize(s: number): void;
+  text(t: string, x: number, y: number): void;
+}
+
+/**
+ * Draw a 2-line header band inside the existing top margin of the current page.
+ * No-op when both lines are empty; otherwise draws both (an empty line still
+ * reserves its slot at a fixed y-position).
+ */
+export function drawPageHeader(pdf: HeaderPdf, line1: string, line2: string): void {
+  if (!line1 && !line2) return;
+  pdf.setFontSize(8);
+  pdf.text(line1, LABEL_LAYOUT.marginMm, 5);
+  pdf.text(line2, LABEL_LAYOUT.marginMm, 8.5);
+}
+
+export type LabelTemplateId = 'rich' | 'compact';
+
+export interface RenderLabelsPdfOptions {
+  layout?: LabelLayout;
+  templateId?: LabelTemplateId;
+  headerLine1?: string;
+  headerLine2?: string;
+}
+
 /** Render all labels onto an A4 portrait PDF; returns the file bytes. */
-export function renderLabelsPdf(labels: PanelLabel[], layout: LabelLayout = LABEL_LAYOUT): Uint8Array {
+export function renderLabelsPdf(labels: PanelLabel[], opts: RenderLabelsPdfOptions = {}): Uint8Array {
+  const { layout = LABEL_LAYOUT, templateId = 'rich', headerLine1 = '', headerLine2 = '' } = opts;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const perPage = layout.cols * layout.rows;
+  const drawCell = templateId === 'compact' ? drawCompactLabelCell : drawRichLabelCell;
+  drawPageHeader(pdf, headerLine1, headerLine2);
   labels.forEach((label, i) => {
-    if (i > 0 && i % perPage === 0) pdf.addPage();
-    drawLabelCell(pdf, label, labelCellRect(i, layout));
+    if (i > 0 && i % perPage === 0) {
+      pdf.addPage();
+      drawPageHeader(pdf, headerLine1, headerLine2);
+    }
+    drawCell(pdf, label, labelCellRect(i, layout));
   });
   return new Uint8Array(pdf.output('arraybuffer'));
 }

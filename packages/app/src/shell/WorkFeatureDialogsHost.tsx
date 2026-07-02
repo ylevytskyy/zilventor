@@ -9,6 +9,7 @@ import { BlindCornerCabinetDialog } from './BlindCornerCabinetDialog';
 import { DiagonalCornerCabinetDialog } from './DiagonalCornerCabinetDialog';
 import { HardwareDialog } from './HardwareDialog';
 import { MachiningPresetsDialog } from './MachiningPresetsDialog';
+import { LabelHeaderPresetsDialog } from './LabelHeaderPresetsDialog';
 import { NestDialog } from './NestDialog';
 import { BoringDialog } from './BoringDialog';
 import { AddDoorDialog } from './AddDoorDialog';
@@ -66,6 +67,7 @@ export function WorkFeatureDialogsHost({
       <DiagonalCornerCabinetDialog />
       <HardwareDialog />
       <MachiningPresetsDialog />
+      <LabelHeaderPresetsDialog />
       <NestDialog />
       <BoringDialog />
       <AddDoorDialog />

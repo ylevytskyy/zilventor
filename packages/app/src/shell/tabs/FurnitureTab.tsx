@@ -61,6 +61,10 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const panelManufacturingInputs = usePanelManufacturingInputs();
   const showBores = useAppStore((s) => s.showBores);
   const dxfExportMode = useAppStore((s) => s.dxfExportMode);
+  const labelTemplate = useAppStore((s) => s.labelTemplate);
+  const labelHeaderLine1 = useAppStore((s) => s.labelHeaderLine1);
+  const labelHeaderLine2 = useAppStore((s) => s.labelHeaderLine2);
+  const labelHeaderPresets = useAppStore((s) => s.labelHeaderPresets);
 
   const handlePanel = async () => {
     const onSubmit = async (panel: PanelFeature) => {
@@ -733,9 +737,53 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
               void new ExportPanelLabelsCommand({
                 cutListResult,
                 suggestedName: `${activeAssembly.name ?? 'assembly'}-labels.pdf`,
+                templateId: labelTemplate,
+                headerLine1: labelHeaderLine1,
+                headerLine2: labelHeaderLine2,
               }).apply();
             }}>
             {t('ribbon.furniture.exportLabels')}
+          </button>
+          <button type="button"
+            className={labelTemplate === 'rich' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={labelTemplate === 'rich'}
+            onClick={() => useAppStore.getState().setLabelTemplate('rich')}>
+            {t('ribbon.furniture.labelTemplateRich')}
+          </button>
+          <button type="button"
+            className={labelTemplate === 'compact' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={labelTemplate === 'compact'}
+            onClick={() => useAppStore.getState().setLabelTemplate('compact')}>
+            {t('ribbon.furniture.labelTemplateCompact')}
+          </button>
+          <input type="text" className="text-xs bg-shell-panel border border-shell-border rounded px-1 w-24"
+            aria-label={t('ribbon.furniture.labelHeaderLine1')}
+            placeholder={t('ribbon.furniture.labelHeaderLine1')}
+            value={labelHeaderLine1}
+            onChange={(e) => useAppStore.getState().setLabelHeaderLine1(e.target.value)} />
+          <input type="text" className="text-xs bg-shell-panel border border-shell-border rounded px-1 w-24"
+            aria-label={t('ribbon.furniture.labelHeaderLine2')}
+            placeholder={t('ribbon.furniture.labelHeaderLine2')}
+            value={labelHeaderLine2}
+            onChange={(e) => useAppStore.getState().setLabelHeaderLine2(e.target.value)} />
+          <select className="text-xs bg-shell-panel border border-shell-border rounded px-1"
+            aria-label={t('ribbon.furniture.loadHeaderPreset')}
+            value=""
+            onChange={(e) => {
+              const preset = labelHeaderPresets.find((p) => p.id === e.target.value);
+              if (!preset) return;
+              useAppStore.getState().setLabelHeaderLine1(preset.line1);
+              useAppStore.getState().setLabelHeaderLine2(preset.line2);
+            }}>
+            <option value="">{t('ribbon.furniture.loadHeaderPreset')}</option>
+            {labelHeaderPresets.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <button type="button" className="text-xs hover:text-white"
+            aria-label={t('ribbon.furniture.manageHeaderPresets')}
+            onClick={() => useAppStore.getState().toggleLabelHeaderPresetsDialog(true)}>
+            {t('ribbon.furniture.manageHeaderPresets')}
           </button>
         </RibbonPanel>
       </div>
