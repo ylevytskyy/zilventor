@@ -56,6 +56,7 @@
     "kernelOfflineBanner": "Kernel stopped — click to restart",
     "sketcherCrashedBanner": "Sketch solver crashed — exited sketch mode",
     "leader_text": "Leader Text",
+    "machiningPresets": "Machining Presets",
     "nesting_tab": "Nesting tab",
     "offset1": "offset 1",
     "offset2": "offset 2",
@@ -453,6 +454,26 @@
       "source": "Source",
       "spacing": "Spacing",
       "title": "Linear Pattern"
+    },
+    "machiningPresets": {
+      "addBtn": "Add",
+      "depth": "Depth (mm)",
+      "diameter": "Ø (mm)",
+      "empty": "No presets yet.",
+      "export": {
+        "button": "Export…"
+      },
+      "import": {
+        "button": "Import…",
+        "error": "Import failed: {{message}}"
+      },
+      "layerName": "Layer name",
+      "name": "Name",
+      "offset": "Offset (mm)",
+      "opType": "Operation type",
+      "speed": "Speed (RPM)",
+      "title": "Machining Presets",
+      "toolNumber": "Tool #"
     },
     "material": {
       "addBtn": "+ Add",
@@ -950,6 +971,7 @@
       "exportBoringCsv": "Export CSV (Boring)",
       "exportBoringDxf": "Export DXF (Boring)",
       "exportManufacturingDxf": "Export DXF (Manufacturing)",
+      "machiningPresets": "Machining Presets",
       "exportCsv": "Export CSV",
       "exportNestDxf": "Export DXF (Nest)",
       "exportLabels": "Export Labels (PDF)",

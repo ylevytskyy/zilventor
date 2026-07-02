@@ -816,3 +816,13 @@ describe('dxfExportMode', () => {
   });
 });
 
+describe('machiningPresetsDialogOpen', () => {
+  it('defaults to closed and toggleMachiningPresetsDialog opens/closes it', () => {
+    expect(useAppStore.getState().machiningPresetsDialogOpen).toBe(false);
+    useAppStore.getState().toggleMachiningPresetsDialog(true);
+    expect(useAppStore.getState().machiningPresetsDialogOpen).toBe(true);
+    useAppStore.getState().toggleMachiningPresetsDialog(false);
+    expect(useAppStore.getState().machiningPresetsDialogOpen).toBe(false);
+  });
+});
+

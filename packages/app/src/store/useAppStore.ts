@@ -416,6 +416,8 @@ type AppState = {
   updateMachiningPreset: (p: MachiningPreset) => void;
   deleteMachiningPreset: (id: string) => void;
   importMachiningPresets: (presets: MachiningPreset[]) => void;
+  machiningPresetsDialogOpen: boolean;
+  toggleMachiningPresetsDialog: (open: boolean) => void;
   // 4d additions (T18)
   subAssemblyDocs: Record<string, AssemblyDocument>;
   subAssemblyInnerPoses: Record<string, Map<string, { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] }>>;
@@ -876,6 +878,8 @@ export const useAppStore = create<AppState>((set) => ({
     persistMachiningPresets(next);
     return { machiningPresets: next };
   }),
+  machiningPresetsDialogOpen: false,
+  toggleMachiningPresetsDialog: (open) => set({ machiningPresetsDialogOpen: open }),
   setColorOverride: (path, color) => set((s) => {
     if (s.activeDocument?.kind !== 'assembly') return s;
     const next = { ...s.activeDocument.document.colorOverrides };

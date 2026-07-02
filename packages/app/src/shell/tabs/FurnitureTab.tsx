@@ -665,6 +665,11 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
             onClick={() => useAppStore.getState().setDxfExportMode('combined')}>
             {t('ribbon.furniture.dxfModeCombined')}
           </button>
+          <button type="button" className="text-xs hover:text-white"
+            aria-label={t('ribbon.furniture.machiningPresets')}
+            onClick={() => useAppStore.getState().toggleMachiningPresetsDialog(true)}>
+            {t('ribbon.furniture.machiningPresets')}
+          </button>
         </RibbonPanel>
       </div>
       <div aria-label={t('ribbon.furniture.nesting')}>
