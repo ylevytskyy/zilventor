@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { CutListResult, CutListRow } from '@zilventor/shared';
+import type { CutListResult, CutListRow, NestState, NestSheet, PlacedPanel } from '@zilventor/shared';
 import { buildPanelLabels } from '../buildPanelLabels';
 
 function row(over: Partial<CutListRow>): CutListRow {
@@ -11,6 +11,25 @@ function row(over: Partial<CutListRow>): CutListRow {
     edgeBands: { front: null, back: null, left: null, right: null },
     partPath: 'p', partName: 'Side', componentPathKeys: ['c'],
     ...over,
+  };
+}
+
+function placedPanel(over: Partial<PlacedPanel>): PlacedPanel {
+  return {
+    itemNumber: 1, rowKey: 'rowA', instanceIndex: 1,
+    x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'length',
+    ...over,
+  };
+}
+
+function nestWith(panels: PlacedPanel[]): NestState {
+  const sheet: NestSheet = {
+    materialId: 'mdf' as NestSheet['materialId'], sheetIndex: 1,
+    sheetLengthMm: 2440, sheetWidthMm: 1220, panels, utilizationPct: 50,
+  };
+  return {
+    params: { kerfMm: 3.2 }, generatedAt: 0, inputFingerprint: 'f',
+    sheets: [sheet], excluded: [],
   };
 }
 
@@ -44,5 +63,34 @@ describe('buildPanelLabels', () => {
 
     expect(labels[0]!.qrPayload).toBe('Z|1|1/2|600x400x18|MDF 18');
     expect(labels[4]!.qrPayload).toBe('Z|2|3/3|600x400x18|Ply 18');
+  });
+
+  it('sets rotated from the matching nested PlacedPanel (by rowKey + instanceIndex), false when unmatched', () => {
+    const result: CutListResult = {
+      rows: [
+        row({ rowKey: 'rowA', itemNumber: 1, qty: 2 }),
+        row({ rowKey: 'rowB', itemNumber: 2, qty: 1 }), // no matching placed panel → stays false
+      ],
+      bandTotals: [], excluded: { rows: [], reasons: [] } as unknown as CutListResult['excluded'],
+    };
+    const nest = nestWith([
+      placedPanel({ rowKey: 'rowA', instanceIndex: 1, rotated: true }),
+      placedPanel({ rowKey: 'rowA', instanceIndex: 2, rotated: false }),
+    ]);
+
+    const labels = buildPanelLabels(result, nest);
+
+    expect(labels.map((l) => l.rotated)).toEqual([true, false, false]);
+  });
+
+  it('defaults rotated=false for every label when no nest is passed (no-nest path unchanged)', () => {
+    const result: CutListResult = {
+      rows: [row({ rowKey: 'rowA', itemNumber: 1, qty: 2 })],
+      bandTotals: [], excluded: { rows: [], reasons: [] } as unknown as CutListResult['excluded'],
+    };
+
+    const labels = buildPanelLabels(result);
+
+    expect(labels.map((l) => l.rotated)).toEqual([false, false]);
   });
 });

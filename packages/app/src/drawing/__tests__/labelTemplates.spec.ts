@@ -40,6 +40,7 @@ const label: PanelLabel = {
   copyIndex: 1,
   copyCount: 1,
   qrPayload: 'Z|1|1/1|600x400x18|MDF',
+  rotated: false,
 };
 
 const cell = labelCellRect(0, LABEL_LAYOUT);

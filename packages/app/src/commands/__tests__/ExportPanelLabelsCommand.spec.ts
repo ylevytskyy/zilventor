@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CutListResult, CutListRow } from '@zilventor/shared';
+import type { CutListResult, CutListRow, NestState } from '@zilventor/shared';
 import { ExportPanelLabelsCommand } from '../ExportPanelLabelsCommand';
 import * as renderLabelsPdfModule from '../../drawing/renderLabelsPdf';
+import * as buildPanelLabelsModule from '../../drawing/buildPanelLabels';
 
 // jsdom doesn't implement URL.createObjectURL — stub it for the fallback path.
 Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:stub'), writable: true });
@@ -72,6 +73,23 @@ describe('ExportPanelLabelsCommand', () => {
     await new ExportPanelLabelsCommand({ cutListResult: result, suggestedName: 'labels.pdf' }).apply();
     const passedOpts = spy.mock.calls[0]?.[1];
     expect(passedOpts).toEqual({});
+    spy.mockRestore();
+  });
+
+  it('forwards nest to buildPanelLabels when provided', async () => {
+    const spy = vi.spyOn(buildPanelLabelsModule, 'buildPanelLabels');
+    const nest: NestState = {
+      params: { kerfMm: 3.2 }, generatedAt: 0, inputFingerprint: 'f', sheets: [], excluded: [],
+    };
+    await new ExportPanelLabelsCommand({ cutListResult: result, suggestedName: 'labels.pdf', nest }).apply();
+    expect(spy).toHaveBeenCalledWith(result, nest);
+    spy.mockRestore();
+  });
+
+  it('calls buildPanelLabels with undefined nest when not provided (regression: unchanged from before)', async () => {
+    const spy = vi.spyOn(buildPanelLabelsModule, 'buildPanelLabels');
+    await new ExportPanelLabelsCommand({ cutListResult: result, suggestedName: 'labels.pdf' }).apply();
+    expect(spy).toHaveBeenCalledWith(result, undefined);
     spy.mockRestore();
   });
 });

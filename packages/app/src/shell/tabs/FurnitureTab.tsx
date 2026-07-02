@@ -809,6 +809,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
                 templateId: labelTemplate,
                 headerLine1: labelHeaderLine1,
                 headerLine2: labelHeaderLine2,
+                ...(activeAssembly.nest ? { nest: activeAssembly.nest } : {}),
               }).apply();
             }}>
             {t('ribbon.furniture.exportLabels')}

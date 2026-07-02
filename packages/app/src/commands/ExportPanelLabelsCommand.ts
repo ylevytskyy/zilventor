@@ -1,4 +1,4 @@
-import type { CutListResult } from '@zilventor/shared';
+import type { CutListResult, NestState } from '@zilventor/shared';
 import { buildPanelLabels } from '../drawing/buildPanelLabels';
 import { renderLabelsPdf, type LabelTemplateId } from '../drawing/renderLabelsPdf';
 import { triggerDownload } from '../nesting/triggerDownload';
@@ -17,10 +17,11 @@ export class ExportPanelLabelsCommand {
     templateId?: LabelTemplateId;
     headerLine1?: string;
     headerLine2?: string;
+    nest?: NestState;
   }) {}
 
   async apply(): Promise<void> {
-    const labels = buildPanelLabels(this.opts.cutListResult);
+    const labels = buildPanelLabels(this.opts.cutListResult, this.opts.nest);
     const bytes = renderLabelsPdf(labels, {
       ...(this.opts.templateId !== undefined ? { templateId: this.opts.templateId } : {}),
       ...(this.opts.headerLine1 !== undefined ? { headerLine1: this.opts.headerLine1 } : {}),

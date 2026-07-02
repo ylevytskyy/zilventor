@@ -63,7 +63,7 @@ describe('drawLabelDiagram', () => {
   const base: PanelLabel = {
     itemNumber: 1, partName: 'Side', materialName: 'MDF', length: 600, width: 400, thickness: 18,
     grain: 'length', edges: { front: false, back: false, left: false, right: false },
-    copyIndex: 1, copyCount: 1, qrPayload: 'Z|1|1/1|600x400x18|MDF',
+    copyIndex: 1, copyCount: 1, qrPayload: 'Z|1|1/1|600x400x18|MDF', rotated: false,
   };
 
   it('draws an edge letter for each banded edge and none for unbanded', () => {
