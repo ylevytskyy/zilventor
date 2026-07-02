@@ -183,6 +183,114 @@ describe('resolvePanelSpec — R1 preflight diagnostics', () => {
   });
 });
 
+// P10 R1: imported STEP parts (no PanelFeature) must surface split-required /
+// notManifold diagnostics instead of the pre-P10 silent `return null`. resolvePanelSpec
+// is the single choke point both boring (useBoringResult) and cut-list/DXF/nesting
+// (loadCutListInputs -> useCutListResult) read via the shared panelSpecCacheRef/diagnosticsCacheRef.
+describe('resolvePanelSpec — R1 preflight for imported (non-panel) parts', () => {
+  it('pushes a splitRequired diagnostic when an imported part carries >1 solid', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Multi Body', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'imported', id: 'imp1', sourceStep: 'multi.step', bodyRef: 'blob-1',
+          solidColors: ['#fff', null, '#000'],
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/imported.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    const spec = await resolvePanelSpec(opfs, 'p/imported.zipt', cache, diagnostics);
+    expect(spec).toBeNull();
+    expect(cache.get('p/imported.zipt')).toBeNull();
+    expect(diagnostics).toEqual([
+      { partPath: 'p/imported.zipt', reasonKey: 'panel.preflight.splitRequired', params: { name: 'Multi Body', solidCount: 3 } },
+    ]);
+    warn.mockRestore();
+  });
+
+  it('pushes a notManifold diagnostic when an imported single-solid part has isManifold: false', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Broken Bracket', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'imported', id: 'imp1', sourceStep: 'bracket.step', bodyRef: 'blob-1',
+          solidColors: ['#fff'], isManifold: false,
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/imported.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    const spec = await resolvePanelSpec(opfs, 'p/imported.zipt', cache, diagnostics);
+    expect(spec).toBeNull();
+    expect(diagnostics).toEqual([
+      { partPath: 'p/imported.zipt', reasonKey: 'panel.preflight.notManifold', params: { name: 'Broken Bracket' } },
+    ]);
+    warn.mockRestore();
+  });
+
+  it('does not push a diagnostic for a plain single-solid, manifold imported part (guard: must not overreach)', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Hardware Bracket', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'imported', id: 'imp1', sourceStep: 'hw.step', bodyRef: 'blob-1',
+          solidColors: ['#fff'], isManifold: true,
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/imported.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    const spec = await resolvePanelSpec(opfs, 'p/imported.zipt', cache, diagnostics);
+    expect(spec).toBeNull();
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('does not push a diagnostic when isManifold is absent (assumed valid, pre-P10 default)', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: {
+        id: 'p1', name: 'Legacy Import', units: 'mm', parameters: {},
+        featureTree: [{
+          kind: 'imported', id: 'imp1', sourceStep: 'legacy.step', bodyRef: 'blob-1',
+          solidColors: ['#fff'],
+        }],
+        properties: {}, materials: [],
+      },
+    });
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/imported.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    const spec = await resolvePanelSpec(opfs, 'p/imported.zipt', cache, diagnostics);
+    expect(spec).toBeNull();
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('empty featureTree (no PanelFeature, no ImportedFeature) still returns null with no diagnostics (pre-existing case, must keep passing)', async () => {
+    const bytes = await packPart({
+      formatVersion: 11, kind: 'part',
+      document: { id: 'p1', name: 'P', units: 'mm', parameters: {}, featureTree: [], properties: {}, materials: [] },
+    });
+    const cache: PanelSpecCache = new Map();
+    const opfs = makeOpfs({ 'p/a.zipt': bytes });
+    const diagnostics: PanelPreflightDiagnostic[] = [];
+    const spec = await resolvePanelSpec(opfs, 'p/a.zipt', cache, diagnostics);
+    expect(spec).toBeNull();
+    expect(diagnostics).toEqual([]);
+  });
+});
+
 // Regression: mesh-sync warm path — panelSpecCacheRef must be warmed from the
 // PartDocument already in hand (featureTree + parameters), without OPFS/Cut List.
 // This mirrors the code added in App.tsx mesh-sync effect (the fresh-session fix).
