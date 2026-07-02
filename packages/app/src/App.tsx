@@ -230,6 +230,11 @@ export default function App() {
   // actually populate the edge list.
   const tessellatedEdgesRef = useRef<TessellatedEdge[]>([]);
   const facePickerRef = useRef<FacePickController>(new FacePickController());
+  // True iff the activePart re-execute effect (below) is the one currently
+  // displaying an error status; gates its success branch so it only ever
+  // clears a status message it put up itself, never one set concurrently by
+  // another action (e.g. File→Open's "Imported").
+  const lastExecuteErrorRef = useRef(false);
   // Component drag state (4b follow-up B3). Tracks an in-flight pointer-drag of
   // a component mesh in the viewport: pointerdown raycasts a component, move
   // delegates to dragAlongFreeDofs once threshold is exceeded, pointerup
@@ -1348,8 +1353,15 @@ export default function App() {
       const res = await kernel.execute(activePart.id);
       if (cancelled) return;
       if (res.ok) {
-        // Clear any prior error status — a successful execute means the tree is healthy.
-        useAppStore.getState().setStatus('');
+        // Clear any prior error status set by THIS effect on a previous failed
+        // execute() — but never a status set by someone else in the meantime
+        // (e.g. FileTab's "Imported"/"Opened" after a fresh open, or a Save
+        // confirmation). lastExecuteErrorRef tracks whether we are the ones who
+        // put the current error message up, so we only ever clear our own mess.
+        if (lastExecuteErrorRef.current) {
+          useAppStore.getState().setStatus('');
+          lastExecuteErrorRef.current = false;
+        }
         const partHex = activePart?.color?.kind === 'hex' ? activePart.color.hex : undefined;
         const panelFeat = activePart?.featureTree.find((f) => f.kind === 'panel') as PanelFeature | undefined;
         const panelMat = panelFeat ? activePart?.materials.find((m) => m.id === panelFeat.materialId) : undefined;
@@ -1362,6 +1374,7 @@ export default function App() {
       } else {
         useAppStore.getState().setStatus(t('status.error', { message: res.error.message }));
         useAppStore.getState().setFeatureErrors(new Map());
+        lastExecuteErrorRef.current = true;
       }
     })();
     return () => { cancelled = true; };
