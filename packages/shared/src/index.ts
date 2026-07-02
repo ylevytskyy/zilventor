@@ -40,6 +40,8 @@ export type {
   PackResult, PackAllResult,
 } from './nesting';
 export { packGuillotine, packAllMaterials, computeNestFingerprint } from './nesting';
+export type { ParsedQrPayload } from './production/qrPayload';
+export { parseQrPayload, producedPanelKey } from './production/qrPayload';
 // PointRef omitted from this re-export — collides with constraints.PointRef (sketcher anchor type).
 // Drawing consumers must `import { PointRef } from '@zilventor/shared/drawing/types'` directly.
 export { ISO_SIZES_MM } from './drawing/types';

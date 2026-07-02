@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v34 → v35 (P3 W1 — machining presets / CAM metadata fields)', () => {
   it('CURRENT_FORMAT_VERSION is 35', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(38);
+    expect(CURRENT_FORMAT_VERSION).toBe(39);
   });
 
   it('migrates a v34 part manifest to v35 (additive no-op)', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v34 → v35 (P3 W1 — machining presets / CAM metadat
       document: { id: 'p1', featureTree: [{ kind: 'panel', id: 'pf1' }] },
     };
     const out = migrateManifest(v34);
-    expect(out.formatVersion).toBe(38);
+    expect(out.formatVersion).toBe(39);
     const tree = (out.document as { featureTree: unknown[] }).featureTree;
     const panel = tree.find((f) => (f as { kind?: string }).kind === 'panel') as { id: string } | undefined;
     expect(panel?.id).toBe('pf1');
