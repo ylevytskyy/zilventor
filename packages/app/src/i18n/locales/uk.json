@@ -849,6 +849,8 @@
     },
     "extrusion": "Витягування",
     "nesting": {
+      "editMode": "Режим редагування",
+      "editModeAriaLabel": "Перемкнути режим редагування розкладки",
       "excluded": "Виключено",
       "excludedAriaLabel": "Секція виключених елементів розкладки",
       "materialSection": "Секція матеріалу {{id}}",
@@ -889,8 +891,25 @@
     },
     "revolveLabel": "Обертання",
     "sheet": {
+      "edit": {
+        "errorBounds": "Переміщення відхилено: панель вийде за межі аркуша",
+        "errorOverlap": "Переміщення відхилено: панель накладеться на іншу панель",
+        "flip": "Віддзеркалити",
+        "flipAriaLabel": "Віддзеркалити вибрану панель (лише візуально)",
+        "moveDownAriaLabel": "Перемістити вибрану панель вниз",
+        "moveLeftAriaLabel": "Перемістити вибрану панель ліворуч",
+        "moveRightAriaLabel": "Перемістити вибрану панель праворуч",
+        "moveUpAriaLabel": "Перемістити вибрану панель вгору",
+        "rotate": "Повернути на 90°",
+        "rotateAriaLabel": "Повернути вибрану панель на 90 градусів"
+      },
       "exportPng": "Експорт PNG",
       "exportPngAriaLabel": "Експорт PNG аркуша {{index}}",
+      "manuallyEditedAriaLabel": "Аркуш відредаговано вручну — порядок гільйотинного розкрою може бути більше не дійсним",
+      "manuallyEditedBadge": "Відредаговано вручну",
+      "mirroredMarkerAriaLabel": "Панель №{{itemNumber}} віддзеркалена (візуально)",
+      "remnantLabel": "Залишок {{length}}×{{width}}",
+      "selectPanelAriaLabel": "Вибрати панель №{{itemNumber}}",
       "sheetInfo": "Аркуш {{index}} — {{pct}}% завантаженість"
     }
   },

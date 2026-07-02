@@ -849,6 +849,8 @@
     },
     "extrusion": "Extrusion",
     "nesting": {
+      "editMode": "Edit Mode",
+      "editModeAriaLabel": "Toggle nest edit mode",
       "excluded": "Excluded",
       "excludedAriaLabel": "Nest excluded section",
       "materialSection": "Material section {{id}}",
@@ -889,8 +891,25 @@
     },
     "revolveLabel": "Revolve",
     "sheet": {
+      "edit": {
+        "errorBounds": "Move rejected: panel would go outside the sheet boundary",
+        "errorOverlap": "Move rejected: panel would overlap another panel",
+        "flip": "Flip",
+        "flipAriaLabel": "Flip selected panel (cosmetic only)",
+        "moveDownAriaLabel": "Move selected panel down",
+        "moveLeftAriaLabel": "Move selected panel left",
+        "moveRightAriaLabel": "Move selected panel right",
+        "moveUpAriaLabel": "Move selected panel up",
+        "rotate": "Rotate 90°",
+        "rotateAriaLabel": "Rotate selected panel 90 degrees"
+      },
       "exportPng": "Export PNG",
       "exportPngAriaLabel": "Export PNG sheet {{index}}",
+      "manuallyEditedAriaLabel": "Sheet manually edited — guillotine cut order may no longer be valid",
+      "manuallyEditedBadge": "Manually edited",
+      "mirroredMarkerAriaLabel": "Panel #{{itemNumber}} flipped (cosmetic)",
+      "remnantLabel": "Remnant {{length}}×{{width}}",
+      "selectPanelAriaLabel": "Select panel #{{itemNumber}}",
       "sheetInfo": "Sheet {{index}} — {{pct}}% utilisation"
     }
   },
