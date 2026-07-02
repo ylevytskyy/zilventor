@@ -21,13 +21,13 @@ Parent plan: `docs/superpowers/plans/2026-07-02-abf-parity-milestones.md` (P3). 
 
 ## Slices (TDD each; red→green; per-package vitest)
 
-- [ ] **W1 — shared data model** `MachiningPreset` type (`opType`, dia, depth, offset, `layerName`, `toolNumber?`, `speed?`) + optional `toolNumber?/speed?/presetLayerName?` on `BoreOp` (shared/src/bore.ts:26) + `GrooveFeature` (shared/src/groove.ts:15,30); v34→v35 bump + migration + spec. Absent-not-zero optional-field contract (exactOptionalPropertyTypes).
-- [ ] **W5 — DXF writer XDATA** (parallel with W1): register `ZILVENTOR` APPID (dxfWriter.ts:138-141), XDATA emitter (1001/1000/1070) on entity options; existing golden-output specs stay green.
-- [ ] **W2 — app-global preset store**: localStorage-backed CRUD slice in useAppStore + `validateMachiningPresetImport` (mirror shared/src/hardware/customHardware.ts validation style) + JSON import/export helpers.
-- [ ] **W3 — preset CRUD dialog**: `MachiningPresetsDialog.tsx` (mirror HardwareDialog.tsx) + FurnitureTab ribbon entry + dialog-open store slice + i18n en/uk.
-- [ ] **W4 — snapshot-on-apply**: `ApplyMachiningPresetCommand` (undo-safe apply/revert; mirrors EditBoreCommand) wired into BorePropertiesPanel preset picker. Locking test: later preset edit does NOT change the already-applied BoreOp (ADR core guarantee).
-- [ ] **W6 — export wiring** (parallel with W4): drawBores/drawGrooves (renderPanelManufacturingDxf.ts:32,95) emit TOOL_NUMBER/SPEED XDATA + route to `presetLayerName` when set; combined renderer too; extend tests/e2e/drawing/manufacturing-dxf.spec.ts (no new e2e file — P2 precedent).
-- [ ] **W7 — sidecar CSV**: `buildManufacturingCsv` (partName, opType, dia, depth, layer, toolNumber, speed) added to zip entries in ExportPanelManufacturingDxfCommand.ts:40 — **folders mode only** (S1).
+- [x] **W1 — shared data model** `MachiningPreset` type (`opType`, dia, depth, offset, `layerName`, `toolNumber?`, `speed?`) + optional `toolNumber?/speed?/presetLayerName?` on `BoreOp` (shared/src/bore.ts:26) + `GrooveFeature` (shared/src/groove.ts:15,30); v34→v35 bump + migration + spec. Absent-not-zero optional-field contract (exactOptionalPropertyTypes).
+- [x] **W5 — DXF writer XDATA** (parallel with W1): register `ZILVENTOR` APPID (dxfWriter.ts:138-141), XDATA emitter (1001/1000/1070) on entity options; existing golden-output specs stay green.
+- [x] **W2 — app-global preset store**: localStorage-backed CRUD slice in useAppStore + `validateMachiningPresetImport` (mirror shared/src/hardware/customHardware.ts validation style) + JSON import/export helpers.
+- [x] **W3 — preset CRUD dialog**: `MachiningPresetsDialog.tsx` (mirror HardwareDialog.tsx) + FurnitureTab ribbon entry + dialog-open store slice + i18n en/uk.
+- [x] **W4 — snapshot-on-apply**: `ApplyMachiningPresetCommand` (undo-safe apply/revert; mirrors EditBoreCommand) wired into BorePropertiesPanel preset picker. Locking test: later preset edit does NOT change the already-applied BoreOp (ADR core guarantee).
+- [x] **W6 — export wiring** (parallel with W4): drawBores/drawGrooves (renderPanelManufacturingDxf.ts:32,95) emit TOOL_NUMBER/SPEED XDATA + route to `presetLayerName` when set; combined renderer too; extend tests/e2e/drawing/manufacturing-dxf.spec.ts (no new e2e file — P2 precedent).
+- [x] **W7 — sidecar CSV**: `buildManufacturingCsv` (partName, opType, dia, depth, layer, toolNumber, speed) added to zip entries in ExportPanelManufacturingDxfCommand.ts:40 — **folders mode only** (S1).
 
 Dispatch order: {W1, W5} → W2 → W3 → {W4, W6} → W7.
 
