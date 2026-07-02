@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildNestZipEntries, buildCombinedNestDxf, ExportNestDxfCommand } from '../ExportNestDxfCommand';
+import { buildDxfZip } from '../../drawing/dxfZip';
 import { unzipSync, strFromU8 } from 'fflate';
 import type { NestState } from '@zilventor/shared';
 import type { MaterialRegistry } from '@zilventor/shared';
@@ -66,10 +67,12 @@ describe('buildNestZipEntries', () => {
     ]);
   });
 
-  // Note: sanitize() substitutes each disallowed character with '_' (it does
-  // not strip), so a non-empty non-ASCII name sanitizes to "___", not "".
-  // The only way to get a genuinely empty sanitized name is an empty
-  // resolved materialName/materialId — exercised below.
+  // Note: sanitizeFolder() substitutes each disallowed character with '_'
+  // (it does not strip) and keeps Unicode letters/digits, so a non-empty
+  // Cyrillic name is now preserved as-is (see the Unicode tests below)
+  // instead of collapsing to "___". The only way to get a genuinely empty
+  // sanitized name is an empty resolved materialName/materialId — exercised
+  // below.
   it('falls back to the sanitized materialId when the resolved material name is empty', () => {
     const oneSheetNest: NestState = { ...nest, sheets: [nest.sheets[0]!] } as NestState;
     const emptyNameMaterials: MaterialRegistry = [
@@ -107,6 +110,70 @@ describe('buildNestZipEntries', () => {
       'White_18/a-sheet-1.dxf',
       'White_18/b-sheet-1.dxf',
     ]);
+  });
+});
+
+// R4.1(a) Unicode fix: material folder keys must preserve Unicode letters
+// (e.g. Cyrillic) instead of collapsing to underscores — only the zip
+// *folder* key changes; DXF filenames/content stay ASCII-only via sanitize().
+describe('buildNestZipEntries — Unicode material folders', () => {
+  it('preserves a Cyrillic material name as a Unicode folder key', () => {
+    const cyrillicMaterials: MaterialRegistry = [
+      { id: 'mdf18', name: 'ДСП 16мм', defaultThickness: 18, color: '#fff' } as any,
+    ];
+    const oneSheetNest: NestState = { ...nest, sheets: [nest.sheets[0]!] } as NestState;
+    const entries = buildNestZipEntries(oneSheetNest, cyrillicMaterials);
+    expect(Object.keys(entries)).toEqual(['ДСП_16мм/mdf18-sheet-1.dxf']);
+  });
+
+  it('keeps an ASCII material folder key byte-identical to before', () => {
+    const oneSheetNest: NestState = { ...nest, sheets: [nest.sheets[0]!] } as NestState;
+    const entries = buildNestZipEntries(oneSheetNest, materials);
+    expect(Object.keys(entries)).toEqual(['White_18/mdf18-sheet-1.dxf']);
+  });
+
+  it('no longer collapses a Unicode-letters-only material name to "___" or falls back to materialId', () => {
+    const cyrillicOnlyMaterials: MaterialRegistry = [
+      { id: 'mdf18', name: 'ДСП', defaultThickness: 18, color: '#fff' } as any,
+    ];
+    const oneSheetNest: NestState = { ...nest, sheets: [nest.sheets[0]!] } as NestState;
+    const entries = buildNestZipEntries(oneSheetNest, cyrillicOnlyMaterials);
+    expect(Object.keys(entries)).toEqual(['ДСП/mdf18-sheet-1.dxf']);
+  });
+
+  it('fallback chain stays Unicode-aware: empty resolved material name falls back to a Unicode materialId', () => {
+    const oneSheetNest: NestState = {
+      ...nest,
+      sheets: [{ ...nest.sheets[0]!, materialId: 'ДСП' }],
+    } as NestState;
+    const unicodeIdMaterials: MaterialRegistry = [
+      { id: 'ДСП', name: '', defaultThickness: 18, color: '#fff' } as any,
+    ];
+    const entries = buildNestZipEntries(oneSheetNest, unicodeIdMaterials);
+    // folder falls back to sanitizeFolder(materialId) = 'ДСП' (Unicode
+    // preserved); the DXF filename itself still uses the ASCII-only
+    // sanitize(), so the file part collapses to underscores as before.
+    expect(Object.keys(entries)).toEqual(['ДСП/___-sheet-1.dxf']);
+  });
+});
+
+// R4.1(a) round-trip proof: fflate's zipSync/unzipSync auto-detect
+// non-ASCII entry names (byte-length vs char-length mismatch) and set/read
+// the UTF-8 language-encoding flag automatically — no explicit option needed.
+describe('buildDxfZip — Unicode folder round-trip', () => {
+  it('round-trips a Cyrillic material folder key byte-exact through zipSync/unzipSync', () => {
+    const cyrillicMaterials: MaterialRegistry = [
+      { id: 'mdf18', name: 'ДСП 16мм', defaultThickness: 18, color: '#fff' } as any,
+    ];
+    const oneSheetNest: NestState = { ...nest, sheets: [nest.sheets[0]!] } as NestState;
+    const entries = buildNestZipEntries(oneSheetNest, cyrillicMaterials);
+    const key = 'ДСП_16мм/mdf18-sheet-1.dxf';
+    expect(entries[key]).toBeDefined();
+
+    const bytes = buildDxfZip(entries);
+    const unzipped = unzipSync(bytes);
+    expect(Object.keys(unzipped)).toContain(key);
+    expect(strFromU8(unzipped[key]!)).toBe(entries[key]);
   });
 });
 

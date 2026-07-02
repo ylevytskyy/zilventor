@@ -7,16 +7,24 @@ function sanitize(name: string): string {
   return name.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+// Unicode-aware sanitizer for the zip *folder* key only — unlike sanitize()
+// above (ASCII-only, used for DXF entry filenames/content, which must stay
+// ASCII), this keeps Unicode letters/digits so Cyrillic material names stay
+// legible instead of collapsing to underscores.
+function sanitizeFolder(name: string): string {
+  return name.replace(/[^\p{L}\p{N}_-]/gu, '_');
+}
+
 // R4.1(a): CNC zip entries are grouped into per-material subfolders — a key
 // containing "/" is treated as a folder by fflate.zipSync (dxfZip.ts). If the
 // resolved material name sanitizes to an empty string (only happens when the
-// name itself is empty — sanitize() substitutes disallowed characters rather
-// than stripping them), fall back to the sanitized materialId, then to a
-// fixed "material" folder so an entry never lands keyless at the zip root.
+// name itself is empty — sanitizeFolder() substitutes disallowed characters
+// rather than stripping them), fall back to the sanitized materialId, then to
+// a fixed "material" folder so an entry never lands keyless at the zip root.
 function materialFolder(materialName: string, materialId: string): string {
-  const byName = sanitize(materialName);
+  const byName = sanitizeFolder(materialName);
   if (byName) return byName;
-  const byId = sanitize(materialId);
+  const byId = sanitizeFolder(materialId);
   return byId || 'material';
 }
 

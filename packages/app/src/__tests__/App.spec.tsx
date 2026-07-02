@@ -56,8 +56,12 @@ vi.mock('three', async (orig) => {
   return { ...actual, WebGLRenderer: FakeRenderer };
 });
 
-vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
+vi.mock('three/examples/jsm/controls/OrbitControls.js', async () => {
+  const THREE = await import('three');
   class FakeOrbitControls {
+    // Real OrbitControls always exposes `target`; SceneManager.frameToModel
+    // reads/writes it directly.
+    target = new THREE.Vector3();
     enableDamping = false;
     dampingFactor = 0;
     update() {}

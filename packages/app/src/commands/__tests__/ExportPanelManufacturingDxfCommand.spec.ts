@@ -46,10 +46,11 @@ describe('buildManufacturingZipEntries', () => {
     expect(keys.every((k) => k.startsWith('White_18/'))).toBe(true);
   });
 
-  // Note: sanitize() substitutes each disallowed character with '_' (it does
-  // not strip), so a non-empty non-ASCII name like Cyrillic "ДСП" sanitizes
-  // to "___", not "". The only way to get a genuinely empty sanitized name
-  // is an empty materialName/materialId — exercised below.
+  // Note: sanitizeFolder() substitutes each disallowed character with '_'
+  // (it does not strip) and keeps Unicode letters/digits, so a Cyrillic name
+  // like "ДСП" is now preserved as-is (see the Unicode tests below) instead
+  // of collapsing to "___". The only way to get a genuinely empty sanitized
+  // name is an empty materialName/materialId — exercised below.
   it('falls back to the sanitized materialId when the material name is empty', () => {
     const entries = buildManufacturingZipEntries([input(1, 'Side', '', 'mdf18')]);
     expect(Object.keys(entries)).toEqual(['mdf18/item-1-Side.dxf']);
@@ -69,6 +70,31 @@ describe('buildManufacturingZipEntries', () => {
       'White_18/item-1-Side.dxf',
       'White_18/item-2-Back.dxf',
     ]);
+  });
+});
+
+// R4.1(a) Unicode fix: material folder keys must preserve Unicode letters
+// (e.g. Cyrillic) instead of collapsing to underscores — only the zip
+// *folder* key changes; DXF filenames/content stay ASCII-only via sanitize().
+describe('buildManufacturingZipEntries — Unicode material folders', () => {
+  it('preserves a Cyrillic material name as a Unicode folder key', () => {
+    const entries = buildManufacturingZipEntries([input(1, 'Side', 'ДСП 16мм')]);
+    expect(Object.keys(entries)).toEqual(['ДСП_16мм/item-1-Side.dxf']);
+  });
+
+  it('keeps an ASCII material folder key byte-identical to before', () => {
+    const entries = buildManufacturingZipEntries([input(1, 'Side', 'Birch 18mm')]);
+    expect(Object.keys(entries)).toEqual(['Birch_18mm/item-1-Side.dxf']);
+  });
+
+  it('no longer collapses a Unicode-letters-only material name to "___" or falls back to materialId', () => {
+    const entries = buildManufacturingZipEntries([input(1, 'Side', 'ДСП', 'mdf18')]);
+    expect(Object.keys(entries)).toEqual(['ДСП/item-1-Side.dxf']);
+  });
+
+  it('fallback chain stays Unicode-aware: empty material name falls back to a Unicode materialId', () => {
+    const entries = buildManufacturingZipEntries([input(1, 'Side', '', 'ДСП')]);
+    expect(Object.keys(entries)).toEqual(['ДСП/item-1-Side.dxf']);
   });
 });
 
