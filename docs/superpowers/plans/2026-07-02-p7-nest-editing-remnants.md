@@ -14,10 +14,14 @@ Milestone P7 of the ABF parity plan (`2026-07-02-abf-parity-milestones.md`). Dec
 
 ## Slices (red → green)
 
-- [ ] **W1 — shared schema + manifest v38** (sequential gate): `PlacedPanel.instanceIndex` (1-based per rowKey, assigned pre-sort in `packGuillotine`), `PlacedPanel.mirrored?`, `NestSheet.remnant?` (largest final free-rect ≥100×100mm), `NestSheet.manuallyEdited?`; CURRENT_FORMAT_VERSION 37→38 no-op migration + normalizeKind + fixture sweep (shared-package only — app has zero hardcoded version literals).
-- [ ] **W2 — R3.4 label grain fix** (∥ after W1): `buildPanelLabels(result, nest?)` matches label copy → `PlacedPanel` by `rowKey + instanceIndex`; `PanelLabel.rotated`; `renderLabelsPdf` computes effective grain like `renderNestSheetDxf.drawGrain`; `ExportPanelLabelsCommand` + FurnitureTab thread `nest` through. No-nest path byte-identical (regression guard).
-- [ ] **W3 — remnant on sheet outputs** (∥ after W1): `MANUFACTURING_LAYERS.remnant = 'REMNANT'`; dashed/labeled remnant rect + ASCII `REMNANT LxW` text in `renderNestSheetDxf` (+ combined), `renderNestPdf`, `renderNestSheetPng`; layer emitted only when a remnant exists.
-- [ ] **W4 — interactive editor + i18n** (∥ after W1): `SheetSvg` editable mode (select/highlight, remnant rect, manuallyEdited warning badge); `NestingTab` edit toggle + rotate/flip/nudge toolbar; NEW `EditPlacedPanelCommand` (bounds + AABB-overlap validation, reject = no mutation; apply sets `manuallyEdited`; snapshot/revert per GenerateNestCommand); i18n en/uk (sole owner of locale files).
+- [x] **W1 — shared schema + manifest v38** — DONE `95bd365d`: `PlacedPanel.instanceIndex` (1-based per rowKey, assigned pre-sort in `packGuillotine`), `PlacedPanel.mirrored?`, `NestSheet.remnant?` (largest free-rect with BOTH dims ≥100mm — amended from area-only after worker self-critique caught the sliver hole, locking tests red-first), `NestSheet.manuallyEdited?`; v37→v38 no-op migration + fixture sweep. Shared 1439 ✓.
+- [x] **W2 — R3.4 label grain fix** — DONE `3278c6a3`: `buildPanelLabels(result, nest?)` matches copy → placement by `rowKey + instanceIndex`; `PanelLabel.rotated`; effective grain in label diagram (worker correctly guarded `grain='none'` instead of copying the DXF ternary verbatim — literal copy would draw a phantom arrow on rotated no-grain panels); nest threaded via `ExportPanelLabelsCommand` + FurnitureTab. No-nest path regression-guarded.
+- [x] **W3 — remnant on sheet outputs** — DONE `4c543677`: conditional `REMNANT` DXF layer + ASCII `REMNANT LxW` text; dashed red rect + `×` label in nest PDF (`setLineDashPattern`) and PNG (`setLineDash`). No-remnant sheets emit no layer/entities.
+- [x] **W4 — interactive editor + i18n** — DONE `3af32c69`: `SheetSvg` editable mode (select/highlight, on-screen remnant, manuallyEdited warning badge, mirrored marker); `NestingTab` tab-level edit toggle + rotate/flip/nudge toolbar (1mm / 10mm+Shift); `EditPlacedPanelCommand` (bounds + AABB-overlap, `EditRejectedError`, reject = zero mutation; sets `manuallyEdited`; undo restores mirrored-key ABSENCE); 17 i18n keys en/uk, parity test green.
+
+## Gate results (2026-07-02, EXEC)
+
+typecheck 0 × 5 pkgs · shared 1439 · kernel 306 unit + 372/373 integration (1 expected skip) · app 3477 · e2e 226/231 parallel, all 5 failures on the pre-existing flaky-parallel watchlist (drag-gizmo, auto-regen, T-6-20-autosave, pbr-textures-panel ×2) and 6/6 green solo `--workers=1`. No stale assertions broken by REMNANT output; no P7 regressions. Merged `--no-ff` to local master.
 
 Edits survive re-export by construction (S1): all exporters read `nest.sheets` live.
 
