@@ -29,6 +29,20 @@ const baseNest = (): NestState => ({
   excluded: [],
 });
 
+// Remnant sits far from both panels, at (1500,600)-(2000,1100) — free space.
+const nestWithFarRemnant = (): NestState => {
+  const nest = baseNest();
+  const sheet = { ...nest.sheets[0]!, remnant: { x: 1500, y: 600, length: 500, width: 500 } };
+  return { ...nest, sheets: [sheet] };
+};
+
+// Remnant coincides exactly with panel1's rect (700,0)-(1000,200) — panel already intrudes.
+const nestWithRemnantUnderPanel1 = (): NestState => {
+  const nest = baseNest();
+  const sheet = { ...nest.sheets[0]!, remnant: { x: 700, y: 0, length: 300, width: 200 } };
+  return { ...nest, sheets: [sheet] };
+};
+
 function seed(nest: NestState): void {
   useAppStore.setState({ activeAssembly: makeActiveAssembly(nest) } as never);
 }
@@ -160,5 +174,57 @@ describe('EditPlacedPanelCommand', () => {
       materialId: 'm1', sheetIndex: 1, panelArrayIndex: 0, edit: { type: 'move', dx: 650, dy: 0 },
     });
     await expect(overlapCmd.apply()).rejects.toMatchObject({ reason: 'overlap' });
+  });
+
+  it('move that intrudes into the remnant drops the remnant key entirely', async () => {
+    seed(nestWithFarRemnant());
+    // panel1 (300x200 at 700,0) moved by dx=800,dy=600 -> (1500,600)-(1800,800),
+    // which overlaps the remnant (1500,600)-(2000,1100).
+    const cmd = new EditPlacedPanelCommand({
+      materialId: 'm1', sheetIndex: 1, panelArrayIndex: 1,
+      edit: { type: 'move', dx: 800, dy: 600 },
+    });
+    await cmd.apply();
+    const sheet = useAppStore.getState().activeAssembly!.nest!.sheets[0]!;
+    expect('remnant' in sheet).toBe(false);
+  });
+
+  it('move that does not touch the remnant leaves it unchanged', async () => {
+    const nest = nestWithFarRemnant();
+    seed(nest);
+    // panel1 moved by dx=10,dy=10 -> (710,10)-(1010,210), nowhere near the remnant.
+    const cmd = new EditPlacedPanelCommand({
+      materialId: 'm1', sheetIndex: 1, panelArrayIndex: 1,
+      edit: { type: 'move', dx: 10, dy: 10 },
+    });
+    await cmd.apply();
+    const sheet = useAppStore.getState().activeAssembly!.nest!.sheets[0]!;
+    expect(sheet.remnant).toEqual(nest.sheets[0]!.remnant);
+  });
+
+  it('undo after a remnant-dropping edit restores the remnant verbatim', async () => {
+    const nest = nestWithFarRemnant();
+    seed(nest);
+    const cmd = new EditPlacedPanelCommand({
+      materialId: 'm1', sheetIndex: 1, panelArrayIndex: 1,
+      edit: { type: 'move', dx: 800, dy: 600 },
+    });
+    await cmd.apply();
+    expect('remnant' in useAppStore.getState().activeAssembly!.nest!.sheets[0]!).toBe(false);
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly!.nest).toEqual(nest);
+    expect(useAppStore.getState().activeAssembly!.nest!.sheets[0]!.remnant).toEqual(nest.sheets[0]!.remnant);
+  });
+
+  it('flip on a panel already overlapping the remnant leaves the remnant untouched', async () => {
+    const nest = nestWithRemnantUnderPanel1();
+    seed(nest);
+    const cmd = new EditPlacedPanelCommand({
+      materialId: 'm1', sheetIndex: 1, panelArrayIndex: 1,
+      edit: { type: 'flip' },
+    });
+    await cmd.apply();
+    const sheet = useAppStore.getState().activeAssembly!.nest!.sheets[0]!;
+    expect(sheet.remnant).toEqual(nest.sheets[0]!.remnant);
   });
 });
