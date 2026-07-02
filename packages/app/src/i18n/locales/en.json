@@ -57,6 +57,7 @@
     "sketcherCrashedBanner": "Sketch solver crashed — exited sketch mode",
     "leader_text": "Leader Text",
     "machiningPresets": "Machining Presets",
+    "labelHeaderPresets": "Label Header Presets",
     "nesting_tab": "Nesting tab",
     "statistics_tab": "Statistics tab",
     "offset1": "offset 1",
@@ -477,6 +478,13 @@
       "speed": "Speed (RPM)",
       "title": "Machining Presets",
       "toolNumber": "Tool #"
+    },
+    "labelHeaderPresets": {
+      "title": "Label Header Presets",
+      "empty": "No header presets yet.",
+      "name": "Name",
+      "line1": "Header line 1",
+      "line2": "Header line 2"
     },
     "material": {
       "addBtn": "+ Add",
@@ -978,6 +986,12 @@
       "exportCsv": "Export CSV",
       "exportNestDxf": "Export DXF (Nest)",
       "exportLabels": "Export Labels (PDF)",
+      "labelTemplateRich": "Rich",
+      "labelTemplateCompact": "Compact",
+      "labelHeaderLine1": "Header line 1",
+      "labelHeaderLine2": "Header line 2",
+      "loadHeaderPreset": "Load header preset",
+      "manageHeaderPresets": "Manage Header Presets",
       "dxfExportMode": "DXF Export Mode",
       "dxfModeFolders": "Folders per material",
       "dxfModeCombined": "Single combined file",

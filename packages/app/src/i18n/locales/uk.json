@@ -57,6 +57,7 @@
     "sketcherCrashedBanner": "Вирішувач ескізу аварійно завершився — режим ескізу закрито",
     "leader_text": "Текст з виноскою",
     "machiningPresets": "Пресети обробки",
+    "labelHeaderPresets": "Пресети заголовків етикеток",
     "nesting_tab": "Вкладка розкладки",
     "statistics_tab": "Вкладка статистики",
     "offset1": "зміщення 1",
@@ -477,6 +478,13 @@
       "speed": "Швидкість (об/хв)",
       "title": "Пресети обробки",
       "toolNumber": "№ інструменту"
+    },
+    "labelHeaderPresets": {
+      "title": "Пресети заголовків етикеток",
+      "empty": "Пресетів заголовків поки немає.",
+      "name": "Назва",
+      "line1": "Рядок заголовка 1",
+      "line2": "Рядок заголовка 2"
     },
     "material": {
       "addBtn": "+ Додати",
@@ -978,6 +986,12 @@
       "exportCsv": "Експорт CSV",
       "exportNestDxf": "Експорт DXF (Розкладка)",
       "exportLabels": "Експорт етикеток (PDF)",
+      "labelTemplateRich": "Розширений",
+      "labelTemplateCompact": "Компактний",
+      "labelHeaderLine1": "Рядок заголовка 1",
+      "labelHeaderLine2": "Рядок заголовка 2",
+      "loadHeaderPreset": "Завантажити пресет заголовка",
+      "manageHeaderPresets": "Керувати пресетами заголовків",
       "dxfExportMode": "Режим експорту DXF",
       "dxfModeFolders": "Папки за матеріалом",
       "dxfModeCombined": "Один спільний файл",

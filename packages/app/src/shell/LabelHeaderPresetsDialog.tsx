@@ -91,16 +91,13 @@ export function LabelHeaderPresetsDialog(): JSX.Element | null {
   };
 
   return (
-    // TODO(i18n): aria.labelHeaderPresets
-    <div style={overlayStyle} onClick={close} role="dialog" aria-label="Label Header Presets">
+    <div style={overlayStyle} onClick={close} role="dialog" aria-label={t('aria.labelHeaderPresets')}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
-        {/* TODO(i18n): dialog.labelHeaderPresets.title */}
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Label Header Presets</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('dialog.labelHeaderPresets.title')}</div>
 
         <div style={{ marginBottom: 12 }}>
           {presets.length === 0 && (
-            // TODO(i18n): dialog.labelHeaderPresets.empty
-            <div style={{ color: '#888', marginBottom: 8 }}>No header presets yet.</div>
+            <div style={{ color: '#888', marginBottom: 8 }}>{t('dialog.labelHeaderPresets.empty')}</div>
           )}
           {presets.map((p) => (
             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, borderBottom: '1px solid #333', paddingBottom: 4 }}>
@@ -123,30 +120,27 @@ export function LabelHeaderPresetsDialog(): JSX.Element | null {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
           <label>
-            {/* TODO(i18n): dialog.labelHeaderPresets.name */}
-            <div style={{ color: '#aaa', marginBottom: 2 }}>Name</div>
+            <div style={{ color: '#aaa', marginBottom: 2 }}>{t('dialog.labelHeaderPresets.name')}</div>
             <input
-              aria-label="Name"
+              aria-label={t('dialog.labelHeaderPresets.name')}
               style={inputStyle}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
           </label>
           <label>
-            {/* TODO(i18n): dialog.labelHeaderPresets.line1 */}
-            <div style={{ color: '#aaa', marginBottom: 2 }}>Header line 1</div>
+            <div style={{ color: '#aaa', marginBottom: 2 }}>{t('dialog.labelHeaderPresets.line1')}</div>
             <input
-              aria-label="Header line 1"
+              aria-label={t('dialog.labelHeaderPresets.line1')}
               style={inputStyle}
               value={form.line1}
               onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))}
             />
           </label>
           <label>
-            {/* TODO(i18n): dialog.labelHeaderPresets.line2 */}
-            <div style={{ color: '#aaa', marginBottom: 2 }}>Header line 2</div>
+            <div style={{ color: '#aaa', marginBottom: 2 }}>{t('dialog.labelHeaderPresets.line2')}</div>
             <input
-              aria-label="Header line 2"
+              aria-label={t('dialog.labelHeaderPresets.line2')}
               style={inputStyle}
               value={form.line2}
               onChange={(e) => setForm((f) => ({ ...f, line2: e.target.value }))}
