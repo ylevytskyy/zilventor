@@ -10,6 +10,7 @@ import StatusBar from './shell/StatusBar';
 import FileOpenOverlay from './shell/FileOpenOverlay';
 import PropertiesPanel from './shell/PropertiesPanel';
 import { BorePropertiesPanel } from './shell/BorePropertiesPanel';
+import { GroovePropertiesPanel } from './shell/GroovePropertiesPanel';
 import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
@@ -3358,8 +3359,11 @@ export default function App() {
   // T38: tessellated edges per partPath for axis/circularEdge pick in assembly mode.
   const partTessellatedEdgesCacheRef = useRef<Map<string, TessellatedEdge[]>>(new Map());
   // Slice-3: live part doc objects (keyed by partPath) for BorePropertiesPanel getLiveDoc.
-  // Holds the full {bores?, suppressedConnectorIds?, shelfPinParams?} object so commands can mutate in place.
-  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams }>>(new Map());
+  // Holds the full {bores?, suppressedConnectorIds?, shelfPinParams?, featureTree?} object so
+  // commands can mutate in place. `featureTree` is read by GroovePropertiesPanel's getLiveDoc
+  // (P9 W1) — same live PartDocument reference, just a wider type annotation; no new population
+  // code needed since the object stored here already carries featureTree at runtime.
+  const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams; featureTree?: Feature[] }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
   // R1: preflight diagnostics collected by the last loadCutListInputs pass;
@@ -5557,6 +5561,11 @@ export default function App() {
             getLiveBores={(partPath) => partBoresCacheRef.current.get(partPath)}
             getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
             getConnectorDocs={buildConnectorDocs}
+            opfs={opfsRef.current}
+          />
+          <GroovePropertiesPanel
+            getLiveGrooves={(partPath) => partGroovesCacheRef.current.get(partPath)}
+            getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
             opfs={opfsRef.current}
           />
         </aside>

@@ -329,6 +329,39 @@ describe('BrowserPane', () => {
     expect(useAppStore.getState().editingWorkAxisId).toBe('wa1');
   });
 
+  // ---- P9 W1: groove tree node + selection wiring ----
+
+  it('renders a labeled Groove node for a groove feature (not the mislabeled Extrusion fallback)', () => {
+    const groove: any = {
+      kind: 'groove', id: 'g1', faceRole: 'Front', axis: 'u', position: 10, width: 8, depth: 6,
+    };
+    const part: PartDocument = {
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [groove],
+    } as any;
+    render(<BrowserPane part={part} />);
+    expect(screen.getByText(/Groove1/)).toBeInTheDocument();
+    expect(screen.queryByText(/Extrusion1/)).toBeNull();
+  });
+
+  it('clicking a Groove node sets selectedGrooveId/selectedGroovePartPath, not setSelectedFeature', () => {
+    useAppStore.getState().setSelectedGroove(null, null);
+    const beforeFeatureId = useAppStore.getState().selectedFeatureId;
+    const groove: any = {
+      kind: 'groove', id: 'g1', faceRole: 'Front', axis: 'u', position: 10, width: 8, depth: 6,
+    };
+    const part: PartDocument = {
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [groove],
+    } as any;
+    render(<BrowserPane part={part} />);
+    fireEvent.click(screen.getByText(/Groove1/));
+    const s = useAppStore.getState();
+    expect(s.selectedGrooveId).toBe('g1');
+    expect(s.selectedGroovePartPath).toBe('p1');
+    expect(s.selectedFeatureId).toBe(beforeFeatureId);
+  });
+
 });
 
 describe('BrowserPane — panel feature (T28)', () => {
