@@ -7,6 +7,7 @@ import {
   makeFixtureDrawingWithParentAndDetail,
   makeFixtureDrawingWithParentAndRectDetail,
 } from '../../__tests__/fixtures/drawingFixtures';
+import { CYRILLIC_FONT_ID } from '../../vendor/pdfCyrillicFont';
 
 function readBlobAsUint8Array(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
@@ -45,6 +46,18 @@ describe('renderDrawingPdf', () => {
     const text = new TextDecoder('latin1').decode(bytes);
     const pageMatches = text.match(/\/Type\s*\/Page[^s]/g) ?? [];
     expect(pageMatches.length).toBe(3);
+  });
+});
+
+describe('renderDrawingPdf — Cyrillic title-block text', () => {
+  it('renders a Cyrillic part name via the embedded Cyrillic font (no throw, valid PDF, font referenced)', () => {
+    const base = makeFixtureDrawing();
+    const sheet = { ...base.sheets[0]!, titleBlock: { partName: 'Бічна стінка', material: 'Дуб' } };
+    const drawing = { ...base, sheets: [sheet] };
+    const bytes = renderDrawingPdfBytes(drawing, makeFixturePart());
+    expect(Array.from(bytes.slice(0, 5))).toEqual([37, 80, 68, 70, 45]);
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain(`/BaseFont /${CYRILLIC_FONT_ID}`);
   });
 });
 

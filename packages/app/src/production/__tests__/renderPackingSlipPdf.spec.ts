@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderPackingSlipPdfBytes } from '../renderPackingSlipPdf';
 import type { PackingSlipRow } from '../buildPackingSlipRows';
+import { CYRILLIC_FONT_ID } from '../../vendor/pdfCyrillicFont';
 
 function makeRow(overrides: Partial<PackingSlipRow> = {}): PackingSlipRow {
   return {
@@ -34,5 +35,14 @@ describe('renderPackingSlipPdfBytes', () => {
   it('accepts an optional header line without throwing', () => {
     const bytes = renderPackingSlipPdfBytes([makeRow()], { headerLine1: 'Order #42' });
     expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('%PDF');
+  });
+
+  it('renders Cyrillic materialName/partName via the embedded Cyrillic font (no throw, valid PDF, font referenced)', () => {
+    const bytes = renderPackingSlipPdfBytes([
+      makeRow({ materialName: 'ДСП 18', partName: 'Бічна стінка' }),
+    ]);
+    expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('%PDF');
+    const text = new TextDecoder('latin1').decode(bytes);
+    expect(text).toContain(`/BaseFont /${CYRILLIC_FONT_ID}`);
   });
 });

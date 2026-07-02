@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import type { NestState, NestSheet } from '@zilventor/shared';
 import type { MaterialEntry, MaterialRegistry } from '@zilventor/shared/src/material';
+import { installCyrillicFont } from '../vendor/pdfCyrillicFont';
 
 /** Returns raw PDF bytes (Uint8Array). Used by ExportNestPdfCommand. */
 export function renderNestPdfBytes(nest: NestState, materials: MaterialRegistry): Uint8Array {
@@ -20,6 +21,7 @@ function buildPdf(nest: NestState, materials: MaterialRegistry): jsPDF {
   }
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a3', orientation: 'landscape' });
+  installCyrillicFont(pdf);
   const totalsByMaterial = new Map<string, number>();
   nest.sheets.forEach((s) => totalsByMaterial.set(s.materialId, (totalsByMaterial.get(s.materialId) ?? 0) + 1));
 
