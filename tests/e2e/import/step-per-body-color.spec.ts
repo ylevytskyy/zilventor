@@ -93,18 +93,34 @@ test(
     expect(partState.partColorKind).toBe('hex');
     expect(EXPECTED_COLORS.has(partState.partColorHex!)).toBe(true);
 
-    // ── 4. Assert part-mode mesh material color = STEP color ─────────────────
+    // ── 4. Assert part-mode mesh geometry color = STEP color ─────────────────
+    // SceneManager.setMesh() builds a MeshStandardMaterial({vertexColors:true})
+    // when per-vertex colors are supplied (per-body STEP colors), so the
+    // material's own `.color` stays the THREE.js default (white) — the STEP
+    // color lives in the geometry's `color` BufferAttribute instead. Sample
+    // vertex 0 (the first solid in the compound enumeration, matching the
+    // store-side `partColorHex` check above) and invert the sRGB→linear
+    // conversion the Tessellator applies (see srgbToLinear in
+    // packages/kernel/src/occt/Tessellator.ts) to recover the original hex.
     // Wait for the mesh to be set (the activePart useEffect fires asynchronously).
-    // Poll until getCurrentMesh() returns a non-null mesh AND has a color.
+    // Poll until getCurrentMesh() returns a non-null mesh AND has a color attribute.
     const partMeshColor = await page.waitForFunction(
       () => {
         const w = window as any;
         // Use the store's viewport field → getSceneManager() → getCurrentMesh()
         const sm = w.__zilventorStore?.getState()?.viewport?.getSceneManager?.();
         const mesh = sm?.getCurrentMesh?.();
-        const mat = mesh?.material;
-        if (!mat || !('color' in mat)) return null;
-        const hex = '#' + mat.color.getHexString();
+        const colorAttr = mesh?.geometry?.getAttribute?.('color');
+        if (!colorAttr) return null;
+        const linearToSrgb = (v: number) =>
+          v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+        const toHexByte = (v: number) =>
+          Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
+        const hex =
+          '#' +
+          toHexByte(linearToSrgb(colorAttr.getX(0))) +
+          toHexByte(linearToSrgb(colorAttr.getY(0))) +
+          toHexByte(linearToSrgb(colorAttr.getZ(0)));
         // Exclude the default gray (part not yet colored)
         if (hex === '#c8c8c8') return null;
         return hex;
