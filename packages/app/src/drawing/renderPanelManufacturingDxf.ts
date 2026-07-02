@@ -1,7 +1,8 @@
 import { createDxfDocument, type DxfDocument, type XdataItem } from './dxfWriter';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 import { layoutCombinedGrid } from './layoutCombinedGrid';
-import type { PanelSpec, BoreOp, GrooveFeature, PanelEdgeKey } from '@zilventor/shared';
+import { buildTenonMortiseCutters } from '@zilventor/shared';
+import type { PanelSpec, BoreOp, GrooveFeature, TenonMortiseFeature, PanelEdgeKey } from '@zilventor/shared';
 
 /**
  * CAM metadata (R2.2) → DXF XDATA convention: a labeled key/value pair per
@@ -24,8 +25,16 @@ export type PanelManufacturingInput = {
   materialName: string;
   bores: BoreOp[];
   grooves: GrooveFeature[];
+  /** Absent (legacy fixtures/callers) is treated as empty, mirroring grooves' precedent
+   *  minus the required-field ripple — deliberate deviation, see manufacturingCsv.ts /
+   *  aggregatePanelManufacturing.ts (P6 W4 report: keeps PanelManufacturingInput
+   *  construction sites outside this slice's turf, e.g. ExportPanelManufacturingDxfCommand,
+   *  compiling unchanged). */
+  tenonMortises?: TenonMortiseFeature[];
   qty: number;
 };
+
+const VALID_FACE_ROLES = new Set(['Top', 'Bottom', 'Front', 'Back', 'Left', 'Right']);
 
 function boreLabel(b: BoreOp): string {
   return b.depth === 'throughAll' ? `O${b.diameter} THRU` : `O${b.diameter}x${b.depth}`;
@@ -115,6 +124,50 @@ function drawGrooves(doc: DxfDocument, grooves: GrooveFeature[], len: number, wi
   }
 }
 
+/**
+ * Exported so manufacturingCsv.ts reuses the same accept/reject + per-tab rect derivation
+ * as the DXF writer instead of duplicating it. Unlike grooveRect (Top/Bottom faces only),
+ * this handles all 6 PanelFaceRole values — generateTenonMortisePair (tenonMortiseMath.ts)
+ * can place either role on any face role depending on the inferred joint's orientation
+ * (e.g. a 'Left'+'Top' joint puts the tenon ON the Top face and the mortise ON the Left
+ * face), so restricting to Top/Bottom like grooveRect would silently drop real features.
+ *
+ * Reuses buildTenonMortiseCutters (the exact 3D-cutter math shared with the kernel) rather
+ * than re-deriving a per-face flattening table, so these 2D rects are provably consistent
+ * with the 3D boxes: every face's world (x,y) is just the panel-centered frame
+ * ([-len/2,len/2]x[-wid/2,wid/2]) shifted to the DXF's corner-origin frame ([0,len]x[0,wid]);
+ * world z is always dropped. `thickness` is passed as 0 because — verified against
+ * face2DFrame/faceExtents (packages/shared/src/bore.ts) — the thickness axis is always
+ * routed to world z for every face (uDir is (0,0,1) on Left/Right/Front/Back; Top/Bottom's
+ * u/v never reference thickness at all), so its magnitude never reaches x or y.
+ */
+export function tenonMortiseRects(
+  f: TenonMortiseFeature, len: number, wid: number,
+): Array<Array<{ x: number; y: number }>> | null {
+  if (!VALID_FACE_ROLES.has(f.faceRole)) return null;
+  const boxes = buildTenonMortiseCutters({ length: len, width: wid, thickness: 0 }, f);
+  if (boxes.length === 0) return null;
+  const hL = len / 2, hW = wid / 2;
+  return boxes.map(({ p1, p2 }) => {
+    const x0 = Math.min(p1.x, p2.x) + hL, x1 = Math.max(p1.x, p2.x) + hL;
+    const y0 = Math.min(p1.y, p2.y) + hW, y1 = Math.max(p1.y, p2.y) + hW;
+    return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  });
+}
+
+function drawTenonMortises(
+  doc: DxfDocument, features: TenonMortiseFeature[], len: number, wid: number, dx = 0, dy = 0,
+): void {
+  for (const f of features) {
+    const rects = tenonMortiseRects(f, len, wid);
+    if (!rects) continue;
+    const layer = f.presetLayerName ?? (f.role === 'tenon' ? L.tenons : L.mortises);
+    for (const r of rects) {
+      doc.lwpolyline(layer, r.map((p) => ({ x: p.x + dx, y: p.y + dy })), true, camXdata(f));
+    }
+  }
+}
+
 const EDGE_LINE: Record<PanelEdgeKey, (len: number, wid: number) => [number, number, number, number]> = {
   front:  (_len, wid) => [0, wid, _len, wid],
   back:   (len)       => [0, 0, len, 0],
@@ -154,6 +207,7 @@ export function renderPanelManufacturingDxf(input: PanelManufacturingInput): str
   drawOutline(doc, len, wid);
   drawBores(doc, input.bores, len, wid);
   drawGrooves(doc, input.grooves, len, wid);
+  drawTenonMortises(doc, input.tenonMortises ?? [], len, wid);
   drawEdgeBands(doc, input.spec, len, wid);
   drawGrain(doc, input.spec, len, wid);
   // L dimension (horizontal, below the panel)
@@ -173,6 +227,11 @@ function neededLayers(input: PanelManufacturingInput): string[] {
   }
   for (const g of input.grooves) {
     if (grooveRect(g, input.spec.length, input.spec.width)) layers.add(g.presetLayerName ?? L.grooves);
+  }
+  for (const f of input.tenonMortises ?? []) {
+    if (tenonMortiseRects(f, input.spec.length, input.spec.width)) {
+      layers.add(f.presetLayerName ?? (f.role === 'tenon' ? L.tenons : L.mortises));
+    }
   }
   if (Object.values(input.spec.edgeBands).some(Boolean)) layers.add(L.edgeband);
   if (input.spec.grain !== 'none') layers.add(L.grain);
@@ -200,6 +259,7 @@ export function renderCombinedManufacturingDxf(inputs: PanelManufacturingInput[]
     drawOutline(doc, len, wid, dx, dy);
     drawBores(doc, input.bores, len, wid, dx, dy);
     drawGrooves(doc, input.grooves, len, wid, dx, dy);
+    drawTenonMortises(doc, input.tenonMortises ?? [], len, wid, dx, dy);
     drawEdgeBands(doc, input.spec, len, wid, dx, dy);
     drawGrain(doc, input.spec, len, wid, dx, dy);
     drawDim(doc, L.dimensions, [0, -15], [len, -15], [0, -15], 0, `${len}`, dx, dy);

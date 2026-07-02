@@ -69,7 +69,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, GrooveFeature, TessellatedFace, ShelfPinParams, PanelPreflightDiagnostic } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature, TessellatedFace, ShelfPinParams, PanelPreflightDiagnostic } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -3334,6 +3334,8 @@ export default function App() {
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
   // M2.1: grooves per partPath; populated alongside partBoresCacheRef when the kernel loads a part doc.
   const partGroovesCacheRef = useRef<Map<string, GrooveFeature[]>>(new Map());
+  // P6 W4: tenon/mortise features per partPath; populated alongside partGroovesCacheRef.
+  const partTenonMortisesCacheRef = useRef<Map<string, TenonMortiseFeature[]>>(new Map());
   // T36: tessellated faces per partPath; populated in the assembly mesh-sync loop
   // alongside partBoresCacheRef. Used by the assembly face-pick handler to resolve
   // a triangleIndex (from raycastAssemblyRef) to a real FaceName via
@@ -3417,6 +3419,7 @@ export default function App() {
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
         partGroovesCacheRef.current.delete(partPath);
+        partTenonMortisesCacheRef.current.delete(partPath);
         partTessellatedFacesCacheRef.current.delete(partPath);
         loadedPartDocsRef.current.delete(partPath);
         const kernelClient = useAppStore.getState().kernel;
@@ -4460,6 +4463,7 @@ export default function App() {
         partTextureIdCacheRef.current.clear();
         partBoresCacheRef.current.clear();
         partGroovesCacheRef.current.clear();
+        partTenonMortisesCacheRef.current.clear();
         partTessellatedFacesCacheRef.current.clear();
         partTessellatedEdgesCacheRef.current.clear();
         loadedPartDocsRef.current.clear();
@@ -4541,6 +4545,11 @@ export default function App() {
               partGroovesCacheRef.current.set(
                 partPath,
                 partDoc.featureTree.filter((f): f is GrooveFeature => f.kind === 'groove'),
+              );
+              // P6 W4: persist tenon/mortise features for manufacturing DXF/CSV export.
+              partTenonMortisesCacheRef.current.set(
+                partPath,
+                partDoc.featureTree.filter((f): f is TenonMortiseFeature => f.kind === 'tenonMortise'),
               );
               // T36: persist tessellated faces so the assembly face-pick handler can resolve
               // a triangleIndex → FaceName via FacePickController.pickByTriangleIndex.
@@ -5397,6 +5406,7 @@ export default function App() {
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
       partGroovesCacheRef.current.delete(partPath);
+      partTenonMortisesCacheRef.current.delete(partPath);
       partTessellatedFacesCacheRef.current.delete(partPath);
       partTessellatedEdgesCacheRef.current.delete(partPath);
       loadedPartDocsRef.current.delete(partPath);
@@ -5426,7 +5436,7 @@ export default function App() {
   }, [invalidatePartPaths]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, partTenonMortisesCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

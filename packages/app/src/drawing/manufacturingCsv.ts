@@ -1,4 +1,4 @@
-import { boreToFlat, grooveRect, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
+import { boreToFlat, grooveRect, tenonMortiseRects, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 
 // Copied verbatim from buildBoringCsv.ts/buildBomCsv.ts (csvCell is local in each, not
@@ -53,6 +53,18 @@ export function buildManufacturingCsv(inputs: PanelManufacturingInput[]): string
         csvCell(g.presetLayerName ?? L.grooves),
         numCell(g.toolNumber),
         numCell(g.speed),
+      ].join(','));
+    }
+    for (const f of input.tenonMortises ?? []) {
+      if (!tenonMortiseRects(f, len, wid)) continue;
+      out.push([
+        csvCell(input.partName),
+        f.role,
+        '',
+        String(f.depth),
+        csvCell(f.presetLayerName ?? (f.role === 'tenon' ? L.tenons : L.mortises)),
+        numCell(f.toolNumber),
+        numCell(f.speed),
       ].join(','));
     }
   }
