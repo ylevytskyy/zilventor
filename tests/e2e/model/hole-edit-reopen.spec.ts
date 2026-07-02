@@ -56,7 +56,7 @@ test('double-click Hole node re-opens dialog with fields populated', async ({ pa
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'S2',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 10, cy: 10, r: 1 }],
       constraints: [],
     });

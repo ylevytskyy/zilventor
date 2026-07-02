@@ -42,7 +42,7 @@ test('sweep with arc path + rectangle profile produces curved molding', async ({
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PROF',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [
         { id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 2, y2: 0 },
         { id: 'L2', kind: 'line', x1: 2, y1: 0, x2: 2, y2: 1 },
@@ -56,7 +56,7 @@ test('sweep with arc path + rectangle profile produces curved molding', async ({
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PATH',
-      plane: 'XZ',
+      plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [
         { id: 'A1', kind: 'arc', cx: 0, cy: 5, r: 5, startAngle: -Math.PI / 2, endAngle: 0 },
       ],

@@ -40,14 +40,14 @@ test('double-click Sweep node re-opens dialog with fields populated', async ({ p
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PROF',
-      plane: 'XY',
+      plane: { source: 'workPlane', featureId: 'origin.XY' },
       primitives: [{ id: 'C1', kind: 'circle', cx: 0, cy: 0, r: 1 }],
       constraints: [],
     });
     await s.kernel.addFeature(s.activePart!.id, {
       kind: 'sketch',
       id: 'PATH',
-      plane: 'XZ',
+      plane: { source: 'workPlane', featureId: 'origin.XZ' },
       primitives: [{ id: 'L1', kind: 'line', x1: 0, y1: 0, x2: 0, y2: 10 }],
       constraints: [],
     });

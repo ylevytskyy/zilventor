@@ -95,7 +95,7 @@ test('T-6-30: center marks — real drilled hole → real arc edges → real cen
       await s0.kernel.addFeature(pid, {
         kind: 'sketch',
         id: 'sk-hole-T630',
-        plane: 'XY',
+        plane: { source: 'workPlane', featureId: 'origin.XY' },
         primitives: [{ id: 'c1-T630', kind: 'circle', cx: 20, cy: 20, r: 5 }],
         constraints: [],
       });
