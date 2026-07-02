@@ -1,5 +1,6 @@
 import type { OcctInstance } from './occtLoader';
 import { type OcctShape, computeBoundingBox } from './SolidOps';
+import { checkManifold } from './ManifoldCheck';
 import type { BoundingBox } from '@zilventor/shared';
 
 export type StepReadResult = {
@@ -11,6 +12,10 @@ export type StepReadResult = {
    *  TopExp_Explorer_2(shape, SOLID, SHAPE) enumeration. null when the solid
    *  carries no XCAF color. */
   solidColors: (string | null)[];
+  /** BRepCheck_Analyzer topology-only validity (D2) of the whole returned
+   *  compound. True when the shape is a valid, closed manifold — safe to
+   *  bore, nest, or export. */
+  isManifold: boolean;
 };
 
 /**
@@ -277,8 +282,9 @@ export function readStep(oc: OcctInstance, stepBytes: ArrayBuffer): StepReadResu
   if (typeof solidExp.delete === 'function') solidExp.delete();
 
   const boundingBox = computeBoundingBox(oc, wrapped);
+  const isManifold = checkManifold(oc, wrapped);
 
-  return { shape: wrapped, faceCount, solidCount, boundingBox, solidColors };
+  return { shape: wrapped, faceCount, solidCount, boundingBox, solidColors, isManifold };
 }
 
 /** Quantity_Color → #rrggbb.
@@ -300,6 +306,9 @@ export type ExtractedSolid = {
   shape: OcctShape;
   /** Per-body color as #rrggbb from the STEP XCAF data; undefined when none. */
   color?: string;
+  /** BRepCheck_Analyzer topology-only validity (D2) of this individual solid
+   *  (D7: computed per-solid, not inherited from the parent compound). */
+  isManifold: boolean;
 };
 
 export type SplitImportedShapeResult = {
@@ -385,7 +394,12 @@ export function splitImportedShapeHelper(
       const boundingBox = computeBoundingBox(oc, subShape);
       const brepBlobId = `imp-${crypto.randomUUID()}`;
       const color = solidColors?.[solidIndex] ?? undefined;
-      solids.push({ brepBlobId, boundingBox, shape: subShape, ...(color ? { color } : {}) });
+      // D7: check the individual solid's own shape (`handle`), not the fresh
+      // wrapper compound — BRepCheck_Analyzer reports on what's passed in, and
+      // the wrapper compound is always structurally fine even if its one
+      // contained solid isn't.
+      const isManifold = checkManifold(oc, { __brand: 'OcctShape' as const, handle });
+      solids.push({ brepBlobId, boundingBox, shape: subShape, isManifold, ...(color ? { color } : {}) });
       solidIndex++;
       solidExp.Next();
     }

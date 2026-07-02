@@ -142,6 +142,9 @@ export type KernelApi = {
      *  the first solid color without a separate splitImportedShape round-trip.
      *  The full array is also cached internally for splitImportedShape. */
     solidColors: (string | null)[];
+    /** BRepCheck_Analyzer topology-only validity (D2) of the whole imported
+     *  compound. True when the shape is a valid, closed manifold. */
+    isManifold: boolean;
   }>;
   /**
    * Splits a previously-imported compound (looked up by brepBlobId in
@@ -150,7 +153,7 @@ export type KernelApi = {
    * is not cached, or if the compound has zero geometry.
    */
   splitImportedShape(brepBlobId: string): Promise<{
-    solids: Array<{ brepBlobId: string; boundingBox: BoundingBox; color?: string }>;
+    solids: Array<{ brepBlobId: string; boundingBox: BoundingBox; color?: string; isManifold: boolean }>;
     surfaces: { brepBlobId: string; boundingBox: BoundingBox } | null;
   }>;
   /** Returns projection-ready triangles+edges+bbox for a part or assembly.
@@ -702,6 +705,7 @@ export function createKernelApi(): KernelApi {
         faceCount: result.faceCount,
         solidCount: result.solidCount,
         solidColors: result.solidColors,
+        isManifold: result.isManifold,
       };
     },
 
@@ -721,7 +725,12 @@ export function createKernelApi(): KernelApi {
       // The per-solid and surfaces blobs registered below are the new children.
       const solids = result.solids.map((s) => {
         registerImportedShape(s.brepBlobId, s.shape);
-        return { brepBlobId: s.brepBlobId, boundingBox: s.boundingBox, ...(s.color ? { color: s.color } : {}) };
+        return {
+          brepBlobId: s.brepBlobId,
+          boundingBox: s.boundingBox,
+          isManifold: s.isManifold,
+          ...(s.color ? { color: s.color } : {}),
+        };
       });
       let surfaces: { brepBlobId: string; boundingBox: BoundingBox } | null = null;
       if (result.surfaces) {

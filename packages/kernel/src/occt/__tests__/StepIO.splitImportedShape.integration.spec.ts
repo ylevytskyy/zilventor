@@ -132,6 +132,78 @@ describe('splitImportedShapeHelper (integration)', () => {
     }
   });
 
+  // D7: isManifold is computed per-solid (whichever shape ends up as
+  // ImportedFeature.bodyRef), not just at compound level — a compound mixing
+  // a watertight solid and a broken one must report per-solid flags, not one
+  // stale flag for the whole compound.
+  it('in-memory compound (watertight solid + open-shell solid) → per-solid isManifold flags (D7)', () => {
+    const ocAny = oc as {
+      BRepPrimAPI_MakeBox_2: new (x: number, y: number, z: number) => { Shape(): unknown; delete(): void };
+      TopAbs_ShapeEnum: { TopAbs_FACE: unknown; TopAbs_SHAPE: unknown };
+      TopExp_Explorer_2: new (s: unknown, t: unknown, a: unknown) => {
+        More(): boolean; Next(): void; Current(): unknown; delete?(): void;
+      };
+      BRepBuilderAPI_Sewing: new (tol: number, a: boolean, b: boolean, c: boolean, d: boolean) => {
+        Add(s: unknown): void; Perform(pr: unknown): void; SewedShape(): unknown; delete?(): void;
+      };
+      Message_ProgressRange_1: new () => unknown;
+      TopoDS: { Shell_1(s: unknown): unknown };
+      BRepBuilderAPI_MakeSolid_3: new (shell: unknown) => { Solid(): unknown; delete(): void };
+      BRep_Builder: new () => { MakeCompound(c: unknown): void; Add(c: unknown, s: unknown): void; delete(): void };
+      TopoDS_Compound: new () => unknown;
+    };
+
+    // Watertight box solid.
+    const goodMk = new ocAny.BRepPrimAPI_MakeBox_2(10, 10, 10);
+    const goodSolid = goodMk.Shape();
+    goodMk.delete();
+
+    // Broken solid: box with one face removed, sewn into an open shell, then
+    // wrapped as a TopoDS_Solid — mirrors ManifoldCheck.integration.spec.ts.
+    const badBoxMk = new ocAny.BRepPrimAPI_MakeBox_2(10, 10, 10);
+    const badBoxSolid = badBoxMk.Shape();
+    badBoxMk.delete();
+
+    const faces: unknown[] = [];
+    const faceExp = new ocAny.TopExp_Explorer_2(badBoxSolid, ocAny.TopAbs_ShapeEnum.TopAbs_FACE, ocAny.TopAbs_ShapeEnum.TopAbs_SHAPE);
+    while (faceExp.More()) { faces.push(faceExp.Current()); faceExp.Next(); }
+    faceExp.delete?.();
+
+    const sewing = new ocAny.BRepBuilderAPI_Sewing(1.0e-6, true, true, true, false);
+    for (let i = 0; i < faces.length - 1; i++) sewing.Add(faces[i]);
+    sewing.Perform(new ocAny.Message_ProgressRange_1());
+    const sewedShape = sewing.SewedShape();
+    sewing.delete?.();
+
+    const shellTyped = ocAny.TopoDS.Shell_1(sewedShape);
+    const mkSolid = new ocAny.BRepBuilderAPI_MakeSolid_3(shellTyped);
+    const badSolid = mkSolid.Solid();
+    mkSolid.delete();
+
+    // Compound: good solid + broken solid.
+    const builder = new ocAny.BRep_Builder();
+    const rawComp = new ocAny.TopoDS_Compound();
+    builder.MakeCompound(rawComp);
+    builder.Add(rawComp, goodSolid);
+    builder.Add(rawComp, badSolid);
+    builder.delete();
+
+    const compound: OcctShape = { __brand: 'OcctShape', handle: rawComp };
+    try {
+      const result = splitImportedShapeHelper(oc, compound);
+      try {
+        expect(result.solids.length).toBe(2);
+        const flags = result.solids.map((s) => s.isManifold).sort();
+        expect(flags).toEqual([false, true]);
+      } finally {
+        for (const s of result.solids) disposeShape(s.shape);
+        if (result.surfaces) disposeShape(result.surfaces.shape);
+      }
+    } finally {
+      disposeShape(compound);
+    }
+  });
+
   (hasPredator ? it : it.skip)(
     'REAL Predator → 8 solid blobs + 1 surfaces blob with wingspan bbox',
     () => {
