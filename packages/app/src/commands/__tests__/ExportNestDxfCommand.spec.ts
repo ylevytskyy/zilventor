@@ -16,11 +16,11 @@ const nest: NestState = {
   excluded: [],
   sheets: [
     { materialId: 'mdf18', sheetIndex: 1, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 80,
-      panels: [{ itemNumber: 1, rowKey: 'a', x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'none' }] },
+      panels: [{ itemNumber: 1, rowKey: 'a', instanceIndex: 1, x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'none' }] },
     { materialId: 'mdf18', sheetIndex: 2, sheetLengthMm: 2800, sheetWidthMm: 2070, utilizationPct: 50,
       panels: [
-        { itemNumber: 2, rowKey: 'b', x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'none' },
-        { itemNumber: 3, rowKey: 'c', x: 700, y: 0, length: 300, width: 600, rotated: true, grain: 'none' },
+        { itemNumber: 2, rowKey: 'b', instanceIndex: 1, x: 0, y: 0, length: 600, width: 300, rotated: false, grain: 'none' },
+        { itemNumber: 3, rowKey: 'c', instanceIndex: 1, x: 700, y: 0, length: 300, width: 600, rotated: true, grain: 'none' },
       ] },
   ],
 } as NestState;

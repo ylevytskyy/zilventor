@@ -7,6 +7,7 @@ interface FreeRect { x: number; y: number; w: number; h: number; }
 interface PanelInstance {
   itemNumber: number;
   rowKey: string;
+  instanceIndex: number;
   L: number;
   W: number;
   grain: GrainDirection;
@@ -32,7 +33,7 @@ export function packGuillotine(
     const rawL = r.length + (r.oversize?.lengthMm ?? 0);
     const rawW = r.width + (r.oversize?.widthMm ?? 0);
     for (let i = 0; i < r.qty; i++) {
-      panels.push({ itemNumber: r.itemNumber, rowKey: r.rowKey, L: rawL, W: rawW, grain: r.grain });
+      panels.push({ itemNumber: r.itemNumber, rowKey: r.rowKey, instanceIndex: i + 1, L: rawL, W: rawW, grain: r.grain });
     }
   }
 
@@ -74,7 +75,7 @@ export function packGuillotine(
         const placement = chooseOrientationAndRect(p, freeRects);
         if (!placement) continue;
         const { rectIdx, panelL, panelW, rotated, x, y } = placement;
-        placed.push({ itemNumber: p.itemNumber, rowKey: p.rowKey, x, y, length: panelL, width: panelW, rotated, grain: p.grain });
+        placed.push({ itemNumber: p.itemNumber, rowKey: p.rowKey, instanceIndex: p.instanceIndex, x, y, length: panelL, width: panelW, rotated, grain: p.grain });
         const parent = freeRects[rectIdx]!;
         const right: FreeRect = { x: x + panelL + kerfMm, y, w: parent.w - panelL - kerfMm, h: panelW };
         const bottom: FreeRect = { x, y: y + panelW + kerfMm, w: parent.w, h: parent.h - panelW - kerfMm };
@@ -90,6 +91,13 @@ export function packGuillotine(
     }
     const totalArea = placed.reduce((sum, p) => sum + p.length * p.width, 0);
     const utilizationPct = Math.round((totalArea / (sheetLengthMm * sheetWidthMm)) * 1000) / 10;
+    const remnantMinDimMm = 100;
+    const largestQualifyingFreeRect = freeRects
+      .filter((r) => r.w >= remnantMinDimMm && r.h >= remnantMinDimMm)
+      .reduce<FreeRect | null>((best, r) => {
+        if (!best || r.w * r.h > best.w * best.h) return r;
+        return best;
+      }, null);
     sheets.push({
       materialId,
       sheetIndex,
@@ -97,6 +105,9 @@ export function packGuillotine(
       sheetWidthMm,
       panels: placed,
       utilizationPct,
+      ...(largestQualifyingFreeRect
+        ? { remnant: { x: largestQualifyingFreeRect.x, y: largestQualifyingFreeRect.y, length: largestQualifyingFreeRect.w, width: largestQualifyingFreeRect.h } }
+        : {}),
     });
     sheetIndex++;
   }

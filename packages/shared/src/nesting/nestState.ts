@@ -4,12 +4,15 @@ import type { GrainDirection } from '../panel-feature';
 export interface PlacedPanel {
   readonly itemNumber: number;
   readonly rowKey: string;
+  readonly instanceIndex: number;
   readonly x: number;
   readonly y: number;
   readonly length: number;
   readonly width: number;
   readonly rotated: boolean;
   readonly grain: GrainDirection;
+  /** Cosmetic flip marker. Never set by the packer — only ever set later by the P7 editor. */
+  readonly mirrored?: boolean;
 }
 
 export interface NestSheet {
@@ -19,6 +22,10 @@ export interface NestSheet {
   readonly sheetWidthMm: number;
   readonly panels: readonly PlacedPanel[];
   readonly utilizationPct: number;
+  /** Largest leftover free rectangle on the sheet, if any (>= 100mm in both dimensions). */
+  readonly remnant?: { readonly x: number; readonly y: number; readonly length: number; readonly width: number };
+  /** Set only by the P7 edit command when a user manually repositions a panel. */
+  readonly manuallyEdited?: boolean;
 }
 
 export type NestExclusionReason = 'no-sheet-stock' | 'panel-exceeds-sheet';

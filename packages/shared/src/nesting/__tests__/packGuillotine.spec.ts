@@ -143,4 +143,65 @@ describe('packGuillotine', () => {
     expect(out.sheets).toHaveLength(1);
     expect(out.sheets[0]!.panels[0]!.rotated).toBe(false);
   });
+
+  it('assigns instanceIndex 1..qty regardless of post-sort placement order', () => {
+    // qty=2 row of the largest size in the mix — after the FFD stable sort these two
+    // instances land adjacent but sorted with other rows; instanceIndex must still
+    // reflect original expansion order (1, 2), not post-sort position.
+    const rows: NestInputRow[] = [
+      row({ rowKey: 'big', itemNumber: 1, qty: 2, length: 1200, width: 400 }),
+      row({ rowKey: 'small', itemNumber: 2, qty: 1, length: 200, width: 400 }),
+    ];
+    const out = packGuillotine(rows, 2440, 1220, 3, 'm1');
+    const bigPanels = out.sheets[0]!.panels.filter((p) => p.rowKey === 'big');
+    expect(bigPanels.map((p) => p.instanceIndex).sort()).toEqual([1, 2]);
+  });
+
+  it('omits mirrored on placed panels (packer never sets it)', () => {
+    const out = packGuillotine([row()], 2440, 1220, 3, 'm1');
+    expect('mirrored' in out.sheets[0]!.panels[0]!).toBe(false);
+  });
+
+  it('attaches remnant when leftover free rect is >= 100x100mm', () => {
+    // Sheet 1000x1000; one panel 500x500 leaves an L-shaped leftover whose largest
+    // free rect is well over 100x100.
+    const out = packGuillotine([row({ length: 500, width: 500, grain: 'length' })], 1000, 1000, 0, 'm1');
+    expect(out.sheets[0]!.remnant).toBeDefined();
+    expect(out.sheets[0]!.remnant!.length).toBeGreaterThanOrEqual(100);
+    expect(out.sheets[0]!.remnant!.width).toBeGreaterThanOrEqual(100);
+  });
+
+  it('omits remnant when the sheet is fully packed (no leftover >= 100x100)', () => {
+    // Sheet exactly matches panel size → no leftover free rect at all.
+    const out = packGuillotine([row({ length: 1000, width: 1000, grain: 'length' })], 1000, 1000, 0, 'm1');
+    expect('remnant' in out.sheets[0]!).toBe(false);
+  });
+
+  it('omits manuallyEdited on packer output (only ever set later by the editor)', () => {
+    const out = packGuillotine([row()], 2440, 1220, 3, 'm1');
+    expect('manuallyEdited' in out.sheets[0]!).toBe(false);
+  });
+
+  it('picks a qualifying >=100x100 rect over a larger-area disqualified sliver', () => {
+    // Sheet 5000x350, kerf=0. Two panels leave three leftover free rects:
+    //   - a 4000x40 sliver (area 160000, largest by raw area, but h=40 < 100 → disqualified)
+    //   - a 5000x10 sliver (area 50000, disqualified)
+    //   - a 100x300 rect (area 30000, smallest by area, but BOTH dims >= 100 → qualifies)
+    // The naive "largest area" rule would wrongly pick the 4000x40 sliver; the
+    // both-dims->=100 rule must pick the 100x300 rect instead.
+    const rows: NestInputRow[] = [
+      row({ rowKey: 'thin', itemNumber: 1, length: 1000, width: 40, grain: 'length' }),
+      row({ rowKey: 'big', itemNumber: 2, length: 4900, width: 300, grain: 'length' }),
+    ];
+    const out = packGuillotine(rows, 5000, 350, 0, 'm1');
+    expect(out.sheets).toHaveLength(1);
+    expect(out.sheets[0]!.remnant).toEqual({ x: 4900, y: 0, length: 100, width: 300 });
+  });
+
+  it('omits remnant when every leftover free rect fails the both-dims->=100 test', () => {
+    // Sheet 1000x1000; panel 950x950 leaves only a 50x950 sliver and a 1000x50
+    // sliver — both have one dimension < 100, so no rect qualifies.
+    const out = packGuillotine([row({ length: 950, width: 950, grain: 'length' })], 1000, 1000, 0, 'm1');
+    expect('remnant' in out.sheets[0]!).toBe(false);
+  });
 });

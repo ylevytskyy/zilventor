@@ -61,4 +61,13 @@ describe('packAllMaterials', () => {
     expect(out.sheets).toHaveLength(0);
     expect(out.excluded).toHaveLength(0);
   });
+
+  it('passes instanceIndex and remnant through from packGuillotine unchanged', () => {
+    // 500x500 panel on a 1000x1000 sheet leaves a >=100x100 leftover; qty=2 → instanceIndex 1,2.
+    const rows = [r({ materialId: 'm1', length: 500, width: 500, qty: 2 })];
+    const materials = [mat({ id: 'm1', sheetLengthMm: 1000, sheetWidthMm: 1000 })];
+    const out = packAllMaterials(rows, materials, 0);
+    expect(out.sheets[0]!.panels.map((p) => p.instanceIndex).sort()).toEqual([1, 2]);
+    expect(out.sheets[0]!.remnant).toBeDefined();
+  });
 });
