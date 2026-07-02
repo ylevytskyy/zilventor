@@ -832,6 +832,12 @@
       "colValue": "Value",
       "title": "Parameters"
     },
+    "preflight": {
+      "missingMaterial": "Panel \"{{name}}\" has no material assigned — cannot bore, nest, or export.",
+      "missingName": "Panel is missing a name — cannot bore, nest, or export.",
+      "notManifold": "Panel \"{{name}}\" geometry is not a valid closed solid — cannot bore, nest, or export.",
+      "splitRequired": "Panel \"{{name}}\" contains {{solidCount}} solids — split it into separate parts before boring, nesting, or exporting."
+    },
     "properties": {
       "distance": "Distance",
       "distanceAria": "Distance",

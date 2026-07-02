@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderPanelManufacturingDxf } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
 import type { BoreOp, GrooveFeature } from '@zilventor/shared';
+import { parseDxf } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
   itemNumber: 1,
@@ -110,5 +111,39 @@ describe('renderPanelManufacturingDxf — grooves/edgeband/grain', () => {
   it('draws a GRAIN arrow when grain is length', () => {
     const dxf = renderPanelManufacturingDxf(base); // grain 'length'
     expect(dxf).toContain('GRAIN');
+  });
+});
+
+// R4.3 (docs/abf-plugin/05-parity/03-processing-parity-requirements.md lines 73-90):
+// bores/curved features must be real CIRCLE/ARC entities, never LWPOLYLINE-approximated
+// circles. These tests parse the actual DXF output (instead of regexing raw text) to lock
+// that fidelity.
+describe('renderPanelManufacturingDxf — DXF fidelity (parse-based)', () => {
+  it('every BORES-* layer entity parses as a real CIRCLE, never an approximated polyline', () => {
+    const dxf = renderPanelManufacturingDxf({
+      ...base,
+      bores: [
+        bore('Top', 100, 50, 5, 12),
+        bore('Bottom', 100, 50, 8, 'throughAll'),
+        bore('Front', 9, 300, 5, 32),
+      ],
+    });
+    const parsed = parseDxf(dxf);
+    const boreEntities = parsed.entities.filter((e) => e.layer.startsWith('BORES-'));
+    expect(boreEntities.length).toBeGreaterThan(0);
+    expect(boreEntities.every((e) => e.type === 'CIRCLE')).toBe(true);
+  });
+
+  it('emits no closed LWPOLYLINE with more than 4 vertices anywhere (no polyline circles)', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9 };
+    const dxf = renderPanelManufacturingDxf({
+      ...base,
+      bores: [bore('Top', 100, 50, 5, 12)],
+      grooves: [groove],
+    });
+    const parsed = parseDxf(dxf);
+    const closedPolys = parsed.entities.filter((e) => e.type === 'LWPOLYLINE' && e.closed);
+    expect(closedPolys.every((e) => e.type === 'LWPOLYLINE' && e.vertices.length <= 4)).toBe(true);
   });
 });

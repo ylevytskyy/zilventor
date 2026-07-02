@@ -163,4 +163,23 @@ describe('aggregateCutListRecursive', () => {
       excluded: { componentCount: 0, partCount: 0 },
     });
   });
+
+  // R1: preflight diagnostics collected upstream (resolvePanelSpec/loadCutListInputs)
+  // are threaded through into CutListResult so the export commands can toast them.
+  it('threads a caller-supplied diagnostics list onto the result when non-empty', () => {
+    const a = asm('a', [cmp('c1', 'p/a.zipt')]);
+    const specs = new Map<string, PanelSpec | null>([['p/a.zipt', SPEC()]]);
+    const diagnostics = [
+      { partPath: 'p/ghost.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'Ghost' } },
+    ];
+    const result = aggregateCutListRecursive(a, cacheOf([]), specs, MAT, partInfoOf([]), diagnostics);
+    expect(result.diagnostics).toEqual(diagnostics);
+  });
+
+  it('omits diagnostics entirely when the caller passes none', () => {
+    const a = asm('a', [cmp('c1', 'p/a.zipt')]);
+    const specs = new Map<string, PanelSpec | null>([['p/a.zipt', SPEC()]]);
+    const result = aggregateCutListRecursive(a, cacheOf([]), specs, MAT, partInfoOf([]));
+    expect(result.diagnostics).toBeUndefined();
+  });
 });

@@ -16,3 +16,27 @@ describe('OpenNestingTabCommand', () => {
     expect(useAppStore.getState().cutListTabActive).toBe(false);
   });
 });
+
+// R1: a panel that failed the panelPreflight check must surface a user-facing
+// toast when the nesting tab is opened, not just a console.warn dropped upstream.
+// Mirrors ExportBoringDxfCommand / ExportPanelManufacturingDxfCommand.
+describe('OpenNestingTabCommand — R1 preflight diagnostics', () => {
+  it('shows a toast for each collected preflight diagnostic', async () => {
+    const toasts: string[] = [];
+    await new OpenNestingTabCommand({
+      diagnostics: [
+        { partPath: 'ghost.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'Ghost' } },
+      ],
+      showToast: (msg) => toasts.push(msg),
+    }).apply();
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatch(/Ghost/);
+    expect(toasts[0]).toMatch(/material/i);
+  });
+
+  it('shows no toast when there are no diagnostics', async () => {
+    const toasts: string[] = [];
+    await new OpenNestingTabCommand({ showToast: (msg) => toasts.push(msg) }).apply();
+    expect(toasts).toHaveLength(0);
+  });
+});

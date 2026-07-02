@@ -1,6 +1,7 @@
 import type { GrainDirection, PanelSpec, PanelEdgeKey } from './panel-feature';
 import type { MaterialId, MaterialRegistry } from './material';
 import type { ComponentInstance } from './types';
+import type { PanelPreflightDiagnostic } from './panel-preflight';
 
 export function normalizeLW(spec: PanelSpec): { L: number; W: number } {
   if (spec.grain !== 'none') return { L: spec.length, W: spec.width };
@@ -77,6 +78,9 @@ export type CutListResult = {
   rows: CutListRow[];
   bandTotals: EdgeBandTotal[];
   excluded: CutListExclusion;
+  /** R1 preflight diagnostics collected upstream (resolvePanelSpec) and threaded
+   *  through by the caller. Absent-not-empty: omitted when there are none. */
+  diagnostics?: PanelPreflightDiagnostic[];
 };
 
 type GroupAcc = {

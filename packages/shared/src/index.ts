@@ -10,6 +10,7 @@ export * from './partInfo';
 export * from './material';
 export * from './cutListRow';
 export * from './panel-feature';
+export * from './panel-preflight';
 export type { UvProjection } from './uv-projection';
 export { panelUvProjection } from './uv-projection';
 export * from './cabinets';

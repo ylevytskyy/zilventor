@@ -1,4 +1,5 @@
 import type { MaterialId } from '../material';
+import type { GrainDirection } from '../panel-feature';
 
 export interface PlacedPanel {
   readonly itemNumber: number;
@@ -8,6 +9,7 @@ export interface PlacedPanel {
   readonly length: number;
   readonly width: number;
   readonly rotated: boolean;
+  readonly grain: GrainDirection;
 }
 
 export interface NestSheet {

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import BrowserPane from '../BrowserPane';
-import type { PartDocument, AssemblyDocument } from '@zilventor/shared';
+import type { PartDocument, AssemblyDocument, PanelPreflightDiagnostic } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
+import { CutListCacheContext } from '../CutListCacheContext';
 
 describe('BrowserPane', () => {
   beforeEach(() => {
@@ -780,5 +781,37 @@ describe('BrowserPane Cut List tab (5d T20)', () => {
     render(<BrowserPane part={null} />);
     // Empty assembly → "No panels" placeholder rendered.
     expect(screen.getByText('No panels')).toBeInTheDocument();
+  });
+});
+
+// R1: production UI wiring — opening the Nesting tab must receive a live
+// showToast so cut-list preflight diagnostics surface as visible toasts.
+describe('BrowserPane — Nesting tab R1 preflight toast wiring (production UI)', () => {
+  const diagnostics: PanelPreflightDiagnostic[] = [
+    { partPath: 'parts/bad.zipt', reasonKey: 'panel.preflight.missingMaterial', params: { name: 'BadPanel' } },
+  ];
+
+  beforeEach(() => {
+    seedAssemblyMode();
+  });
+
+  it('clicking the Nesting tab shows a toast for a diagnostic sourced from the cut-list result', () => {
+    const toasts: string[] = [];
+    const ctxValue = {
+      panelSpecCacheRef: { current: new Map() },
+      partInfoCacheRef: { current: new Map() },
+      partBoresCacheRef: { current: new Map() },
+      partGroovesCacheRef: { current: new Map() },
+      diagnosticsCacheRef: { current: diagnostics },
+      warmCache: async () => {},
+      invalidatePartPaths: async () => {},
+    };
+    render(
+      <CutListCacheContext.Provider value={ctxValue as any}>
+        <BrowserPane part={null} showToast={(msg) => toasts.push(msg)} />
+      </CutListCacheContext.Provider>,
+    );
+    fireEvent.click(screen.getByLabelText('Nesting tab'));
+    expect(toasts.some((m) => /BadPanel/.test(m) && /material/i.test(m))).toBe(true);
   });
 });

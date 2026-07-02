@@ -44,7 +44,7 @@ import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { deriveCabinetDims } from '../../commands/cabinetDims';
 import { collectBoreDocsForClear } from '../../commands/clearBoresForAssembly';
 
-export default function FurnitureTab() {
+export default function FurnitureTab({ showToast }: { showToast?: ((message: string) => void) | undefined } = {}) {
   const { t } = useTranslation();
   const activePart = useAppStore((s) => s.activePart);
   const activeAssembly = useAppStore((s) => s.activeAssembly);
@@ -633,6 +633,7 @@ export default function FurnitureTab() {
             onClick={() => void new ExportBoringDxfCommand({
               result: boringResult,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-boring.dxf`,
+              showToast,
             }).apply()}>
             {t('ribbon.furniture.exportBoringDxf')}
           </button>
@@ -642,6 +643,8 @@ export default function FurnitureTab() {
             onClick={() => void new ExportPanelManufacturingDxfCommand({
               inputs: panelManufacturingInputs,
               suggestedName: `${activeAssembly?.name ?? 'assembly'}-manufacturing.zip`,
+              diagnostics: cutListResult.diagnostics,
+              showToast,
             }).apply()}>
             {t('ribbon.furniture.exportManufacturingDxf')}
           </button>

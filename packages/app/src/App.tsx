@@ -69,7 +69,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, GrooveFeature, TessellatedFace, ShelfPinParams } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TessellatedFace, ShelfPinParams, PanelPreflightDiagnostic } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -584,7 +584,8 @@ export default function App() {
         const leafPaths = a.components
           .filter((c) => !c.partPath.endsWith('.ziasm'))
           .map((c) => c.partPath);
-        await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
+        diagnosticsCacheRef.current = [];
+        await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current, diagnosticsCacheRef.current);
         // Force re-render by updating the document identity (no-op content change).
         s.setActiveDocument({ kind: 'assembly', document: { ...a } });
       };
@@ -3346,6 +3347,10 @@ export default function App() {
   const loadedPartDocsRef = useRef<Map<string, { bores?: BoreOp[]; suppressedConnectorIds?: string[]; shelfPinParams?: ShelfPinParams }>>(new Map());
   const partInfoCacheRef = useRef<Map<string, PartInfo>>(new Map());
   const panelSpecCacheRef = useRef<PanelSpecCache>(new Map());
+  // R1: preflight diagnostics collected by the last loadCutListInputs pass;
+  // threaded onto CutListResult (via useCutListResult) so cut-list/manufacturing
+  // /nesting toasts stay live in production.
+  const diagnosticsCacheRef = useRef<PanelPreflightDiagnostic[]>([]);
   // Bumped after each resolvePartInfo population pass so consumers re-render.
   const [partInfoVersion, setPartInfoVersion] = useState(0);
   // Bumped by the assembly mesh-sync effect AFTER it has finished populating
@@ -5366,7 +5371,8 @@ export default function App() {
         }
       }
     }
-    await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current);
+    diagnosticsCacheRef.current = [];
+    await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current, diagnosticsCacheRef.current);
     // Force useCutListResult to re-run by bumping the assembly identity (no-op content change).
     s.setActiveDocument({ kind: 'assembly', document: { ...a } });
   }, [panelSpecCacheRef]);
@@ -5414,7 +5420,7 @@ export default function App() {
   }, [invalidatePartPaths]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div
@@ -5447,12 +5453,12 @@ export default function App() {
           <div className="ml-auto px-3"><LanguageSwitcher /></div>
         </header>
         <div role="navigation" aria-label={t('aria.ribbon')} className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">
-          <Ribbon partInfo={partInfoSnapshot} onImportDxfIntoSketch={handleImportDxfIntoSketch} />
+          <Ribbon partInfo={partInfoSnapshot} onImportDxfIntoSketch={handleImportDxfIntoSketch} showToast={showToast} />
         </div>
         <aside role="complementary" aria-label={t('aria.browser')} className="bg-shell-panel border-r border-shell-border" id="region-browser">
           {activeDocKind === 'drawing'
             ? <DrawingTreePane />
-            : <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} />
+            : <BrowserPane part={activePart} sketchPicker={sweepPickerRef.current?.isActive() ? sweepPickerRef.current : null} partInfo={partInfoSnapshot} showToast={showToast} />
           }
         </aside>
         <main role="main" id="region-viewport" className="bg-shell" style={{ position: 'relative' }}>

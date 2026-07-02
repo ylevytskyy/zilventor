@@ -74,7 +74,7 @@ export function packGuillotine(
         const placement = chooseOrientationAndRect(p, freeRects);
         if (!placement) continue;
         const { rectIdx, panelL, panelW, rotated, x, y } = placement;
-        placed.push({ itemNumber: p.itemNumber, rowKey: p.rowKey, x, y, length: panelL, width: panelW, rotated });
+        placed.push({ itemNumber: p.itemNumber, rowKey: p.rowKey, x, y, length: panelL, width: panelW, rotated, grain: p.grain });
         const parent = freeRects[rectIdx]!;
         const right: FreeRect = { x: x + panelL + kerfMm, y, w: parent.w - panelL - kerfMm, h: panelW };
         const bottom: FreeRect = { x, y: y + panelW + kerfMm, w: parent.w, h: parent.h - panelW - kerfMm };

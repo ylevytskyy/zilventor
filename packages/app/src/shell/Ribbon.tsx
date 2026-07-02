@@ -19,9 +19,10 @@ const DRAWING_TABS  = ['File', 'Drawing',  'View'] as const;
 type Props = {
   partInfo?: Map<string, PartInfo>;
   onImportDxfIntoSketch?: ((file: File) => Promise<void>) | undefined;
+  showToast?: ((message: string) => void) | undefined;
 };
 
-export default function Ribbon({ partInfo, onImportDxfIntoSketch }: Props = {}) {
+export default function Ribbon({ partInfo, onImportDxfIntoSketch, showToast }: Props = {}) {
   const { t } = useTranslation();
   const kind = useAppStore((s) => s.activeDocument?.kind ?? 'part');
   const TABS: string[] =
@@ -33,7 +34,7 @@ export default function Ribbon({ partInfo, onImportDxfIntoSketch }: Props = {}) 
     File: <FileTab />,
     Model: <ModelTab />,
     Sketch: <SketchTab onImportDxfIntoSketch={onImportDxfIntoSketch} />,
-    Furniture: <FurnitureTab />,
+    Furniture: <FurnitureTab showToast={showToast} />,
     Inspect: <InspectTab />,
     Drawing: <DrawingTab />,
     View: <ViewTab />,
@@ -43,7 +44,7 @@ export default function Ribbon({ partInfo, onImportDxfIntoSketch }: Props = {}) 
     File: <FileTab />,
     Assembly: <AssemblyTab partInfo={partInfo ?? new Map()} />,
     Sketch: <SketchTab onImportDxfIntoSketch={onImportDxfIntoSketch} />,
-    Furniture: <FurnitureTab />,
+    Furniture: <FurnitureTab showToast={showToast} />,
     Inspect: <InspectTab />,
     Drawing: <DrawingTab />,
     View: <ViewTab />,

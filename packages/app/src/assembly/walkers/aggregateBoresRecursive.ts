@@ -1,5 +1,5 @@
-import type { AssemblyDocument, BoreOp, PartInfo } from '@zilventor/shared';
-import { pathKey } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, PartInfo, PanelPreflightDiagnostic } from '@zilventor/shared';
+import { pathKey, panelPreflight } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
 import type { PanelSpec } from '@zilventor/shared';
 
@@ -17,6 +17,8 @@ export interface BoringPanelGroup {
 
 export interface BoringAggregateResult {
   panels: BoringPanelGroup[];
+  /** Absent-not-empty: omitted when no panel failed preflight, never []. */
+  diagnostics?: PanelPreflightDiagnostic[];
 }
 
 export function aggregateBoresRecursive(
@@ -27,6 +29,7 @@ export function aggregateBoresRecursive(
   panelSpecs?: Map<string, PanelSpec | null>,
 ): BoringAggregateResult {
   const groups = new Map<string, BoringPanelGroup>();
+  const diagnostics: PanelPreflightDiagnostic[] = [];
 
   function walk(doc: AssemblyDocument, prefix: string[]): void {
     for (const c of doc.components) {
@@ -44,9 +47,21 @@ export function aggregateBoresRecursive(
         existing.componentPathKeys.push(pathKey(path));
       } else {
         const spec = panelSpecs?.get(c.partPath) ?? null;
+        const partName = partInfo.get(c.partPath)?.name;
+        // R1 preflight: a bored panel must resolve a name + material assignment
+        // before boring/export. Named diagnostic instead of a silent null/skip;
+        // the group is still returned (downstream null-field handling unchanged).
+        const preflight = panelPreflight({ name: partName, materialId: spec?.materialId, solidCount: 1 });
+        if (preflight.kind !== 'pass') {
+          console.warn(`panelPreflight ${preflight.kind} for ${c.partPath}: ${preflight.reasonKey}`);
+          const params = preflight.kind === 'split-required'
+            ? { name: partName, solidCount: preflight.solidCount }
+            : { name: partName };
+          diagnostics.push({ partPath: c.partPath, reasonKey: preflight.reasonKey, params });
+        }
         groups.set(c.partPath, {
           partPath: c.partPath,
-          partName: partInfo.get(c.partPath)?.name ?? '(missing part)',
+          partName: partName ?? '(missing part)',
           bores: [...bores],
           qty: 1,
           componentPathKeys: [pathKey(path)],
@@ -61,5 +76,5 @@ export function aggregateBoresRecursive(
 
   const panels = Array.from(groups.values());
   panels.sort((a, b) => a.partPath.localeCompare(b.partPath));
-  return { panels };
+  return diagnostics.length > 0 ? { panels, diagnostics } : { panels };
 }

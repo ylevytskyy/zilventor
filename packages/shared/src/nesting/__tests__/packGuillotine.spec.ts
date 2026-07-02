@@ -131,6 +131,11 @@ describe('packGuillotine', () => {
     expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1' }]);
   });
 
+  it('propagates the row grain onto each placed panel', () => {
+    const out = packGuillotine([row({ grain: 'width', length: 400, width: 600 })], 2440, 1220, 3, 'm1');
+    expect(out.sheets[0]!.panels[0]!.grain).toBe('width');
+  });
+
   it("grain='none' tie-break prefers rotated=false when scores are equal (square panel)", () => {
     // Square panel: rotation has no geometric effect (L=W), so both orientations
     // produce identical free-rect scores. Spec §3.1 requires rotated=false to win.

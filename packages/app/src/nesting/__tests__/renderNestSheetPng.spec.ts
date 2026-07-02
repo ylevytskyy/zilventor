@@ -62,7 +62,7 @@ describe('renderNestSheetPng', () => {
     sheetLengthMm: 2440,
     sheetWidthMm: 1220,
     utilizationPct: 50.0,
-    panels: [{ itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false }],
+    panels: [{ itemNumber: 1, rowKey: 'r1', x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' }],
   } as const;
   const materials = [
     {

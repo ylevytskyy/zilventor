@@ -13,7 +13,7 @@ const EMPTY_RESULT: CutListResult = {
 export function useCutListResult(): CutListResult {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const { panelSpecCacheRef, partInfoCacheRef } = useCutListCacheContext();
+  const { panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY_RESULT;
@@ -31,6 +31,7 @@ export function useCutListResult(): CutListResult {
       panelSpecCacheRef.current ?? new Map(),
       activeAssembly.materials ?? [],
       partInfoCacheRef.current ?? new Map(),
+      diagnosticsCacheRef.current ?? [],
     );
-  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef]);
+  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef]);
 }
