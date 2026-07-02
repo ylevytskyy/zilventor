@@ -4880,6 +4880,21 @@ export default function App() {
             setLastOpenDocument({ kind: 'assembly', opfsPath: asmPath });
           } else {
             if (!kernel) return;
+            // A fresh part with no solid-producing feature yet (only the
+            // seeded origin.* work features) has nothing to bake into a
+            // BRep. kernel.saveToBytes() re-runs executeTree() unconditionally
+            // and would throw "Feature tree produced no solid" — mirror the
+            // reactive re-execute effect's hasSolidFeature guard (above) so
+            // autosave skips (rather than fails) during this window. Without
+            // this guard, a stray autosave tick landing before the user's
+            // first feature leaves a phantom error in the status bar that is
+            // never cleared (the reactive effect only clears errors it set
+            // itself), surfacing after the first feature is added and rendered.
+            const hasSolidFeature = doc.document.featureTree.some((f) => f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'sweep' || f.kind === 'panel' || f.kind === 'imported');
+            if (!hasSolidFeature) {
+              useAppStore.getState().setSaveState('saved');
+              return;
+            }
             const bytes = await kernel.saveToBytes(doc.document.id, thumb);
             const ptPath = `${doc.document.name}.zipt`;
             await withOpfsLock(`opfs:${ptPath}`, () => opfs.write(ptPath, bytes));
