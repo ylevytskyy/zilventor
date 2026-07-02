@@ -7,7 +7,9 @@
       "minifix": "Стяжка Minifix",
       "shelfPin": "Полицетримач Ø5",
       "drawerSlide": "Напрямна ящика Ø5",
-      "handleScrew": "Гвинт ручки"
+      "handleScrew": "Гвинт ручки",
+      "tandem": "Напрямна TANDEM",
+      "legLeveler": "Гвинт ніжки"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Напрямна шухляди (сторона корпусу)",

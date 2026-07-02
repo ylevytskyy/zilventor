@@ -7,7 +7,9 @@
       "minifix": "Minifix cam fitting",
       "shelfPin": "Shelf pin Ø5",
       "drawerSlide": "Drawer slide Ø5",
-      "handleScrew": "Handle screw"
+      "handleScrew": "Handle screw",
+      "tandem": "Blum TANDEM slide",
+      "legLeveler": "Leg-leveler screw"
     },
     "boringRole": {
       "drawerSlide-cabinet": "Drawer slide (cabinet side)",
