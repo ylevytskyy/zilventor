@@ -46,7 +46,7 @@ test('T36 — Export CSV produces the expected CSV bytes', async ({ page }) => {
   await expect(page.locator('[data-testid=bom-table]')).toBeVisible();
   await expect.poll(async () => {
     return await page.evaluate(() => {
-      const cells = document.querySelectorAll('[data-testid=bom-table] tbody tr td:nth-child(3)');
+      const cells = document.querySelectorAll('[data-testid=bom-table] tbody tr td:nth-child(5)');
       return Array.from(cells).map((c) => (c.textContent ?? '').trim());
     });
   }, { timeout: 10_000 }).toEqual(['cube', 'cube']);
@@ -68,8 +68,8 @@ test('T36 — Export CSV produces the expected CSV bytes', async ({ page }) => {
     return new TextDecoder().decode(bytes);
   });
   expect(csv).not.toBeNull();
-  expect(csv).toContain('Item#,QTY,Part Name,Color,Part Path\n');
+  expect(csv).toContain('Item#,Part #,Description,QTY,Part Name,Color,Part Path\n');
   // Two rows: no-color QTY 2, Maple QTY 1, both cube.
-  expect(csv).toMatch(/\n\d+,2,cube,,parts\/cube\.zipt\n/);
-  expect(csv).toMatch(/\n\d+,1,cube,Maple,parts\/cube\.zipt\n/);
+  expect(csv).toMatch(/\n\d+,,,2,cube,,parts\/cube\.zipt\n/);
+  expect(csv).toMatch(/\n\d+,,,1,cube,Maple,parts\/cube\.zipt\n/);
 });

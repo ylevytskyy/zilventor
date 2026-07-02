@@ -21,6 +21,7 @@ test('place a component in an assembly', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: /place component/i })).toBeVisible();
   await page.getByText(/^cube$/).click();
   await page.getByRole('button', { name: /^place$/i }).click();
+  await expect(page.getByRole('dialog', { name: /place component/i })).toBeHidden();
 
   const count = await page.evaluate(() => {
     const w = window as any;

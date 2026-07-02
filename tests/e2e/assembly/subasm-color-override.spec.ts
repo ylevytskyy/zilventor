@@ -89,7 +89,7 @@ test('T40 — sub-asm color override + placement tint', async ({ page }) => {
   const bomTable = page.locator('[data-testid=bom-table]');
   await expect(bomTable).toBeVisible();
   await expect.poll(async () => bomTable.locator('tbody tr').count(), { timeout: 5_000 }).toBe(1);
-  await expect(bomTable.locator('tbody tr').first().locator('td').nth(1)).toHaveText('2');
+  await expect(bomTable.locator('tbody tr').first().locator('td').nth(3)).toHaveText('2');
 
   // Override panelA → walnut. BOM splits: 1 oak, 1 walnut.
   await page.evaluate((drawerId) => {

@@ -39,7 +39,7 @@ test('import STEP into assembly via File → Open: component appears and persist
   );
 
   expect(summary.componentCount).toBe(1);
-  expect(summary.statusMessage).toContain('inserted into assembly');
+  expect(summary.statusMessage).toContain('Imported');
 
   // 3. Assembly mesh tessellation (proves real BREP path)
   await expect.poll(async () => {
@@ -50,7 +50,7 @@ test('import STEP into assembly via File → Open: component appears and persist
   }, { timeout: 20_000 }).toBeGreaterThan(0);
 
   // 4. Status bar visible
-  await expect(page.getByText(/inserted into assembly/i)).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(/imported/i)).toBeVisible({ timeout: 5_000 });
 
   // 5. Wait for autosave to write the assembly to OPFS, then reload
   await waitForAutosave(page);

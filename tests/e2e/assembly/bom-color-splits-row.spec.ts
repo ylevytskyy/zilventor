@@ -51,11 +51,11 @@ test('T33 — BOM splits identical parts by color and persists item numbers', as
   const rows = bomTable.locator('tbody tr');
   await expect(rows).toHaveCount(2);
 
-  // Find the two rows by their Color cell content.
-  const noColorRow = rows.filter({ has: page.locator('td:nth-child(4):text("—")') }).first();
-  const mapleRow = rows.filter({ has: page.locator('td:nth-child(4):text("Maple")') }).first();
-  await expect(noColorRow.locator('td').nth(1)).toHaveText('2');
-  await expect(mapleRow.locator('td').nth(1)).toHaveText('2');
+  // Find the two rows by their Color cell content (col 5, 0-indexed).
+  const noColorRow = rows.filter({ has: page.locator('td:nth-child(6):text("—")') }).first();
+  const mapleRow = rows.filter({ has: page.locator('td:nth-child(6):text("Maple")') }).first();
+  await expect(noColorRow.locator('td').nth(3)).toHaveText('2');
+  await expect(mapleRow.locator('td').nth(3)).toHaveText('2');
 
   // Wait for autosave to write the .ziasm.
   const autosavedName = await page.evaluate(() => {

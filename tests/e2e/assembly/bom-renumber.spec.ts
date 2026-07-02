@@ -61,7 +61,7 @@ test('T34 — Item# inline-edit bumps colliding row; Renumber resequences', asyn
   // "(missing part)" until resolvePartName completes).
   await expect.poll(async () => {
     return await page.evaluate(() => {
-      const cells = document.querySelectorAll('[data-testid=bom-table] tbody tr td:nth-child(3)');
+      const cells = document.querySelectorAll('[data-testid=bom-table] tbody tr td:nth-child(5)');
       return Array.from(cells).map((c) => (c.textContent ?? '').trim()).sort();
     });
   }, { timeout: 10_000 }).toEqual(['cube', 'cylinder']);

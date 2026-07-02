@@ -63,6 +63,6 @@ test('T32 — BOM aggregates same-part components into one row', async ({ page }
   const cells = rows.first().locator('td');
   // Item# (col 0)
   await expect(cells.nth(0)).toHaveText('1');
-  // QTY (col 1)
-  await expect(cells.nth(1)).toHaveText('3');
+  // QTY (col 3 — Part# and Description columns were inserted after Item# in T22)
+  await expect(cells.nth(3)).toHaveText('3');
 });
