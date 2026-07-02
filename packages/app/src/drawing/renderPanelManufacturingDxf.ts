@@ -31,7 +31,8 @@ function boreLabel(b: BoreOp): string {
   return b.depth === 'throughAll' ? `O${b.diameter} THRU` : `O${b.diameter}x${b.depth}`;
 }
 
-function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y: number; layer: string } | null {
+/** Exported so manufacturingCsv.ts reuses the same default-layer derivation as the DXF writer instead of duplicating it. */
+export function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y: number; layer: string } | null {
   switch (b.face.role) {
     case 'Top':    return { x: b.u, y: b.v, layer: L.boresFront(b.diameter) };
     case 'Bottom': return { x: b.u, y: wid - b.v, layer: L.boresBack(b.diameter) };
@@ -89,7 +90,8 @@ function drawDim(
   });
 }
 
-function grooveRect(
+/** Exported so manufacturingCsv.ts reuses the same accept/reject rule as the DXF writer instead of duplicating it. */
+export function grooveRect(
   g: GrooveFeature, len: number, wid: number,
 ): Array<{ x: number; y: number }> | null {
   if (g.faceRole !== 'Top' && g.faceRole !== 'Bottom') return null;

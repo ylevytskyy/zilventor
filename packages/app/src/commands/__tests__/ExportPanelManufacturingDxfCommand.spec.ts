@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { unzipSync, strFromU8 } from 'fflate';
 import { buildManufacturingZipEntries, buildCombinedManufacturingDxf, ExportPanelManufacturingDxfCommand } from '../ExportPanelManufacturingDxfCommand';
 import type { PanelManufacturingInput } from '../../drawing/renderPanelManufacturingDxf';
+import type { BoreOp } from '@zilventor/shared';
 
 // jsdom doesn't implement URL.createObjectURL — stub it for the fallback path.
 Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:stub'), writable: true });
@@ -181,5 +183,53 @@ describe('ExportPanelManufacturingDxfCommand — mode:combined', () => {
     }
     const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes;
     expect(bytes?.constructor?.name).toBe('Uint8Array');
+  });
+});
+
+// W7 (docs/superpowers/plans/2026-07-02-p3-machining-presets-cam-metadata.md, D2/S1):
+// machining sidecar CSV ships in the folders/zip export only, at the ZIP ROOT (not inside a
+// material folder) — combined single-DXF mode must stay byte-for-byte unaffected.
+function boreWithCam(faceRole: string, role: string): BoreOp {
+  const face: BoreOp['face'] = { featureId: 'panel', role: faceRole, instance: 0 };
+  return { id: 'b1', face, u: 100, v: 50, diameter: 5, depth: 12, role, connectorId: 'c1',
+    connectorKind: 'confirmat', toolNumber: 3, speed: 12000 } as unknown as BoreOp;
+}
+
+describe('ExportPanelManufacturingDxfCommand — W7 machining.csv sidecar', () => {
+  it('mode:folders zip contains machining.csv at the ZIP ROOT with a parseable header + bore row', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [boreWithCam('Top', 'confirmat-face')] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({ inputs: [withBore], suggestedName: 'assembly-manufacturing.zip' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const zip = unzipSync(bytes);
+    expect(Object.keys(zip)).toContain('machining.csv');
+    // ZIP ROOT: no "/" in the key — unlike the per-material DXF entries.
+    expect(Object.keys(zip).filter((k) => k.endsWith('.csv'))).toEqual(['machining.csv']);
+    const csv = strFromU8(zip['machining.csv']!);
+    expect(csv.split('\n')[0]).toBe('partName,opType,diameter,depth,layer,toolNumber,speed');
+    expect(csv).toContain('Side,confirmat-face,5,12,BORES-FRONT-5MM,3,12000');
+    // DXF entries are still present alongside the CSV.
+    expect(Object.keys(zip)).toContain('White_18/item-1-Side.dxf');
+  });
+
+  it('mode:combined output is byte-for-byte unaffected — no CSV, identical to buildCombinedManufacturingDxf', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [boreWithCam('Top', 'confirmat-face')] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({ inputs: [withBore], suggestedName: 'assembly-manufacturing.zip', mode: 'combined' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const text = new TextDecoder().decode(bytes);
+    expect(text).toBe(buildCombinedManufacturingDxf([withBore]));
+    expect(text).not.toContain('machining.csv');
+    expect(text).not.toContain('partName,opType,diameter,depth,layer,toolNumber,speed');
   });
 });
