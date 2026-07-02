@@ -41,6 +41,16 @@ export interface BoreOp {
    *  Absent on hinge/shelf-pin bores and on legacy carcass bores.
    *  Absent-not-zero contract (exactOptionalPropertyTypes). */
   jointDir?: { x: number; y: number; z: number };
+  /** CAM tool-table index, set by ApplyMachiningPresetCommand from a MachiningPreset.
+   *  Absent-not-zero contract (exactOptionalPropertyTypes). */
+  toolNumber?: number;
+  /** CAM spindle speed (RPM), set by ApplyMachiningPresetCommand from a MachiningPreset.
+   *  Absent-not-zero contract (exactOptionalPropertyTypes). */
+  speed?: number;
+  /** DXF layer name override, set by ApplyMachiningPresetCommand from a MachiningPreset.layerName.
+   *  Falls back to the existing MANUFACTURING_LAYERS scheme when absent.
+   *  Absent-not-set contract (exactOptionalPropertyTypes). */
+  presetLayerName?: string;
 }
 
 type Vec3 = { x: number; y: number; z: number };

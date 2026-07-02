@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 34 as const;
+export const CURRENT_FORMAT_VERSION = 35 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -440,6 +440,13 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 34 };
   },
+  // v34 → v35: P3 W1 — machining presets / CAM metadata. Additive: introduces optional
+  // BoreOp.toolNumber/speed/presetLayerName and GrooveSpec.toolNumber/speed/presetLayerName
+  // fields. No existing document needs mutation; bump pins the schema.
+  34: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 35 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -453,7 +460,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 27 || m.formatVersion === 28 ||
      m.formatVersion === 29 || m.formatVersion === 30 ||
      m.formatVersion === 31 || m.formatVersion === 32 ||
-     m.formatVersion === 33 || m.formatVersion === 34) &&
+     m.formatVersion === 33 || m.formatVersion === 34 || m.formatVersion === 35) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
