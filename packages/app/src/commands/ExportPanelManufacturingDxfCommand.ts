@@ -16,12 +16,26 @@ function sanitize(name: string): string {
   return name.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+// R4.1(a): CNC zip entries are grouped into per-material subfolders — a key
+// containing "/" is treated as a folder by fflate.zipSync (dxfZip.ts). If the
+// material name sanitizes to an empty string (only happens when materialName
+// itself is empty — sanitize() substitutes disallowed characters rather than
+// stripping them), fall back to the sanitized materialId, then to a fixed
+// "material" folder so an entry never lands keyless at the zip root.
+function materialFolder(materialName: string, materialId: string | undefined): string {
+  const byName = sanitize(materialName);
+  if (byName) return byName;
+  const byId = materialId ? sanitize(materialId) : '';
+  return byId || 'material';
+}
+
 export function buildManufacturingZipEntries(
   inputs: PanelManufacturingInput[],
 ): Record<string, string> {
   const entries: Record<string, string> = {};
   for (const input of inputs) {
-    entries[`item-${input.itemNumber}-${sanitize(input.partName)}.dxf`] =
+    const folder = materialFolder(input.materialName, input.spec?.materialId);
+    entries[`${folder}/item-${input.itemNumber}-${sanitize(input.partName)}.dxf`] =
       renderPanelManufacturingDxf(input);
   }
   return entries;

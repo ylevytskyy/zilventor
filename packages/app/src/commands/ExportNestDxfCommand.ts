@@ -7,6 +7,19 @@ function sanitize(name: string): string {
   return name.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+// R4.1(a): CNC zip entries are grouped into per-material subfolders — a key
+// containing "/" is treated as a folder by fflate.zipSync (dxfZip.ts). If the
+// resolved material name sanitizes to an empty string (only happens when the
+// name itself is empty — sanitize() substitutes disallowed characters rather
+// than stripping them), fall back to the sanitized materialId, then to a
+// fixed "material" folder so an entry never lands keyless at the zip root.
+function materialFolder(materialName: string, materialId: string): string {
+  const byName = sanitize(materialName);
+  if (byName) return byName;
+  const byId = sanitize(materialId);
+  return byId || 'material';
+}
+
 export function buildNestZipEntries(
   nest: NestState,
   materials: MaterialRegistry,
@@ -15,7 +28,8 @@ export function buildNestZipEntries(
   for (const sheet of nest.sheets) {
     const materialName = materials.find((m) => m.id === sheet.materialId)?.name ?? sheet.materialId;
     const sheetCount = nest.sheets.filter((s) => s.materialId === sheet.materialId).length;
-    entries[`${sanitize(sheet.materialId)}-sheet-${sheet.sheetIndex}.dxf`] =
+    const folder = materialFolder(materialName, sheet.materialId);
+    entries[`${folder}/${sanitize(sheet.materialId)}-sheet-${sheet.sheetIndex}.dxf`] =
       renderNestSheetDxf(sheet, { sheetCount, materialName });
   }
   return entries;
