@@ -100,17 +100,23 @@ function makeBores(
   const otherBoardT = side === 'A'
     ? (j.boardThicknessB ?? j.panelB.dims.thickness)
     : (j.boardThicknessA ?? j.panelA.dims.thickness);
-  // For the B end face, determine whether the face frame puts uDir along Z (thickness axis).
+  // Determine whether THIS side's own face puts uDir along Z (thickness axis) —
+  // faceA (side==='A') and endB (side==='B') are independent PanelFaceRoles, so
+  // each side must consult its own face, not always endB (that was the bug: A-side
+  // bores on an edge-shaped faceA — e.g. a side panel's Left/Right face — never
+  // swapped, so `dist` (along-joint, up to the joint length) landed in `u`, whose
+  // range is capped at the board thickness by faceExtents — the origin fell outside
+  // the solid and the bore silently cut nothing).
   // If so, the bore's u = thickness-centerline coord and v = along-joint spacing.
-  const bSwapUV = side === 'B' && endFaceUsesZforU(j.endB);
+  const swapUV = side === 'B' ? endFaceUsesZforU(j.endB) : endFaceUsesZforU(j.faceA);
   dists.forEach((dist, i) => {
     const cid = `${kind}-${i}`;
     if (i === 0 || ids[ids.length - 1] !== cid) ids.push(cid);
     const cross = crossCoord(otherBoardT);
-    // For B side on Left/Right/Front/Back faces: u=cross (thickness-center), v=dist (along-joint).
-    // For A side and B side on Top/Bottom faces: u=dist (along-joint), v=cross.
-    const boreU = bSwapUV ? cross : dist;
-    const boreV = bSwapUV ? dist : cross;
+    // On Left/Right/Front/Back faces (this side's own face): u=cross (thickness-center),
+    // v=dist (along-joint). On Top/Bottom faces: u=dist (along-joint), v=cross.
+    const boreU = swapUV ? cross : dist;
+    const boreV = swapUV ? dist : cross;
     for (const s of specs(cid)) {
       const boreBase: BoreOp = {
         id: `${cid}-${side}-${bores.length}`,

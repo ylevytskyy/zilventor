@@ -5,6 +5,7 @@ import {
   generateConfirmat, generateMinifix, generateDowel,
   CURRENT_FORMAT_VERSION,
   mergeBores,
+  syntheticSideBoreToReal,
 } from '@zilventor/shared';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -170,17 +171,27 @@ export class GenerateCarcassBoresCommand implements Command {
           boardThicknessB: eB.boardThickness,
         };
 
+        // enumerateAutoJoints always forces panelA = the side panel (leftSide/rightSide),
+        // whose dims were L<->T-swapped above for worldAABB inference. Its bores therefore
+        // come back with face.role 'Left'/'Right' in that SYNTHETIC frame, which must be
+        // remapped to the panel's REAL PartDocument frame ('Top'/'Bottom') before persisting
+        // — see syntheticSideBoreToReal's derivation comment. panelB (bottom/top/shelf) was
+        // never swapped, so boresB need no remap.
+        const isSideA = joint.panelA.role === 'leftSide' || joint.panelA.role === 'rightSide';
+        const remapA = (bores: BoreOp[]): BoreOp[] =>
+          isSideA ? bores.map(syntheticSideBoreToReal) : bores;
+
         if (this.opts.params.confirmat) {
           const { boresA, boresB } = generateConfirmat(ji, this.opts.params);
-          appendBores(aPath, boresA); appendBores(bPath, boresB);
+          appendBores(aPath, remapA(boresA)); appendBores(bPath, boresB);
         }
         if (this.opts.params.minifix) {
           const { boresA, boresB } = generateMinifix(ji, this.opts.params);
-          appendBores(aPath, boresA); appendBores(bPath, boresB);
+          appendBores(aPath, remapA(boresA)); appendBores(bPath, boresB);
         }
         if (this.opts.params.dowel) {
           const { boresA, boresB } = generateDowel(ji, this.opts.params);
-          appendBores(aPath, boresA); appendBores(bPath, boresB);
+          appendBores(aPath, remapA(boresA)); appendBores(bPath, boresB);
         }
       }
     };

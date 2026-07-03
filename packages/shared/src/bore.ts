@@ -95,6 +95,40 @@ export function faceExtents(
   }
 }
 
+/**
+ * Remap a BoreOp computed against a side panel's SYNTHETIC (length<->thickness-swapped)
+ * `dims` — the frame GenerateCarcassBoresCommand feeds jointMath for leftSide/rightSide
+ * panels so worldAABB can infer joints correctly (see that command's dims-swap comment) —
+ * into the panel's REAL, unswapped PartDocument frame that HoleFeature bakes against.
+ *
+ * Only `'Left'`/`'Right'` roles are affected: those are the side panel's two large flat
+ * faces in the SYNTHETIC frame (face2DFrame's uDir/vDir there put the normal along the
+ * swapped-length axis, which numerically IS the panel's real thickness axis), but in the
+ * REAL frame the flat faces normal to the (real, unswapped) thickness axis are named
+ * `'Top'`/`'Bottom'`. Any other role is returned unchanged (B-side/end-panel bores are
+ * never swapped, so they never carry 'Left'/'Right' from this source).
+ *
+ * Geometric derivation (verified by direct corner-mapping, not guesswork): let
+ * Ts = the real board thickness (= the synthetic frame's `length`) and Lr = the real
+ * panel length (= the synthetic frame's `thickness`). The synthetic box
+ * [-Ts/2,Ts/2]x[-W/2,W/2]x[0,Lr] and the real box [-Lr/2,Lr/2]x[-W/2,W/2]x[0,Ts] describe
+ * the SAME physical solid under the proper (det=+1) rotation
+ *   real_x = synthetic_z - Lr/2,  real_y = -synthetic_y,  real_z = synthetic_x + Ts/2.
+ * Applying this to face2DFrame's synthetic-'Right' point (hL_syn, hW-v, u) yields exactly
+ * face2DFrame(realDims,'Top')'s point (-hL+u, -hW+v, T) with u,v UNCHANGED — likewise
+ * synthetic-'Left' <-> real-'Bottom'. So the role renames 1:1 and u/v carry over verbatim:
+ * `u` (the small `crossCoord` value) already parametrizes the length/height axis in both
+ * frames' u-slot; `v` (the along-joint spacing) already parametrizes the width axis in
+ * both frames' v-slot. This also matches the outward-normal sign: synthetic-'Right'
+ * normal (+X, local) maps through the same rotation to (0,0,+1) = real-'Top's normal;
+ * synthetic-'Left' (-X) maps to (0,0,-1) = real-'Bottom's normal.
+ */
+export function syntheticSideBoreToReal(bore: BoreOp): BoreOp {
+  if (bore.face.role === 'Right') return { ...bore, face: { ...bore.face, role: 'Top' } };
+  if (bore.face.role === 'Left') return { ...bore, face: { ...bore.face, role: 'Bottom' } };
+  return bore;
+}
+
 export function face2DFrame(
   panelDims: { length: number; width: number; thickness: number },
   faceName: PanelFaceRole,

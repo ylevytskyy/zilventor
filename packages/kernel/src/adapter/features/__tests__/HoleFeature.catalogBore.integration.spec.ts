@@ -175,18 +175,23 @@ describe('catalog-driven confirmat-edge bore — real OCCT volume drop (integrat
 
   it('OCCT: face-drilled bore on side panel (A-side) also cuts real void', () => {
     const { boresA } = generateConfirmat(realCabinetJoint(), BORING_PARAMS);
-    // boresA are on the side panel face (through-all). We test depth on a synthetic panel
-    // with the swapped side dims.
-    // Instead test catalog counts and roles are correct:
     expect(boresA.length).toBe(3);
     for (const b of boresA) {
       expect(b.role).toBe('confirmat-face');
       expect(b.depth).toBe('throughAll');
       expect(b.diameter).toBe(7);
-      // A-side: u = spacing ∈{60,277,494} (along joint = Z-height of side), v ≈ 9 (bottom T/2)
-      const expectedUs = [60, 277, 494];
-      expect(expectedUs.some((eu) => Math.abs(b.u - eu) < 1)).toBe(true);
-      expect(b.v).toBeCloseTo(9, 1);
+      // fix/bore-aside-swapuv: faceA='Right' is an edge-shaped face
+      // (endFaceUsesZforU('Right')=true, uDir=+Z there per face2DFrame), so makeBores
+      // now swaps u/v for side A too (each side consults its OWN face, not always endB).
+      // u = crossCoord(boardThicknessB=18) = 9 (constant thickness-centerline);
+      // v = along-joint spacing ∈ {60,277,494}.
+      // (Pre-fix this was reversed — u∈{60,277,494}, v≈9 — which put the drill origin
+      // outside the panel's uLen=18 bound; see HoleFeature.catalogBore.sideFaceA
+      // .integration.spec.ts for the real-OCCT bake proving this analytically-checked
+      // shape actually cuts material — plus a documented residual, separate bug.)
+      expect(b.u).toBeCloseTo(9, 1);
+      const expectedVs = [60, 277, 494];
+      expect(expectedVs.some((ev) => Math.abs(b.v - ev) < 1)).toBe(true);
     }
   });
 });

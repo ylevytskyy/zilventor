@@ -163,18 +163,52 @@ describe('GenerateCarcassBoresCommand — auto', () => {
     const lBores = await boresOf(opfs, 'L.zipt');
     expect(lBores.length).toBeGreaterThanOrEqual(6);
 
-    // Verify leftSide bore u-values come from the correct joint geometry.
+    // Verify leftSide bore u/v-values come from the correct joint geometry.
     // Left↔bottom joint: length=554mm, endSetback=60, maxSpacing=250:
     //   usable=434, count=max(2,ceil(434/250)+1)=max(2,3)=3, step=217
-    //   u=[60, 60+217=277, 277+217=494], v=T_bottom/2=9.
-    // Left↔top joint: same length and params → same u and v.
-    // So leftSide has 3+3=6 bores total. Each bore must have u∈{60,277,494} and v=9.
-    const expectedUs = [60, 277, 494];
+    //   spacing=[60, 60+217=277, 277+217=494], cross=T_bottom/2=9.
+    // Left↔top joint: same length and params → same spacing and cross.
+    // faceA for leftSide is 'Right' (an edge-shaped face — endFaceUsesZforU('Right')=true,
+    // uDir=+Z there per face2DFrame), so fix/bore-aside-swapuv's per-side swapUV applies to
+    // side A too: the along-joint spacing lands on v, and u is the constant thickness-
+    // centerline coordinate (cross=9). Pre-fix this was reversed (u∈{60,277,494}, v=9),
+    // which put the drill origin outside the panel's uLen=18 bound (0 bores baked — see
+    // packages/kernel HoleFeature.catalogBore.sideFaceA.integration.spec.ts for the real-OCCT
+    // proof). So leftSide has 3+3=6 bores total; each bore must have u≈9 and v∈{60,277,494}.
+    const expectedVs = [60, 277, 494];
     for (const b of lBores) {
-      const matchesU = expectedUs.some((eu) => Math.abs(b.u - eu) < 1);
-      expect(matchesU).toBe(true);
-      // v = half of the other panel's thickness (bottom or top both have T=18 → v=9)
-      expect(b.v).toBeCloseTo(9, 1);
+      expect(b.u).toBeCloseTo(9, 1);
+      const matchesV = expectedVs.some((ev) => Math.abs(b.v - ev) < 1);
+      expect(matchesV).toBe(true);
+    }
+  });
+
+  /**
+   * LOCKING TEST — residual frame-mismatch fix (fix/bore-aside-swapuv slice 2).
+   *
+   * leftSide/rightSide bores are computed against the SYNTHETIC length<->thickness-swapped
+   * frame (face.role 'Left'/'Right' there), but must be PERSISTED against the panel's REAL,
+   * unswapped PartDocument frame — where 'Left'/'Right' name the panel's thin 18mm EDGE
+   * faces (a throughAll confirmat hole from there cuts a ~720mm-long channel instead of a
+   * normal ~18mm hole). The real frame's flat faces (normal along the real thickness axis)
+   * are 'Top'/'Bottom'. So every A-side (side-panel) bore persisted to L.zipt/R.zipt must
+   * carry role 'Top' or 'Bottom' — never 'Left'/'Right' — after GenerateCarcassBoresCommand
+   * remaps at persistence time. u/v are unaffected (see syntheticSideBoreToReal's derivation
+   * in packages/shared/src/bore.ts).
+   */
+  it('persists side-panel bores with the REAL-frame face role (Top/Bottom, never Left/Right)', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
+
+    const lBores = await boresOf(opfs, 'L.zipt');
+    const rBores = await boresOf(opfs, 'R.zipt');
+    expect(lBores.length).toBeGreaterThan(0);
+    expect(rBores.length).toBeGreaterThan(0);
+    for (const b of [...lBores, ...rBores]) {
+      expect(['Top', 'Bottom']).toContain(b.face.role);
     }
   });
 
@@ -403,14 +437,16 @@ describe('GenerateCarcassBoresCommand — nested sub-assembly (REAL cabinet stru
       expect((await boresOf(opfs, path)).length, `${path} must have bores`).toBeGreaterThan(0);
     }
 
-    // leftSide bore u-coords must match the flat-panel locking test (same geometry).
-    // Left↔Bottom joint: length=554mm, endSetback=60, maxSpacing=250 → count=3, u=[60,277,494], v=9.
+    // leftSide bore u/v-coords must match the flat-panel locking test (same geometry).
+    // Left↔Bottom joint: length=554mm, endSetback=60, maxSpacing=250 → count=3,
+    // spacing=[60,277,494], cross=9. faceA='Right' is edge-shaped (endFaceUsesZforU=true) →
+    // fix/bore-aside-swapuv swaps u/v for side A: u≈9 (constant), v∈{60,277,494}.
     const lBores = await boresOf(opfs, LP);
     expect(lBores.length, 'leftSide: 3 bottom + 3 top = 6').toBeGreaterThanOrEqual(6);
-    const expectedUs = [60, 277, 494];
+    const expectedVs = [60, 277, 494];
     for (const b of lBores) {
-      expect(expectedUs.some((eu) => Math.abs(b.u - eu) < 1), `u=${b.u} not in ${expectedUs}`).toBe(true);
-      expect(b.v).toBeCloseTo(9, 1);
+      expect(b.u).toBeCloseTo(9, 1);
+      expect(expectedVs.some((ev) => Math.abs(b.v - ev) < 1), `v=${b.v} not in ${expectedVs}`).toBe(true);
     }
   });
 
