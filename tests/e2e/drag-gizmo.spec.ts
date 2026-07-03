@@ -291,6 +291,14 @@ test(
     // poll predicate below waits for BOTH lastCmd AND the moved U/V to land, not just
     // lastCmd. A real regression (command never fires, or bore never moves) still
     // fails the test with a clear message once the deadline elapses.
+    //
+    // Under full-suite worker contention, apply() settling can genuinely take close
+    // to (and occasionally over) 10s — instrumented repro under synthetic CPU load +
+    // 6 parallel workers measured settle times up to ~10.5s, right at the old poll
+    // deadline, and never lost (an extended 60s poll passed 15/15 in the same
+    // contention profile that produced 5/15 failures at 10s). 60s gives headroom
+    // matching the class of fix used for other contention-settling flakes on this
+    // branch (see corner-cabinet-create fix af5f2f54).
     let afterDrag!: {
       uAfter: number | null;
       vAfter: number | null;
@@ -337,7 +345,7 @@ test(
           return uvDist > 0.1;
         },
         {
-          timeout: 10_000,
+          timeout: 60_000,
           message:
             'MoveConnector must execute (bus.lastExecutedName()) and the bore U/V cache must reflect the completed move (fire-and-forget apply() had not settled in time)',
         },
