@@ -154,9 +154,69 @@ test('upload a custom texture, assign to a panel, render textured, reload still 
   expect(variance, 'WebGL readPixels unavailable — check preserveDrawingBuffer:true in SceneManager').not.toBe(-1);
   expect(variance, 'custom texture must produce visible non-uniform pixels before reload').toBeGreaterThan(25);
 
+  // The 500ms OPFS-autosave debounce (App.tsx ~L4818) packs the part via the
+  // kernel-heavy kernel.saveToBytes() call before writing OPFS bytes and calling
+  // setLastOpenDocument(). Under worker contention that kernel round-trip can
+  // still be in flight ('saveState' === 'saving', pointer not yet written) even
+  // this long after the mesh first appeared. Reloading mid-write aborts the
+  // in-flight save (page.reload() tears down the JS context), leaving
+  // localStorage['zilventor:lastOpenDocument'] permanently null/stale — the
+  // post-reload boot-restore effect then finds nothing to restore ("No part
+  // open" forever). Root-caused via instrumented repro under synthetic CPU
+  // load (7x `yes` + --workers=6 --repeat-each=15): 4/15 failed, and in every
+  // failing run the pre-reload snapshot showed pointer===null && saveState
+  // ==='saving' — 100% correlated with the post-reload failure signature
+  // (pointer===null, activeDocument===null). Poll the full pre-reload settled
+  // post-condition (saveState==='saved' AND pointer references this part)
+  // before reloading, rather than assuming the debounce has already landed.
+  let preReloadSettled = false;
+  await expect
+    .poll(
+      async () => {
+        preReloadSettled = await page.evaluate(() => {
+          const w = window as unknown as {
+            __zilventorStore: { getState(): { saveState?: string } };
+          };
+          if (w.__zilventorStore.getState().saveState !== 'saved') return false;
+          const raw = localStorage.getItem('zilventor:lastOpenDocument');
+          if (!raw) return false;
+          try {
+            return (JSON.parse(raw) as { kind?: string }).kind === 'part';
+          } catch {
+            return false;
+          }
+        });
+        return preReloadSettled;
+      },
+      {
+        timeout: 30_000,
+        message: 'pre-reload autosave must complete (saveState==="saved" and lastOpenDocument pointer set to the part) before reloading',
+      },
+    )
+    .toBe(true);
+
   // 11. Reload the page (autosaved to OPFS) → restoreLastOpenDocument → still textured.
   await page.reload();
   await waitForKernelReady(page);
+
+  // waitForKernelReady only confirms the kernel is initialized (status-bar 'Ready'
+  // text) — it does NOT confirm the boot-restore effect (restoreLastOpenDocument,
+  // App.tsx ~L1318) has finished. Both are independent effects gated on the same
+  // kernelReady flag with no ordering guarantee, so under worker contention the
+  // triangle-count read below could otherwise observe a freshly-mounted,
+  // not-yet-restored part (0 triangles). Gate on restore completion first —
+  // mirrors the material-hatch fix (c246d7af).
+  await page.waitForFunction(
+    () => {
+      const store = (window as unknown as {
+        __zilventorStore?: { getState(): { activeDocument: { kind: string } | null } };
+      }).__zilventorStore;
+      return store?.getState()?.activeDocument?.kind === 'part';
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+
   await expect(page.locator('[data-triangle-count]')).toHaveAttribute(
     'data-triangle-count',
     /[1-9]\d*/,
