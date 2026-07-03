@@ -123,6 +123,12 @@ test('T28 — cut-list renumber + inline edit + persist across reload', async ({
   }, { timeout: 5_000 }).toBe(true);
 
   // 10. Reload the assembly from OPFS (simulates re-opening the file).
+  //     The step-9 poll only confirmed the file's CONTENT was correct at that
+  //     instant — the 500ms autosave debounce can still rewrite the same OPFS
+  //     path afterward, and under worker contention the read below can land in
+  //     the transient window where the old file handle was just removed and the
+  //     new one hasn't been created yet (NotFoundError). Retry the read itself
+  //     until it stably succeeds, rather than time-boxing a single attempt.
   await page.evaluate(async (name) => {
     const w = window as unknown as {
       __zilventorStore: { getState(): { setActiveDocument(d: unknown): void } };
@@ -131,7 +137,18 @@ test('T28 — cut-list renumber + inline edit + persist across reload', async ({
     };
     w.__zilventorStore.getState().setActiveDocument(null);
     const opfs = await w.__zilventorGetOpfs();
-    const bytes = await opfs.read(name);
+    const deadline = Date.now() + 10_000;
+    let bytes: Uint8Array | undefined;
+    for (;;) {
+      try {
+        bytes = await opfs.read(name);
+        break;
+      } catch (e) {
+        const isNotFound = e instanceof Error && e.name === 'NotFoundError';
+        if (!isNotFound || Date.now() >= deadline) throw e;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
     const doc = await w.__zilventorUnpackAssembly(bytes);
     w.__zilventorStore.getState().setActiveDocument({ kind: 'assembly', document: doc });
   }, autosavedName);
