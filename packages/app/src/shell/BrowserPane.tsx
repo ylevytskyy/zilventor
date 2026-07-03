@@ -58,6 +58,13 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
   const { t } = useTranslation();
   const subAsmDocs = useAppStore((s) => s.subAssemblyDocs);
   const expanded = useAppStore((s) => s.expandedSubAsmPaths);
+  // P17 W6: leaf .zipt components carry groove/keyholeSlot features that were
+  // previously unreachable (the tree only ever expanded .ziasm sub-assemblies).
+  // These live caches are keyed by the leaf's real OPFS partPath — the same
+  // key GroovePropertiesPanel/KeyholeSlotPropertiesPanel read from in App.tsx —
+  // so selecting via these rows (unlike the part-mode click handlers below,
+  // which pass the in-memory part.id) resolves correctly.
+  const { partGroovesCacheRef, partKeyholeSlotsCacheRef } = useCutListCacheContext();
 
   function renderNodes(
     list: ComponentInstance[],
@@ -74,6 +81,9 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
       const childCount = child?.components.length ?? 0;
       const isExpanded = expanded.has(key);
       const isCycle = isSubAsm && stack.has(c.partPath);
+      const leafGrooves = isSubAsm ? [] : (partGroovesCacheRef.current?.get(c.partPath) ?? []);
+      const leafKeyholeSlots = isSubAsm ? [] : (partKeyholeSlotsCacheRef.current?.get(c.partPath) ?? []);
+      const hasLeafFeatureRows = leafGrooves.length > 0 || leafKeyholeSlots.length > 0;
       const isGrounded = isRoot && doc.groundedComponentPaths.some((p) => p.length === 1 && p[0] === c.id);
       const myConstraints = isRoot
         ? doc.constraints.filter(
@@ -85,7 +95,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
       return (
         <li key={key} className="pl-3">
           <div className="flex items-center gap-1">
-            {isSubAsm ? (
+            {isSubAsm || hasLeafFeatureRows ? (
               <button
                 type="button"
                 aria-label={`expand ${c.id}`}
@@ -159,6 +169,28 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
           {isSubAsm && isExpanded && child && !isCycle && (
             <ul className="pl-4 space-y-0.5">
               {renderNodes(child.components, path, new Set([...stack, c.partPath]), false)}
+            </ul>
+          )}
+          {!isSubAsm && isExpanded && hasLeafFeatureRows && (
+            <ul className="pl-4 space-y-0.5">
+              {leafGrooves.map((g, i) => (
+                <li
+                  key={g.id}
+                  className="cursor-pointer hover:text-white"
+                  onClick={() => useAppStore.getState().setSelectedGroove(g.id, c.partPath)}
+                >
+                  ▸ {t('browser.groove')}{i + 1}
+                </li>
+              ))}
+              {leafKeyholeSlots.map((ks, i) => (
+                <li
+                  key={ks.id}
+                  className="cursor-pointer hover:text-white"
+                  onClick={() => useAppStore.getState().setSelectedKeyholeSlot(ks.id, c.partPath)}
+                >
+                  ▸ {t('browser.keyholeSlot')} {i + 1}
+                </li>
+              ))}
             </ul>
           )}
         </li>
@@ -417,6 +449,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
 
   let sketchCount = 0;
   let grooveCount = 0;
+  let keyholeSlotCount = 0;
   let extrudeCount = 0;
   let revolveCount = 0;
   let filletCount = 0;
@@ -659,6 +692,19 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
                 onClick={() => useAppStore.getState().setSelectedGroove(f.id, part.id)}
               >
                 ▸ {t('browser.groove')}{grooveCount}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
+          if (f.kind === 'keyholeSlot') {
+            keyholeSlotCount += 1;
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onClick={() => useAppStore.getState().setSelectedKeyholeSlot(f.id, part.id)}
+              >
+                ▸ {t('browser.keyholeSlot')} {keyholeSlotCount}
                 {renderErrorBadge(f.id)}
               </li>
             );

@@ -1,4 +1,4 @@
-import type { CutListResult, CutListRow, BoreOp, GrooveFeature, TenonMortiseFeature, FaceName } from '@zilventor/shared';
+import type { CutListResult, CutListRow, BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature, FaceName } from '@zilventor/shared';
 import type { BoringAggregateResult } from './aggregateBoresRecursive';
 import type { PanelManufacturingInput } from '../../drawing/renderPanelManufacturingDxf';
 
@@ -20,6 +20,7 @@ export function machiningSignature(
   bores: BoreOp[],
   grooves: GrooveFeature[],
   tenonMortises: TenonMortiseFeature[] = [],
+  keyholeSlots: KeyholeSlotFeature[] = [],
 ): string {
   const geo = `${row.length}x${row.width}x${row.thickness}|${row.materialId}|${row.grain}`;
   const b = sortBores(bores)
@@ -32,7 +33,11 @@ export function machiningSignature(
     .map((x) => `${x.role}:${x.faceRole}:${x.axis}:${x.position}:${x.width}:${x.depth}:${x.count}:${x.spacing}`)
     .sort()
     .join(',');
-  return `${geo}#${b}#${g}#${tm}`;
+  const ks = [...keyholeSlots]
+    .map((x) => `${x.faceRole}:${x.u}:${x.v}:${x.axis}:${x.direction}:${x.entryDiameter}:${x.slotWidth}:${x.slotLength}:${x.depth}`)
+    .sort()
+    .join(',');
+  return `${geo}#${b}#${g}#${tm}#${ks}`;
 }
 
 export function aggregatePanelManufacturing(
@@ -40,6 +45,7 @@ export function aggregatePanelManufacturing(
   boring: BoringAggregateResult,
   groovesByPart: Map<string, GrooveFeature[]>,
   tenonMortisesByPart: Map<string, TenonMortiseFeature[]> = new Map(),
+  keyholeSlotsByPart: Map<string, KeyholeSlotFeature[]> = new Map(),
 ): PanelManufacturingInput[] {
   const boresByPart = new Map(boring.panels.map((p) => [p.partPath, p.bores]));
   const bySig = new Map<string, PanelManufacturingInput>();
@@ -48,7 +54,8 @@ export function aggregatePanelManufacturing(
     const bores = boresByPart.get(row.partPath) ?? [];
     const grooves = groovesByPart.get(row.partPath) ?? [];
     const tenonMortises = tenonMortisesByPart.get(row.partPath) ?? [];
-    const sig = machiningSignature(row, bores, grooves, tenonMortises);
+    const keyholeSlots = keyholeSlotsByPart.get(row.partPath) ?? [];
+    const sig = machiningSignature(row, bores, grooves, tenonMortises, keyholeSlots);
 
     const existing = bySig.get(sig);
     if (existing) {
@@ -87,6 +94,7 @@ export function aggregatePanelManufacturing(
       bores,
       grooves,
       tenonMortises,
+      keyholeSlots,
       qty: row.qty,
     });
   }

@@ -12,7 +12,7 @@ export function usePanelManufacturingInputs(): PanelManufacturingInput[] {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const cutListResult = useCutListResult();
   const boringResult = useBoringResult();
-  const { partGroovesCacheRef, partTenonMortisesCacheRef } = useCutListCacheContext();
+  const { partGroovesCacheRef, partTenonMortisesCacheRef, partKeyholeSlotsCacheRef } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY;
@@ -20,6 +20,7 @@ export function usePanelManufacturingInputs(): PanelManufacturingInput[] {
       cutListResult, boringResult,
       partGroovesCacheRef.current ?? new Map(),
       partTenonMortisesCacheRef.current ?? new Map(),
+      partKeyholeSlotsCacheRef.current ?? new Map(),
     );
-  }, [activeAssembly, cutListResult, boringResult, partGroovesCacheRef, partTenonMortisesCacheRef]);
+  }, [activeAssembly, cutListResult, boringResult, partGroovesCacheRef, partTenonMortisesCacheRef, partKeyholeSlotsCacheRef]);
 }

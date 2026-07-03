@@ -488,6 +488,12 @@ type AppState = {
   selectedGroovePartPath: string | null;
   /** P9 W1: select a groove; clears bore + component selection (mutual exclusion). */
   setSelectedGroove(grooveId: string | null, partPath: string | null): void;
+  /** P17 W1: currently selected keyholeSlot id (null = nothing selected). */
+  selectedKeyholeSlotId: string | null;
+  /** P17 W1: OPFS path of the part owning the selected keyholeSlot (null = nothing selected). */
+  selectedKeyholeSlotPartPath: string | null;
+  /** P17 W1: select a keyholeSlot; clears bore + groove + component selection (mutual exclusion). */
+  setSelectedKeyholeSlot(keyholeSlotId: string | null, partPath: string | null): void;
   componentDiagnostics: Array<{ componentId: string; message: string }>;
   bomTabActive: boolean;
   cutListTabActive: boolean;
@@ -923,6 +929,8 @@ export const useAppStore = create<AppState>((set) => ({
   selectedBorePartPath: null,
   selectedGrooveId: null,
   selectedGroovePartPath: null,
+  selectedKeyholeSlotId: null,
+  selectedKeyholeSlotPartPath: null,
   componentDiagnostics: [],
   bomTabActive: false,
   cutListTabActive: false,
@@ -957,6 +965,8 @@ export const useAppStore = create<AppState>((set) => ({
     selectedComponentPaths: [],
     selectedGrooveId: null,
     selectedGroovePartPath: null,
+    selectedKeyholeSlotId: null,
+    selectedKeyholeSlotPartPath: null,
   }),
   setSelectedGroove: (grooveId, partPath) => set({
     selectedGrooveId: grooveId,
@@ -964,6 +974,18 @@ export const useAppStore = create<AppState>((set) => ({
     selectedComponentPaths: [],
     selectedBoreId: null,
     selectedBorePartPath: null,
+    selectedKeyholeSlotId: null,
+    selectedKeyholeSlotPartPath: null,
+  }),
+  /** P17 W1: select a keyholeSlot; clears bore + groove + component selection (mutual exclusion). */
+  setSelectedKeyholeSlot: (keyholeSlotId, partPath) => set({
+    selectedKeyholeSlotId: keyholeSlotId,
+    selectedKeyholeSlotPartPath: partPath,
+    selectedComponentPaths: [],
+    selectedBoreId: null,
+    selectedBorePartPath: null,
+    selectedGrooveId: null,
+    selectedGroovePartPath: null,
   }),
   selectComponentPaths: (paths) => set({
     selectedComponentPaths: [...paths],
@@ -971,6 +993,8 @@ export const useAppStore = create<AppState>((set) => ({
     selectedBorePartPath: null,
     selectedGrooveId: null,
     selectedGroovePartPath: null,
+    selectedKeyholeSlotId: null,
+    selectedKeyholeSlotPartPath: null,
   }),
   setBomTabActive: (v) => set({ bomTabActive: v }),
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
