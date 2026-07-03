@@ -101,11 +101,52 @@ describe('buildTenonMortiseCutters — panel-local cutter boxes', () => {
     };
     const [box] = buildTenonMortiseCutters(dims, spec);
     const yMin = Math.min(box!.p1.y, box!.p2.y), yMax = Math.max(box!.p1.y, box!.p2.y);
-    // v range = [9-(9+1), 9+(9+1)] = [-1,19] → y = -200 + v = [-201,-181].
-    expect(yMin).toBeCloseTo(-201, 6);
-    expect(yMax).toBeCloseTo(-181, 6);
+    // Raw v range = [9-(9+1), 9+(9+1)] = [-1,19] pokes 1mm past the host's v=0 edge —
+    // clamped (shifted, span preserved) into [0,20] → y = -200 + v = [-200,-180].
+    expect(yMin).toBeCloseTo(-200, 6);
+    expect(yMax).toBeCloseTo(-180, 6);
     // span = crossSpan + 2*fitClearance = 18 + 2 = 20 — nowhere near the host's 400mm width.
     expect(yMax - yMin).toBeCloseTo(18 + 2 * 1, 6);
+  });
+
+  it('mortise cross-axis bounds are clamped into [0,crossLen] when crossSpan exceeds a small host panel\'s extent', () => {
+    // Left face, host panel width=20 (crossLen=vLen=20 for axis:'u'). Mating panel
+    // thickness=30 → crossSpan=30 alone already exceeds the 20mm host extent, so the
+    // bounded window [crossPosition-crossHalf, crossPosition+crossHalf] spills past
+    // BOTH edges of the panel — before the fix this silently produced a cutter box
+    // that pokes outside the panel solid.
+    const smallDims = { length: 600, width: 20, thickness: 18 };
+    const spec: TenonMortiseSpec = {
+      role: 'mortise', faceRole: 'Left', axis: 'u', position: 100, width: 10, depth: 8,
+      count: 1, spacing: 0, fitClearance: 1, crossPosition: 15, crossSpan: 30,
+    };
+    const [box] = buildTenonMortiseCutters(smallDims, spec);
+    // Left face: vDir=+Y, origin.y = -hW = -10. Host panel spans y in [-10,10].
+    const yMin = Math.min(box!.p1.y, box!.p2.y), yMax = Math.max(box!.p1.y, box!.p2.y);
+    expect(yMin).toBeGreaterThanOrEqual(-10 - 1e-6);
+    expect(yMax).toBeLessThanOrEqual(10 + 1e-6);
+    // Span exceeds the host extent (crossSpan+2*fitClearance=32 > 20) → shrunk to the
+    // full available extent (20mm), not left unclamped.
+    expect(yMax - yMin).toBeCloseTo(20, 6);
+  });
+
+  it('mortise cross-axis window is shifted (not truncated) into bounds when only crossPosition overflows near an edge', () => {
+    // Left face, host panel width=400 (crossLen=vLen=400). crossPosition=395 near the
+    // edge with a modest crossSpan=18 → the window [385,405] (span=20, fits within 400)
+    // overflows past v=400 by 5mm on the high side only.
+    const spec: TenonMortiseSpec = {
+      role: 'mortise', faceRole: 'Left', axis: 'u', position: 100, width: 10, depth: 8,
+      count: 1, spacing: 0, fitClearance: 1, crossPosition: 395, crossSpan: 18,
+    };
+    const [box] = buildTenonMortiseCutters(dims, spec);
+    // Left face: vDir=+Y, origin.y = -hW = -200. Host panel spans y in [-200,200].
+    const yMin = Math.min(box!.p1.y, box!.p2.y), yMax = Math.max(box!.p1.y, box!.p2.y);
+    expect(yMax).toBeLessThanOrEqual(200 + 1e-6);
+    // Full span (18+2*1=20) is PRESERVED — shifted into bounds, not shrunk — so the
+    // mating tenon still fits.
+    expect(yMax - yMin).toBeCloseTo(20, 6);
+    expect(yMax).toBeCloseTo(200, 6); // shifted flush against the edge
+    expect(yMin).toBeCloseTo(180, 6);
   });
 
   it('mortise without crossPosition/crossSpan keeps the legacy full-cross-extent behavior', () => {

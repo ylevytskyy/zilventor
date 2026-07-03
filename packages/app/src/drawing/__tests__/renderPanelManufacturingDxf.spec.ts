@@ -154,8 +154,10 @@ describe('tenonMortiseRects — projection helper', () => {
     const yMin = Math.min(...ys), yMax = Math.max(...ys);
     expect(yMax - yMin).toBeCloseTo(20, 6);
     expect(yMax).toBeLessThan(600); // not the full host width
-    expect(yMin).toBeCloseTo(-1, 6);
-    expect(yMax).toBeCloseTo(19, 6);
+    // Raw v range [-1,19] pokes 1mm past the panel's v=0 edge — clamped (shifted,
+    // span preserved) into [0,20].
+    expect(yMin).toBeCloseTo(0, 6);
+    expect(yMax).toBeCloseTo(20, 6);
   });
 
   it('tenon on Right end face protrudes beyond the panel outline by depth (full-thickness footprint, no clearance widening)', () => {
