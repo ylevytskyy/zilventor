@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v35 → v36 (P4 — statistics data model: MaterialEntry.kind, unitPrices)', () => {
   it('CURRENT_FORMAT_VERSION is 36', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(39);
+    expect(CURRENT_FORMAT_VERSION).toBe(40);
   });
 
   it('migrates a v35 part manifest to v36 (additive no-op)', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v35 → v36 (P4 — statistics data model: MaterialEnt
       document: { id: 'p1', featureTree: [{ kind: 'panel', id: 'pf1' }], materials: [] },
     };
     const out = migrateManifest(v35);
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     const tree = (out.document as { featureTree: unknown[] }).featureTree;
     const panel = tree.find((f) => (f as { kind?: string }).kind === 'panel') as { id: string } | undefined;
     expect(panel?.id).toBe('pf1');
@@ -32,7 +32,7 @@ describe('migrateManifest v35 → v36 (P4 — statistics data model: MaterialEnt
       },
     };
     const out = migrateManifest(v35);
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     const doc = out.document as { materials: unknown[] };
     expect(doc.materials).toEqual([{ id: 'm1', name: 'Birch', defaultThickness: 18, color: '#d8c896' }]);
   });

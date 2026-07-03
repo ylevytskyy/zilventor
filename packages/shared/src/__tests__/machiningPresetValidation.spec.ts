@@ -39,6 +39,12 @@ describe('validateMachiningPresetImport', () => {
     expect(out[0]!.opType).toBe('groove');
   });
 
+  it("accepts opType: 'keyholeSlot'", () => {
+    const keyholeSlot = { ...valid, id: 'preset-keyholeSlot', opType: 'keyholeSlot' };
+    const out = validateMachiningPresetImport(keyholeSlot, new Set());
+    expect(out[0]!.opType).toBe('keyholeSlot');
+  });
+
   it('accepts an array of preset objects, in order', () => {
     const two = [valid, { ...valid, id: 'preset-2', name: 'Second' }];
     const out = validateMachiningPresetImport(two, new Set());

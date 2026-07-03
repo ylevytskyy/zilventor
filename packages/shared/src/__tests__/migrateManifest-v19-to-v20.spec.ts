@@ -3,14 +3,14 @@ import { migrateManifest, CURRENT_FORMAT_VERSION } from '../fileFormat';
 
 describe('migrateManifest v19 → v20 (Phase 2 — customTextures backfill)', () => {
   it('migrates a v19 part forward to the current version (21)', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(39);
+    expect(CURRENT_FORMAT_VERSION).toBe(40);
   });
   it('v19 part without customTextures → current version has customTextures: []', () => {
     const v19 = { formatVersion: 19, kind: 'part',
       document: { id: 'p', name: 'P', units: 'mm', parameters: {}, featureTree: [],
         properties: {}, materials: [], hardware: [] } };
     const out = migrateManifest(v19) as { formatVersion: number; document: { customTextures: unknown[] } };
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     expect(out.document.customTextures).toEqual([]);
   });
   it('v19 assembly without customTextures → current version has customTextures: []', () => {
@@ -19,7 +19,7 @@ describe('migrateManifest v19 → v20 (Phase 2 — customTextures backfill)', ()
         constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {},
         cutListItemNumbers: {}, colorOverrides: {}, properties: {}, materials: [], hardware: [] } };
     const out = migrateManifest(v19) as { formatVersion: number; document: { customTextures: unknown[] } };
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     expect(out.document.customTextures).toEqual([]);
   });
   it('does not clobber an existing customTextures array (idempotent)', () => {
@@ -35,7 +35,7 @@ describe('migrateManifest v19 → v20 (Phase 2 — customTextures backfill)', ()
     const v19 = { formatVersion: 19, kind: 'drawing',
       document: { id: 'd', name: 'D', units: 'mm', sheets: [], properties: {} } };
     const out = migrateManifest(v19) as { formatVersion: number; document: Record<string, unknown> };
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     expect(out.document.customTextures).toBeUndefined();
   });
 });

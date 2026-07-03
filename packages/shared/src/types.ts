@@ -11,6 +11,7 @@ import type { HardwareCatalogEntry } from './hardware/resolveCatalog';
 import type { BoreOp } from './bore';
 import type { GrooveFeature } from './groove';
 import type { TenonMortiseFeature } from './tenonMortise';
+import type { KeyholeSlotFeature } from './keyholeSlot';
 import type { ShelfPinParams } from './shelfPinGrid';
 import type { PanelRole } from './cabinets/types';
 
@@ -101,6 +102,7 @@ export type Feature =
   | PanelFeature
   | GrooveFeature
   | TenonMortiseFeature
+  | KeyholeSlotFeature
   | HardwareFeature;
 
 export type CachedGeometry = {

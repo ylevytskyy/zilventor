@@ -242,6 +242,16 @@ export type GrooveDialogState = {
   onCancel: () => void;
 };
 
+/** Keyhole-slot (wall-hanger routing) dialog: targets one picked panel.
+ *  Unlike groove, the default face is fixed to 'Bottom' inside the dialog
+ *  (the large rear face — Top/Bottom are the two large faces, Front/Back/
+ *  Left/Right are the narrow edge faces), so no defaultFace is threaded in. */
+export type KeyholeSlotDialogState = {
+  panelPath: string;
+  onSubmit: (spec: import('@zilventor/shared').KeyholeSlotSpec) => Promise<void> | void;
+  onCancel: () => void;
+};
+
 /** Tenon/mortise joinery dialog: targets two picked panels (unordered — which
  *  becomes the tenon/mortise host is inferred by AddTenonMortiseCommand). */
 export type TenonMortiseDialogState = {
@@ -590,6 +600,8 @@ type AppState = {
   setShelfPinDialog: (s: ShelfPinDialogState | null) => void;
   grooveDialog: GrooveDialogState | null;
   setGrooveDialog: (s: GrooveDialogState | null) => void;
+  keyholeSlotDialog: KeyholeSlotDialogState | null;
+  setKeyholeSlotDialog: (s: KeyholeSlotDialogState | null) => void;
   tenonMortiseDialog: TenonMortiseDialogState | null;
   setTenonMortiseDialog: (s: TenonMortiseDialogState | null) => void;
   /** Active one-component pick handle. App.tsx reads this in handleViewportPointer to feed .pick(). */
@@ -1272,6 +1284,8 @@ export const useAppStore = create<AppState>((set) => ({
   setShelfPinDialog: (s) => set({ shelfPinDialog: s }),
   grooveDialog: null,
   setGrooveDialog: (s) => set({ grooveDialog: s }),
+  keyholeSlotDialog: null,
+  setKeyholeSlotDialog: (s) => set({ keyholeSlotDialog: s }),
   tenonMortiseDialog: null,
   setTenonMortiseDialog: (s) => set({ tenonMortiseDialog: s }),
   oneComponentPickHandle: null,

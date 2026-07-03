@@ -73,6 +73,7 @@
     "setback": "Відступ",
     "shelf_pin_dialog": "Діалог Система-32 (полицетримачі)",
     "groove": "Діалог паза",
+    "keyholeSlot": "Діалог замкового паза",
     "tenonMortise": "Діалог шипа/гнізда",
     "sheetContextMenu": "Контекстне меню аркуша",
     "start_radius": "Початковий радіус",
@@ -720,6 +721,18 @@
       "width": "Ширина (мм)",
       "depth": "Глибина (мм)"
     },
+    "keyholeSlot": {
+      "title": "Замковий паз",
+      "face": "Грань",
+      "axis": "Вісь",
+      "direction": "Напрямок",
+      "u": "U (мм)",
+      "v": "V (мм)",
+      "entryDiameter": "Діаметр отвору (мм)",
+      "slotWidth": "Ширина паза (мм)",
+      "slotLength": "Довжина паза (мм)",
+      "depth": "Глибина (мм)"
+    },
     "tenonMortise": {
       "title": "Шип/Гніздо",
       "panelA": "Панель A",
@@ -1095,6 +1108,7 @@
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (вибір)",
       "groove": "Паз",
+      "keyholeSlot": "Замковий паз",
       "tenonMortise": "Шип/Гніздо"
     },
     "model": {

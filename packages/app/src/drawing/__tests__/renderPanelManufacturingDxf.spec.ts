@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderPanelManufacturingDxf, tenonMortiseRects } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp, GrooveFeature, TenonMortiseFeature } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature } from '@zilventor/shared';
 import { parseDxf, syntheticSideBoreToReal } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
@@ -27,6 +27,14 @@ function bore(role: string, u: number, v: number, diameter: number,
               depth: number | 'throughAll'): BoreOp {
   const face: BoreOp['face'] = { featureId: 'panel', role, instance: 0 };
   return { id: `b-${role}-${u}-${v}`, face, u, v, diameter, depth, role: 'shelfPin-system32' } as BoreOp;
+}
+
+function keyholeSlot(over: Partial<KeyholeSlotFeature> = {}): KeyholeSlotFeature {
+  return {
+    kind: 'keyholeSlot', id: 'ks1', faceRole: 'Top', u: 200, v: 150, axis: 'u', direction: 1,
+    entryDiameter: 15, slotWidth: 10, slotLength: 25, depth: 6,
+    ...over,
+  };
 }
 
 describe('renderPanelManufacturingDxf — outline/info/dims', () => {
@@ -245,6 +253,65 @@ describe('renderPanelManufacturingDxf — tenons/mortises', () => {
     const dxf = renderPanelManufacturingDxf({ ...base, tenonMortises: [m] });
     expect(dxf).toContain('CNC-TENON-1');
     expect(dxf).not.toContain('\nMORTISES\n');
+  });
+});
+
+// P16: a KeyholeSlotFeature (wall-hanger routing) surfaces as an entry-hole CIRCLE + a
+// slot-outline LWPOLYLINE on the KEYHOLE-SLOTS layer. Like grooveRect, restricted to
+// Top/Bottom faces — Front/Back/Left/Right are drawn as 1D border lines in this flat
+// panel-plan format, so a slot's WIDTH (the cross axis) has no representable extent there.
+describe('renderPanelManufacturingDxf — keyhole slots', () => {
+  it('draws a Top-face keyhole slot entry circle + slot rect on the KEYHOLE-SLOTS layer', () => {
+    const ks = keyholeSlot({ faceRole: 'Top', u: 200, v: 150, axis: 'u', direction: 1,
+      entryDiameter: 15, slotWidth: 10, slotLength: 25 });
+    const dxf = renderPanelManufacturingDxf({ ...base, keyholeSlots: [ks] });
+    expect(dxf).toContain('KEYHOLE-SLOTS');
+    // entry circle at (u,v) = (200,150), r = entryDiameter/2 = 7.5
+    expect(dxf).toMatch(/CIRCLE[\s\S]*?\n200\.0+\n[\s\S]*?\n150\.0+\n[\s\S]*?\n7\.5\d*\n/);
+    // slot rect: run axis u from 200 to 225, cross axis v centered at 150±5 -> 145/155
+    expect(dxf).toMatch(/\n225\.0+\n/);
+    expect(dxf).toMatch(/\n145\.0+\n/);
+    expect(dxf).toMatch(/\n155\.0+\n/);
+  });
+
+  it('mirrors a Bottom-face keyhole slot along v (matches grooveRect\'s v-flip convention)', () => {
+    // Bottom, wid=600: cy = wid-v = 600-50=550; axis=v,direction=1 runs toward -y (mirrored)
+    // -> far y = 550-20=530; cross axis u, half=3 -> x bounds 100±3 = 97/103.
+    const ks = keyholeSlot({ faceRole: 'Bottom', u: 100, v: 50, axis: 'v', direction: 1,
+      entryDiameter: 10, slotWidth: 6, slotLength: 20 });
+    const dxf = renderPanelManufacturingDxf({ ...base, keyholeSlots: [ks] });
+    expect(dxf).toMatch(/\n550\.0+\n/);
+    expect(dxf).toMatch(/\n530\.0+\n/);
+    expect(dxf).toMatch(/\n97\.0+\n/);
+    expect(dxf).toMatch(/\n103\.0+\n/);
+  });
+
+  it('omits the KEYHOLE-SLOTS layer for a non-Top/Bottom face (edge faces unrepresentable, mirrors grooveRect rejection)', () => {
+    const ks = keyholeSlot({ faceRole: 'Left', axis: 'v', direction: 1 });
+    const dxf = renderPanelManufacturingDxf({ ...base, keyholeSlots: [ks] });
+    expect(dxf).not.toContain('KEYHOLE-SLOTS');
+  });
+
+  it('omits the KEYHOLE-SLOTS layer when keyholeSlots is absent (legacy callers, mirrors grooves/tenonMortises contract)', () => {
+    const dxf = renderPanelManufacturingDxf(base);
+    expect(dxf).not.toContain('KEYHOLE-SLOTS');
+  });
+
+  it('a keyhole slot with toolNumber+speed emits CAM XDATA', () => {
+    const ks = keyholeSlot({ toolNumber: 4, speed: 15000 });
+    const dxf = renderPanelManufacturingDxf({ ...base, keyholeSlots: [ks] });
+    expect(dxf).toContain('1001\nZILVENTOR');
+    expect(dxf).toContain('1000\nTOOL_NUMBER');
+    expect(dxf).toContain('1070\n4');
+    expect(dxf).toContain('1000\nSPEED');
+    expect(dxf).toContain('1040\n15000.0000');
+  });
+
+  it('a keyhole slot with presetLayerName routes onto the custom layer, not KEYHOLE-SLOTS', () => {
+    const ks = keyholeSlot({ presetLayerName: 'CNC-KEYHOLE-1' });
+    const dxf = renderPanelManufacturingDxf({ ...base, keyholeSlots: [ks] });
+    expect(dxf).toContain('CNC-KEYHOLE-1');
+    expect(dxf).not.toContain('\nKEYHOLE-SLOTS\n');
   });
 });
 

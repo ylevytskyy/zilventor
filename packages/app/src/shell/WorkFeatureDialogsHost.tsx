@@ -19,6 +19,7 @@ import { DrawerHandleDialog } from './DrawerHandleDialog';
 import { ShelfPinDialog } from './ShelfPinDialog';
 import { FaceFrameDialog } from './FaceFrameDialog';
 import { GrooveDialog } from './GrooveDialog';
+import { KeyholeSlotDialog } from './KeyholeSlotDialog';
 import { TenonMortiseDialog } from './TenonMortiseDialog';
 
 export type WorkFeatureDialogsHostProps = {
@@ -78,6 +79,7 @@ export function WorkFeatureDialogsHost({
       <ShelfPinDialog />
       <FaceFrameDialog />
       <GrooveDialog />
+      <KeyholeSlotDialog />
       <TenonMortiseDialog />
     </>
   );

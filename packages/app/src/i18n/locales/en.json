@@ -73,6 +73,7 @@
     "setback": "Setback",
     "shelf_pin_dialog": "Система-32 shelf-pin dialog",
     "groove": "Groove dialog",
+    "keyholeSlot": "Keyhole Slot dialog",
     "tenonMortise": "Tenon/Mortise dialog",
     "sheetContextMenu": "Sheet context menu",
     "start_radius": "Start radius",
@@ -720,6 +721,18 @@
       "width": "Width (mm)",
       "depth": "Depth (mm)"
     },
+    "keyholeSlot": {
+      "title": "Keyhole Slot",
+      "face": "Face",
+      "axis": "Axis",
+      "direction": "Direction",
+      "u": "U (mm)",
+      "v": "V (mm)",
+      "entryDiameter": "Entry Diameter (mm)",
+      "slotWidth": "Slot Width (mm)",
+      "slotLength": "Slot Length (mm)",
+      "depth": "Depth (mm)"
+    },
     "tenonMortise": {
       "title": "Tenon/Mortise",
       "panelA": "Panel A",
@@ -1095,6 +1108,7 @@
       "system32Auto": "Система-32",
       "system32Manual": "Система-32 (pick)",
       "groove": "Groove",
+      "keyholeSlot": "Keyhole Slot",
       "tenonMortise": "Tenon/Mortise"
     },
     "model": {

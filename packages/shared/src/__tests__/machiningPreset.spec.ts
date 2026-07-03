@@ -29,6 +29,18 @@ describe('machiningPreset.ts — MachiningPreset shape', () => {
     expect(p.opType).toBe('groove');
   });
 
+  it("accepts opType: 'keyholeSlot' alongside BoreRole members", () => {
+    const p: MachiningPreset = {
+      id: 'preset-4',
+      name: 'Wall-hanger keyhole slot',
+      opType: 'keyholeSlot',
+      diameter: 15,
+      depth: 6,
+      layerName: 'KEYHOLE-SLOTS',
+    };
+    expect(p.opType).toBe('keyholeSlot');
+  });
+
   it('accepts optional offset/toolNumber/speed when explicitly set', () => {
     const p: MachiningPreset = {
       id: 'preset-3',
