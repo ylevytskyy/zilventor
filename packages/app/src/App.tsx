@@ -11,6 +11,7 @@ import FileOpenOverlay from './shell/FileOpenOverlay';
 import PropertiesPanel from './shell/PropertiesPanel';
 import { BorePropertiesPanel } from './shell/BorePropertiesPanel';
 import { GroovePropertiesPanel } from './shell/GroovePropertiesPanel';
+import { KeyholeSlotPropertiesPanel } from './shell/KeyholeSlotPropertiesPanel';
 import Viewport, { type ViewportRef } from './viewport/Viewport';
 import NumericInputOverlay from './shell/NumericInputOverlay';
 import { spawnKernel } from './kernel-client/KernelClient';
@@ -70,7 +71,7 @@ import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/Impor
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
-import type { BoreOp, GrooveFeature, TenonMortiseFeature, TessellatedFace, ShelfPinParams, PanelPreflightDiagnostic } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature, TessellatedFace, ShelfPinParams, PanelPreflightDiagnostic } from '@zilventor/shared';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { signedDragDeltaAlongAxis, clampDeltaToFaceExtents } from '@zilventor/shared';
 import { MoveConnectorCommand } from './commands/MoveConnectorCommand';
@@ -3348,6 +3349,8 @@ export default function App() {
   const partBoresCacheRef = useRef<Map<string, BoreOp[] | undefined>>(new Map());
   // M2.1: grooves per partPath; populated alongside partBoresCacheRef when the kernel loads a part doc.
   const partGroovesCacheRef = useRef<Map<string, GrooveFeature[]>>(new Map());
+  // P17 W3: keyhole-slot features per partPath; populated alongside partGroovesCacheRef.
+  const partKeyholeSlotsCacheRef = useRef<Map<string, KeyholeSlotFeature[]>>(new Map());
   // P6 W4: tenon/mortise features per partPath; populated alongside partGroovesCacheRef.
   const partTenonMortisesCacheRef = useRef<Map<string, TenonMortiseFeature[]>>(new Map());
   // T36: tessellated faces per partPath; populated in the assembly mesh-sync loop
@@ -3436,6 +3439,7 @@ export default function App() {
         partTextureIdCacheRef.current.delete(partPath);
         partBoresCacheRef.current.delete(partPath);
         partGroovesCacheRef.current.delete(partPath);
+        partKeyholeSlotsCacheRef.current.delete(partPath);
         partTenonMortisesCacheRef.current.delete(partPath);
         partTessellatedFacesCacheRef.current.delete(partPath);
         loadedPartDocsRef.current.delete(partPath);
@@ -4480,6 +4484,7 @@ export default function App() {
         partTextureIdCacheRef.current.clear();
         partBoresCacheRef.current.clear();
         partGroovesCacheRef.current.clear();
+        partKeyholeSlotsCacheRef.current.clear();
         partTenonMortisesCacheRef.current.clear();
         partTessellatedFacesCacheRef.current.clear();
         partTessellatedEdgesCacheRef.current.clear();
@@ -4562,6 +4567,11 @@ export default function App() {
               partGroovesCacheRef.current.set(
                 partPath,
                 partDoc.featureTree.filter((f): f is GrooveFeature => f.kind === 'groove'),
+              );
+              // P17 W3: persist keyhole-slot features for KeyholeSlotPropertiesPanel.
+              partKeyholeSlotsCacheRef.current.set(
+                partPath,
+                partDoc.featureTree.filter((f): f is KeyholeSlotFeature => f.kind === 'keyholeSlot'),
               );
               // P6 W4: persist tenon/mortise features for manufacturing DXF/CSV export.
               partTenonMortisesCacheRef.current.set(
@@ -5438,6 +5448,7 @@ export default function App() {
       partTextureIdCacheRef.current.delete(partPath);
       partBoresCacheRef.current.delete(partPath);
       partGroovesCacheRef.current.delete(partPath);
+      partKeyholeSlotsCacheRef.current.delete(partPath);
       partTenonMortisesCacheRef.current.delete(partPath);
       partTessellatedFacesCacheRef.current.delete(partPath);
       partTessellatedEdgesCacheRef.current.delete(partPath);
@@ -5565,6 +5576,11 @@ export default function App() {
           />
           <GroovePropertiesPanel
             getLiveGrooves={(partPath) => partGroovesCacheRef.current.get(partPath)}
+            getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
+            opfs={opfsRef.current}
+          />
+          <KeyholeSlotPropertiesPanel
+            getLiveKeyholeSlots={(partPath) => partKeyholeSlotsCacheRef.current.get(partPath)}
             getLiveDoc={(partPath) => loadedPartDocsRef.current.get(partPath) ?? null}
             opfs={opfsRef.current}
           />
