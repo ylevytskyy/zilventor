@@ -170,6 +170,24 @@ describe('aggregateBoresRecursive', () => {
     warn.mockRestore();
   });
 
+  // P10 R1 propagation check: resolvePanelSpec now pushes its own diagnostics
+  // for imported (non-panel) parts, but always resolves the shared
+  // panelSpecCacheRef entry to null for them (unchanged). Confirms that null
+  // entry still flows through this walker exactly like any other null spec
+  // (D5: zero changes needed in this file for boring to stay correct).
+  it('a null panelSpecs entry for a bored imported part (no PanelFeature) groups with null dims and no local diagnostic', () => {
+    const a = asm('a', [cmp('c1', 'p/imported.zipt')]);
+    const partBores = new Map<string, BoreOp[]>([['p/imported.zipt', [bore('b1')]]]);
+    const panelSpecs = new Map<string, PanelSpec | null>([['p/imported.zipt', null]]);
+    const result = aggregateBoresRecursive(
+      a, cacheOf([]), partBores, partInfoOf([['p/imported.zipt', 'Multi Body']]), panelSpecs,
+    );
+    expect(result.panels).toHaveLength(1);
+    expect(result.panels[0]!.length).toBeNull();
+    expect(result.panels[0]!.width).toBeNull();
+    expect(result.panels[0]!.thickness).toBeNull();
+  });
+
   it('omits diagnostics entirely when every bored panel passes preflight', () => {
     const a = asm('a', [cmp('c1', 'p/side.zipt')]);
     const partBores = new Map<string, BoreOp[]>([['p/side.zipt', [bore('b1')]]]);

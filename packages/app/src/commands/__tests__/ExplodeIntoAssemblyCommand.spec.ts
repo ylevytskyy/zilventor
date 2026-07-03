@@ -20,7 +20,7 @@ class MemOpfs {
 }
 
 type SplitResult = {
-  solids: Array<{ brepBlobId: string; boundingBox: [number, number, number, number, number, number] }>;
+  solids: Array<{ brepBlobId: string; boundingBox: [number, number, number, number, number, number]; isManifold?: boolean }>;
   surfaces: { brepBlobId: string; boundingBox: [number, number, number, number, number, number] } | null;
 };
 
@@ -374,6 +374,53 @@ describe('ExplodeIntoAssemblyCommand — OPFS dedupe collision (Issue 1)', () =>
     // Specifically: first solid collides → 'Predator_1 (2)', second solid → 'Predator_2'
     expect(paths).toContain('Predator_1 (2).zipt');
     expect(paths).toContain('Predator_2.zipt');
+  });
+});
+
+// ---------- tests: P10 W3 — per-solid isManifold propagation -----------------
+
+describe('ExplodeIntoAssemblyCommand — isManifold propagation', () => {
+  it('threads splitImportedShape per-solid isManifold onto each created ImportedFeature, including false', async () => {
+    const kernel = makeKernel({
+      solids: [
+        { brepBlobId: 'solid-blob-1', boundingBox: [0, 0, 0, 10, 10, 10], isManifold: true },
+        { brepBlobId: 'solid-blob-2', boundingBox: [20, 0, 0, 30, 10, 10], isManifold: false },
+      ],
+      surfaces: null,
+    });
+    const opfs = new MemOpfs();
+    const part = makeImportedPart('Predator', 'body-ref-abc', 'Predator.step');
+    useAppStore.getState().setActivePart(part);
+
+    const cmd = new ExplodeIntoAssemblyCommand({ kernel: kernel as any, opfs: opfs as any });
+    await cmd.apply();
+
+    const registerPartMock = kernel.registerPart as ReturnType<typeof vi.fn>;
+    const registeredParts = registerPartMock.mock.calls.map((c) => c[0] as PartDocument);
+    const importedFlags = registeredParts.map((p) => {
+      const f = p.featureTree.find((ft) => ft.kind === 'imported');
+      return f?.kind === 'imported' ? f.isManifold : undefined;
+    });
+    expect(importedFlags).toEqual([true, false]);
+  });
+
+  it('surfaces bucket has no isManifold (kernel does not compute one for open surfaces)', async () => {
+    const kernel = makeKernel({
+      solids: [{ brepBlobId: 'solid-blob-only', boundingBox: [0, 0, 0, 10, 10, 10], isManifold: true }],
+      surfaces: { brepBlobId: 'surf-blob', boundingBox: [0, 0, 0, 100, 100, 5] },
+    });
+    const opfs = new MemOpfs();
+    const part = makeImportedPart('Bracket', 'body-ref-bracket', 'Bracket.step');
+    useAppStore.getState().setActivePart(part);
+
+    const cmd = new ExplodeIntoAssemblyCommand({ kernel: kernel as any, opfs: opfs as any });
+    await cmd.apply();
+
+    const registerPartMock = kernel.registerPart as ReturnType<typeof vi.fn>;
+    const registeredParts = registerPartMock.mock.calls.map((c) => c[0] as PartDocument);
+    const surfacesPart = registeredParts.find((p) => p.name === 'Bracket_surfaces');
+    const f = surfacesPart?.featureTree.find((ft) => ft.kind === 'imported');
+    expect(f?.kind === 'imported' && f.isManifold).toBeUndefined();
   });
 });
 

@@ -528,4 +528,53 @@ describe('ImportStepAsComponentCommand — multi-body STEP', () => {
     await cmd.apply();  // redo via redoState — color must survive
     expect(useAppStore.getState().activeAssembly!.components[0]!.color).toEqual({ kind: 'hex', hex: '#ff0000' });
   });
+
+  it('fresh apply threads splitImportedShape isManifold onto the registered ImportedFeature', async () => {
+    const kernel = makeKernel({
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-m', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number], isManifold: false },
+        ],
+        surfaces: null,
+      })) as never,
+    });
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'broken.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+    const registered = (kernel.registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { featureTree: Array<{ kind: string; isManifold?: boolean }> };
+    const imported = registered.featureTree.find((f) => f.kind === 'imported');
+    expect(imported?.isManifold).toBe(false);
+  });
+
+  it('redo preserves isManifold: false (redoState carries it) — must NOT be dropped by a truthy-spread bug', async () => {
+    const kernel = makeKernel({
+      splitImportedShape: vi.fn(async () => ({
+        solids: [
+          { brepBlobId: 'blob-m', boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number], isManifold: false },
+        ],
+        surfaces: null,
+      })) as never,
+    });
+    const opfs = new MemOpfs();
+    const cmd = new ImportStepAsComponentCommand({
+      stepBytes: STEP_BYTES.buffer,
+      fileName: 'broken.step',
+      kernel: kernel as any,
+      opfs: opfs as any,
+    });
+    await cmd.apply();
+    await cmd.revert();
+    await cmd.apply();  // redo via redoState — isManifold must survive
+
+    const registerPartMock = kernel.registerPart as ReturnType<typeof vi.fn>;
+    expect(registerPartMock.mock.calls).toHaveLength(2);
+    const redoRegistered = registerPartMock.mock.calls[1]?.[0] as { featureTree: Array<{ kind: string; isManifold?: boolean }> };
+    const imported = redoRegistered.featureTree.find((f) => f.kind === 'imported');
+    expect(imported?.isManifold).toBe(false);
+  });
 });

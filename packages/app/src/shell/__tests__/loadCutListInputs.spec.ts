@@ -30,4 +30,26 @@ describe('loadCutListInputs', () => {
     expect(vi.mocked(resolvePanelSpec).mock.calls[0]?.[3]).toBe(diagnostics);
     expect(vi.mocked(resolvePanelSpec).mock.calls[1]?.[3]).toBe(diagnostics);
   });
+
+  // P10 R1 propagation check: resolvePanelSpec now pushes diagnostics for
+  // imported (non-panel) parts too (splitRequired/notManifold), not just the
+  // pre-P10 missingName/missingMaterial cases. Confirms the caller-supplied
+  // array (the same diagnosticsCacheRef App.tsx passes through to
+  // useCutListResult/nesting) still receives whatever resolvePanelSpec pushes,
+  // with no new wiring needed in this file (D5).
+  it('surfaces a diagnostic pushed by resolvePanelSpec for an imported part in the caller-supplied array', async () => {
+    const { resolvePanelSpec } = await import('../resolvePanelSpec');
+    vi.mocked(resolvePanelSpec).mockImplementationOnce(async (_opfs, partPath, cache, diagnostics) => {
+      diagnostics?.push({ partPath, reasonKey: 'panel.preflight.splitRequired', params: { name: 'Multi Body', solidCount: 3 } });
+      cache.set(partPath, null);
+      return null;
+    });
+    const opfs = { read: vi.fn() };
+    const cache: PanelSpecCache = new Map();
+    const diagnostics: import('@zilventor/shared').PanelPreflightDiagnostic[] = [];
+    await loadCutListInputs(opfs, ['p/imported.zipt'], cache, diagnostics);
+    expect(diagnostics).toEqual([
+      { partPath: 'p/imported.zipt', reasonKey: 'panel.preflight.splitRequired', params: { name: 'Multi Body', solidCount: 3 } },
+    ]);
+  });
 });

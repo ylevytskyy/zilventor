@@ -59,6 +59,29 @@ describe('isImportedPart', () => {
     expect(isImportedPart(doc)).toBe(false);
   });
 
+  it('accepts an ImportedFeature carrying isManifold: false (P10 R1 — typecheck-level red)', () => {
+    // No runtime validator gates ImportedFeature's shape (verified: only the type
+    // definition and panel-preflight.ts comments reference solidColors/isManifold).
+    // This case exists so `isManifold: false` typechecks under
+    // exactOptionalPropertyTypes and so isImportedPart still recognizes the part —
+    // the gate for this slice is `tsc` clean, not a new runtime assertion.
+    const feature: ImportedFeature = {
+      kind: 'imported',
+      id: 'imp-2',
+      sourceStep: 'Bracket.step',
+      bodyRef: 'blob-def',
+      isManifold: false,
+    };
+    const doc: PartDocument = {
+      id: 'p5', name: 'Bracket', units: 'mm', parameters: {},
+      featureTree: [...ORIGIN_FEATURES, feature],
+      properties: {},
+      materials: [], hardware: [],
+    };
+    expect(isImportedPart(doc)).toBe(true);
+    expect(doc.featureTree.find((f) => f.kind === 'imported')).toMatchObject({ isManifold: false });
+  });
+
   it('returns false when imported feature is alongside another non-origin feature', () => {
     const doc: PartDocument = {
       id: 'p4', name: 'Mixed', units: 'mm', parameters: {},

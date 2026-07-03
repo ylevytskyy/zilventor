@@ -19,6 +19,9 @@ type KernelStub = {
     brepBlobId: string; triangleCount: number;
     boundingBox: readonly [number, number, number, number, number, number];
     faceCount: number;
+    /** BRepCheck_Analyzer topology-only validity (D2/D7) of the imported
+     *  compound. Threaded onto the ImportedFeature below. */
+    isManifold: boolean;
   }>;
   createPart(n: string): Promise<string>;
   addFeature(partId: string, f: Feature): Promise<void>;
@@ -194,6 +197,7 @@ export async function runInventorImport(args: RunImportArgs): Promise<ImportSumm
           await args.kernel.addFeature(partId, {
             kind: 'imported', id: importedFeatureId,
             sourceStep: parsed.value.step, bodyRef: importResult.brepBlobId,
+            isManifold: importResult.isManifold,
           });
           const bytes = await args.kernel.saveToBytes(partId);
           await writeBytes(dir, fileName, bytes);

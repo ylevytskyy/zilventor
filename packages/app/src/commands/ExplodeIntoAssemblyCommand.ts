@@ -86,7 +86,7 @@ export class ExplodeIntoAssemblyCommand implements Command {
         const name = resolveName(candidate);
         allocatedNames.push(name);
         const partPath = `${name}.zipt`;
-        const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep, undefined, solid.color);
+        const partDoc = buildImportedPartDocument(name, solid.brepBlobId, sourceStep, undefined, solid.color, undefined, solid.isManifold);
         await kernel.registerPart(partDoc);
         const bytes = await kernel.saveToBytes(partDoc.id);
         await opfs.write(partPath, bytes);

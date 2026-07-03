@@ -21,6 +21,7 @@ function makeKernelMock(): {
     faceCount: 6,
     solidCount: 1,
     solidColors: [] as (string | null)[],
+    isManifold: true,
   }));
   const registerPart = vi.fn(async () => undefined);
   return { kernel: { importStep, registerPart } as Pick<KernelApi, 'importStep' | 'registerPart'>, importStep, registerPart };
@@ -52,6 +53,7 @@ describe('importStepIntoNewPart', () => {
     if (!imported || imported.kind !== 'imported') throw new Error('expected last feature to be imported');
     expect(imported.sourceStep).toBe('MyKnob.step');
     expect(imported.bodyRef).toBe('imp-abc-123');
+    expect(imported.isManifold).toBe(true);
 
     expect(registerPart).toHaveBeenCalledOnce();
     const registered = registerPart.mock.calls[0]?.[0] as PartDocument | undefined;
@@ -64,6 +66,26 @@ describe('importStepIntoNewPart', () => {
     const file = makeFile('Hinge.STP', new Uint8Array([0]).buffer);
     const { part } = await importStepIntoNewPart(file, kernel as unknown as KernelApi);
     expect(part.name).toBe('Hinge');
+  });
+
+  it('propagates isManifold: false — must NOT be dropped by a truthy-spread bug', async () => {
+    const importStep = vi.fn(async () => ({
+      brepBlobId: 'imp-broken',
+      triangleCount: 1,
+      boundingBox: [0, 0, 0, 1, 1, 1] as [number, number, number, number, number, number],
+      faceCount: 1,
+      solidCount: 1,
+      solidColors: [] as (string | null)[],
+      isManifold: false,
+    }));
+    const registerPart = vi.fn(async () => undefined);
+    const kernel = { importStep, registerPart } as Pick<KernelApi, 'importStep' | 'registerPart'>;
+    const file = makeFile('Broken.step', new Uint8Array([0]).buffer);
+
+    const { part } = await importStepIntoNewPart(file, kernel as unknown as KernelApi);
+    const imported = part.featureTree[part.featureTree.length - 1];
+    if (!imported || imported.kind !== 'imported') throw new Error('expected last feature to be imported');
+    expect(imported.isManifold).toBe(false);
   });
 
   it('propagates kernel.importStep failures', async () => {

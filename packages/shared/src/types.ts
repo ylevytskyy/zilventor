@@ -75,6 +75,12 @@ export type ImportedFeature = {
    *  Persisted so colors survive part save→reload without needing the
    *  in-memory importedColorCache. Additive; absent on older documents. */
   solidColors?: (string | null)[];
+  /** Closed-manifold / valid-topology check, computed once at import/explode
+   *  time against the exact shape this feature's bodyRef points at (whole
+   *  compound or a single post-split solid — see D7). Absent on older
+   *  documents and on parts where no check has run yet; panelPreflight
+   *  treats absent/true as "assumed valid", matching pre-P10 behavior. */
+  isManifold?: boolean;
 };
 
 export type Feature =

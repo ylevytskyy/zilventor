@@ -28,6 +28,16 @@ describe('readStep (integration)', () => {
     }
   });
 
+  it('reads cube-10mm.step as manifold (isManifold: true)', () => {
+    const bytes = readFileSync(resolve(FIXTURES, 'cube-10mm.step'));
+    const result = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    try {
+      expect(result.isManifold).toBe(true);
+    } finally {
+      disposeShape(result.shape);
+    }
+  });
+
   it('reads two-bodies.step with 12 faces and 2 solids', () => {
     const bytes = readFileSync(resolve(FIXTURES, 'two-bodies.step'));
     const result = readStep(oc, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));

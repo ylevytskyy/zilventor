@@ -154,6 +154,7 @@ describe('handleOpen — STEP branch', () => {
       boundingBox: [0, 0, 0, 10, 10, 10] as [number, number, number, number, number, number],
       faceCount: 6,
       solidCount: 1,
+      isManifold: false,
     }));
     const registerPart = vi.fn(async () => {});
 
@@ -175,6 +176,11 @@ describe('handleOpen — STEP branch', () => {
     expect(useAppStore.getState().statusMessage).toBe('Imported');
     // importStepIntoNewPart helper is no longer used in this path.
     expect(vi.mocked(importStepIntoNewPart)).not.toHaveBeenCalled();
+    // P10 W3: isManifold: false must reach the registered ImportedFeature —
+    // not dropped by a truthy-spread bug.
+    const registered = (registerPart as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { featureTree: Array<{ kind: string; isManifold?: boolean }> };
+    const imported = registered.featureTree.find((f) => f.kind === 'imported');
+    expect(imported?.isManifold).toBe(false);
   });
 });
 
