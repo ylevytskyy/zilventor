@@ -282,38 +282,67 @@ test(
     await page.mouse.up();
 
     // ── Step 6: assert post-drag state ───────────────────────────────────────
-    // Give the async bus.execute a tick to settle.
-    await page.waitForTimeout(200);
+    // MoveConnectorCommand is fired fire-and-forget (`void bus.execute(...)`), and
+    // only reaches the top of the undo stack once its apply() resolves — apply() does
+    // variable-duration OPFS + .zipt unpack/repack, so a fixed sleep here is flaky.
+    // The bore U/V cache (read via __zilventorReadBoreUV) is written as part of that
+    // same apply() but can observably lag one tick behind the lastExecutedName() flip
+    // (measured: lastCmd already 'MoveConnector' while uAfter was still null) — so the
+    // poll predicate below waits for BOTH lastCmd AND the moved U/V to land, not just
+    // lastCmd. A real regression (command never fires, or bore never moves) still
+    // fails the test with a clear message once the deadline elapses.
+    let afterDrag!: {
+      uAfter: number | null;
+      vAfter: number | null;
+      lastCmd: string | null | undefined;
+      controlsEnabled: boolean | null;
+    };
+    await expect
+      .poll(
+        async () => {
+          afterDrag = await page.evaluate(
+            (params: { boreId: string; partPath: string }) => {
+              const store = (
+                window as unknown as {
+                  __zilventorStore: {
+                    getState(): {
+                      bus: {
+                        lastExecutedName(): string | null;
+                      };
+                      viewport: { getSceneManager(): { getControls(): { enabled: boolean } } | null } | null;
+                    };
+                  };
+                  __zilventorReadBoreUV(boreId: string, partPath: string): { u: number; v: number } | null;
+                }
+              ).__zilventorStore.getState();
 
-    const afterDrag = await page.evaluate(
-      (params: { boreId: string; partPath: string }) => {
-        const store = (
-          window as unknown as {
-            __zilventorStore: {
-              getState(): {
-                bus: {
-                  lastExecutedName(): string | null;
-                };
-                viewport: { getSceneManager(): { getControls(): { enabled: boolean } } | null } | null;
+              const uv = (window as unknown as { __zilventorReadBoreUV(b: string, p: string): { u: number; v: number } | null }).__zilventorReadBoreUV(params.boreId, params.partPath);
+              const lastCmd = store.bus.lastExecutedName?.();
+              const controlsEnabled = store.viewport?.getSceneManager()?.getControls()?.enabled ?? null;
+
+              return {
+                uAfter: uv?.u ?? null,
+                vAfter: uv?.v ?? null,
+                lastCmd,
+                controlsEnabled,
               };
-            };
-            __zilventorReadBoreUV(boreId: string, partPath: string): { u: number; v: number } | null;
-          }
-        ).__zilventorStore.getState();
-
-        const uv = (window as unknown as { __zilventorReadBoreUV(b: string, p: string): { u: number; v: number } | null }).__zilventorReadBoreUV(params.boreId, params.partPath);
-        const lastCmd = store.bus.lastExecutedName?.();
-        const controlsEnabled = store.viewport?.getSceneManager()?.getControls()?.enabled ?? null;
-
-        return {
-          uAfter: uv?.u ?? null,
-          vAfter: uv?.v ?? null,
-          lastCmd,
-          controlsEnabled,
-        };
-      },
-      { boreId: typedTarget.boreId, partPath: typedTarget.partPath },
-    );
+            },
+            { boreId: typedTarget.boreId, partPath: typedTarget.partPath },
+          );
+          if (afterDrag.lastCmd !== 'MoveConnector' || afterDrag.uAfter === null) return false;
+          const uvDist = Math.hypot(
+            (afterDrag.uAfter ?? 0) - (typedTarget.uBefore ?? 0),
+            (afterDrag.vAfter ?? 0) - (typedTarget.vBefore ?? 0),
+          );
+          return uvDist > 0.1;
+        },
+        {
+          timeout: 10_000,
+          message:
+            'MoveConnector must execute (bus.lastExecutedName()) and the bore U/V cache must reflect the completed move (fire-and-forget apply() had not settled in time)',
+        },
+      )
+      .toBe(true);
 
     console.log('[drag-gizmo] after drag:', JSON.stringify(afterDrag), 'uvDist=', Math.hypot((afterDrag.uAfter ?? 0) - (typedTarget.uBefore ?? 0), (afterDrag.vAfter ?? 0) - (typedTarget.vBefore ?? 0)).toFixed(4));
 
