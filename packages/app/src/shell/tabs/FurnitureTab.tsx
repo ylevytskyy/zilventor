@@ -38,6 +38,7 @@ import { AddFaceFrameCommand } from '../../commands/AddFaceFrameCommand';
 import { GenerateShelfPinBoresCommand } from '../../commands/GenerateShelfPinBoresCommand';
 import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinBoresCommand';
 import { AddGrooveCommand } from '../../commands/AddGrooveCommand';
+import { AddKeyholeSlotCommand } from '../../commands/AddKeyholeSlotCommand';
 import { AddTenonMortiseCommand } from '../../commands/AddTenonMortiseCommand';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { TenonMortiseCreateInput } from '@zilventor/shared';
@@ -444,6 +445,31 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   };
 
   /**
+   * Wall-hanger keyhole-slot routing (P16) — mirrors handleAddGroove's picker
+   * flow, but the dialog's default face is fixed to 'Bottom' internally (the
+   * large rear face; edge faces have no flat-drawing representation), so no
+   * defaultFace is threaded through here (unlike Groove's role-derived default).
+   */
+  const handleAddKeyholeSlot = () => {
+    const viewport = useAppStore.getState().viewport;
+    if (!viewport) return;
+    const handle = viewport.beginOneComponentPick(resolvePartPath, (panelPath: string) => {
+      useAppStore.getState().setOneComponentPickHandle(null);
+      useAppStore.getState().setKeyholeSlotDialog({
+        panelPath,
+        onSubmit: async (spec) => {
+          const opfs = await Opfs.forNavigator();
+          await useAppStore.getState().bus.execute(
+            new AddKeyholeSlotCommand({ partPath: panelPath, keyholeSlot: spec, opfs, store: useAppStore }),
+          );
+        },
+        onCancel: () => useAppStore.getState().setKeyholeSlotDialog(null),
+      });
+    });
+    useAppStore.getState().setOneComponentPickHandle(handle);
+  };
+
+  /**
    * AddTenonMortiseCommand silently no-ops when the two picked panels don't form a
    * butt joint (`inferManualJoint` returns null) — it has no return value/result object
    * to signal that. Detect it from the UI side by diffing each panel's featureTree
@@ -766,6 +792,16 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
             aria-label={t('ribbon.furniture.groove')}
           >
             {t('ribbon.furniture.groove')}
+          </button>
+          <button
+            type="button"
+            className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={cabinetDisabled}
+            title={cabinetDisabled ? t('ribbon.furniture.needAssemblyTip') : ''}
+            onClick={() => { handleAddKeyholeSlot(); }}
+            aria-label={t('ribbon.furniture.keyholeSlot')}
+          >
+            {t('ribbon.furniture.keyholeSlot')}
           </button>
           <button
             type="button"
