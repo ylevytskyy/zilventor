@@ -46,6 +46,7 @@ function makePanelPointerDownHandler(
   onSelectPanel: ((index: number) => void) | undefined,
   onDragEnd: ((panelArrayIndex: number, dx: number, dy: number) => void) | undefined,
   setDrag: (d: DragState | null) => void,
+  justDraggedRef: React.MutableRefObject<boolean>,
 ) {
   return (e: React.PointerEvent<SVGGElement>) => {
     e.stopPropagation();
@@ -72,6 +73,11 @@ function makePanelPointerDownHandler(
       window.removeEventListener('pointerup', handleUp);
       const movedPx = Math.max(Math.abs(ev.clientX - startClientX), Math.abs(ev.clientY - startClientY));
       if (movedPx >= CLICK_THRESHOLD_PX) {
+        // setPointerCapture retargets the browser's trailing native click back to this
+        // <g>; swallow that one synthetic click so it doesn't re-invoke onSelectPanel
+        // (which would clobber caller state set in response to onDragEnd, e.g. an
+        // invalid-drop error). Plain clicks (no drag) are unaffected.
+        justDraggedRef.current = true;
         const cur = screenToSheet(ev.clientX, ev.clientY, svg, sheetW, sheetH);
         onDragEnd?.(i, cur.x - anchor.x, cur.y - anchor.y);
       }
@@ -88,6 +94,7 @@ export function SheetSvg({
   const { t } = useTranslation();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const justDraggedRef = useRef(false);
   const ghostPanel = drag ? sheet.panels[drag.panelArrayIndex] : undefined;
   const fill = material?.color ?? '#dddddd';
   return (
@@ -126,8 +133,16 @@ export function SheetSvg({
               data-nesting-panel={`${p.itemNumber}:${i}`}
               {...(editable
                 ? {
-                    onClick: () => onSelectPanel?.(i),
-                    onPointerDown: makePanelPointerDownHandler(p, i, sheet, svgRef, onSelectPanel, onDragEnd, setDrag),
+                    onClick: () => {
+                      if (justDraggedRef.current) {
+                        justDraggedRef.current = false;
+                        return;
+                      }
+                      onSelectPanel?.(i);
+                    },
+                    onPointerDown: makePanelPointerDownHandler(
+                      p, i, sheet, svgRef, onSelectPanel, onDragEnd, setDrag, justDraggedRef,
+                    ),
                     role: 'button',
                     tabIndex: 0,
                     'aria-label': t('panel.sheet.selectPanelAriaLabel', { itemNumber: p.itemNumber }),

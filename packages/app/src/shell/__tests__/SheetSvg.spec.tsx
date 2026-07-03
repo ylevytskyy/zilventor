@@ -239,6 +239,35 @@ describe('SheetSvg', () => {
     expect(onDragEnd).toHaveBeenCalledWith(0, 80, 40);
   });
 
+  it('a trailing click after a real drag does not re-invoke onSelectPanel (pointer-capture retarget guard)', () => {
+    const onSelectPanel = vi.fn();
+    const onDragEnd = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={onSelectPanel} onDragEnd={onDragEnd} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 80, 40); // past CLICK_THRESHOLD_PX
+    firePointer('pointerup', window, 80, 40);
+    expect(onDragEnd).toHaveBeenCalledTimes(1);
+    onSelectPanel.mockClear(); // isolate: pointerdown already selected; only the trailing click matters here
+    // setPointerCapture retargets the browser's synthetic trailing click back to the drag-origin <g>.
+    fireEvent.click(g);
+    expect(onSelectPanel).not.toHaveBeenCalled();
+  });
+
+  it('a plain click with no prior drag still selects the panel', () => {
+    const onSelectPanel = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={onSelectPanel} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    fireEvent.click(g);
+    expect(onSelectPanel).toHaveBeenCalledWith(0);
+  });
+
   it('an invalid drop calls onDragEnd once too (rejection/snap-back is the caller\'s job) and the ghost is removed after pointerup', () => {
     const onDragEnd = vi.fn();
     render(
