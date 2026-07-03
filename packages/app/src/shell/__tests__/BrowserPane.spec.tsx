@@ -793,6 +793,88 @@ describe('BrowserPane sub-asm recursive tree (4d T25)', () => {
   });
 });
 
+// ---- P17 W6: groove/keyholeSlot rows unreachable while an assembly is active
+// (leaf .zipt components never expanded into feature rows) — fix makes leaves
+// expandable like sub-asms, sourcing grooves/keyholeSlots from the LIVE caches
+// (keyed by the leaf's real OPFS partPath, not part.id) via CutListCacheContext. ----
+
+describe('BrowserPane assembly leaf feature rows (groove/keyholeSlot reachability)', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null,
+      activeAssembly: null,
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+      bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
+      selectedComponentPaths: [],
+      editComponentDialogOpen: false,
+      editingComponentId: null,
+    } as any);
+    useAppStore.getState().setSelectedGroove(null, null);
+    useAppStore.getState().setSelectedKeyholeSlot(null, null);
+  });
+
+  const asmWithLeaf: AssemblyDocument = {
+    id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+    components: [
+      { id: 'C1', partPath: 'parts/leg.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+    ],
+    constraints: [], groundedComponentPaths: [],
+    colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+    materials: [],
+    hardware: [],
+  };
+
+  function renderWithCaches(grooves: unknown[], keyholeSlots: unknown[]) {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asmWithLeaf });
+    const ctxValue = {
+      panelSpecCacheRef: { current: new Map() },
+      partInfoCacheRef: { current: new Map() },
+      partBoresCacheRef: { current: new Map() },
+      partGroovesCacheRef: { current: new Map([['parts/leg.zipt', grooves]]) },
+      partTenonMortisesCacheRef: { current: new Map() },
+      partKeyholeSlotsCacheRef: { current: new Map([['parts/leg.zipt', keyholeSlots]]) },
+      diagnosticsCacheRef: { current: [] },
+      warmCache: async () => {},
+      invalidatePartPaths: async () => {},
+    };
+    return render(
+      <CutListCacheContext.Provider value={ctxValue as any}>
+        <BrowserPane part={null} />
+      </CutListCacheContext.Provider>,
+    );
+  }
+
+  it('a leaf with no cached groove/keyholeSlot features has no expand toggle (no always-empty affordance)', () => {
+    renderWithCaches([], []);
+    expect(screen.queryByLabelText('expand C1')).toBeNull();
+  });
+
+  it('a leaf with a live groove is expandable; clicking the Groove row selects it keyed by the LEAF partPath (not part.id)', () => {
+    const groove = { kind: 'groove', id: 'g1', faceRole: 'Top', axis: 'u', position: 10, width: 8, depth: 6 };
+    renderWithCaches([groove], []);
+    fireEvent.click(screen.getByLabelText('expand C1'));
+    expect(screen.getByText(/Groove1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Groove1/));
+    const s = useAppStore.getState();
+    expect(s.selectedGrooveId).toBe('g1');
+    expect(s.selectedGroovePartPath).toBe('parts/leg.zipt');
+  });
+
+  it('a leaf with a live keyholeSlot is expandable; clicking the Keyhole Slot row selects it keyed by the LEAF partPath (not part.id)', () => {
+    const ks = { kind: 'keyholeSlot', id: 'ks1', faceRole: 'Back', headDiameter: 10, shaftWidth: 5, slotLength: 20, depth: 6 };
+    renderWithCaches([], [ks]);
+    fireEvent.click(screen.getByLabelText('expand C1'));
+    expect(screen.getByText(/Keyhole Slot 1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Keyhole Slot 1/));
+    const s = useAppStore.getState();
+    expect(s.selectedKeyholeSlotId).toBe('ks1');
+    expect(s.selectedKeyholeSlotPartPath).toBe('parts/leg.zipt');
+  });
+});
+
 // ---- T20: Cut List tab strip ----
 
 const cutListAsm: AssemblyDocument = {
