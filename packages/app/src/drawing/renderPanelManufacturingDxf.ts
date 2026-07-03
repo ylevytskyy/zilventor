@@ -2,7 +2,7 @@ import { createDxfDocument, type DxfDocument, type XdataItem } from './dxfWriter
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 import { layoutCombinedGrid } from './layoutCombinedGrid';
 import { buildTenonMortiseCutters } from '@zilventor/shared';
-import type { PanelSpec, BoreOp, GrooveFeature, TenonMortiseFeature, PanelEdgeKey } from '@zilventor/shared';
+import type { PanelSpec, BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature, PanelEdgeKey } from '@zilventor/shared';
 
 /**
  * CAM metadata (R2.2) → DXF XDATA convention: a labeled key/value pair per
@@ -31,6 +31,8 @@ export type PanelManufacturingInput = {
    *  construction sites outside this slice's turf, e.g. ExportPanelManufacturingDxfCommand,
    *  compiling unchanged). */
   tenonMortises?: TenonMortiseFeature[];
+  /** Same absent-is-empty contract as tenonMortises (P16). */
+  keyholeSlots?: KeyholeSlotFeature[];
   qty: number;
 };
 
@@ -168,6 +170,49 @@ function drawTenonMortises(
   }
 }
 
+/**
+ * Exported so manufacturingCsv.ts reuses the same accept/reject + point placement as the
+ * DXF writer. Like grooveRect, restricted to Top/Bottom faces: this flat panel-plan drawing
+ * shows Front/Back/Left/Right edges as 1D border lines (no width/thickness cross-section
+ * view), so a keyhole slot's WIDTH — whichever local axis ISN'T the run axis — has no
+ * representable extent on an edge face. axis/direction pick the run direction in the
+ * face's (u,v) frame; Bottom mirrors v the same way grooveRect/boreToFlat do.
+ */
+export function keyholeSlotFlat(
+  f: KeyholeSlotFeature, len: number, wid: number,
+): { circle: { x: number; y: number }; rect: Array<{ x: number; y: number }> } | null {
+  if (f.faceRole !== 'Top' && f.faceRole !== 'Bottom') return null;
+  const mirror = f.faceRole === 'Bottom';
+  const cx = f.u;
+  const cy = mirror ? wid - f.v : f.v;
+  const runX = f.axis === 'u' ? 1 : 0;
+  const runY = f.axis === 'v' ? (mirror ? -1 : 1) : 0;
+  const farX = cx + runX * f.direction * f.slotLength;
+  const farY = cy + runY * f.direction * f.slotLength;
+  const half = f.slotWidth / 2;
+  const crossX = f.axis === 'v' ? 1 : 0;
+  const crossY = f.axis === 'u' ? (mirror ? -1 : 1) : 0;
+  const rect = [
+    { x: cx - crossX * half, y: cy - crossY * half },
+    { x: cx + crossX * half, y: cy + crossY * half },
+    { x: farX + crossX * half, y: farY + crossY * half },
+    { x: farX - crossX * half, y: farY - crossY * half },
+  ];
+  return { circle: { x: cx, y: cy }, rect };
+}
+
+function drawKeyholeSlots(
+  doc: DxfDocument, slots: KeyholeSlotFeature[], len: number, wid: number, dx = 0, dy = 0,
+): void {
+  for (const s of slots) {
+    const flat = keyholeSlotFlat(s, len, wid);
+    if (!flat) continue;
+    const layer = s.presetLayerName ?? L.keyholeSlots;
+    doc.circle(layer, flat.circle.x + dx, flat.circle.y + dy, s.entryDiameter / 2, camXdata(s));
+    doc.lwpolyline(layer, flat.rect.map((p) => ({ x: p.x + dx, y: p.y + dy })), true, camXdata(s));
+  }
+}
+
 const EDGE_LINE: Record<PanelEdgeKey, (len: number, wid: number) => [number, number, number, number]> = {
   front:  (_len, wid) => [0, wid, _len, wid],
   back:   (len)       => [0, 0, len, 0],
@@ -208,6 +253,7 @@ export function renderPanelManufacturingDxf(input: PanelManufacturingInput): str
   drawBores(doc, input.bores, len, wid);
   drawGrooves(doc, input.grooves, len, wid);
   drawTenonMortises(doc, input.tenonMortises ?? [], len, wid);
+  drawKeyholeSlots(doc, input.keyholeSlots ?? [], len, wid);
   drawEdgeBands(doc, input.spec, len, wid);
   drawGrain(doc, input.spec, len, wid);
   // L dimension (horizontal, below the panel)
@@ -232,6 +278,9 @@ function neededLayers(input: PanelManufacturingInput): string[] {
     if (tenonMortiseRects(f, input.spec.length, input.spec.width)) {
       layers.add(f.presetLayerName ?? (f.role === 'tenon' ? L.tenons : L.mortises));
     }
+  }
+  for (const s of input.keyholeSlots ?? []) {
+    if (keyholeSlotFlat(s, input.spec.length, input.spec.width)) layers.add(s.presetLayerName ?? L.keyholeSlots);
   }
   if (Object.values(input.spec.edgeBands).some(Boolean)) layers.add(L.edgeband);
   if (input.spec.grain !== 'none') layers.add(L.grain);
@@ -260,6 +309,7 @@ export function renderCombinedManufacturingDxf(inputs: PanelManufacturingInput[]
     drawBores(doc, input.bores, len, wid, dx, dy);
     drawGrooves(doc, input.grooves, len, wid, dx, dy);
     drawTenonMortises(doc, input.tenonMortises ?? [], len, wid, dx, dy);
+    drawKeyholeSlots(doc, input.keyholeSlots ?? [], len, wid, dx, dy);
     drawEdgeBands(doc, input.spec, len, wid, dx, dy);
     drawGrain(doc, input.spec, len, wid, dx, dy);
     drawDim(doc, L.dimensions, [0, -15], [len, -15], [0, -15], 0, `${len}`, dx, dy);

@@ -4,6 +4,7 @@ export const MANUFACTURING_LAYERS = {
   grooves: 'GROOVES',
   tenons: 'TENONS',
   mortises: 'MORTISES',
+  keyholeSlots: 'KEYHOLE-SLOTS',
   edgeband: 'EDGEBAND',
   grain: 'GRAIN',
   remnant: 'REMNANT',

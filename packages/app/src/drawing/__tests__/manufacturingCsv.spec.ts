@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildManufacturingCsv } from '../manufacturingCsv';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp, GrooveFeature, TenonMortiseFeature } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
   itemNumber: 1,
@@ -149,6 +149,40 @@ describe('buildManufacturingCsv', () => {
       faceRole: 'Unknown', axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0,
       fitClearance: 1 } as unknown as TenonMortiseFeature;
     const csv = buildManufacturingCsv([{ ...base, tenonMortises: [m] }]);
+    expect(csv.trim().split('\n')).toEqual(['partName,opType,diameter,depth,layer,toolNumber,speed']);
+  });
+
+  // P16: diameter column for opType:'keyholeSlot' is the ENTRY hole's diameter
+  // (entryDiameter), not slotWidth — mirrors a bore's diameter column semantics
+  // (the round feature you'd tool-select by).
+  it('emits a keyholeSlot row with diameter=entryDiameter and depth from the feature', () => {
+    const ks: KeyholeSlotFeature = { kind: 'keyholeSlot', id: 'ks1', faceRole: 'Top',
+      u: 200, v: 150, axis: 'u', direction: 1, entryDiameter: 15, slotWidth: 10, slotLength: 25, depth: 6 };
+    const csv = buildManufacturingCsv([{ ...base, keyholeSlots: [ks] }]);
+    expect(csv).toContain('SidePanel,keyholeSlot,15,6,KEYHOLE-SLOTS,,');
+  });
+
+  it('emits a keyholeSlot row with CAM fields populated', () => {
+    const ks: KeyholeSlotFeature = { kind: 'keyholeSlot', id: 'ks2', faceRole: 'Top',
+      u: 200, v: 150, axis: 'u', direction: 1, entryDiameter: 15, slotWidth: 10, slotLength: 25, depth: 6,
+      toolNumber: 4, speed: 15000 };
+    const csv = buildManufacturingCsv([{ ...base, keyholeSlots: [ks] }]);
+    expect(csv).toContain('SidePanel,keyholeSlot,15,6,KEYHOLE-SLOTS,4,15000');
+  });
+
+  it('routes a keyholeSlot to presetLayerName when set', () => {
+    const ks: KeyholeSlotFeature = { kind: 'keyholeSlot', id: 'ks3', faceRole: 'Top',
+      u: 200, v: 150, axis: 'u', direction: 1, entryDiameter: 15, slotWidth: 10, slotLength: 25, depth: 6,
+      presetLayerName: 'CNC-KEYHOLE-1' };
+    const csv = buildManufacturingCsv([{ ...base, keyholeSlots: [ks] }]);
+    expect(csv).toContain('SidePanel,keyholeSlot,15,6,CNC-KEYHOLE-1,,');
+    expect(csv).not.toContain('KEYHOLE-SLOTS');
+  });
+
+  it('skips a keyholeSlot whose face role is not Top/Bottom (matches keyholeSlotFlat rejection — absent from the DXF too)', () => {
+    const ks: KeyholeSlotFeature = { kind: 'keyholeSlot', id: 'ks4', faceRole: 'Left',
+      u: 9, v: 150, axis: 'v', direction: 1, entryDiameter: 15, slotWidth: 10, slotLength: 25, depth: 6 };
+    const csv = buildManufacturingCsv([{ ...base, keyholeSlots: [ks] }]);
     expect(csv.trim().split('\n')).toEqual(['partName,opType,diameter,depth,layer,toolNumber,speed']);
   });
 

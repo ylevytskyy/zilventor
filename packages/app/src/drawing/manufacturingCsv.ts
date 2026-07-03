@@ -1,4 +1,4 @@
-import { boreToFlat, grooveRect, tenonMortiseRects, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
+import { boreToFlat, grooveRect, tenonMortiseRects, keyholeSlotFlat, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 
 // Copied verbatim from buildBoringCsv.ts/buildBomCsv.ts (csvCell is local in each, not
@@ -72,6 +72,20 @@ export function buildManufacturingCsv(inputs: PanelManufacturingInput[]): string
         numCell(f.speed),
       ].join(',');
       for (let i = 0; i < rects.length; i++) out.push(row);
+    }
+    for (const s of input.keyholeSlots ?? []) {
+      if (!keyholeSlotFlat(s, len, wid)) continue;
+      // diameter column = entryDiameter (the round entry hole you'd tool-select by), not
+      // slotWidth — mirrors a bore's diameter column semantics.
+      out.push([
+        csvCell(input.partName),
+        'keyholeSlot',
+        String(s.entryDiameter),
+        String(s.depth),
+        csvCell(s.presetLayerName ?? L.keyholeSlots),
+        numCell(s.toolNumber),
+        numCell(s.speed),
+      ].join(','));
     }
   }
   return out.join('\n') + '\n';
