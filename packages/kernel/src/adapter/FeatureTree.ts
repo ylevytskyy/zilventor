@@ -21,6 +21,7 @@ import { executeShellFeature } from './features/ShellFeature';
 import { executeLinearPatternFeature } from './features/LinearPatternFeature';
 import { executeMirrorFeature } from './features/MirrorFeature';
 import { executeHoleFeature } from './features/HoleFeature';
+import { executeKeyholeSlotFeature } from './features/KeyholeSlotFeature';
 import { executeSweepFeature } from './features/SweepFeature';
 import { executeImportedFeature } from './features/ImportedFeature';
 import { evaluatePanel } from './features/PanelFeature';
@@ -825,6 +826,38 @@ export async function executeTree(
           continue;
         }
         finalSolid = { shape: current, faceNames: finalSolid.faceNames };
+      } catch (e) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: (e instanceof Error) ? e.message : String(e),
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+    } else if (feature.kind === 'keyholeSlot') {
+      // Keyhole slot cuts a cylinder∪box pocket from an existing body —
+      // without one there's nothing to cut. Soft-fail (same convention as
+      // hole/groove/tenonMortise).
+      if (!finalSolid) {
+        featureErrors.set(feature.id, {
+          kind: 'invalidParameter',
+          message: 'KeyholeSlot needs a body to modify',
+          correlationId: newCorrelationId(),
+          featureId: feature.id
+        });
+        continue;
+      }
+      try {
+        // Panel dims from the running body's bbox (same convention as groove/tenonMortise).
+        const [xmin, ymin, zmin, xmax, ymax, zmax] = computeBoundingBox(oc, finalSolid.shape);
+        const panelDims = { length: xmax - xmin, width: ymax - ymin, thickness: zmax - zmin };
+        const cut = executeKeyholeSlotFeature(oc, finalSolid.shape, feature, panelDims);
+        if (!cut.ok) {
+          featureErrors.set(feature.id, { ...cut.error, featureId: feature.id });
+          continue;
+        }
+        finalSolid = { shape: cut.value, faceNames: finalSolid.faceNames };
       } catch (e) {
         featureErrors.set(feature.id, {
           kind: 'invalidParameter',

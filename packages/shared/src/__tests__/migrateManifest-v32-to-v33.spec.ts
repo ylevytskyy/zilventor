@@ -4,7 +4,7 @@ import type { HardwareCatalogEntry } from '../hardware/resolveCatalog';
 
 describe('migrateManifest v32 → v33 (M4 Slice D — customHardware field)', () => {
   it('CURRENT_FORMAT_VERSION is 33', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(39);
+    expect(CURRENT_FORMAT_VERSION).toBe(40);
   });
 
   it('migrates a v32 assembly manifest to v33 without seeding customHardware', () => {
@@ -14,7 +14,7 @@ describe('migrateManifest v32 → v33 (M4 Slice D — customHardware field)', ()
       document: { id: 'a', name: 'A', hardware: [] },
     };
     const out = migrateManifest(v32);
-    expect(out.formatVersion).toBe(39);
+    expect(out.formatVersion).toBe(40);
     expect((out.document as { customHardware?: unknown }).customHardware).toBeUndefined();
   });
 
