@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
-import type { GrooveFeature, Feature } from '@zilventor/shared';
+import type { GrooveFeature, GrooveSpec, Feature } from '@zilventor/shared';
 import { ApplyMachiningPresetCommand } from '../commands/ApplyMachiningPresetCommand';
+import { EditGrooveCommand } from '../commands/EditGrooveCommand';
 
 type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8Array): Promise<void> };
 
@@ -15,13 +16,15 @@ interface Props {
 }
 
 /**
- * Read-only groove-parameter display + machining-preset apply control for the
- * currently-selected groove (P9 W1). Full groove editing (width/depth/position)
- * is out of scope — see D4 in docs/superpowers/plans/2026-07-03-p9-preset-coverage.md.
+ * Inline-editable groove-parameter panel + machining-preset apply control for
+ * the currently-selected groove. faceRole/axis/position/width/depth are
+ * editable (P14); toolNumber/speed/presetLayerName stay read-only rows —
+ * those are preset-owned (see D4 in
+ * docs/superpowers/plans/2026-07-03-p9-preset-coverage.md).
  *
  * Unlike BorePropertiesPanel's pre-existing preset-apply path (a direct
- * `.apply()` bypass), this panel dispatches via `bus.execute()` so the groove
- * apply is undoable (D8).
+ * `.apply()` bypass), this panel dispatches via `bus.execute()` so both the
+ * preset apply and every field edit are undoable (D8).
  */
 export function GroovePropertiesPanel({ getLiveGrooves, getLiveDoc, opfs = null }: Props): JSX.Element | null {
   const { t } = useTranslation();
@@ -30,6 +33,8 @@ export function GroovePropertiesPanel({ getLiveGrooves, getLiveDoc, opfs = null 
   const bus = useAppStore((s) => s.bus);
   const machiningPresets = useAppStore((s) => s.machiningPresets);
   const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const resetDraft = useCallback(() => setDraft({}), []);
 
   const groove = selectedGrooveId && selectedGroovePartPath
     ? (getLiveGrooves(selectedGroovePartPath) ?? []).find((g) => g.id === selectedGrooveId) ?? null
@@ -38,6 +43,57 @@ export function GroovePropertiesPanel({ getLiveGrooves, getLiveDoc, opfs = null 
   if (!groove || !selectedGroovePartPath) return null;
 
   const matchingPresets = machiningPresets.filter((p) => p.opType === 'groove');
+
+  type EditableField = 'faceRole' | 'axis' | 'position' | 'width' | 'depth';
+  type NumField = 'position' | 'width' | 'depth';
+
+  function commitPatch(patch: Partial<Pick<GrooveSpec, EditableField>>) {
+    const liveDoc = getLiveDoc(selectedGroovePartPath!);
+    if (!liveDoc) return;
+    const liveGroove = (getLiveGrooves(selectedGroovePartPath!) ?? []).find((g) => g.id === selectedGrooveId);
+    if (!liveGroove) return;
+    void bus.execute(new EditGrooveCommand({
+      groove: liveGroove,
+      patch,
+      partPath: selectedGroovePartPath!,
+      doc: liveDoc,
+      opfs: opfs ?? null,
+    }));
+  }
+
+  function val(field: NumField): string {
+    if (field in draft) return draft[field]!;
+    return String(groove![field]);
+  }
+
+  function commitField(field: NumField) {
+    if (!(field in draft)) return;
+    const num = parseFloat(draft[field]!);
+    if (!isFinite(num)) { resetDraft(); return; }
+    commitPatch({ [field]: num });
+    resetDraft();
+  }
+
+  function onKeyDown(field: NumField, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { commitField(field); }
+    if (e.key === 'Escape') { resetDraft(); }
+  }
+
+  function numericInput(field: NumField, label: string) {
+    return (
+      <label key={field} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+        <span style={{ minWidth: 80, color: '#aaa', fontSize: 11 }}>{label}</span>
+        <input
+          type="number"
+          value={val(field)}
+          style={{ width: 80, fontSize: 11, background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, padding: '1px 4px' }}
+          onChange={(e) => setDraft((d) => ({ ...d, [field]: e.target.value }))}
+          onKeyDown={(e) => onKeyDown(field, e)}
+          onBlur={() => commitField(field)}
+        />
+      </label>
+    );
+  }
 
   function applyPreset() {
     const preset = matchingPresets.find((p) => p.id === selectedPresetId);
@@ -64,10 +120,37 @@ export function GroovePropertiesPanel({ getLiveGrooves, getLiveDoc, opfs = null 
       <div style={{ fontWeight: 600, marginBottom: 6, color: '#ccc' }}>
         {t('common.groove_properties')}
       </div>
-      <div style={{ color: '#aaa', marginBottom: 2 }}>{t('groove.axis')}: {groove.axis}</div>
-      <div style={{ color: '#aaa', marginBottom: 2 }}>{t('groove.position_mm')}: {groove.position}</div>
-      <div style={{ color: '#aaa', marginBottom: 2 }}>{t('groove.width_mm')}: {groove.width}</div>
-      <div style={{ color: '#aaa', marginBottom: 2 }}>{t('aria.depth')}: {groove.depth}</div>
+      <label style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+        <span style={{ minWidth: 80, color: '#aaa', fontSize: 11 }}>{t('dialog.groove.face')}</span>
+        <select
+          aria-label={t('dialog.groove.face')}
+          value={groove.faceRole}
+          style={{ width: 80, fontSize: 11, background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, padding: '1px 4px' }}
+          onChange={(e) => commitPatch({ faceRole: e.target.value as GrooveSpec['faceRole'] })}
+        >
+          <option value="Top">Top</option>
+          <option value="Bottom">Bottom</option>
+          <option value="Front">Front</option>
+          <option value="Back">Back</option>
+          <option value="Left">Left</option>
+          <option value="Right">Right</option>
+        </select>
+      </label>
+      <label style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+        <span style={{ minWidth: 80, color: '#aaa', fontSize: 11 }}>{t('groove.axis')}</span>
+        <select
+          aria-label={t('groove.axis')}
+          value={groove.axis}
+          style={{ width: 80, fontSize: 11, background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, padding: '1px 4px' }}
+          onChange={(e) => commitPatch({ axis: e.target.value as GrooveSpec['axis'] })}
+        >
+          <option value="u">u</option>
+          <option value="v">v</option>
+        </select>
+      </label>
+      {numericInput('position', t('groove.position_mm'))}
+      {numericInput('width', t('groove.width_mm'))}
+      {numericInput('depth', t('aria.depth'))}
       <div style={{ color: '#aaa', marginBottom: 2 }}>{t('groove.tool_number')}: {groove.toolNumber ?? '—'}</div>
       <div style={{ color: '#aaa', marginBottom: 2 }}>{t('groove.speed_rpm')}: {groove.speed ?? '—'}</div>
       <div style={{ color: '#aaa', marginBottom: 4 }}>{t('groove.layer_name')}: {groove.presetLayerName ?? '—'}</div>
