@@ -4,6 +4,7 @@ import type {
   BoreOp,
   ComponentInstance,
   DoorMathInput,
+  MachiningPresetValues,
   PanelFeature,
   PartDocument,
 } from '@zilventor/shared';
@@ -49,6 +50,21 @@ type KernelPartApi = {
   deletePart(partId: string): Promise<void>;
 };
 
+/** Snapshot preset values (P15, mirroring P9 W2a/W2b) onto every generated bore —
+ *  same shape as AddLegLevelersCommand's withPresetValues (intentionally duplicated
+ *  per command, not extracted to a shared helper). */
+function withPresetValues(bores: BoreOp[], preset?: MachiningPresetValues): BoreOp[] {
+  if (!preset) return bores;
+  return bores.map((b) => ({
+    ...b,
+    diameter: preset.diameter,
+    depth: preset.depth,
+    presetLayerName: preset.layerName,
+    ...(preset.toolNumber === undefined ? {} : { toolNumber: preset.toolNumber }),
+    ...(preset.speed === undefined ? {} : { speed: preset.speed }),
+  }));
+}
+
 /** A door created during apply() — recorded so revert (and redo) can replay/undo it. */
 interface CreatedDoor {
   partPath: string;     // OPFS path of the door artifact (.zipt slab, or .ziasm shaker)
@@ -71,6 +87,10 @@ export class AddDoorCommand implements Command {
   constructor(private readonly opts: {
     cabinetPath: string;
     params: DoorMathInput;
+    /** Snapshotted machining-preset values (P15, ADR 0001) — VALUES, not a preset id,
+     *  so editing the preset later never changes already-created bores. */
+    cupPresetValues?: MachiningPresetValues;
+    platePresetValues?: MachiningPresetValues;
     opfs: OpfsRWD;
     kernel?: KernelPartApi;
     store?: typeof useAppStore;
@@ -189,13 +209,13 @@ export class AddDoorCommand implements Command {
         // Cup bores on the carcass-facing broad face.
         // DOOR_CUP_FACE is imported from prisadkaFaceConventions.ts (Phase 0 output, §1).
         const uPositions = hingePositions(doorH, panel.doorSpec.hingeCount);
-        const cupBores: BoreOp[] = hingeCupBores(
+        const cupBores: BoreOp[] = withPresetValues(hingeCupBores(
           panel.dims,
           DOOR_CUP_FACE,
           panel.doorSpec.hingeSide,
           resolvedParams.overlay,
           uPositions,
-        );
+        ), this.opts.cupPresetValues);
 
         // ADDENDUM §5: packDoorZipt is async (writeTarGz returns Promise<Uint8Array>).
         const part: PartDocument = addFeature(newPart(finalName), panelFeature);
@@ -345,12 +365,12 @@ export class AddDoorCommand implements Command {
       const dH = dp?.length.value ?? 0;
       const uPositions = hingePositions(dH, spec.hingeCount);
 
-      const plates: BoreOp[] = hingePlateBores(
+      const plates: BoreOp[] = withPresetValues(hingePlateBores(
         side.dims,
         sideInnerFace(spec.hingeSide),
         uPositions,
         DEFAULT_SHELF_PIN_PARAMS.frontSetback, // plate column coincides with система-32 front column
-      );
+      ), this.opts.platePresetValues);
 
       // Snapshot prior bores once per side path (idempotent across doors sharing a side).
       const project = await unpackProject(await this.opts.opfs.read(side.path));

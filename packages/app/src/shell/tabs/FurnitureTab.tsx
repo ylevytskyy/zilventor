@@ -210,6 +210,8 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
                 style: p.style,
                 frameWidth: p.frameWidth,
               },
+              ...(p.cupPresetValues ? { cupPresetValues: p.cupPresetValues } : {}),
+              ...(p.platePresetValues ? { platePresetValues: p.platePresetValues } : {}),
               opfs,
               store: useAppStore,
             }),
