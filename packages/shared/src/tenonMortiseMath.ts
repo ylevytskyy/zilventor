@@ -87,6 +87,23 @@ export function buildTenonMortiseCutters(
     const crossHalf = spec.crossSpan! / 2 + (isMortise ? spec.fitClearance : 0);
     crossA = spec.crossPosition! - crossHalf;
     crossB = spec.crossPosition! + crossHalf;
+    // Clamp the bounded window into the host face's cross-axis extent [0,
+    // crossLen] (mirrors layoutTenonsAlongJoint's "clamp to the largest
+    // feasible" precedent): a degenerate host panel or an edge-hugging
+    // crossPosition can otherwise push the pocket past the panel edge. Shrink
+    // the span only if it exceeds the extent outright; if it fits, shift the
+    // window into bounds instead of truncating it, preserving the mortise's
+    // full width so the mating tenon still fits.
+    if (crossB - crossA > crossLen) {
+      crossA = 0;
+      crossB = crossLen;
+    } else if (crossA < 0) {
+      crossB -= crossA;
+      crossA = 0;
+    } else if (crossB > crossLen) {
+      crossA -= crossB - crossLen;
+      crossB = crossLen;
+    }
   } else {
     crossA = 0;
     crossB = crossLen;
