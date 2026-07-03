@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EditPlacedPanelCommand, EditRejectedError } from '../EditPlacedPanelCommand';
+import { EditPlacedPanelCommand, EditRejectedError, evaluatePlacement } from '../EditPlacedPanelCommand';
 import { useAppStore } from '../../store/useAppStore';
 import type { NestState } from '@zilventor/shared';
 
@@ -226,5 +226,37 @@ describe('EditPlacedPanelCommand', () => {
     await cmd.apply();
     const sheet = useAppStore.getState().activeAssembly!.nest!.sheets[0]!;
     expect(sheet.remnant).toEqual(nest.sheets[0]!.remnant);
+  });
+});
+
+describe('evaluatePlacement', () => {
+  const sheet = baseNest().sheets[0]!;
+  // panel0: 600x400 at (0,0); panel1: 300x200 at (700,0). Sheet: 2440x1220.
+
+  it('reports valid for a placement that is in-bounds and does not overlap other panels', () => {
+    const result = evaluatePlacement({ x: 10, y: 5, length: 600, width: 400 }, sheet, 0);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('reports invalid with reason "bounds" for an out-of-bounds placement', () => {
+    const result = evaluatePlacement({ x: -50, y: 0, length: 600, width: 400 }, sheet, 0);
+    expect(result).toEqual({ valid: false, reason: 'bounds' });
+  });
+
+  it('reports invalid with reason "overlap" for a placement colliding with another panel', () => {
+    // panel0 moved to (650,0)-(1250,400), overlapping panel1 (700,0)-(1000,200).
+    const result = evaluatePlacement({ x: 650, y: 0, length: 600, width: 400 }, sheet, 0);
+    expect(result).toEqual({ valid: false, reason: 'overlap' });
+  });
+
+  it('ignores the panel at panelArrayIndex itself when checking overlap', () => {
+    // Candidate identical to panel0's own current rect, checked against index 0 (itself) — must not
+    // report a self-overlap.
+    const result = evaluatePlacement({ x: 0, y: 0, length: 600, width: 400 }, sheet, 0);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('does not throw — returns a discriminated result instead', () => {
+    expect(() => evaluatePlacement({ x: -50, y: 0, length: 600, width: 400 }, sheet, 0)).not.toThrow();
   });
 });

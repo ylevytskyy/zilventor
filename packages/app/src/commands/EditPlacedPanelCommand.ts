@@ -27,7 +27,7 @@ function computeCandidate(panel: PlacedPanel, edit: PlacedPanelEdit): PlacedPane
   }
 }
 
-interface Rect {
+export interface Rect {
   readonly x: number;
   readonly y: number;
   readonly length: number;
@@ -43,19 +43,28 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
   );
 }
 
-function validate(candidate: PlacedPanel, sheet: NestSheet, panelArrayIndex: number): void {
+export type PlacementEvaluation = { valid: true } | { valid: false; reason: 'bounds' | 'overlap' };
+
+export function evaluatePlacement(candidate: Rect, sheet: NestSheet, panelArrayIndex: number): PlacementEvaluation {
   const withinBounds =
     candidate.x >= 0 &&
     candidate.y >= 0 &&
     candidate.x + candidate.length <= sheet.sheetLengthMm &&
     candidate.y + candidate.width <= sheet.sheetWidthMm;
-  if (!withinBounds) throw new EditRejectedError('bounds');
+  if (!withinBounds) return { valid: false, reason: 'bounds' };
 
   const overlaps = sheet.panels.some((o, i) => {
     if (i === panelArrayIndex) return false;
     return rectsOverlap(candidate, o);
   });
-  if (overlaps) throw new EditRejectedError('overlap');
+  if (overlaps) return { valid: false, reason: 'overlap' };
+
+  return { valid: true };
+}
+
+function validate(candidate: PlacedPanel, sheet: NestSheet, panelArrayIndex: number): void {
+  const result = evaluatePlacement(candidate, sheet, panelArrayIndex);
+  if (!result.valid) throw new EditRejectedError(result.reason);
 }
 
 export class EditPlacedPanelCommand implements Command {
