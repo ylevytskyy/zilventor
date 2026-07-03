@@ -19,6 +19,14 @@ const material: MaterialEntry = {
   id: 'm1', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896',
 };
 
+// jsdom (v25, this repo) has no global PointerEvent constructor, so
+// fireEvent.pointerDown/Move/Up silently fall back to a bare Event with no
+// clientX/clientY. Dispatch a MouseEvent typed as the pointer event instead —
+// listeners match by e.type, and MouseEvent carries real clientX/clientY.
+function firePointer(type: 'pointerdown' | 'pointermove' | 'pointerup', target: Element | Window, clientX: number, clientY: number): void {
+  fireEvent(target, new MouseEvent(type, { clientX, clientY, bubbles: true, cancelable: true }));
+}
+
 describe('SheetSvg', () => {
   it('renders sheet header with index and utilisation', () => {
     render(<SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}} />);
@@ -121,6 +129,164 @@ describe('SheetSvg', () => {
   it('does not attach click handlers to panels when not editable', () => {
     render(<SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}} />);
     expect(screen.queryByLabelText(/Select panel/)).not.toBeInTheDocument();
+  });
+
+  it('pointerdown on a panel selects it immediately (drag-without-prior-click)', () => {
+    const twoPanelSheet: NestSheet = {
+      ...baseSheet,
+      panels: [
+        { itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
+        { itemNumber: 2, rowKey: 'r2', instanceIndex: 1, x: 700, y: 0, length: 300, width: 200, rotated: false, grain: 'none' },
+      ],
+    };
+    const onSelectPanel = vi.fn();
+    render(
+      <SheetSvg sheet={twoPanelSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={onSelectPanel} />,
+    );
+    firePointer('pointerdown', screen.getByLabelText('Select panel #2'), 700, 0);
+    expect(onSelectPanel).toHaveBeenCalledWith(1);
+  });
+
+  it('pointerdown+pointerup with near-zero movement only selects — no onDragEnd call', () => {
+    const onSelectPanel = vi.fn();
+    const onDragEnd = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={onSelectPanel} onDragEnd={onDragEnd} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 10, 10);
+    firePointer('pointerup', window, 11, 10);
+    expect(onSelectPanel).toHaveBeenCalledWith(0);
+    expect(onDragEnd).not.toHaveBeenCalled();
+  });
+
+  it('dragging past the click threshold renders a ghost rect that follows the cursor', () => {
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 50, 20);
+    const ghost = document.querySelector('[data-nesting-drag-ghost]');
+    expect(ghost).not.toBeNull();
+    // baseSheet panel #1 starts at x=0,y=0 (jsdom rect fallback ⇒ px == mm)
+    expect(ghost?.getAttribute('x')).toBe('50');
+    expect(ghost?.getAttribute('y')).toBe('20');
+    firePointer('pointerup', window, 50, 20);
+  });
+
+  it('ghost has no data-nesting-panel attribute (does not inflate panel counts)', () => {
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 50, 20);
+    const ghost = document.querySelector('[data-nesting-drag-ghost]');
+    expect(ghost?.getAttribute('data-nesting-panel')).toBeNull();
+    firePointer('pointerup', window, 50, 20);
+  });
+
+  it('ghost is colored valid when the candidate position is within bounds and non-overlapping', () => {
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 100, 50); // well within 2440x1220 sheet
+    const ghost = document.querySelector('[data-nesting-drag-ghost]');
+    expect(ghost?.getAttribute('data-nesting-drag-valid')).toBe('true');
+    firePointer('pointerup', window, 100, 50);
+  });
+
+  it('ghost is colored invalid when the candidate position would overlap another panel', () => {
+    const twoPanelSheet: NestSheet = {
+      ...baseSheet,
+      panels: [
+        { itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
+        { itemNumber: 2, rowKey: 'r2', instanceIndex: 1, x: 605, y: 0, length: 300, width: 200, rotated: false, grain: 'none' },
+      ],
+    };
+    render(
+      <SheetSvg sheet={twoPanelSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} />,
+    );
+    const g = screen.getByLabelText('Select panel #1'); // drag panel 0 into panel 1's space
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 610, 0);
+    const ghost = document.querySelector('[data-nesting-drag-ghost]');
+    expect(ghost?.getAttribute('data-nesting-drag-valid')).toBe('false');
+    firePointer('pointerup', window, 610, 0);
+  });
+
+  it('a valid drop calls onDragEnd exactly once with the correct panelArrayIndex, dx, dy', () => {
+    const onDragEnd = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} onDragEnd={onDragEnd} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 30, 0);
+    firePointer('pointermove', window, 80, 40);
+    firePointer('pointerup', window, 80, 40);
+    expect(onDragEnd).toHaveBeenCalledTimes(1);
+    expect(onDragEnd).toHaveBeenCalledWith(0, 80, 40);
+  });
+
+  it('an invalid drop calls onDragEnd once too (rejection/snap-back is the caller\'s job) and the ghost is removed after pointerup', () => {
+    const onDragEnd = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} onDragEnd={onDragEnd} />,
+    );
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 5000, 0); // way out of bounds
+    firePointer('pointerup', window, 5000, 0);
+    expect(onDragEnd).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-nesting-drag-ghost]')).toBeNull();
+  });
+
+  it('idle render (editable, no drag active) keeps element counts unchanged — no ghost rect', () => {
+    const twoPanelSheet: NestSheet = {
+      ...baseSheet,
+      panels: [
+        { itemNumber: 1, rowKey: 'r1', instanceIndex: 1, x: 0, y: 0, length: 600, width: 400, rotated: false, grain: 'none' },
+        { itemNumber: 2, rowKey: 'r2', instanceIndex: 1, x: 700, y: 0, length: 300, width: 200, rotated: false, grain: 'none' },
+      ],
+    };
+    render(
+      <SheetSvg sheet={twoPanelSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} />,
+    );
+    const svg = document.querySelector('svg');
+    // two panel rects + one sheet outline rect = 3 rects (no ghost while idle)
+    expect(svg?.querySelectorAll('rect').length).toBe(3);
+    expect(document.querySelector('[data-nesting-drag-ghost]')).toBeNull();
+  });
+
+  it('coordinate mapping scales client-pixel deltas by the real SVG render size', () => {
+    const onDragEnd = vi.fn();
+    render(
+      <SheetSvg sheet={baseSheet} material={material} grainByRowKey={new Map()} onExportPng={() => {}}
+        editable selectedIndex={null} onSelectPanel={() => {}} onDragEnd={onDragEnd} />,
+    );
+    const svg = document.querySelector('svg')!;
+    // Rendered at half scale: rect.width/sheetLengthMm = 1220/2440 = 0.5 ⇒ px->mm factor = 2
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 1220, height: 610, right: 1220, bottom: 610, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    const g = screen.getByLabelText('Select panel #1');
+    firePointer('pointerdown', g, 0, 0);
+    firePointer('pointermove', window, 100, 40);
+    firePointer('pointerup', window, 100, 40);
+    expect(onDragEnd).toHaveBeenCalledWith(0, 200, 80);
   });
 
   it('gives the selected panel a distinct highlighted stroke', () => {

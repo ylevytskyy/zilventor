@@ -241,6 +241,60 @@ describe('NestingTab', () => {
     });
   });
 
+  it('dragging a panel to a valid position dispatches exactly one move edit and updates its x,y', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    const g = screen.getByLabelText('Select panel #1');
+    // Panel #1 is 600x400 at (0,0); panel #2 is 300x200 at (605,0). Moving
+    // panel #1 straight down by 200mm clears panel #2 entirely (600 <= 605).
+    fireEvent(g, new MouseEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 0, clientY: 200, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointerup', { clientX: 0, clientY: 200, bubbles: true }));
+    await waitFor(() => {
+      const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+      expect(panel.x).toBe(0);
+      expect(panel.y).toBe(200);
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('dragging a panel to an overlapping position shows the inline overlap error and does not move it', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    const g = screen.getByLabelText('Select panel #1'); // panel #1 at x=0..600; panel #2 at x=605..905
+    fireEvent(g, new MouseEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 610, clientY: 0, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointerup', { clientX: 610, clientY: 0, bubbles: true }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/overlap/i);
+    });
+    const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+    expect(panel.x).toBe(0);
+    expect(panel.y).toBe(0);
+  });
+
+  it('dragging a panel without first clicking it still moves the correct panel (drag selects on pointerdown)', async () => {
+    seedAsm(NEST_TWO_PANELS);
+    render(<NestingTab />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Edit Mode/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Edit Mode/i }));
+    // No prior click/select — go straight to a drag on panel #2.
+    const g = screen.getByLabelText('Select panel #2');
+    fireEvent(g, new MouseEvent('pointerdown', { clientX: 605, clientY: 0, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointermove', { clientX: 615, clientY: 0, bubbles: true }));
+    fireEvent(window, new MouseEvent('pointerup', { clientX: 615, clientY: 0, bubbles: true }));
+    await waitFor(() => {
+      const panel = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[1]!;
+      expect(panel.x).toBe(615);
+    });
+    const unmoved = useAppStore.getState().activeAssembly!.nest!.sheets[0]!.panels[0]!;
+    expect(unmoved.x).toBe(0);
+  });
+
   it('a shift-nudge (10mm) that overlaps another panel shows an inline error and does not mutate state', async () => {
     seedAsm(NEST_TWO_PANELS);
     render(<NestingTab />);
