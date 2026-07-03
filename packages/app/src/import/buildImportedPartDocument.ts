@@ -14,6 +14,10 @@ import { ORIGIN_FEATURES } from './originFeatures';
  * @param solidColors Optional full per-solid color array (index-aligned with
  *                    TopExp_Explorer SOLID order). Persisted on the feature so
  *                    colors survive save→reload without the in-memory cache.
+ * @param isManifold  Optional closed-manifold/valid-topology flag computed by
+ *                    the kernel for the exact shape this feature's bodyRef
+ *                    points at. Gated on `!== undefined`, not truthiness —
+ *                    `false` is a meaningful value that must not be dropped.
  */
 export function buildImportedPartDocument(
   partName: string,
@@ -22,6 +26,7 @@ export function buildImportedPartDocument(
   partId?: string,
   color?: string,
   solidColors?: (string | null)[],
+  isManifold?: boolean,
 ): PartDocument {
   const id = partId ?? crypto.randomUUID();
   const importedFeature: ImportedFeature = {
@@ -31,6 +36,7 @@ export function buildImportedPartDocument(
     bodyRef: brepBlobId,
     ...(color ? { color } : {}),
     ...(solidColors ? { solidColors } : {}),
+    ...(isManifold !== undefined ? { isManifold } : {}),
   };
   return {
     id,

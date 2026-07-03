@@ -8,19 +8,22 @@ const makeWritableTarget = () => makeFakeWritableTarget();
 
 function utf8(s: string): Uint8Array { return new TextEncoder().encode(s); }
 
-function makeKernelStub() {
+function makeKernelStub(isManifold = true) {
   let nextId = 0;
   const features = new Map<string, unknown[]>();
   return {
     importStepCalls: [] as Array<{ partName: string; size: number }>,
+    // Kept separately from `features` because deletePart() clears the map —
+    // this array survives so tests can inspect what addFeature received.
+    addFeatureCalls: [] as Array<{ partId: string; feature: unknown }>,
     saveCalls: [] as string[],
     deleteCalls: [] as string[],
     async importStep({ stepBytes, partName }: { stepBytes: ArrayBuffer; partName: string }) {
       this.importStepCalls.push({ partName, size: stepBytes.byteLength });
-      return { brepBlobId: `imp-${++nextId}`, triangleCount: 12, boundingBox: [0, 0, 0, 1, 1, 1] as const, faceCount: 6 };
+      return { brepBlobId: `imp-${++nextId}`, triangleCount: 12, boundingBox: [0, 0, 0, 1, 1, 1] as const, faceCount: 6, isManifold };
     },
     async createPart(_n: string) { const id = `p-${++nextId}`; features.set(id, []); return id; },
-    async addFeature(pid: string, f: unknown) { features.get(pid)!.push(f); },
+    async addFeature(pid: string, f: unknown) { features.get(pid)!.push(f); this.addFeatureCalls.push({ partId: pid, feature: f }); },
     async saveToBytes(pid: string) { this.saveCalls.push(pid); return new TextEncoder().encode(`PART:${pid}`); },
     async deletePart(pid: string) { this.deleteCalls.push(pid); features.delete(pid); },
   };
@@ -47,6 +50,26 @@ describe('runInventorImport', () => {
     expect(new TextDecoder().decode(writes.get('P.zipt')!)).toMatch(/^PART:p-/);
     expect(kernel.importStepCalls).toEqual([{ partName: 'P', size: 4 }]);
     expect(kernel.deleteCalls).toHaveLength(1);
+  });
+
+  it('threads kernel.importStep isManifold: false onto the addFeature ImportedFeature — must NOT be dropped by a truthy-spread bug', async () => {
+    const stepBytes = new Uint8Array([1, 2, 3, 4]);
+    const partJson = utf8(JSON.stringify({
+      schemaVersion: 1, kind: 'part', exportedAt: 't',
+      source: { iptPath: 'Broken.ipt', fileVersion: 'I' },
+      step: 'Broken.step', name: 'Broken', properties: {}, parameters: {},
+    }));
+    const inputDir = makeDir({ 'Broken.ipt.json': partJson, 'Broken.step': stepBytes });
+    const { dir: targetDir } = makeWritableTarget();
+    const kernel = makeKernelStub(false);
+
+    const summary = await runInventorImport({ input: inputDir, target: targetDir, conflict: 'overwrite', kernel: kernel as any });
+
+    expect(summary.partsImported).toBe(1);
+    expect(kernel.addFeatureCalls).toHaveLength(1);
+    const feature = kernel.addFeatureCalls[0]?.feature as { kind: string; isManifold?: boolean };
+    expect(feature.kind).toBe('imported');
+    expect(feature.isManifold).toBe(false);
   });
 
   it('imports an assembly with one part child: writes both .zipt and .ziasm in topo order', async () => {

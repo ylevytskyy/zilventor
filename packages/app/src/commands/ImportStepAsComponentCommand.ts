@@ -58,6 +58,9 @@ export class ImportStepAsComponentCommand implements Command {
     archiveBytes: Uint8Array;
     /** Per-body STEP color (#rrggbb), preserved so redo re-stamps it. */
     color?: string;
+    /** Closed-manifold flag (D7, per-solid), preserved so redo re-stamps it.
+     *  Gated on `!== undefined` when captured — `false` must survive. */
+    isManifold?: boolean;
   }> | null = null;
 
   constructor(private readonly input: ImportStepAsComponentOpts) {}
@@ -78,7 +81,7 @@ export class ImportStepAsComponentCommand implements Command {
 
       for (const r of this.redoState) {
         // Rebuild with stable partId if we had one before
-        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName, undefined, r.color);
+        const part = buildImportedPartDocument(r.partName, r.brepBlobId, r.fileName, undefined, r.color, undefined, r.isManifold);
         await kernel.registerPart(part);
         await opfs.write(r.partPath, r.archiveBytes);
         this.placedPartIds.push(part.id);
@@ -154,14 +157,18 @@ export class ImportStepAsComponentCommand implements Command {
     }
 
     // Capture redo state BEFORE deleting parts (blob IDs still valid in kernel cache)
-    this.redoState = this.placedParts.map((part, i) => ({
-      partName: part.name,
-      brepBlobId: extractBrepBlobIdFromPart(part),
-      fileName: this.input.fileName,
-      partPath: this.placedPartPaths[i] ?? '',
-      archiveBytes: this.placedArchiveBytes[i] ?? new Uint8Array(0),
-      ...(part.color?.kind === 'hex' ? { color: part.color.hex } : {}),
-    }));
+    this.redoState = this.placedParts.map((part, i) => {
+      const isManifold = extractIsManifoldFromPart(part);
+      return {
+        partName: part.name,
+        brepBlobId: extractBrepBlobIdFromPart(part),
+        fileName: this.input.fileName,
+        partPath: this.placedPartPaths[i] ?? '',
+        archiveBytes: this.placedArchiveBytes[i] ?? new Uint8Array(0),
+        ...(part.color?.kind === 'hex' ? { color: part.color.hex } : {}),
+        ...(isManifold !== undefined ? { isManifold } : {}),
+      };
+    });
 
     // Delete all registered parts from kernel (does NOT evict importedShapeCache)
     for (const partId of this.placedPartIds) {
@@ -209,4 +216,9 @@ function extractBrepBlobIdFromPart(part: PartDocument): string {
     throw new Error('ImportStepAsComponent: missing imported feature in revert state');
   }
   return imported.bodyRef;
+}
+
+function extractIsManifoldFromPart(part: PartDocument): boolean | undefined {
+  const imported = part.featureTree.find((f) => f.kind === 'imported');
+  return imported?.kind === 'imported' ? imported.isManifold : undefined;
 }

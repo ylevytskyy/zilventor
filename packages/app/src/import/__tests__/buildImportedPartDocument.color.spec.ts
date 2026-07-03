@@ -40,3 +40,31 @@ describe('buildImportedPartDocument solidColors', () => {
     expect(imp?.solidColors).toBeUndefined();
   });
 });
+
+describe('buildImportedPartDocument isManifold', () => {
+  it('sets isManifold: true on the ImportedFeature when provided', () => {
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, undefined, undefined, true);
+    const imp = doc.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.isManifold).toBe(true);
+  });
+
+  it('sets isManifold: false on the ImportedFeature — must NOT be dropped by a truthy-spread bug', () => {
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, undefined, undefined, false);
+    const imp = doc.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.isManifold).toBe(false);
+  });
+
+  it('leaves isManifold undefined when not provided', () => {
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step');
+    const imp = doc.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.isManifold).toBeUndefined();
+  });
+
+  it('isManifold: false survives a JSON persist/reload round-trip (not dropped to undefined)', () => {
+    const doc = buildImportedPartDocument('part', 'blob-1', 'f.step', undefined, undefined, undefined, false);
+    const restored = JSON.parse(JSON.stringify(doc)) as typeof doc;
+    const imp = restored.featureTree.find((f): f is ImportedFeature => f.kind === 'imported');
+    expect(imp?.isManifold).toBe(false);
+    expect('isManifold' in (imp as object)).toBe(true);
+  });
+});

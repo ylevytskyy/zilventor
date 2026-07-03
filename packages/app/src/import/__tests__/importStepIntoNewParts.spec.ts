@@ -16,6 +16,7 @@ function makeImportStepResult(brepBlobId = 'whole-blob', solidCount = 1) {
     faceCount: 0,
     solidCount,
     solidColors: Array.from({ length: solidCount }, () => null) as (string | null)[],
+    isManifold: true,
   });
 }
 
@@ -32,6 +33,7 @@ function makeKernel(brepBlobIds: string[]): Pick<KernelApi, 'importStep' | 'spli
       solids: brepBlobIds.map((id, i) => ({
         brepBlobId: id,
         boundingBox: [i * 100, 0, 0, i * 100 + 10, 10, 10] as BB,
+        isManifold: true,
       })),
       surfaces: null,
     })),
@@ -46,7 +48,7 @@ function makeKernel(brepBlobIds: string[]): Pick<KernelApi, 'importStep' | 'spli
  * New-style kernel mock: importStep + splitImportedShape with optional surfaces.
  */
 function makeKernelV2(
-  solids: { brepBlobId: string }[],
+  solids: { brepBlobId: string; isManifold?: boolean }[],
   surfaces: { brepBlobId: string } | null = null,
 ): Pick<KernelApi, 'importStep' | 'splitImportedShape' | 'registerPart' | 'saveToBytes'> & { _registered: PartDocument[] } {
   const registered: PartDocument[] = [];
@@ -57,6 +59,7 @@ function makeKernelV2(
       solids: solids.map((s, i) => ({
         brepBlobId: s.brepBlobId,
         boundingBox: [i * 100, 0, 0, i * 100 + 10, 10, 10] as BB,
+        isManifold: s.isManifold ?? true,
       })),
       surfaces: surfaces
         ? { brepBlobId: surfaces.brepBlobId, boundingBox: [200, 0, 0, 210, 10, 10] as BB }
@@ -211,5 +214,47 @@ describe('importStepIntoNewParts', () => {
     expect(results).toHaveLength(3);
     const names = kernel._registered.map((p) => p.name);
     expect(names).toEqual(['Jet_1', 'Jet_2', 'Jet_surfaces']);
+  });
+
+  // ---- P10 W3: per-solid isManifold propagation ----
+
+  it('threads per-solid isManifold from splitImportedShape onto each ImportedFeature', async () => {
+    const kernel = makeKernelV2([
+      { brepBlobId: 's1', isManifold: true },
+      { brepBlobId: 's2', isManifold: false },
+    ]);
+    const opfs = makeOpfs();
+
+    await importStepIntoNewParts({
+      baseName: 'mixed',
+      sourceFileName: 'mixed.step',
+      stepBytes: new ArrayBuffer(8),
+      kernel: kernel as unknown as KernelApi,
+      opfs: opfs as unknown as OpfsLike,
+    });
+
+    const importedFeatures = kernel._registered.map(
+      (p) => p.featureTree.find((f) => f.kind === 'imported'),
+    );
+    expect(importedFeatures[0]?.kind === 'imported' && importedFeatures[0].isManifold).toBe(true);
+    // isManifold: false must NOT be dropped by a truthy-spread bug.
+    expect(importedFeatures[1]?.kind === 'imported' && importedFeatures[1].isManifold).toBe(false);
+  });
+
+  it('surfaces bucket has no isManifold (kernel does not compute one for open surfaces)', async () => {
+    const kernel = makeKernelV2([{ brepBlobId: 's1' }], { brepBlobId: 'surf1' });
+    const opfs = makeOpfs();
+
+    await importStepIntoNewParts({
+      baseName: 'wing',
+      sourceFileName: 'wing.step',
+      stepBytes: new ArrayBuffer(8),
+      kernel: kernel as unknown as KernelApi,
+      opfs: opfs as unknown as OpfsLike,
+    });
+
+    const surfacesPart = kernel._registered.find((p) => p.name === 'wing_surfaces');
+    const imported = surfacesPart?.featureTree.find((f) => f.kind === 'imported');
+    expect(imported?.kind === 'imported' && imported.isManifold).toBeUndefined();
   });
 });
