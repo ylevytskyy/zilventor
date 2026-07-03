@@ -2,6 +2,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AddDoorDialog } from '../AddDoorDialog';
 import { useAppStore } from '../../store/useAppStore';
+import type { MachiningPreset } from '@zilventor/shared';
+
+const CUP_PRESET: MachiningPreset = {
+  id: 'cup-1', name: 'Cup 40mm', opType: 'hingeCup',
+  diameter: 40, depth: 14, layerName: 'CUP-CAM', toolNumber: 3, speed: 12000,
+};
+const PLATE_PRESET: MachiningPreset = {
+  id: 'plate-1', name: 'Plate 6mm', opType: 'hingePlate',
+  diameter: 6, depth: 15, layerName: 'PLATE-CAM',
+};
 
 describe('AddDoorDialog — structural', () => {
   beforeEach(() => {
@@ -87,5 +97,84 @@ describe('AddDoorDialog — structural', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().addDoorDialog).toBeNull();
+  });
+});
+
+// ── P15: hinge-cup / hinge-plate machining-preset dropdowns ──
+
+describe('AddDoorDialog — machining presets (P15)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setAddDoorDialog(null);
+    useAppStore.setState({ machiningPresets: [] });
+  });
+
+  it('does not render preset dropdowns when no matching presets exist', () => {
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit: vi.fn(), onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+    expect(screen.queryAllByLabelText('Machining preset')).toHaveLength(0);
+  });
+
+  it('selecting a hinge-cup preset and submitting includes cupPresetValues but not platePresetValues', () => {
+    useAppStore.setState({ machiningPresets: [CUP_PRESET] });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+
+    const presetSelects = screen.getAllByLabelText('Machining preset');
+    expect(presetSelects).toHaveLength(1);
+    fireEvent.change(presetSelects[0]!, { target: { value: 'cup-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(onSubmit.mock.calls[0]![0].cupPresetValues).toEqual({
+      diameter: 40, depth: 14, layerName: 'CUP-CAM', toolNumber: 3, speed: 12000,
+    });
+    expect(onSubmit.mock.calls[0]![0].platePresetValues).toBeUndefined();
+  });
+
+  it('selecting a hinge-plate preset and submitting includes platePresetValues but not cupPresetValues', () => {
+    useAppStore.setState({ machiningPresets: [PLATE_PRESET] });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+
+    const presetSelects = screen.getAllByLabelText('Machining preset');
+    expect(presetSelects).toHaveLength(1);
+    fireEvent.change(presetSelects[0]!, { target: { value: 'plate-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(onSubmit.mock.calls[0]![0].platePresetValues).toEqual({
+      diameter: 6, depth: 15, layerName: 'PLATE-CAM',
+    });
+    expect(onSubmit.mock.calls[0]![0].cupPresetValues).toBeUndefined();
+  });
+
+  it('with both presets available, selecting each independently submits both presetValues', () => {
+    useAppStore.setState({ machiningPresets: [CUP_PRESET, PLATE_PRESET] });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+
+    const presetSelects = screen.getAllByLabelText('Machining preset');
+    expect(presetSelects).toHaveLength(2);
+    fireEvent.change(presetSelects[0]!, { target: { value: 'cup-1' } }); // cup dropdown first
+    fireEvent.change(presetSelects[1]!, { target: { value: 'plate-1' } }); // plate dropdown second
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(onSubmit.mock.calls[0]![0].cupPresetValues).toEqual({
+      diameter: 40, depth: 14, layerName: 'CUP-CAM', toolNumber: 3, speed: 12000,
+    });
+    expect(onSubmit.mock.calls[0]![0].platePresetValues).toEqual({
+      diameter: 6, depth: 15, layerName: 'PLATE-CAM',
+    });
+  });
+
+  it('"None" selected (default) omits both presetValues fields', () => {
+    useAppStore.setState({ machiningPresets: [CUP_PRESET, PLATE_PRESET] });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    useAppStore.getState().setAddDoorDialog({ cabinetPath: 'parts/cab.ziasm', onSubmit, onCancel: vi.fn() });
+    render(<AddDoorDialog />);
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onSubmit.mock.calls[0]![0].cupPresetValues).toBeUndefined();
+    expect(onSubmit.mock.calls[0]![0].platePresetValues).toBeUndefined();
   });
 });

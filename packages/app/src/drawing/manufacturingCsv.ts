@@ -56,8 +56,13 @@ export function buildManufacturingCsv(inputs: PanelManufacturingInput[]): string
       ].join(','));
     }
     for (const f of input.tenonMortises ?? []) {
-      if (!tenonMortiseRects(f, len, wid)) continue;
-      out.push([
+      // P15 Task A: one row per PHYSICAL tab, not one row per feature — a feature's `count`
+      // (P11 auto-layout) can represent several tabs. rects.length is authoritative (it's
+      // literally what the DXF renderer draws, one polyline per tab) so reuse it instead of
+      // recomputing count's clamp here.
+      const rects = tenonMortiseRects(f, len, wid);
+      if (!rects) continue;
+      const row = [
         csvCell(input.partName),
         f.role,
         '',
@@ -65,7 +70,8 @@ export function buildManufacturingCsv(inputs: PanelManufacturingInput[]): string
         csvCell(f.presetLayerName ?? (f.role === 'tenon' ? L.tenons : L.mortises)),
         numCell(f.toolNumber),
         numCell(f.speed),
-      ].join(','));
+      ].join(',');
+      for (let i = 0; i < rects.length; i++) out.push(row);
     }
   }
   return out.join('\n') + '\n';

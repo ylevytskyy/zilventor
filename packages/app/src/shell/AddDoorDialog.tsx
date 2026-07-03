@@ -29,6 +29,9 @@ export function AddDoorDialog(): JSX.Element | null {
   const { t } = useTranslation();
   const dialog = useAppStore((s) => s.addDoorDialog);
   const setDialog = useAppStore((s) => s.setAddDoorDialog);
+  const machiningPresets = useAppStore((s) => s.machiningPresets);
+  const cupPresets = machiningPresets.filter((p) => p.opType === 'hingeCup');
+  const platePresets = machiningPresets.filter((p) => p.opType === 'hingePlate');
 
   const [count, setCount] = React.useState<'single' | 'double'>('single');
   const [hingeSide, setHingeSide] = React.useState<'left' | 'right'>('left');
@@ -39,6 +42,8 @@ export function AddDoorDialog(): JSX.Element | null {
   const [reveal, setReveal] = React.useState('2');
   const [clearance, setClearance] = React.useState('2');
   const [centerReveal, setCenterReveal] = React.useState('3');
+  const [cupPresetId, setCupPresetId] = React.useState('');
+  const [platePresetId, setPlatePresetId] = React.useState('');
 
   const [error, setError] = React.useState<string | null>(null);
 
@@ -54,6 +59,8 @@ export function AddDoorDialog(): JSX.Element | null {
       setReveal('2');
       setClearance('2');
       setCenterReveal('3');
+      setCupPresetId('');
+      setPlatePresetId('');
       setError(null);
     }
   }, [dialog]);
@@ -67,6 +74,26 @@ export function AddDoorDialog(): JSX.Element | null {
   const handleOk = async (): Promise<void> => {
     setError(null);
     try {
+      const cupPreset = cupPresets.find((p) => p.id === cupPresetId);
+      const cupPresetValues = cupPreset
+        ? {
+            diameter: cupPreset.diameter,
+            depth: cupPreset.depth,
+            layerName: cupPreset.layerName,
+            ...(cupPreset.toolNumber === undefined ? {} : { toolNumber: cupPreset.toolNumber }),
+            ...(cupPreset.speed === undefined ? {} : { speed: cupPreset.speed }),
+          }
+        : undefined;
+      const platePreset = platePresets.find((p) => p.id === platePresetId);
+      const platePresetValues = platePreset
+        ? {
+            diameter: platePreset.diameter,
+            depth: platePreset.depth,
+            layerName: platePreset.layerName,
+            ...(platePreset.toolNumber === undefined ? {} : { toolNumber: platePreset.toolNumber }),
+            ...(platePreset.speed === undefined ? {} : { speed: platePreset.speed }),
+          }
+        : undefined;
       await dialog.onSubmit({
         count,
         overlay,
@@ -77,6 +104,8 @@ export function AddDoorDialog(): JSX.Element | null {
         centerReveal: Number(centerReveal),
         style,
         frameWidth: Number(frameWidth),
+        ...(cupPresetValues ? { cupPresetValues } : {}),
+        ...(platePresetValues ? { platePresetValues } : {}),
       });
       setDialog(null);
     } catch (err: unknown) {
@@ -229,6 +258,42 @@ export function AddDoorDialog(): JSX.Element | null {
           <span>{t('dialog.addDoor.hingeCount')}</span>
           <span aria-label={t('dialog.addDoor.hingeCount')}>{hingeHint}</span>
         </div>
+
+        {cupPresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="adddoor-preset-cup">{t('bore.machining_preset', 'Machining preset')}</label>
+            <select
+              id="adddoor-preset-cup"
+              aria-label={t('bore.machining_preset', 'Machining preset')}
+              style={fieldStyle}
+              value={cupPresetId}
+              onChange={(e) => setCupPresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {cupPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {platePresets.length > 0 && (
+          <div style={rowStyle}>
+            <label htmlFor="adddoor-preset-plate">{t('bore.machining_preset', 'Machining preset')}</label>
+            <select
+              id="adddoor-preset-plate"
+              aria-label={t('bore.machining_preset', 'Machining preset')}
+              style={fieldStyle}
+              value={platePresetId}
+              onChange={(e) => setPlatePresetId(e.target.value)}
+            >
+              <option value="">{t('common.none')}</option>
+              {platePresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {error && (
           <div style={errorStyle} role="alert">{error}</div>

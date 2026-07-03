@@ -180,6 +180,9 @@ export type AddDoorDialogState = {
     centerReveal: number;
     style: 'slab' | 'shaker' | 'raisedPanel';
     frameWidth: number;
+    /** Snapshotted machining-preset values (P15, mirroring P9 W2a/W2b, ADR 0001) — absent when "None" is picked. */
+    cupPresetValues?: MachiningPresetValues;
+    platePresetValues?: MachiningPresetValues;
   }) => Promise<void> | void;
   onCancel: () => void;
 };
@@ -495,6 +498,7 @@ type AppState = {
   addLabelHeaderPreset: (p: LabelHeaderPreset) => void;
   updateLabelHeaderPreset: (p: LabelHeaderPreset) => void;
   deleteLabelHeaderPreset: (id: string) => void;
+  importLabelHeaderPresets: (presets: LabelHeaderPreset[]) => void;
   labelHeaderPresetsDialogOpen: boolean;
   toggleLabelHeaderPresetsDialog: (open: boolean) => void;
   labelTemplate: LabelTemplateId;
@@ -1007,6 +1011,11 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   deleteLabelHeaderPreset: (id) => set((s) => {
     const next = s.labelHeaderPresets.filter((p) => p.id !== id);
+    persistLabelHeaderPresets(next);
+    return { labelHeaderPresets: next };
+  }),
+  importLabelHeaderPresets: (presets) => set((s) => {
+    const next = [...s.labelHeaderPresets, ...presets];
     persistLabelHeaderPresets(next);
     return { labelHeaderPresets: next };
   }),

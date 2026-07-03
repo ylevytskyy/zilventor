@@ -5,7 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { unpackProject, packProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
-import type { AssemblyDocument, BoreOp, DoorMathInput, PartDocument } from '@zilventor/shared';
+import type { AssemblyDocument, BoreOp, DoorMathInput, MachiningPresetValues, PartDocument } from '@zilventor/shared';
 
 class MemOpfs {
   files = new Map<string, Uint8Array>();
@@ -333,5 +333,110 @@ describe('AddDoorCommand — round-trip + undo/redo (locking)', () => {
     const doors = (await unpackAssembly(await opfs.read(cabinetPath))).components.filter((c) => c.role === 'door');
     expect(doors.length, 'exactly one door after redo — no duplicate component').toBe(1);
     expect(kernel.registered.size, 'exactly one registered door part after redo').toBe(1);
+  });
+});
+
+// ── P15: machining-preset snapshot onto hinge-cup / hinge-plate bores ──
+
+const CUP_PRESET: MachiningPresetValues = { diameter: 40, depth: 14, layerName: 'CUP-CAM', toolNumber: 3, speed: 12000 };
+const PLATE_PRESET: MachiningPresetValues = { diameter: 6, depth: 15, layerName: 'PLATE-CAM' };
+
+describe('AddDoorCommand — machining-preset snapshot (P15)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('cupPresetValues snapshots diameter/depth/layerName/toolNumber/speed onto every hinge-cup bore', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const cmd = new AddDoorCommand({
+      cabinetPath, params: SINGLE_DOOR_ZERO_DIMS, opfs, kernel,
+      cupPresetValues: CUP_PRESET,
+    });
+    await cmd.apply();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const door = cab.components.find((c) => c.role === 'door')!;
+    const cupBores = (await boresOf(opfs, door.partPath)).filter((b) => b.role === 'hingeCup');
+    expect(cupBores.length).toBeGreaterThan(0);
+    for (const b of cupBores) {
+      expect(b.diameter).toBe(CUP_PRESET.diameter);
+      expect(b.depth).toBe(CUP_PRESET.depth);
+      expect(b.presetLayerName).toBe(CUP_PRESET.layerName);
+      expect(b.toolNumber).toBe(CUP_PRESET.toolNumber);
+      expect(b.speed).toBe(CUP_PRESET.speed);
+    }
+
+    // Plate bores on the side panel must be UNAFFECTED by a cup-only preset.
+    const plates = (await boresOf(opfs, 'L.zipt')).filter((b) => b.role === 'hingePlate');
+    expect(plates.length).toBeGreaterThan(0);
+    for (const b of plates) {
+      expect(b.diameter).toBe(5);
+      expect(b.presetLayerName).toBeUndefined();
+    }
+  });
+
+  it('platePresetValues snapshots diameter/depth/layerName onto every hinge-plate bore on the hinge-side panel', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    const cmd = new AddDoorCommand({
+      cabinetPath, params: SINGLE_DOOR_ZERO_DIMS, opfs, kernel,
+      platePresetValues: PLATE_PRESET,
+    });
+    await cmd.apply();
+
+    const plates = (await boresOf(opfs, 'L.zipt')).filter((b) => b.role === 'hingePlate');
+    expect(plates.length).toBeGreaterThan(0);
+    for (const b of plates) {
+      expect(b.diameter).toBe(PLATE_PRESET.diameter);
+      expect(b.depth).toBe(PLATE_PRESET.depth);
+      expect(b.presetLayerName).toBe(PLATE_PRESET.layerName);
+      expect(b.toolNumber).toBeUndefined();
+      expect(b.speed).toBeUndefined();
+    }
+
+    // Cup bores on the door must be UNAFFECTED by a plate-only preset.
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const door = cab.components.find((c) => c.role === 'door')!;
+    const cupBores = (await boresOf(opfs, door.partPath)).filter((b) => b.role === 'hingeCup');
+    expect(cupBores.length).toBeGreaterThan(0);
+    for (const b of cupBores) {
+      expect(b.diameter).toBe(35);
+      expect(b.presetLayerName).toBeUndefined();
+    }
+  });
+
+  it('no preset supplied → cup and plate bores are byte-identical to pre-P15 default behavior', async () => {
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    await new AddDoorCommand({ cabinetPath, params: SINGLE_DOOR_ZERO_DIMS, opfs, kernel }).apply();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const door = cab.components.find((c) => c.role === 'door')!;
+    const cupBores = await boresOf(opfs, door.partPath);
+    const plateBores = (await boresOf(opfs, 'L.zipt')).filter((b) => b.role === 'hingePlate');
+
+    for (const b of cupBores) {
+      expect(b.diameter).toBe(35);
+      expect(b.depth).toBe(12);
+      expect(b.presetLayerName).toBeUndefined();
+      expect(b.toolNumber).toBeUndefined();
+      expect(b.speed).toBeUndefined();
+    }
+    for (const b of plateBores) {
+      expect(b.diameter).toBe(5);
+      expect(b.depth).toBe(13);
+      expect(b.presetLayerName).toBeUndefined();
+      expect(b.toolNumber).toBeUndefined();
+      expect(b.speed).toBeUndefined();
+    }
   });
 });
