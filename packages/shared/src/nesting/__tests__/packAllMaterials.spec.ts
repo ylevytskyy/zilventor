@@ -62,6 +62,20 @@ describe('packAllMaterials', () => {
     expect(out.excluded).toHaveLength(0);
   });
 
+  it("material with both a genuinely-oversized row and a grain-locked-would-fit-rotated row → two separate exclusions", () => {
+    const rows = [
+      r({ rowKey: 'huge', itemNumber: 1, length: 5000, width: 5000, materialId: 'm1' }),
+      r({ rowKey: 'grainlocked', itemNumber: 2, length: 800, width: 400, grain: 'length', materialId: 'm1' }),
+    ];
+    const materials = [mat({ id: 'm1', sheetLengthMm: 700, sheetWidthMm: 1220 })];
+    const out = packAllMaterials(rows, materials, 3);
+    expect(out.sheets).toHaveLength(0);
+    expect(out.excluded).toEqual([
+      { materialId: 'm1', reason: 'panel-exceeds-sheet', itemNumbers: [1] },
+      { materialId: 'm1', reason: 'grain-locked-exceeds-sheet', itemNumbers: [2] },
+    ]);
+  });
+
   it('passes instanceIndex and remnant through from packGuillotine unchanged', () => {
     // 500x500 panel on a 1000x1000 sheet leaves a >=100x100 leftover; qty=2 → instanceIndex 1,2.
     const rows = [r({ materialId: 'm1', length: 500, width: 500, qty: 2 })];

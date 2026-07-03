@@ -166,7 +166,9 @@ function ExcludedSection({ excluded }: { excluded: readonly NestExclusion[] }) {
             <strong>{e.materialId}</strong>:{' '}
             {e.reason === 'no-sheet-stock'
               ? t('panel.nesting.noSheetStock')
-              : t('panel.nesting.panelExceedsSheet', { s: e.itemNumbers.length === 1 ? '' : 's', nums: e.itemNumbers.join(', #') })}
+              : e.reason === 'grain-locked-exceeds-sheet'
+                ? t('panel.nesting.grainLockedExceedsSheet', { s: e.itemNumbers.length === 1 ? '' : 's', nums: e.itemNumbers.join(', #') })
+                : t('panel.nesting.panelExceedsSheet', { s: e.itemNumbers.length === 1 ? '' : 's', nums: e.itemNumbers.join(', #') })}
           </li>
         ))}
       </ul>
