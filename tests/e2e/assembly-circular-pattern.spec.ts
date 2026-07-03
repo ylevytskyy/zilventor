@@ -52,9 +52,8 @@ test(
     await page.evaluate(
       async ([bytes]: [number[]]) => {
         const w = window as any;
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { ImportStepAsComponentCommand } = await import('/src/commands/ImportStepAsComponentCommand.ts');
-        const kernel = useAppStore.getState().kernel;
+        const kernel = w.__zilventorStore.getState().kernel;
         if (!kernel) throw new Error('no kernel');
         const opfs = await w.__zilventorGetOpfs();
         const cmd = new ImportStepAsComponentCommand({
@@ -63,7 +62,7 @@ test(
           kernel,
           opfs,
         });
-        await useAppStore.getState().bus.execute(cmd);
+        await w.__zilventorStore.getState().bus.execute(cmd);
       },
       [Array.from(cubeBytes)] as [number[]],
     );
@@ -87,8 +86,7 @@ test(
     // real circle of radius=50 in the XY plane.
     await page.evaluate(
       async ([srcId]: [string]) => {
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
-        const store = useAppStore.getState();
+        const store = (window as any).__zilventorStore.getState();
         const asm = store.activeAssembly;
         if (!asm) throw new Error('no active assembly');
         const comp = asm.components.find((c: any) => c.id === srcId);
@@ -119,7 +117,6 @@ test(
     // ── 5. Apply circular pattern: z-axis, center=origin, count=4, 360° ──────
     await page.evaluate(
       async ([srcId]: [string]) => {
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { CreateCircularPatternCommand } = await import('/src/commands/CreateCircularPatternCommand.ts');
         const cmd = new CreateCircularPatternCommand({
           sourceInstanceId: srcId,
@@ -129,7 +126,7 @@ test(
           totalAngleDeg: 360,
           rotateInstances: true,
         });
-        await useAppStore.getState().bus.execute(cmd);
+        await (window as any).__zilventorStore.getState().bus.execute(cmd);
       },
       [srcCompId] as [string],
     );
@@ -168,8 +165,7 @@ test(
 
     // ── 8. Undo pattern → assert back to 1 component ─────────────────────────
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      await (window as any).__zilventorStore.getState().bus.undo();
     });
 
     await page.waitForFunction(

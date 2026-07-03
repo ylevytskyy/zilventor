@@ -53,9 +53,8 @@ test(
     await page.evaluate(
       async ([bytes]: [number[]]) => {
         const w = window as any;
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { ImportStepAsComponentCommand } = await import('/src/commands/ImportStepAsComponentCommand.ts');
-        const kernel = useAppStore.getState().kernel;
+        const kernel = w.__zilventorStore.getState().kernel;
         if (!kernel) throw new Error('no kernel');
         const opfs = await w.__zilventorGetOpfs();
         const cmd = new ImportStepAsComponentCommand({
@@ -64,7 +63,7 @@ test(
           kernel,
           opfs,
         });
-        await useAppStore.getState().bus.execute(cmd);
+        await w.__zilventorStore.getState().bus.execute(cmd);
       },
       [Array.from(cubeBytes)] as [number[]],
     );
@@ -85,13 +84,12 @@ test(
     // Source component at origin (0,0,0); pattern adds 3 new at x=15,30,45
     await page.evaluate(
       async ([srcId]: [string]) => {
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { CreateComponentPatternCommand } = await import('/src/commands/CreateComponentPatternCommand.ts');
         const cmd = new CreateComponentPatternCommand({
           sourceInstanceId: srcId,
           dir1: 'x', count1: 4, spacing1: 15,
         });
-        await useAppStore.getState().bus.execute(cmd);
+        await (window as any).__zilventorStore.getState().bus.execute(cmd);
       },
       [srcCompId] as [string],
     );
@@ -146,12 +144,11 @@ test(
     await page.evaluate(
       async ([instId]: [string]) => {
         const w = window as any;
-        const { useAppStore } = await import('/src/store/useAppStore.ts');
         const { MirrorComponentCommand } = await import('/src/commands/MirrorComponentCommand.ts');
-        const kernel = useAppStore.getState().kernel;
+        const kernel = w.__zilventorStore.getState().kernel;
         if (!kernel) throw new Error('no kernel');
         const opfs = await w.__zilventorGetOpfs();
-        const asm = useAppStore.getState().activeAssembly;
+        const asm = w.__zilventorStore.getState().activeAssembly;
         const instComp = (asm?.components as any[])?.find((c: any) => c.id === instId);
         if (!instComp) throw new Error('x=45 component not found');
         // Load source part bytes from OPFS → get kernel part UUID
@@ -164,7 +161,7 @@ test(
           kernel,
           opfs,
         });
-        await useAppStore.getState().bus.execute(cmd);
+        await w.__zilventorStore.getState().bus.execute(cmd);
       },
       [x45CompId] as [string],
     );
@@ -198,8 +195,7 @@ test(
 
     // ── 8. Undo mirror → back to 4 ───────────────────────────────────────────
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      await (window as any).__zilventorStore.getState().bus.undo();
     });
     await page.waitForFunction(
       () => (window as any).__zilventorStore?.getState().activeAssembly?.components.length === 4,
@@ -208,8 +204,7 @@ test(
 
     // ── 9. Undo pattern → back to 1 ──────────────────────────────────────────
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      await (window as any).__zilventorStore.getState().bus.undo();
     });
     await page.waitForFunction(
       () => (window as any).__zilventorStore?.getState().activeAssembly?.components.length === 1,

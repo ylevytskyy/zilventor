@@ -50,26 +50,22 @@ test('multi-body STEP explodes into N components, persists, undoes', async ({ pa
   // 5. Undo in the SAME session (bus history is in-memory; resets on reload).
   //    The command bus holds the ImportStepAsComponentCommand — undo removes both components.
   await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    await useAppStore.getState().bus?.undo();
+    await (window as any).__zilventorStore.getState().bus?.undo();
   });
 
   const afterUndo = await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    const doc = useAppStore.getState().activeDocument;
+    const doc = (window as any).__zilventorStore.getState().activeDocument;
     return doc?.kind === 'assembly' ? doc.document.components.length : -1;
   });
   expect(afterUndo).toBe(0);
 
   // 6. Redo to restore the 2 components so we can test reload-persistence.
   await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    await useAppStore.getState().bus?.redo();
+    await (window as any).__zilventorStore.getState().bus?.redo();
   });
 
   const afterRedo = await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    const doc = useAppStore.getState().activeDocument;
+    const doc = (window as any).__zilventorStore.getState().activeDocument;
     return doc?.kind === 'assembly' ? doc.document.components.length : -1;
   });
   expect(afterRedo).toBe(2);
@@ -92,8 +88,7 @@ test('multi-body STEP explodes into N components, persists, undoes', async ({ pa
   );
 
   const afterReload = await page.evaluate(async () => {
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    const asm = useAppStore.getState().activeAssembly;
+    const asm = (window as any).__zilventorStore.getState().activeAssembly;
     return {
       count: asm?.components.length ?? 0,
       partPaths: (asm?.components ?? []).map((c) => c.partPath).sort(),
