@@ -199,27 +199,120 @@ test('material-hatch-pattern: per-material angle/spacing override flows to part-
   }
 
   // Step 6: Persistence across reload.
-  // After CreateDrawingCommand, lastOpenDocument is the drawing. Override it to point
-  // at the part — the part was naturally autosaved with hatch materials in Step 3
-  // (kernel-sync ensures kernel.saveToBytes packs the hatch fields).
+  // After CreateDrawingCommand, activeDocument (and lastOpenDocument) is the drawing.
+  // Switch back to the part via the REAL product path — the same `setActivePart`
+  // store setter FileTab's "Open" flow uses to reactivate a part document — instead
+  // of hand-writing localStorage. `activeDrawingSourceDocument` is the exact part
+  // object CreateDrawingCommand captured as `activePartDoc` before switching to the
+  // drawing, so it already carries the Step 3 hatch-material edit.
+  //
+  // Calling setActivePart changes activeDocument identity, which retriggers
+  // App.tsx's OPFS-autosave debounce (500ms, keyed off activeDocument). When that
+  // timer fires it re-reads the CURRENT activeDocument (now the part), re-packs it
+  // via kernel.saveToBytes(partId, ...) — using the kernel's internal materials map,
+  // already synced by EditMaterialCommand's syncPartMaterials() in Step 3 and
+  // untouched since — writes it to OPFS, and calls setLastOpenDocument({kind:'part',...})
+  // itself. Because nothing mutates activeDocument after this call, that write is the
+  // LAST one and the pointer converges to the part durably (no manual override to race
+  // against / get clobbered by a stale in-flight drawing-autosave callback).
   const partName = await page.evaluate(() => {
     const s = (window as unknown as {
-      __zilventorStore: { getState(): { activeDrawingSourceDocument: { name: string } | null } };
-    }).__zilventorStore.getState();
-    const partDoc = s.activeDrawingSourceDocument;
+      __zilventorStore: {
+        getState(): {
+          activeDrawingSourceDocument: { name: string; id: string } | null;
+          setActivePart(p: unknown): void;
+        };
+      };
+    }).__zilventorStore;
+    const state = s.getState();
+    const partDoc = state.activeDrawingSourceDocument;
     if (!partDoc) throw new Error('mhp step6: no activeDrawingSourceDocument');
-    localStorage.setItem('zilventor:lastOpenDocument', JSON.stringify({
-      kind: 'part',
-      opfsPath: `${partDoc.name}.zipt`,
-    }));
+    state.setActivePart(partDoc);
     return partDoc.name;
   });
 
   console.log('[mhp] part name for reload:', partName);
 
+  // Poll the full post-condition — pointer kind==='part' AND opfsPath references the
+  // part AND the OPFS file exists — before reloading. Mirrors the T-6-20 fix
+  // (commit 057fd992): poll re-runs the whole condition to a generous deadline
+  // instead of a one-shot "pointer exists" check, so a stale intermediate pointer
+  // write (e.g. a still-in-flight drawing-autosave callback landing after
+  // setActivePart but before the freshly-scheduled part-autosave fires) doesn't get
+  // misread as done. The material content itself isn't re-verified from the OPFS
+  // bytes here: kernel.saveToBytes always packs the kernel's current materials map
+  // for this part id, which was synced once in Step 3 and never mutated since, so
+  // every part-autosave write (regardless of which one lands last) carries the
+  // edited hatch fields — the real content assertion happens post-reload below.
+  let pointerVerified: { ok: boolean; reason: string } = { ok: false, reason: 'not polled yet' };
+  await expect
+    .poll(
+      async () => {
+        pointerVerified = await page.evaluate(
+          async ({ expectedPartName }: { expectedPartName: string }) => {
+            const raw = localStorage.getItem('zilventor:lastOpenDocument');
+            if (!raw) return { ok: false, reason: 'localStorage pointer not set' };
+            let pointer: unknown;
+            try { pointer = JSON.parse(raw); } catch { return { ok: false, reason: 'localStorage pointer not valid JSON' }; }
+            const p = pointer as Record<string, unknown>;
+            if (p['kind'] !== 'part') return { ok: false, reason: `pointer kind is ${p['kind']}` };
+            const opfsPath = p['opfsPath'] as string;
+            if (!opfsPath.includes(expectedPartName)) {
+              return { ok: false, reason: `opfsPath ${opfsPath} does not reference part ${expectedPartName}` };
+            }
+
+            // Check OPFS file exists.
+            try {
+              const root = await navigator.storage.getDirectory();
+              const parts = opfsPath.split('/').filter((x: string) => x.length > 0);
+              let dir: FileSystemDirectoryHandle = root;
+              for (let i = 0; i < parts.length - 1; i++) {
+                dir = await dir.getDirectoryHandle(parts[i]!, { create: false });
+              }
+              await dir.getFileHandle(parts[parts.length - 1]!, { create: false });
+            } catch {
+              return { ok: false, reason: `OPFS file ${opfsPath} not found` };
+            }
+
+            return { ok: true, reason: '' };
+          },
+          { expectedPartName: partName },
+        );
+        return pointerVerified.ok;
+      },
+      {
+        timeout: 20_000,
+        message: 'Pointer must converge to the part (kind==="part", matching opfsPath, OPFS file present) after switching back via setActivePart',
+      },
+    )
+    .toBe(true);
+
+  expect(pointerVerified.ok, `Pointer not verified: ${pointerVerified.reason}`).toBe(true);
+
   // Now reload — restoreLastOpenDocument reads localStorage pointer + OPFS file.
   await page.reload();
   await waitForKernelReady(page);
+
+  // waitForKernelReady only confirms the kernel is initialized (status bar text
+  // 'Ready') — it does NOT confirm the boot-restore effect has finished. Both
+  // are triggered by the same `kernelReady` flag but run as independent effects
+  // (see App.tsx ~L1319 boot-restore vs ~L5574 status text), so 'Ready' can
+  // render before `restoreLastOpenDocument()` resolves and calls
+  // setActiveDocument. Direct observation (repro across 40 runs, --workers=4
+  // --repeat-each=20): failing runs show activeDocument===null / activePart===
+  // null right after waitForKernelReady, even though the OPFS pointer + bytes
+  // are already correct at that point — a pure test-side read-too-early race,
+  // not a persistence bug. Mirrors T-6-20's step 6 waitForFunction gate.
+  await page.waitForFunction(
+    () => {
+      const store = (window as unknown as {
+        __zilventorStore?: { getState(): { activeDocument: { kind: string } | null } };
+      }).__zilventorStore;
+      return store?.getState()?.activeDocument?.kind === 'part';
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
 
   const persistedMat = await page.evaluate(({ matId }: { matId: string }) => {
     const s = (window as unknown as {

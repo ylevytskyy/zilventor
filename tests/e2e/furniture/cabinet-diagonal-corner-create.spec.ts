@@ -62,21 +62,41 @@ test('T-m4e-diag-1 — create a diagonal corner cabinet from Furniture tab', asy
   await page.getByRole('button', { name: 'Diagonal Corner Cabinet' }).click();
   await expect(page.getByRole('dialog', { name: 'Diagonal Corner Cabinet' })).toBeVisible();
 
-  // ── D. Submit with defaults ──────────────────────────────────────────────────
+  // ── D+E. Submit with defaults, poll the settled end state ────────────────────
+  // DiagonalCornerCabinetDialog's OK handler (handleOk) awaits the kernel-heavy
+  // CreateCabinetCommand before flipping the dialog-closed state:
+  //   await dialog.onSubmit(params); setDialog(null);
+  // so dialog-close and the store's cabinet-component mutation are gated on the
+  // same kernel build and land together. Under CPU contention that build can
+  // exceed Playwright's default 5s expect timeout — direct repro: 1/60 red at
+  // workers=6/repeat-each=15 under a synthetic CPU-load generator, failing at
+  // exactly this `toHaveCount(0)` line with the dialog still present. Poll the
+  // full settled post-condition (dialog closed AND component present) to a
+  // generous deadline instead of time-boxing the dialog-close transition alone,
+  // mirroring the T-6-20 / material-hatch poll-full-post-condition fix pattern.
   await page.getByRole('button', { name: 'OK' }).click();
-  await expect(page.getByRole('dialog', { name: 'Diagonal Corner Cabinet' })).toHaveCount(0);
 
-  // ── E. Wait for cabinet component ────────────────────────────────────────────
-  await page.waitForFunction(
-    () => {
-      const w = window as unknown as {
-        __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } | null } };
-      };
-      return (w.__zilventorStore.getState().activeAssembly?.components.length ?? 0) >= 1;
-    },
-    undefined,
-    { timeout: 60_000 },
-  );
+  let settled = { dialogClosed: false, componentCount: 0 };
+  await expect
+    .poll(
+      async () => {
+        settled = {
+          dialogClosed: (await page.getByRole('dialog', { name: 'Diagonal Corner Cabinet' }).count()) === 0,
+          componentCount: await page.evaluate(() => {
+            const w = window as unknown as {
+              __zilventorStore: { getState(): { activeAssembly: { components: unknown[] } | null } };
+            };
+            return w.__zilventorStore.getState().activeAssembly?.components.length ?? 0;
+          }),
+        };
+        return settled.dialogClosed && settled.componentCount >= 1;
+      },
+      {
+        timeout: 60_000,
+        message: 'Dialog must close and the cabinet component must appear in the store (kernel-heavy CreateCabinetCommand gates both)',
+      },
+    )
+    .toBe(true);
 
   // ── F. Assert store ───────────────────────────────────────────────────────────
   const result = await page.evaluate(() => {

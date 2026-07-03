@@ -109,12 +109,24 @@ test(
     console.log('[m4-c] cabinetPath =', cabinetPath);
 
     // ── B. AddDrawerBankCommand with slideSystem='tandem' ────────────────────
+    //
+    // solverDirty is a CONSUMABLE flag: reloadCabinet() sets it true synchronously,
+    // but App.tsx's debounced solver effect (50ms) legitimately clears it back to
+    // false once the async solve completes — a real, non-buggy state transition, not
+    // a stuck/undirtied flag. Reading it in a *separate* page.evaluate() round-trip
+    // races that debounce: under parallel-suite CPU load the IPC round-trip can take
+    // longer than 50ms + solve time, so the flag can already read false by the time
+    // we look. Snapshot the pre-command solverDiagnostics object reference here, in
+    // the SAME evaluate/tick as the command dispatch (before any yield), so the read
+    // step below can prove the solve was triggered by identity-comparing diagnostics
+    // even if solverDirty already flipped back to false.
     await page.evaluate(async (cabPath: string) => {
       const w = window as unknown as {
         __zilventorStore: {
           getState(): {
             bus: { execute(c: unknown): Promise<void> };
             subAssemblyDocs: Record<string, unknown>;
+            solverDiagnostics: unknown;
             setSolverDirty(v: boolean): void;
           };
         };
@@ -123,7 +135,9 @@ test(
           write(p: string, b: Uint8Array): Promise<void>;
           exists(p: string): Promise<boolean>;
         }>;
+        __preTandemDiagnostics?: unknown;
       };
+      w.__preTandemDiagnostics = w.__zilventorStore.getState().solverDiagnostics;
       const { AddDrawerBankCommand } = await import('/src/commands/AddDrawerBankCommand.ts');
       const opfs = await w.__zilventorGetOpfs();
       const cmd = new AddDrawerBankCommand({
@@ -149,39 +163,78 @@ test(
     //       fails if slideSystem:'sideMount' is used (path = hardware/drawer-slide-500.zipt,
     //       no 'tandem') — proves the tandem code branch was actually exercised
     //   • solverDirty = true   — proves scene-refresh path ran
-    const storeResult = await page.evaluate(
-      (cabPath: string) => {
-        const w = window as unknown as {
-          __zilventorStore: {
-            getState(): {
-              subAssemblyDocs: Record<string, {
-                components: Array<{ role?: string; partPath?: string }>;
-              }>;
-              solverDirty: boolean;
-            };
-          };
-        };
-        const state = w.__zilventorStore.getState();
-        const doc = state.subAssemblyDocs[cabPath];
-        if (!doc) return { boxCount: -1, tandemSlideCount: -1, solverDirty: false };
-        const slideComps = doc.components.filter((c) => c.role === 'drawerSlide');
-        return {
-          boxCount: doc.components.filter((c) => c.role === 'drawerBox').length,
-          // non-vacuous: tandem slide path = 'hardware/drawer-slide-tandem-500.zipt';
-          // sideMount path = 'hardware/drawer-slide-500.zipt' (no 'tandem' substring)
-          tandemSlideCount: slideComps.filter(
-            (c) => typeof c.partPath === 'string' && c.partPath.includes('tandem'),
-          ).length,
-          solverDirty: state.solverDirty,
-        };
-      },
-      cabinetPath,
-    );
+    // solverDirty is consumable (see note above B), so we don't poll for it directly —
+    // a transient flag can't be trusted to still read true, and polling for it would be
+    // wrong (it may correctly have already flipped false). Instead we poll for the
+    // durable consequence: either the flag is still true, OR it was already consumed,
+    // which is provable by solverDiagnostics having been replaced with a new object
+    // (setSolverResult always assigns a fresh diagnostics object) since the snapshot
+    // taken immediately before the command was dispatched.
+    let storeResult!: {
+      boxCount: number;
+      tandemSlideCount: number;
+      solverDirty: boolean;
+      solveTriggered: boolean;
+    };
+    await expect
+      .poll(
+        async () => {
+          storeResult = await page.evaluate(
+            (cabPath: string) => {
+              const w = window as unknown as {
+                __zilventorStore: {
+                  getState(): {
+                    subAssemblyDocs: Record<string, {
+                      components: Array<{ role?: string; partPath?: string }>;
+                    }>;
+                    solverDirty: boolean;
+                    solverDiagnostics: unknown;
+                  };
+                };
+                __preTandemDiagnostics?: unknown;
+              };
+              const state = w.__zilventorStore.getState();
+              const doc = state.subAssemblyDocs[cabPath];
+              if (!doc) {
+                return { boxCount: -1, tandemSlideCount: -1, solverDirty: false, solveTriggered: false };
+              }
+              const slideComps = doc.components.filter((c) => c.role === 'drawerSlide');
+              return {
+                boxCount: doc.components.filter((c) => c.role === 'drawerBox').length,
+                // non-vacuous: tandem slide path = 'hardware/drawer-slide-tandem-500.zipt';
+                // sideMount path = 'hardware/drawer-slide-500.zipt' (no 'tandem' substring)
+                tandemSlideCount: slideComps.filter(
+                  (c) => typeof c.partPath === 'string' && c.partPath.includes('tandem'),
+                ).length,
+                solverDirty: state.solverDirty,
+                solveTriggered:
+                  state.solverDirty === true ||
+                  state.solverDiagnostics !== w.__preTandemDiagnostics,
+              };
+            },
+            cabinetPath,
+          );
+          return (
+            storeResult.boxCount === 2 &&
+            storeResult.tandemSlideCount > 0 &&
+            storeResult.solveTriggered
+          );
+        },
+        {
+          timeout: 10_000,
+          message:
+            'store.subAssemblyDocs must gain 2 drawerBox + ≥1 tandem drawerSlide components, and the ' +
+            'reloadCabinet solve-trigger must be observed (solverDirty still true, or already consumed ' +
+            'as proven by a new solverDiagnostics object) after the tandem AddDrawerBankCommand',
+        },
+      )
+      .toBe(true);
 
     console.log(
       '[m4-c] store drawerBox count =', storeResult.boxCount,
       '| tandemSlideCount =', storeResult.tandemSlideCount,
       '| solverDirty =', storeResult.solverDirty,
+      '| solveTriggered =', storeResult.solveTriggered,
     );
 
     expect(
@@ -198,8 +251,9 @@ test(
     ).toBeGreaterThan(0);
 
     expect(
-      storeResult.solverDirty,
-      'store.solverDirty must be true after tandem AddDrawerBankCommand',
+      storeResult.solveTriggered,
+      'reloadCabinet must have set solverDirty (still true, or already consumed by the debounced solve — ' +
+        'proven by solverDiagnostics identity change) after tandem AddDrawerBankCommand',
     ).toBe(true);
 
     // ── F. 0 browser console errors ───────────────────────────────────────────

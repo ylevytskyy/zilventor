@@ -132,18 +132,53 @@ test('auto-regen: stale view clears without a manual click when autoRegen is on'
     { newFingerprint: newFp },
   );
 
-  // 6. Wait for the stale marker to appear (DrawingCanvas staleness detection fires
-  //    in a useEffect watching activeDrawingSourceFingerprint).
-  await expect(page.locator('[data-stale-marker]').first()).toBeVisible({ timeout: 10_000 });
-
-  // 7. WITHOUT clicking anything, assert the stale marker disappears automatically.
-  //    DrawingCanvas's auto-regen useEffect fires because:
-  //      - autoRegen is true
-  //      - staleViews is non-empty
-  //      - autoRegenAttemptedRef has not seen this view id yet
-  //    → calls handleRegenerate(viewId) → projectViewFromSource → updates view.
-  //    After regen completes, the view is removed from staleViews → [data-stale-marker] gone.
-  await expect(page.locator('[data-stale-marker]')).toHaveCount(0, { timeout: 15_000 });
+  // 6/7. WITHOUT clicking anything, assert the auto-regen effect ran to completion.
+  //
+  // A fixed rAF sampler (measured via a throwaway instrumented run) showed the
+  // [data-stale-marker] element's visible window is only ~10-25ms on a warm kernel
+  // cache: DrawingCanvas's staleness-detection effect and its auto-regen effect
+  // (autoRegen=true) both fire off the same activeDrawingSourceFingerprint change,
+  // and RegenerateViewCommand.apply() is synchronous once projectViewFromSource's
+  // single Comlink round trip resolves — so the marker mounts and unmounts inside
+  // one short burst of renders. Asserting the transient "marker becomes visible"
+  // step directly (as this test used to) races Playwright's assertion poll cadence:
+  // under CPU contention the whole stale→regenerated cycle can complete between two
+  // polls, so `toBeVisible()` can time out even though auto-regen worked correctly.
+  // Instead, poll the SETTLED end state directly, gating on the full post-condition
+  // pair rather than a transient DOM signal:
+  //   - the view's inputFingerprint must have landed on the new source fingerprint
+  //     (proof RegenerateViewCommand actually ran — not merely that a marker toggled)
+  //   - the stale marker must be gone (no view left in staleViews)
+  // Both can only become true via the auto-regen effect's dispatch path, so this is
+  // just as strong a guarantee that regen happened "without a manual click" as the
+  // old two-step check, without depending on catching a sub-frame DOM transition.
+  await expect
+    .poll(
+      async () => {
+        const state = await page.evaluate((bvId: string) => {
+          const w = window as unknown as {
+            __zilventorStore: {
+              getState(): {
+                activeDocument: { document: { sheets: Array<{ views: Array<{ id: string; inputFingerprint?: string }> }> } };
+              };
+            };
+          };
+          const sheet = w.__zilventorStore.getState().activeDocument.document.sheets[0];
+          const view = sheet?.views.find((v) => v.id === bvId);
+          return {
+            markerCount: document.querySelectorAll('[data-stale-marker]').length,
+            viewFp: view?.inputFingerprint,
+          };
+        }, baseViewId);
+        return state.markerCount === 0 && state.viewFp === newFp;
+      },
+      {
+        timeout: 10_000,
+        message:
+          'auto-regen must clear [data-stale-marker] AND update the view.inputFingerprint to the new source fingerprint without a manual click',
+      },
+    )
+    .toBe(true);
 });
 
 test('auto-regen: stale marker persists when autoRegen is OFF (control test)', async ({ page }) => {

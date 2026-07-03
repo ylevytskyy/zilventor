@@ -113,46 +113,94 @@ test('T-6-20: drawing autosave + reload recovery — drawing + view restored aft
     { sourcePath: SOURCE_PATH },
   );
 
-  // 4. Wait for autosave debounce (500ms) + OPFS write to complete.
-  //    Poll localStorage until the pointer appears — fires the instant autosave commits.
-  //    This is deterministic; page.waitForTimeout is explicitly avoided.
-  await page.waitForFunction(
-    () => !!localStorage.getItem('zilventor:lastOpenDocument'),
-    undefined,
-    { timeout: 10_000 },
-  );
+  // 4. Wait for autosave to settle on the DRAWING pointer specifically, AND for the
+  //    autosaved OPFS BYTES to actually contain the base view.
+  //    App.tsx's autosave effect is keyed off activeDocument identity: building the
+  //    box first schedules a 'part' autosave debounce, and creating the drawing
+  //    (step 3) reschedules a fresh 500ms 'drawing' debounce. But if the 'part'
+  //    timer's macrotask has already fired before that reschedule, its async body
+  //    only re-reads activeDocument AFTER an `await` (thumbnail capture / OPFS
+  //    handle) — so that stale 'part' write can land in localStorage *after* this
+  //    point and before the 'drawing' write completes, especially under CPU load.
+  //    Polling for "any pointer exists" (kind unchecked) observably catches that
+  //    stale 'part' pointer in the gap.
+  //
+  //    A second, narrower race sits one level deeper: CreateDrawingCommand's
+  //    setActiveDocument (empty-views drawing) fires the autosave effect and
+  //    schedules a 500ms debounce timer BEFORE AddBaseViewCommand's kernel
+  //    projection (projectViewFromSource) resolves. Under CPU contention that
+  //    projection can take >500ms, so the FIRST debounce timer can fire, read
+  //    the *still-empty-views* document from the live store, and write it to
+  //    OPFS + set the localStorage pointer — satisfying "pointer kind==='drawing'
+  //    + OPFS file exists" while the persisted bytes are missing the base view.
+  //    A second (correct) debounce write lands later once AddBaseViewCommand's
+  //    store update re-triggers the effect, but the test must not treat the
+  //    first, incomplete write as "settled". Poll the FULL post-condition —
+  //    kind === 'drawing' AND opfsPath references this drawing AND the OPFS
+  //    file exists AND the persisted bytes actually contain baseViewId — to a
+  //    generous deadline instead. page.waitForTimeout is explicitly avoided.
+  let autosaveVerified: { ok: boolean; reason: string; opfsPath?: string } = { ok: false, reason: 'not polled yet' };
+  await expect
+    .poll(
+      async () => {
+        autosaveVerified = await page.evaluate(
+          async ({ expectedDrawingId, expectedViewId }: { expectedDrawingId: string; expectedViewId: string }) => {
+            // Check localStorage pointer
+            const raw = localStorage.getItem('zilventor:lastOpenDocument');
+            if (!raw) return { ok: false, reason: 'localStorage pointer not set' };
+            let pointer: unknown;
+            try { pointer = JSON.parse(raw); } catch { return { ok: false, reason: 'localStorage pointer not valid JSON' }; }
+            const p = pointer as Record<string, unknown>;
+            if (p['kind'] !== 'drawing') return { ok: false, reason: `pointer kind is ${p['kind']}` };
+            const opfsPath = p['opfsPath'] as string;
+            if (!opfsPath.includes(expectedDrawingId)) {
+              return { ok: false, reason: `opfsPath ${opfsPath} does not include drawing id ${expectedDrawingId}` };
+            }
 
-  const autosaveVerified = await page.evaluate(
-    async ({ expectedDrawingId }: { expectedDrawingId: string }) => {
-      // Check localStorage pointer
-      const raw = localStorage.getItem('zilventor:lastOpenDocument');
-      if (!raw) return { ok: false, reason: 'localStorage pointer not set' };
-      let pointer: unknown;
-      try { pointer = JSON.parse(raw); } catch { return { ok: false, reason: 'localStorage pointer not valid JSON' }; }
-      const p = pointer as Record<string, unknown>;
-      if (p['kind'] !== 'drawing') return { ok: false, reason: `pointer kind is ${p['kind']}` };
-      const opfsPath = p['opfsPath'] as string;
-      if (!opfsPath.includes(expectedDrawingId)) {
-        return { ok: false, reason: `opfsPath ${opfsPath} does not include drawing id ${expectedDrawingId}` };
-      }
+            // Check OPFS file exists AND read its bytes.
+            let bytes: Uint8Array;
+            try {
+              const root = await navigator.storage.getDirectory();
+              const parts = opfsPath.split('/').filter((x: string) => x.length > 0);
+              let dir: FileSystemDirectoryHandle = root;
+              for (let i = 0; i < parts.length - 1; i++) {
+                dir = await dir.getDirectoryHandle(parts[i]!, { create: false });
+              }
+              const fh = await dir.getFileHandle(parts[parts.length - 1]!, { create: false });
+              const file = await fh.getFile();
+              bytes = new Uint8Array(await file.arrayBuffer());
+            } catch {
+              return { ok: false, reason: `OPFS file ${opfsPath} not found` };
+            }
 
-      // Check OPFS file exists
-      try {
-        const root = await navigator.storage.getDirectory();
-        const parts = opfsPath.split('/').filter((x: string) => x.length > 0);
-        let dir: FileSystemDirectoryHandle = root;
-        for (let i = 0; i < parts.length - 1; i++) {
-          dir = await dir.getDirectoryHandle(parts[i]!, { create: false });
-        }
-        await dir.getFileHandle(parts[parts.length - 1]!, { create: false });
-      } catch {
-        return { ok: false, reason: `OPFS file ${opfsPath} not found` };
-      }
+            // Check the persisted bytes actually contain the base view — a debounce
+            // timer can fire (and satisfy the pointer/file checks above) before the
+            // view-add lands in the document that gets packed.
+            try {
+              const { unpackDrawing } = await import('/src/storage/DrawingPacker.ts');
+              const doc = await unpackDrawing(bytes);
+              const hasView = doc.sheets.some((s: { views: Array<{ id: string }> }) =>
+                s.views.some((v) => v.id === expectedViewId),
+              );
+              if (!hasView) {
+                return { ok: false, reason: `OPFS bytes for ${opfsPath} do not yet contain view ${expectedViewId}` };
+              }
+            } catch (e) {
+              return { ok: false, reason: `failed to unpack OPFS bytes: ${(e as Error).message}` };
+            }
 
-      return { ok: true, reason: '', opfsPath };
-    },
-    { expectedDrawingId: drawingId },
-  );
+            return { ok: true, reason: '', opfsPath };
+          },
+          { expectedDrawingId: drawingId, expectedViewId: baseViewId },
+        );
+        return autosaveVerified.ok;
+      },
+      {
+        timeout: 20_000,
+        message: 'Autosave must settle on the drawing pointer AND the persisted OPFS bytes must contain the base view — a preceding part-autosave write, or a drawing-autosave write that raced AddBaseViewCommand, can transiently occupy the pointer/file before the correct write lands',
+      },
+    )
+    .toBe(true);
 
   expect(autosaveVerified.ok, `Autosave not verified: ${autosaveVerified.reason}`).toBe(true);
 

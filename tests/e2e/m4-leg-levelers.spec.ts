@@ -112,18 +112,29 @@ test(
     expect(cabinetPath, 'cabinet must be a .ziasm path').toMatch(/\.ziasm$/);
     console.log('[m4-b] cabinetPath =', cabinetPath);
 
-    // ── B. AddLegLevelersCommand: legsPerRow=2 → 4 legs total ────────────────
+    // ── B+C. AddLegLevelersCommand + store read, in ONE page.evaluate ────────
     // Pass the real app store (window.__zilventorStore === useAppStore) so
     // reloadCabinet() patches subAssemblyDocs + sets solverDirty in the live store.
     // legsPerRow=2 → xs=[50,550]; ys=[75,535] → 4 positions.
     // Fit: 2×50+36=136<600 (width OK); 75+25+36=136<560 (depth OK).
-    await page.evaluate(async (cabPath: string) => {
+    //
+    // solverDirty is a CONSUMABLE flag: App.tsx's solver effect debounces 50ms
+    // after solverDirty flips true, then calls setSolverResult(...) which resets
+    // it to false. Reading it via a SEPARATE page.evaluate() call after execute()
+    // adds a real CDP round-trip whose duration is not bounded by 50ms under
+    // parallel-suite load, so it can race past the debounce and observe an
+    // already-cleared flag (flaky failure reproduced: solverDirty read as false).
+    // Reading state here, in the SAME evaluate right after the awaited command
+    // resolves, keeps the read in the same microtask chain as the synchronous
+    // setSolverDirty(true) inside reloadCabinet() — provably ordered before any
+    // macrotask-scheduled React effect/timer can consume it.
+    const storeResult = await page.evaluate(async (cabPath: string) => {
       const w = window as unknown as {
         __zilventorStore: {
           getState(): {
             bus: { execute(c: unknown): Promise<void> };
-            subAssemblyDocs: Record<string, unknown>;
-            setSolverDirty(v: boolean): void;
+            subAssemblyDocs: Record<string, { components: Array<{ role?: string }> }>;
+            solverDirty: boolean;
           };
         };
         __zilventorGetOpfs(): Promise<{
@@ -141,31 +152,18 @@ test(
         store: w.__zilventorStore, // real app store → reloadCabinet patches subAssemblyDocs
       });
       await w.__zilventorStore.getState().bus.execute(cmd);
-    }, cabinetPath);
 
-    // ── C. Assert ≥4 legLeveler components via the STORE (not OPFS) ──────────
-    // This proves reloadCabinet() ran: if it were removed, subAssemblyDocs[cabPath]
-    // would not contain the leg components even though they are in OPFS.
-    const storeResult = await page.evaluate(
-      (cabPath: string) => {
-        const w = window as unknown as {
-          __zilventorStore: {
-            getState(): {
-              subAssemblyDocs: Record<string, { components: Array<{ role?: string }> }>;
-              solverDirty: boolean;
-            };
-          };
-        };
-        const state = w.__zilventorStore.getState();
-        const doc = state.subAssemblyDocs[cabPath];
-        if (!doc) return { legCount: -1, solverDirty: false };
-        return {
-          legCount: doc.components.filter((c) => c.role === 'legLeveler').length,
-          solverDirty: state.solverDirty,
-        };
-      },
-      cabinetPath,
-    );
+      // ── C. Read ≥4 legLeveler components + solverDirty via the STORE (not OPFS) ──
+      // This proves reloadCabinet() ran: if it were removed, subAssemblyDocs[cabPath]
+      // would not contain the leg components even though they are in OPFS.
+      const state = w.__zilventorStore.getState();
+      const doc = state.subAssemblyDocs[cabPath];
+      if (!doc) return { legCount: -1, solverDirty: false };
+      return {
+        legCount: doc.components.filter((c) => c.role === 'legLeveler').length,
+        solverDirty: state.solverDirty,
+      };
+    }, cabinetPath);
 
     console.log('[m4-b] store legLeveler count =', storeResult.legCount, '| solverDirty =', storeResult.solverDirty);
 
