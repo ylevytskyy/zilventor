@@ -878,6 +878,7 @@
       "editModeAriaLabel": "Toggle nest edit mode",
       "excluded": "Excluded",
       "excludedAriaLabel": "Nest excluded section",
+      "grainLockedExceedsSheet": "grain lock prevents rotation — panel would fit rotated (item{{s}} #{{nums}})",
       "materialSection": "Material section {{id}}",
       "noNest": "No nest generated yet. Click \"Generate Nest\" on the Furniture tab.",
       "noSheetStock": "no sheet stock defined",

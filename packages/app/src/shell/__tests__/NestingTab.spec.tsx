@@ -139,6 +139,20 @@ describe('NestingTab', () => {
     });
   });
 
+  it('renders distinct message for grain-locked-exceeds-sheet exclusion', async () => {
+    const nestWithGrainLocked: NestState = {
+      ...NEST_WITH_SHEETS,
+      excluded: [{ materialId: 'm2', reason: 'grain-locked-exceeds-sheet', itemNumbers: [5] }],
+    };
+    seedAsm(nestWithGrainLocked);
+    render(<NestingTab />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Nest excluded section')).toBeInTheDocument();
+      expect(screen.getByText(/grain lock prevents rotation/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/panel exceeds sheet/i)).not.toBeInTheDocument();
+  });
+
   it('clicking Export PNG button dispatches ExportNestPngCommand via .apply()', async () => {
     seedAsm(NEST_WITH_SHEETS);
     render(<NestingTab />);
