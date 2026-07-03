@@ -10,6 +10,7 @@ vi.mock('../../commands/EditBoreCommand', () => ({
   EditBoreCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
+    async revert() {}
   },
 }));
 
@@ -17,6 +18,7 @@ vi.mock('../../commands/ApplyMachiningPresetCommand', () => ({
   ApplyMachiningPresetCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
+    async revert() {}
   },
 }));
 
@@ -24,6 +26,7 @@ vi.mock('../../commands/DeleteConnectorCommand', () => ({
   DeleteConnectorCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
+    async revert() {}
   },
 }));
 
@@ -31,6 +34,7 @@ vi.mock('../../commands/MoveConnectorCommand', () => ({
   MoveConnectorCommand: class {
     constructor(public opts: unknown) {}
     async apply() {}
+    async revert() {}
   },
 }));
 
@@ -153,7 +157,9 @@ describe('BorePropertiesPanel', () => {
     expect(screen.getByText(/along joint/i)).toBeTruthy();
   });
 
-  it('Enter commits u value change via EditBoreCommand.apply()', async () => {
+  it('Enter commits u value change via EditBoreCommand dispatched through bus.execute() (undoable)', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
     const { EditBoreCommand } = await import('../../commands/EditBoreCommand');
     const applySpy = vi.spyOn(EditBoreCommand.prototype, 'apply');
     const bore = shelfPinBore();
@@ -162,7 +168,13 @@ describe('BorePropertiesPanel', () => {
     const uInput = screen.getByDisplayValue('160') as HTMLInputElement;
     fireEvent.change(uInput, { target: { value: '200' } });
     fireEvent.keyDown(uInput, { key: 'Enter' });
+    expect(executeSpy).toHaveBeenCalledTimes(1);
     expect(applySpy).toHaveBeenCalled();
+    const instance = executeSpy.mock.calls[0]![0] as unknown as { opts: { patch: Record<string, unknown> } };
+    expect(instance).toBeInstanceOf(EditBoreCommand);
+    expect(instance.opts.patch).toEqual({ u: 200 });
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
   });
 
   it('Escape cancels edit without calling apply', async () => {
@@ -329,12 +341,11 @@ describe('BorePropertiesPanel', () => {
   });
 
   // ── B2: cross-document delete collects all member docs ────────────────────
-  it('B2: connector delete collects affectedDocs across both member docs', async () => {
+  it('B2: connector delete dispatches DeleteConnectorCommand via bus.execute() (undoable) and collects affectedDocs across both member docs', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
     const { DeleteConnectorCommand } = await import('../../commands/DeleteConnectorCommand');
-    const ctorArgs: unknown[] = [];
-    vi.spyOn(DeleteConnectorCommand.prototype, 'apply').mockImplementation(async function(this: { opts: unknown }) {
-      ctorArgs.push(this.opts);
-    });
+    const applySpy = vi.spyOn(DeleteConnectorCommand.prototype, 'apply').mockResolvedValue(undefined);
 
     const partnerBore: BoreOp = {
       id: 'conf-1-edge',
@@ -354,11 +365,17 @@ describe('BorePropertiesPanel', () => {
     const deleteBtn = screen.getByRole('button', { name: /delete/i });
     fireEvent.click(deleteBtn);
 
-    expect(ctorArgs.length).toBeGreaterThan(0);
-    const opts = ctorArgs[0] as { affectedDocs: Array<{ partPath: string }> };
-    const partPaths = opts.affectedDocs.map((d) => d.partPath);
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(applySpy).toHaveBeenCalled();
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
+      opts: { affectedDocs: Array<{ partPath: string }> };
+    };
+    expect(instance).toBeInstanceOf(DeleteConnectorCommand);
+    const partPaths = instance.opts.affectedDocs.map((d) => d.partPath);
     expect(partPaths).toContain('parts/side.zipt');
     expect(partPaths).toContain('parts/bottom.zipt');
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
   });
 
   // ── B3: hinge height field dispatches MoveConnectorCommand with cup u-dir ──
@@ -416,7 +433,9 @@ describe('BorePropertiesPanel', () => {
     expect(screen.queryByLabelText(/machining preset/i)).toBeNull();
   });
 
-  it('Apply dispatches ApplyMachiningPresetCommand with the snapshotted preset values', async () => {
+  it('Apply dispatches ApplyMachiningPresetCommand via bus.execute() (undoable) with the snapshotted preset values', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
     const { ApplyMachiningPresetCommand } = await import('../../commands/ApplyMachiningPresetCommand');
     const applySpy = vi.spyOn(ApplyMachiningPresetCommand.prototype, 'apply').mockResolvedValue(undefined);
     const preset = confirmatPreset();
@@ -430,16 +449,22 @@ describe('BorePropertiesPanel', () => {
     const applyBtn = screen.getByRole('button', { name: /apply/i });
     fireEvent.click(applyBtn);
 
+    expect(executeSpy).toHaveBeenCalledTimes(1);
     expect(applySpy).toHaveBeenCalled();
-    const instance = applySpy.mock.instances[0] as unknown as {
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
       opts: { values: { diameter: number; depth: number; layerName: string; toolNumber?: number; speed?: number } };
     };
+    expect(instance).toBeInstanceOf(ApplyMachiningPresetCommand);
     expect(instance.opts.values).toEqual({
       diameter: 8, depth: 15, layerName: 'BORE_CONFIRMAT', toolNumber: 3, speed: 12000,
     });
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
   });
 
   it('Apply omits toolNumber/speed from the snapshot when the preset has neither', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
     const { ApplyMachiningPresetCommand } = await import('../../commands/ApplyMachiningPresetCommand');
     const applySpy = vi.spyOn(ApplyMachiningPresetCommand.prototype, 'apply').mockResolvedValue(undefined);
     const preset = shelfPinPreset();
@@ -453,10 +478,13 @@ describe('BorePropertiesPanel', () => {
     const applyBtn = screen.getByRole('button', { name: /apply/i });
     fireEvent.click(applyBtn);
 
-    const instance = applySpy.mock.instances[0] as unknown as {
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
       opts: { values: { diameter: number; depth: number; layerName: string; toolNumber?: number; speed?: number } };
     };
     expect('toolNumber' in instance.opts.values).toBe(false);
     expect('speed' in instance.opts.values).toBe(false);
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
   });
 });

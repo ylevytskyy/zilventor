@@ -48,6 +48,10 @@ interface Props {
  * Reads selectedBoreId + selectedBorePartPath from the store.
  * Looks up the LIVE bore reference via getLiveBores at render time.
  * Enter commits via EditBoreCommand; Escape cancels.
+ *
+ * Field edits, preset apply, and delete all dispatch via `bus.execute()` so
+ * the EditBoreCommand/ApplyMachiningPresetCommand/DeleteConnectorCommand
+ * apply is undoable (D8, ported from GroovePropertiesPanel).
  */
 export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs, opfs = null }: Props): JSX.Element | null {
   const { t } = useTranslation();
@@ -84,7 +88,7 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
     if (!liveDoc) return;
     const liveBore = (liveDoc.bores ?? []).find((b) => b.id === selectedBoreId);
     if (!liveBore) return;
-    void new ApplyMachiningPresetCommand({
+    void bus.execute(new ApplyMachiningPresetCommand({
       bore: liveBore,
       values: {
         diameter: preset.diameter,
@@ -96,7 +100,7 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
       partPath: selectedBorePartPath!,
       doc: liveDoc,
       opfs: opfs ?? null,
-    }).apply();
+    }));
   }
 
   function val(field: keyof Pick<BoreOp, 'u' | 'v' | 'diameter' | 'depth'>): string {
@@ -123,13 +127,13 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
       if (!isFinite(num)) { resetDraft(); return; }
       patch = { [field]: num };
     }
-    void new EditBoreCommand({
+    void bus.execute(new EditBoreCommand({
       bore: liveBore,
       patch,
       partPath: selectedBorePartPath!,
       doc: liveDoc,
       opfs: opfs ?? null,
-    }).apply();
+    }));
     resetDraft();
   }
 
@@ -252,12 +256,12 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
       affectedDocs = [{ partPath: selectedBorePartPath!, doc: liveDoc }];
     }
 
-    void new DeleteConnectorCommand({
+    void bus.execute(new DeleteConnectorCommand({
       targetId,
       mode,
       affectedDocs,
       opfs: opfs ?? null,
-    }).apply();
+    }));
     useAppStore.getState().setSelectedBore(null, null);
   }
 
