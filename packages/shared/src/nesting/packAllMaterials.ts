@@ -36,9 +36,15 @@ export function packAllMaterials(
     for (const sheet of result.sheets) {
       sheets.push(sheet);
     }
-    if (result.oversized.length > 0) {
-      const itemNumbers = Array.from(new Set(result.oversized.map((o) => o.itemNumber))).sort((a, b) => a - b);
+    const genuinelyOversized = result.oversized.filter((o) => !o.wouldFitIfRotated);
+    const grainLocked = result.oversized.filter((o) => o.wouldFitIfRotated);
+    if (genuinelyOversized.length > 0) {
+      const itemNumbers = Array.from(new Set(genuinelyOversized.map((o) => o.itemNumber))).sort((a, b) => a - b);
       excluded.push({ materialId, reason: 'panel-exceeds-sheet', itemNumbers });
+    }
+    if (grainLocked.length > 0) {
+      const itemNumbers = Array.from(new Set(grainLocked.map((o) => o.itemNumber))).sort((a, b) => a - b);
+      excluded.push({ materialId, reason: 'grain-locked-exceeds-sheet', itemNumbers });
     }
   }
 

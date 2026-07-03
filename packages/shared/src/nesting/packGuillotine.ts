@@ -15,7 +15,7 @@ interface PanelInstance {
 
 export interface PackResult {
   sheets: NestSheet[];
-  oversized: { itemNumber: number; rowKey: string }[];
+  oversized: { itemNumber: number; rowKey: string; wouldFitIfRotated: boolean }[];
 }
 
 export function packGuillotine(
@@ -55,10 +55,17 @@ export function packGuillotine(
     const minS = Math.min(sheetLengthMm, sheetWidthMm), maxS = Math.max(sheetLengthMm, sheetWidthMm);
     return minD <= minS && maxD <= maxS;
   };
+  // Would the panel fit if the grain-forced orientation were swapped (L/W reversed)?
+  // Only meaningful for grain='length'|'width' — grain='none' already tried both orientations.
+  const fitsRotated = (p: PanelInstance): boolean => {
+    if (p.grain === 'length') return p.W <= sheetLengthMm && p.L <= sheetWidthMm;
+    if (p.grain === 'width')  return p.L <= sheetLengthMm && p.W <= sheetWidthMm;
+    return false;
+  };
   const remaining: PanelInstance[] = [];
   for (const p of panels) {
     if (fits(p)) remaining.push(p);
-    else oversized.push({ itemNumber: p.itemNumber, rowKey: p.rowKey });
+    else oversized.push({ itemNumber: p.itemNumber, rowKey: p.rowKey, wouldFitIfRotated: fitsRotated(p) });
   }
 
   // 4. Pack into sheets.

@@ -25,7 +25,7 @@ describe('packGuillotine', () => {
   it('single panel exceeds sheet (longer than sheet length) → 0 sheets, 1 oversized', () => {
     const out = packGuillotine([row({ length: 3000, width: 400, grain: 'length' })], 2440, 1220, 3, 'm1');
     expect(out.sheets).toHaveLength(0);
-    expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1' }]);
+    expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1', wouldFitIfRotated: false }]);
   });
 
   it('two same-size panels grain=none → 1 sheet, deterministic placement', () => {
@@ -42,6 +42,7 @@ describe('packGuillotine', () => {
     const out = packGuillotine([row({ length: 800, width: 400, grain: 'length' })], 700, 1220, 3, 'm1');
     expect(out.sheets).toHaveLength(0);
     expect(out.oversized).toHaveLength(1);
+    expect(out.oversized[0]!.wouldFitIfRotated).toBe(true);
   });
 
   it("grain='width' forces rotation (panel L=600,W=400 → placed with row's W along sheet length)", () => {
@@ -128,7 +129,7 @@ describe('packGuillotine', () => {
     const r = row({ length: 2400, width: 400, grain: 'length', oversize: { lengthMm: 100, widthMm: 0 } });
     const out = packGuillotine([r], 2440, 1220, 3, 'm1');
     expect(out.sheets).toHaveLength(0);
-    expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1' }]);
+    expect(out.oversized).toEqual([{ itemNumber: 1, rowKey: 'r1', wouldFitIfRotated: false }]);
   });
 
   it('propagates the row grain onto each placed panel', () => {

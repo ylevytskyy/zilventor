@@ -28,7 +28,7 @@ export interface NestSheet {
   readonly manuallyEdited?: boolean;
 }
 
-export type NestExclusionReason = 'no-sheet-stock' | 'panel-exceeds-sheet';
+export type NestExclusionReason = 'no-sheet-stock' | 'panel-exceeds-sheet' | 'grain-locked-exceeds-sheet';
 
 export interface NestExclusion {
   readonly materialId: MaterialId;
