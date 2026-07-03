@@ -74,10 +74,10 @@ export function NestingTab() {
     setEditError(null);
   };
 
-  const handleEdit = async (edit: PlacedPanelEdit): Promise<void> => {
-    if (!selected) return;
+  const handleEdit = async (edit: PlacedPanelEdit, target: SelectedPanel | null = selected): Promise<void> => {
+    if (!target) return;
     try {
-      await bus.execute(new EditPlacedPanelCommand({ ...selected, edit }));
+      await bus.execute(new EditPlacedPanelCommand({ ...target, edit }));
       setEditError(null);
     } catch (err: unknown) {
       if (err instanceof EditRejectedError) {
@@ -145,6 +145,9 @@ export function NestingTab() {
                     : null
                 }
                 onSelectPanel={(i) => handleSelectPanel(s.materialId, s.sheetIndex, i)}
+                onDragEnd={(i, dx, dy) =>
+                  void handleEdit({ type: 'move', dx, dy }, { materialId: s.materialId, sheetIndex: s.sheetIndex, panelArrayIndex: i })
+                }
               />
             ))}
           </section>

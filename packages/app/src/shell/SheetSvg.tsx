@@ -1,7 +1,9 @@
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { NestSheet } from '@zilventor/shared';
+import type { NestSheet, PlacedPanel } from '@zilventor/shared';
 import type { MaterialEntry } from '@zilventor/shared/src/material';
 import type { GrainDirection } from '@zilventor/shared/src/panel-feature';
+import { evaluatePlacement, type Rect } from '../commands/EditPlacedPanelCommand';
 
 export type SheetSvgProps = {
   sheet: NestSheet;
@@ -11,12 +13,89 @@ export type SheetSvgProps = {
   editable?: boolean;
   selectedIndex?: number | null;
   onSelectPanel?: (index: number) => void;
+  onDragEnd?: (panelArrayIndex: number, dx: number, dy: number) => void;
 };
 
+// Screen-pixel movement below this on pointerup is treated as a click, not a drag.
+const CLICK_THRESHOLD_PX = 3;
+
+type DragState = { panelArrayIndex: number; dx: number; dy: number; valid: boolean };
+
+// jsdom gotcha: getBoundingClientRect() is all-zero in tests — fall back to raw
+// clientX/clientY so unit tests can drive drags treating clientX/Y as sheet-mm.
+function screenToSheet(
+  clientX: number,
+  clientY: number,
+  svg: SVGSVGElement | null,
+  sheetW: number,
+  sheetH: number,
+): { x: number; y: number } {
+  const rect = svg?.getBoundingClientRect();
+  const hasSize = rect && rect.width > 0 && rect.height > 0;
+  return {
+    x: hasSize ? (clientX - rect.left) / (rect.width / sheetW) : clientX,
+    y: hasSize ? (clientY - rect.top) / (rect.height / sheetH) : clientY,
+  };
+}
+
+function makePanelPointerDownHandler(
+  p: PlacedPanel,
+  i: number,
+  sheet: NestSheet,
+  svgRef: React.RefObject<SVGSVGElement | null>,
+  onSelectPanel: ((index: number) => void) | undefined,
+  onDragEnd: ((panelArrayIndex: number, dx: number, dy: number) => void) | undefined,
+  setDrag: (d: DragState | null) => void,
+  justDraggedRef: React.MutableRefObject<boolean>,
+) {
+  return (e: React.PointerEvent<SVGGElement>) => {
+    e.stopPropagation();
+    onSelectPanel?.(i);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const svg = svgRef.current;
+    const sheetW = sheet.sheetLengthMm;
+    const sheetH = sheet.sheetWidthMm;
+    const anchor = screenToSheet(e.clientX, e.clientY, svg, sheetW, sheetH);
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const panelStartX = p.x;
+    const panelStartY = p.y;
+
+    const handleMove = (ev: PointerEvent) => {
+      const cur = screenToSheet(ev.clientX, ev.clientY, svg, sheetW, sheetH);
+      const dx = cur.x - anchor.x;
+      const dy = cur.y - anchor.y;
+      const candidate: Rect = { x: panelStartX + dx, y: panelStartY + dy, length: p.length, width: p.width };
+      setDrag({ panelArrayIndex: i, dx, dy, valid: evaluatePlacement(candidate, sheet, i).valid });
+    };
+    const handleUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      const movedPx = Math.max(Math.abs(ev.clientX - startClientX), Math.abs(ev.clientY - startClientY));
+      if (movedPx >= CLICK_THRESHOLD_PX) {
+        // setPointerCapture retargets the browser's trailing native click back to this
+        // <g>; swallow that one synthetic click so it doesn't re-invoke onSelectPanel
+        // (which would clobber caller state set in response to onDragEnd, e.g. an
+        // invalid-drop error). Plain clicks (no drag) are unaffected.
+        justDraggedRef.current = true;
+        const cur = screenToSheet(ev.clientX, ev.clientY, svg, sheetW, sheetH);
+        onDragEnd?.(i, cur.x - anchor.x, cur.y - anchor.y);
+      }
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+}
+
 export function SheetSvg({
-  sheet, material, grainByRowKey, onExportPng, editable, selectedIndex, onSelectPanel,
+  sheet, material, grainByRowKey, onExportPng, editable, selectedIndex, onSelectPanel, onDragEnd,
 }: SheetSvgProps) {
   const { t } = useTranslation();
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const justDraggedRef = useRef(false);
+  const ghostPanel = drag ? sheet.panels[drag.panelArrayIndex] : undefined;
   const fill = material?.color ?? '#dddddd';
   return (
     <div data-nesting-sheet={`${sheet.materialId}:${sheet.sheetIndex}`}>
@@ -38,6 +117,7 @@ export function SheetSvg({
         </button>
       </div>
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${sheet.sheetLengthMm} ${sheet.sheetWidthMm}`}
         preserveAspectRatio="xMidYMid meet"
         style={{ width: '100%', height: 'auto' }}
@@ -53,7 +133,16 @@ export function SheetSvg({
               data-nesting-panel={`${p.itemNumber}:${i}`}
               {...(editable
                 ? {
-                    onClick: () => onSelectPanel?.(i),
+                    onClick: () => {
+                      if (justDraggedRef.current) {
+                        justDraggedRef.current = false;
+                        return;
+                      }
+                      onSelectPanel?.(i);
+                    },
+                    onPointerDown: makePanelPointerDownHandler(
+                      p, i, sheet, svgRef, onSelectPanel, onDragEnd, setDrag, justDraggedRef,
+                    ),
                     role: 'button',
                     tabIndex: 0,
                     'aria-label': t('panel.sheet.selectPanelAriaLabel', { itemNumber: p.itemNumber }),
@@ -88,6 +177,21 @@ export function SheetSvg({
             </g>
           );
         })}
+        {drag && ghostPanel && (
+          <rect
+            data-nesting-drag-ghost={`${ghostPanel.itemNumber}:${drag.panelArrayIndex}`}
+            data-nesting-drag-valid={drag.valid}
+            x={ghostPanel.x + drag.dx}
+            y={ghostPanel.y + drag.dy}
+            width={ghostPanel.length}
+            height={ghostPanel.width}
+            fill={drag.valid ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}
+            stroke={drag.valid ? '#22c55e' : '#ef4444'}
+            strokeWidth={2}
+            strokeDasharray="6,4"
+            pointerEvents="none"
+          />
+        )}
         {sheet.remnant && (
           <>
             <rect
