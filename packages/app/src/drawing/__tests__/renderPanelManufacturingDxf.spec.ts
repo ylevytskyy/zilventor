@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderPanelManufacturingDxf, tenonMortiseRects } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
 import type { BoreOp, GrooveFeature, TenonMortiseFeature } from '@zilventor/shared';
-import { parseDxf } from '@zilventor/shared';
+import { parseDxf, syntheticSideBoreToReal } from '@zilventor/shared';
 
 const base: PanelManufacturingInput = {
   itemNumber: 1,
@@ -76,6 +76,24 @@ describe('renderPanelManufacturingDxf — bores', () => {
       bores: [bore('Front', 9, 300, 5, 32)] }); // v=300 along edge, u=9 depth
     expect(dxf).toContain('BORES-EDGE-Front-5MM');
     expect(dxf).toMatch(/CIRCLE[\s\S]*?\n300\.0+\n[\s\S]*?\n600\.0+\n/);
+  });
+
+  // fix/bore-aside-swapuv slice 2: a side-panel A-side bore now persists with role
+  // 'Top'/'Bottom' (via syntheticSideBoreToReal), not 'Left'/'Right'. This matters for DXF
+  // rendering: boreToFlat's Left/Right cases IGNORE u (pin x to a constant edge, 0 or `len`)
+  // and only use v — a 'Right'-role bore would render at a fixed x regardless of u. The
+  // 'Top'-role case consumes BOTH u and v, so the remap changes where the hole actually
+  // plots on the manufacturing drawing (from a fixed-edge point to a real (u,v) position).
+  it('a syntheticSideBoreToReal-remapped side-panel bore plots at (u, v), not a fixed edge', () => {
+    const rawSynthetic = bore('Right', 9, 300, 7, 'throughAll'); // pre-remap: role='Right'
+    const remapped = syntheticSideBoreToReal(rawSynthetic);
+    expect(remapped.face.role).toBe('Top');
+
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [remapped] });
+    expect(dxf).toContain('BORES-FRONT-7MM');
+    // Top case: x=u=9, y=v=300 (both coordinates used) — NOT x=len=800 (the Right-case constant,
+    // which boreToFlat's Left/Right branches would have pinned x to, ignoring u entirely).
+    expect(dxf).toMatch(/CIRCLE[\s\S]*?\n9\.0+\n[\s\S]*?\n300\.0+\n/);
   });
 });
 

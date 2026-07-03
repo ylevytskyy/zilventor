@@ -184,6 +184,35 @@ describe('GenerateCarcassBoresCommand — auto', () => {
   });
 
   /**
+   * LOCKING TEST — residual frame-mismatch fix (fix/bore-aside-swapuv slice 2).
+   *
+   * leftSide/rightSide bores are computed against the SYNTHETIC length<->thickness-swapped
+   * frame (face.role 'Left'/'Right' there), but must be PERSISTED against the panel's REAL,
+   * unswapped PartDocument frame — where 'Left'/'Right' name the panel's thin 18mm EDGE
+   * faces (a throughAll confirmat hole from there cuts a ~720mm-long channel instead of a
+   * normal ~18mm hole). The real frame's flat faces (normal along the real thickness axis)
+   * are 'Top'/'Bottom'. So every A-side (side-panel) bore persisted to L.zipt/R.zipt must
+   * carry role 'Top' or 'Bottom' — never 'Left'/'Right' — after GenerateCarcassBoresCommand
+   * remaps at persistence time. u/v are unaffected (see syntheticSideBoreToReal's derivation
+   * in packages/shared/src/bore.ts).
+   */
+  it('persists side-panel bores with the REAL-frame face role (Top/Bottom, never Left/Right)', async () => {
+    const opfs = new MemOpfs();
+    await writeCabinetPanels(opfs);
+    seedCabinetAssembly(opfs);
+
+    await new GenerateCarcassBoresCommand({ params: PARAMS, opfs }).apply();
+
+    const lBores = await boresOf(opfs, 'L.zipt');
+    const rBores = await boresOf(opfs, 'R.zipt');
+    expect(lBores.length).toBeGreaterThan(0);
+    expect(rBores.length).toBeGreaterThan(0);
+    for (const b of [...lBores, ...rBores]) {
+      expect(['Top', 'Bottom']).toContain(b.face.role);
+    }
+  });
+
+  /**
    * BLOCKER B1+B2 guard: the bottom/top panel (B-side, end-drilled) must receive
    * confirmat-edge bores with correct depth and u/v — not corrupted by the side-panel
    * L↔T swap.

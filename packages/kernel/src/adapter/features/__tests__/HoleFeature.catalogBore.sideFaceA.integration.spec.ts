@@ -25,18 +25,19 @@
  *    actually stores (baseCabinet.ts: length=height=720, thickness=18 — see
  *    GenerateCarcassBoresCommand.ts:110-121, "the opposite of the physical
  *    orientation") — i.e. exactly what BakeBoresCommand does with these
- *    bores in production. This reproduces the diagnosed 0.000mm³ pre-fix,
- *    and DISCOVERS a second, separate, pre-existing defect post-fix: see the
- *    "KNOWN RESIDUAL BUG" comment on that suite. This suite is INTENTIONALLY
- *    NOT asserting "correct" post-fix geometry — it locks current (still
- *    partially wrong) behavior with the wrongness explained, so a future fix
- *    to the residual bug must consciously update this test.
+ *    bores in production, AFTER GenerateCarcassBoresCommand's persistence-time
+ *    `syntheticSideBoreToReal` remap (fix/bore-aside-swapuv slice 2). The RAW
+ *    boresA (role 'Right'/'Left', unremapped) still reproduce the diagnosed
+ *    ~27,709mm³ 720mm-long-channel defect — 'Right'/'Left' name the panel's thin
+ *    18mm EDGE face in the real frame, not its flat face. This suite locks that
+ *    `syntheticSideBoreToReal(bore)` fixes it: the remapped bore (role 'Top'/'Bottom')
+ *    bakes a normal ~693mm³ confirmat-face hole through the real 18mm board thickness.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadOcct } from '../../../occt/occtLoader';
 import { buildPanelBox } from '../../../occt/PanelOps';
 import { executeHoleFeature } from '../HoleFeature';
-import { generateConfirmat, type JointInput, type BoringParams } from '@zilventor/shared';
+import { generateConfirmat, syntheticSideBoreToReal, type JointInput, type BoringParams } from '@zilventor/shared';
 import type { NamedShape } from '../../../occt/FaceNaming';
 import type { OcctShape } from '../../../occt/SolidOps';
 
@@ -157,35 +158,50 @@ describe('bSwapUV-for-side-A fix — real OCCT bake (kernel integration)', () =>
   });
 
   describe('real production frame (panel built with the REAL, unswapped leftSide PartDocument dims)', () => {
-    it('LOCKING (RED pre-fix / documents residual bug post-fix): A-side bore origin lands inside the real solid', () => {
+    it('DOCUMENTS the pre-remap defect: raw (unremapped) A-side bore cuts a ~27,709mm³ 720mm channel', () => {
       const { boresA } = generateConfirmat(realCabinetJoint(), BORING_PARAMS);
       expect(boresA.length).toBe(3);
 
       for (const b of boresA) {
+        // Raw boresA still carry the SYNTHETIC frame's role ('Right') un-remapped. On
+        // SIDE_DIMS_REAL, 'Right' is the panel's thin 18mm EDGE face (normal along the
+        // 720mm length axis) — a throughAll hole from there drills the FULL 720mm, not the
+        // board's 18mm face: a ~27,709mm³ channel instead of a ~693mm³ confirmat-face hole.
+        // This is exactly the residual bug that GenerateCarcassBoresCommand's
+        // syntheticSideBoreToReal remap (applied below) fixes.
+        expect(b.face.role).toBe('Right');
         const drop = bakeBore(SIDE_DIMS_REAL, b as any);
-        // PRE-FIX: b.u ∈ {60,277,494} > uLen=Tc(18) for the 'Right' face on SIDE_DIMS_REAL →
-        // drill origin lands 42-476mm outside the solid → drop === 0. This is the bug this
-        // suite exists to lock.
-        //
-        // POST-FIX: b.u≈9 (inside [0,18]) so the origin is now on the solid — drop > 0 — BUT
-        // the *drilling axis* for the 'Right'/'Left' face is the face NORMAL, which on
-        // SIDE_DIMS_REAL (length=720=height, thickness=18, per baseCabinet.ts's "opposite of
-        // the physical orientation" convention — see GenerateCarcassBoresCommand.ts:110-121)
-        // spans the 720mm length, not the 18mm thickness. A throughAll hole therefore drills
-        // the FULL 720mm (not the board's 18mm face) — a ~27,709mm³ channel instead of a
-        // ~693mm³ confirmat-face hole. This is a SEPARATE, pre-existing defect (BoreOp.face.role
-        // for side-panel A-side connectors is computed in jointMath's synthetic length<->
-        // thickness-swapped frame but baked against the real PanelFeature's own, unswapped
-        // frame — 'Right' names a physically different face in each). It is OUT OF SCOPE for
-        // the assigned u/v-swap fix (which only touches which of u/v carries `dist` vs
-        // `cross`) and is flagged separately in the fix report, not silently accepted as
-        // correct here — hence asserting the actual (still-wrong) large-channel value below,
-        // not the theoretical small-cylinder one.
-        expect(drop).toBeGreaterThan(0);
         const longChannel = Math.PI * (b.diameter / 2) ** 2 * H; // 720mm-long channel (the residual-bug shape)
         expect(drop).toBeGreaterThan(longChannel * 0.9);
         expect(drop).toBeLessThan(longChannel * 1.1);
       }
+    });
+
+    it('FIXED: syntheticSideBoreToReal-remapped A-side bore cuts a correct ~693mm³ confirmat-face hole', () => {
+      const { boresA } = generateConfirmat(realCabinetJoint(), BORING_PARAMS);
+      expect(boresA.length).toBe(3);
+
+      const expectedSpacings = [60, 277, 494];
+      const seenV = new Set<number>();
+      for (const b of boresA) {
+        const remapped = syntheticSideBoreToReal(b);
+        // 'Right' (synthetic, edge-shaped face) -> 'Top' (real, flat face normal to the
+        // real 18mm thickness axis) — see syntheticSideBoreToReal's derivation comment.
+        expect(remapped.face.role).toBe('Top');
+        // u/v carry over verbatim: u = crossCoord(boardThicknessB) = 9 (length-axis position
+        // near one end); v = along-joint spacing (60/277/494, width-axis position).
+        expect(remapped.u).toBeCloseTo(Tc / 2, 6);
+        expect(expectedSpacings.some((s) => Math.abs(remapped.v - s) < 1)).toBe(true);
+        seenV.add(Math.round(remapped.v));
+
+        const drop = bakeBore(SIDE_DIMS_REAL, remapped as any);
+        const cyl = Math.PI * (b.diameter / 2) ** 2 * Tc; // through-all over the true 18mm board thickness
+        // 0.9-1.4x band per the assignment brief; measured value is a near-exact match (~692.7 vs 692.7).
+        expect(drop).toBeGreaterThan(cyl * 0.9);
+        expect(drop).toBeLessThan(cyl * 1.4);
+      }
+      // Three distinct along-joint positions — the holes are spread along the joint, not stacked.
+      expect(seenV.size).toBe(3);
     });
   });
 });
