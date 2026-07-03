@@ -1,7 +1,12 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store/useAppStore';
-import type { LabelHeaderPreset } from '../store/labelHeaderPreset';
+import {
+  validateLabelHeaderPresetImport,
+  serializeLabelHeaderPresets,
+  type LabelHeaderPreset,
+} from '../store/labelHeaderPreset';
+import { pickFile, saveBlob } from './fsaFallback';
 
 const overlayStyle: React.CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
@@ -39,11 +44,13 @@ export function LabelHeaderPresetsDialog(): JSX.Element | null {
   const presets = useAppStore((s) => s.labelHeaderPresets);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<FormState>(emptyForm);
+  const [importError, setImportError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
     setEditingId(null);
     setForm(emptyForm);
+    setImportError(null);
   }, [open]);
 
   React.useEffect(() => {
@@ -88,6 +95,27 @@ export function LabelHeaderPresetsDialog(): JSX.Element | null {
       setEditingId(null);
       setForm(emptyForm);
     }
+  };
+
+  const handleImport = async () => {
+    const file = await pickFile([{ accept: { 'application/json': ['.json'] }, description: 'JSON' }]);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed: unknown = JSON.parse(text);
+      const existingIds = new Set(useAppStore.getState().labelHeaderPresets.map((p) => p.id));
+      const result = validateLabelHeaderPresetImport(parsed, existingIds);
+      useAppStore.getState().importLabelHeaderPresets(result);
+      setImportError(null);
+    } catch (e) {
+      setImportError(t('dialog.labelHeaderPresets.import.error', { message: (e as Error).message }));
+    }
+  };
+
+  const handleExport = async () => {
+    const json = serializeLabelHeaderPresets(presets);
+    const blob = new Blob([json], { type: 'application/json' });
+    await saveBlob(blob, 'label-header-presets.json', [{ accept: { 'application/json': ['.json'] }, description: 'JSON' }]);
   };
 
   return (
@@ -152,6 +180,30 @@ export function LabelHeaderPresetsDialog(): JSX.Element | null {
           <button type="button" style={okBtnStyle} onClick={handleSubmit} aria-label={editingId ? t('common.save') : t('common.add')}>
             {editingId ? t('common.save') : t('common.add')}
           </button>
+        </div>
+
+        <div style={{ marginBottom: 8, display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            style={btnStyle}
+            onClick={() => { void handleImport(); }}
+            aria-label={t('dialog.labelHeaderPresets.import.button')}
+          >
+            {t('dialog.labelHeaderPresets.import.button')}
+          </button>
+          <button
+            type="button"
+            style={btnStyle}
+            onClick={() => { void handleExport(); }}
+            aria-label={t('dialog.labelHeaderPresets.export.button')}
+          >
+            {t('dialog.labelHeaderPresets.export.button')}
+          </button>
+          {importError && (
+            <div role="alert" style={{ color: '#f88', fontSize: 11 }}>
+              {importError}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>

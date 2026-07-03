@@ -500,7 +500,14 @@
       "empty": "No header presets yet.",
       "name": "Name",
       "line1": "Header line 1",
-      "line2": "Header line 2"
+      "line2": "Header line 2",
+      "export": {
+        "button": "Export…"
+      },
+      "import": {
+        "button": "Import…",
+        "error": "Import failed: {{message}}"
+      }
     },
     "material": {
       "addBtn": "+ Add",

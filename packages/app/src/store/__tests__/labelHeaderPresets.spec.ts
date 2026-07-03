@@ -39,6 +39,12 @@ describe('labelHeaderPresets store slice', () => {
     expect(JSON.parse(localStorage.getItem('labelHeaderPresets')!)).toEqual([updated]);
   });
 
+  it('importLabelHeaderPresets appends multiple presets and persists', () => {
+    useAppStore.getState().importLabelHeaderPresets([preset1, preset2]);
+    expect(useAppStore.getState().labelHeaderPresets).toEqual([preset1, preset2]);
+    expect(JSON.parse(localStorage.getItem('labelHeaderPresets')!)).toEqual([preset1, preset2]);
+  });
+
   it('deleteLabelHeaderPreset removes by id and persists', () => {
     useAppStore.getState().addLabelHeaderPreset(preset1);
     useAppStore.getState().addLabelHeaderPreset(preset2);
