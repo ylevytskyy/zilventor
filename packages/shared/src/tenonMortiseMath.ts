@@ -231,10 +231,13 @@ export function layoutTenonsAlongJoint(
  *     on both features — `makeBores` also shares one `dist` value across both
  *     sides of a bore pair, never transforming it.
  *   - What DOES differ per side is which of u/v that shared value lands on.
- *     The mortise host (side A) always carries it on 'u' (`makeBores` never
- *     swaps for side A). The tenon host (side B, an end face) carries it on
- *     'v' when `endFaceUsesZforU(endB)` is true (Left/Right/Front/Back — u is
- *     the thickness axis there per `faceExtents`), else on 'u'.
+ *     Each host consults its OWN face (mirrors `makeBores`' per-side
+ *     `endFaceUsesZforU` check): the mortise host (side A, `joint.faceA`)
+ *     carries it on 'v' when `endFaceUsesZforU(faceA)` is true (Left/Right/
+ *     Front/Back — u is the thickness axis there per `faceExtents`), else on
+ *     'u'. The tenon host (side B, `joint.endB`) carries it on 'v' when
+ *     `endFaceUsesZforU(endB)` is true, else on 'u' — same rule, opposite
+ *     face.
  *   - The mortise's CROSS axis (v) is bounded, not full-extent: `crossPosition`
  *     = `crossCoord(matingPanelThickness)` — the exact coordinate `makeBores`
  *     lands a side-A bore's cross coordinate on, i.e. the centerline of the
@@ -252,7 +255,7 @@ export function generateTenonMortisePair(
 ): { tenon: TenonMortiseFeature; mortise: TenonMortiseFeature } {
   const position = params.position ?? jointLength(joint) / 2;
   const tenonAxis: 'u' | 'v' = endFaceUsesZforU(joint.endB) ? 'v' : 'u';
-  const mortiseAxis: 'u' | 'v' = 'u';
+  const mortiseAxis: 'u' | 'v' = endFaceUsesZforU(joint.faceA) ? 'v' : 'u';
   const matingThickness = joint.boardThicknessB ?? joint.panelB.dims.thickness;
 
   const tenon: TenonMortiseFeature = {

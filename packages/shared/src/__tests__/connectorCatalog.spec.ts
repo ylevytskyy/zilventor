@@ -124,13 +124,18 @@ describe('count/spacing math (via confirmat)', () => {
 
   it('bores are evenly distributed between the setbacks (first at +endSetback, last at len-endSetback)', () => {
     const r = generateConfirmat(joint(700), defaults);
-    // confirmat A is the THROUGH (face) panel — its along-joint coordinate is u.
-    const us = r.boresA.map((b) => b.u).sort((a, b) => a - b);
-    expect(us[0]).toBeCloseTo(60, 3);
-    expect(us[us.length - 1]).toBeCloseTo(640, 3);
+    // faceA='Left' is an edge-shaped face (endFaceUsesZforU('Left')=true per bore.ts's
+    // face2DFrame: uDir=+Z there), so makeBores swaps u/v for side A too (fixed
+    // fix/bore-aside-swapuv — each side now consults its OWN face, not always endB):
+    // the along-joint coordinate lands on v, and u is the constant thickness-centerline.
+    const vs = r.boresA.map((b) => b.v).sort((a, b) => a - b);
+    expect(vs[0]).toBeCloseTo(60, 3);
+    expect(vs[vs.length - 1]).toBeCloseTo(640, 3);
     // even spacing
-    const gaps = us.slice(1).map((u, i) => u - us[i]!);
+    const gaps = vs.slice(1).map((v, i) => v - vs[i]!);
     for (const g of gaps) expect(g).toBeCloseTo(gaps[0]!, 3);
+    // u = crossCoord(boardThicknessB=18) = 9, constant across all bores.
+    for (const b of r.boresA) expect(b.u).toBeCloseTo(9, 6);
   });
 });
 

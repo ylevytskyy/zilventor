@@ -217,8 +217,22 @@ describe('generateTenonMortisePair — cross-face role/axis mapping', () => {
     expect(mortise.position).toBeCloseTo(222, 6);
   });
 
-  it('mortise axis is always u (side-A along-joint convention, mirrors makeBores)', () => {
+  it('mortise axis is v when faceA is an edge-shaped face (Left/Right/Front/Back) — mirrors makeBores per-side swapUV', () => {
+    // faceA='Left' → endFaceUsesZforU('Left')=true (uDir=+Z there per face2DFrame) →
+    // the shared `position` (along-joint) value lands on v, not u (fix/bore-aside-swapuv:
+    // generateTenonMortisePair's mortiseAxis now consults joint.faceA, same as makeBores'
+    // side-A fix, instead of being hardcoded to 'u').
     const joint = makeJoint('Left', 'Top');
+    const { mortise } = generateTenonMortisePair(
+      joint,
+      { width: 10, depth: 8, count: 1, spacing: 0, fitClearance: 1 },
+      { tenonId: 't', mortiseId: 'm', pairId: 'p' },
+    );
+    expect(mortise.axis).toBe('v');
+  });
+
+  it('mortise axis is u when faceA is Top/Bottom (thickness is not on u for that face)', () => {
+    const joint = makeJoint('Top', 'Left'); // faceA='Top' → endFaceUsesZforU('Top')=false
     const { mortise } = generateTenonMortisePair(
       joint,
       { width: 10, depth: 8, count: 1, spacing: 0, fitClearance: 1 },
@@ -291,7 +305,15 @@ describe('generateTenonMortisePair — cross-face role/axis mapping', () => {
   });
 
   it('end-to-end: the generated mortise pocket is bounded to the mating panel footprint, not a through-dado across the host face', () => {
-    // panelA (Left face host) is 500mm wide; a through-dado would span the full 500mm.
+    // faceA='Left' -> mortiseAxis='v' post-fix (fix/bore-aside-swapuv): the shared
+    // along-joint `position`(350) now lands on v (panel-local Y, the RUN/width axis),
+    // and the crossPosition/crossSpan mating-footprint bound lands on u (panel-local Z,
+    // the host's OWN thickness axis, uLen=18 per faceExtents('Left')).
+    //   - cross (u/Z) window: crossPosition(9) +/- (crossSpan(18)/2 + fitClearance(1)) =
+    //     [-1,19], a 20mm span that EXCEEDS the host's own 18mm thickness ->
+    //     buildTenonMortiseCutters clamps it to the full [0,18] extent (span=18).
+    //   - run (v/Y) window: position(350) +/- (width(10)/2 + fitClearance(1)) = [344,356]
+    //     -> panel-local y = origin.y(-250) + [344,356] = [94,106], span=12.
     const joint = makeJoint('Left', 'Top', 700);
     const { mortise } = generateTenonMortisePair(
       joint,
@@ -299,10 +321,11 @@ describe('generateTenonMortisePair — cross-face role/axis mapping', () => {
       { tenonId: 't', mortiseId: 'm', pairId: 'p' },
     );
     const [box] = buildTenonMortiseCutters(joint.panelA.dims, mortise);
+    const zMin = Math.min(box!.p1.z, box!.p2.z), zMax = Math.max(box!.p1.z, box!.p2.z);
+    expect(zMax - zMin).toBeCloseTo(18, 6); // clamped to the host's own 18mm thickness
     const yMin = Math.min(box!.p1.y, box!.p2.y), yMax = Math.max(box!.p1.y, box!.p2.y);
-    const span = yMax - yMin;
-    expect(span).toBeCloseTo(18 + 2 * 1, 6); // mating thickness (18) + 2×fitClearance(1)
-    expect(span).toBeLessThan(500); // nowhere near the host panel's full 500mm width
+    expect(yMax - yMin).toBeCloseTo(10 + 2 * 1, 6); // width(10) + 2xfitClearance(1)
+    expect(yMax - yMin).toBeLessThan(500); // nowhere near the host panel's full 500mm width
   });
 });
 
