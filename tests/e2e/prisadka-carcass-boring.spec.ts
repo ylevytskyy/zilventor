@@ -369,8 +369,10 @@ test(
 
     // D1. Undo the bake → featureTree loses the bake: HoleFeatures.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<void> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
 
     const afterUndoBakeCount = await page.evaluate(
@@ -394,8 +396,10 @@ test(
 
     // D2. Undo the generate → bores[] removed from the panel .zipt.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<void> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
 
     const afterUndoGenerateBores = await page.evaluate(

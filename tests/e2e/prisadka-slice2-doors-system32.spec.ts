@@ -596,8 +596,10 @@ test(
     // ── F. Undo cascade ────────────────────────────────────────────────────────
     // F1. Undo generate-shelf-pins → side-panel pin bores removed.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<void> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
     const pinsAfterUndo = await page.evaluate(async () => {
       const w = window as unknown as {
@@ -626,8 +628,10 @@ test(
 
     // F2. Undo bake-door → door featureTree loses the bake: features.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<void> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
     const bakeAfterUndo = await page.evaluate(async (p: string) => {
       const w = window as unknown as {
@@ -650,8 +654,10 @@ test(
     // vacuously, making the assertion pass whether undo worked or not (false-green).
     // The store path is the same mechanism B2 uses and is authoritative.
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus.undo();
+      const w = window as unknown as {
+        __zilventorStore: { getState(): { bus: { undo(): Promise<void> } } };
+      };
+      await w.__zilventorStore.getState().bus.undo();
     });
 
     // After undo, force a store reload of the cabinet .ziasm so subAssemblyDocs[cabinetPath]

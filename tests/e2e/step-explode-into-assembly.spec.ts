@@ -136,8 +136,7 @@ test(
 
     // ── 9. Undo → part restored ───────────────────────────────────────────────
     await page.evaluate(async () => {
-      const { useAppStore } = await import('/src/store/useAppStore.ts');
-      await useAppStore.getState().bus?.undo();
+      await (window as any).__zilventorStore.getState().bus?.undo();
     });
 
     await page.waitForFunction(

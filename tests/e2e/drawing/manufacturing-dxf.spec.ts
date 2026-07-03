@@ -199,9 +199,8 @@ test('T-M2.1b: manufacturing DXF export — combined mode via dxfExportMode stor
     const { ExportPanelManufacturingDxfCommand } = await import(
       '/src/commands/ExportPanelManufacturingDxfCommand.ts'
     );
-    const { useAppStore } = await import('/src/store/useAppStore.ts');
-    useAppStore.getState().setDxfExportMode('combined');
-    const mode = useAppStore.getState().dxfExportMode;
+    (window as any).__zilventorStore.getState().setDxfExportMode('combined');
+    const mode = (window as any).__zilventorStore.getState().dxfExportMode;
 
     const input = {
       itemNumber: 1,
