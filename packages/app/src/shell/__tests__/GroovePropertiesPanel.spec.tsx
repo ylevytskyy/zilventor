@@ -107,4 +107,99 @@ describe('GroovePropertiesPanel', () => {
     executeSpy.mockRestore();
     applySpy.mockRestore();
   });
+
+  // ── P14 W2: inline-editable groove parameters ─────────────────────────────
+
+  it('renders position/width/depth as editable numeric inputs seeded with current values', () => {
+    const g = groove({ position: 10, width: 8, depth: 6 });
+    setSelectedGroove(g);
+    render(<GroovePropertiesPanel {...makeProps(g)} />);
+    expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('8')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('6')).toBeInTheDocument();
+  });
+
+  it('committing a numeric edit (Enter or blur) dispatches EditGrooveCommand via bus.execute() with the changed field', async () => {
+    const g = groove({ width: 8, depth: 6 });
+    setSelectedGroove(g);
+
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    const { EditGrooveCommand } = await import('../../commands/EditGrooveCommand');
+    const applySpy = vi.spyOn(EditGrooveCommand.prototype, 'apply');
+
+    render(<GroovePropertiesPanel {...makeProps(g)} />);
+
+    const widthInput = screen.getByDisplayValue('8') as HTMLInputElement;
+    fireEvent.change(widthInput, { target: { value: '12' } });
+    fireEvent.keyDown(widthInput, { key: 'Enter' });
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(applySpy).toHaveBeenCalledTimes(1);
+    const enterInstance = executeSpy.mock.calls[0]![0] as unknown as {
+      opts: { groove: GrooveFeature; patch: Record<string, unknown> };
+    };
+    expect(enterInstance).toBeInstanceOf(EditGrooveCommand);
+    expect(enterInstance.opts.groove).toBe(g);
+    expect(enterInstance.opts.patch).toEqual({ width: 12 });
+
+    const depthInput = screen.getByDisplayValue('6') as HTMLInputElement;
+    fireEvent.change(depthInput, { target: { value: '15' } });
+    fireEvent.blur(depthInput);
+
+    expect(executeSpy).toHaveBeenCalledTimes(2);
+    const blurInstance = executeSpy.mock.calls[1]![0] as unknown as {
+      opts: { groove: GrooveFeature; patch: Record<string, unknown> };
+    };
+    expect(blurInstance.opts.patch).toEqual({ depth: 15 });
+
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
+  });
+
+  it('changing the face-role select dispatches EditGrooveCommand with a faceRole patch', async () => {
+    const g = groove({ faceRole: 'Front' });
+    setSelectedGroove(g);
+
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    const { EditGrooveCommand } = await import('../../commands/EditGrooveCommand');
+
+    render(<GroovePropertiesPanel {...makeProps(g)} />);
+    const select = screen.getByLabelText(/face/i) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'Top' } });
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
+      opts: { groove: GrooveFeature; patch: Record<string, unknown> };
+    };
+    expect(instance).toBeInstanceOf(EditGrooveCommand);
+    expect(instance.opts.groove).toBe(g);
+    expect(instance.opts.patch).toEqual({ faceRole: 'Top' });
+
+    executeSpy.mockRestore();
+  });
+
+  it('changing the axis select dispatches EditGrooveCommand with an axis patch', async () => {
+    const g = groove({ axis: 'u' });
+    setSelectedGroove(g);
+
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    const { EditGrooveCommand } = await import('../../commands/EditGrooveCommand');
+
+    render(<GroovePropertiesPanel {...makeProps(g)} />);
+    const select = screen.getByLabelText(/axis/i) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'v' } });
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
+      opts: { groove: GrooveFeature; patch: Record<string, unknown> };
+    };
+    expect(instance).toBeInstanceOf(EditGrooveCommand);
+    expect(instance.opts.groove).toBe(g);
+    expect(instance.opts.patch).toEqual({ axis: 'v' });
+
+    executeSpy.mockRestore();
+  });
 });
