@@ -722,7 +722,17 @@
       "count": "Count",
       "spacing": "Spacing (mm)",
       "fitClearance": "Fit clearance (mm)",
-      "position": "Position (mm)"
+      "position": "Position (mm)",
+      "layoutMode": "Layout",
+      "manual": "Manual",
+      "auto": "Auto",
+      "byCount": "By count",
+      "byPitch": "Pitch",
+      "targetCount": "Target count",
+      "targetPitch": "Target pitch (mm)",
+      "minEndMargin": "End margin (mm)",
+      "noPreview": "Pick two panels forming a joint to preview.",
+      "clampedWarning": "Clamped to fit the joint — requested count/pitch didn't fit within the edge."
     },
     "sketchRect": {
       "ariaLabel": "Rectangle dialog",
@@ -1358,6 +1368,7 @@
     "shellFailed": "Shell failed: {{message}}",
     "showConflict": "Show conflict",
     "tenonMortiseNoJoint": "No tenon/mortise added — the two picked panels do not form a butt joint.",
+    "tenonMortiseClamped": "Auto-layout adjusted to fit the joint — requested count/pitch didn't fit within the edge.",
     "valueMin": "Value must be greater than zero."
   },
   "face frame: opening collapses — too many columns for the cabinet width": "Opening collapses — too many columns for the cabinet width.",

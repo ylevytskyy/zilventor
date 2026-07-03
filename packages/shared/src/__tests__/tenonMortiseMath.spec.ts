@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTenonMortiseCutters, generateTenonMortisePair } from '../tenonMortiseMath';
+import { buildTenonMortiseCutters, generateTenonMortisePair, layoutTenonsAlongJoint } from '../tenonMortiseMath';
 import type { TenonMortiseSpec } from '../tenonMortise';
 import { crossCoord, type JointInput } from '../connectorCatalog';
 
@@ -262,5 +262,57 @@ describe('generateTenonMortisePair — cross-face role/axis mapping', () => {
     const span = yMax - yMin;
     expect(span).toBeCloseTo(18 + 2 * 1, 6); // mating thickness (18) + 2×fitClearance(1)
     expect(span).toBeLessThan(500); // nowhere near the host panel's full 500mm width
+  });
+});
+
+describe('layoutTenonsAlongJoint — auto-derived count/spacing from joint edge length (P11)', () => {
+  it('count-mode: fits cleanly within the usable span (default margin = width)', () => {
+    // jointLength=400, margin defaults to width=8 → usableSpan = 400-16 = 384.
+    // count=3 → spacing = usableSpan/(count-1) = 384/2 = 192.
+    const result = layoutTenonsAlongJoint(400, { mode: 'count', value: 3, width: 8 });
+    expect(result.count).toBe(3);
+    expect(result.spacing).toBeCloseTo(192, 6);
+    expect(result.clamped).toBe(false);
+  });
+
+  it('pitch-mode: derives a sane count and recalculates spacing to land evenly', () => {
+    // usableSpan=384, target pitch=100 → gaps=3.84 → round=4 → count=5.
+    // spacing recalculated = 384/4 = 96 (close to the 100mm target, not identical).
+    const result = layoutTenonsAlongJoint(400, { mode: 'pitch', value: 100, width: 8 });
+    expect(result.count).toBe(5);
+    expect(result.spacing).toBeCloseTo(96, 6);
+    expect(result.clamped).toBe(false);
+  });
+
+  it('count=1: spacing is 0, never NaN', () => {
+    const result = layoutTenonsAlongJoint(200, { mode: 'count', value: 1, width: 8 });
+    expect(result.count).toBe(1);
+    expect(result.spacing).toBe(0);
+    expect(Number.isNaN(result.spacing)).toBe(false);
+  });
+
+  it('edge too short for the requested count: clamps to the largest feasible count (>=1), clamped=true', () => {
+    // usableSpan = 50-16 = 34; maxCount = floor(34/8)+1 = 5 tenons of width 8 fit.
+    const result = layoutTenonsAlongJoint(50, { mode: 'count', value: 10, width: 8 });
+    expect(result.count).toBe(5);
+    expect(result.count).toBeGreaterThanOrEqual(1);
+    expect(result.spacing).toBeCloseTo(8.5, 6);
+    expect(result.clamped).toBe(true);
+  });
+
+  it('requested count exactly at the feasible boundary: not clamped', () => {
+    // Same usableSpan=34 as above; maxCount=5 and requestedCount=5 — exact fit, no clamp.
+    const result = layoutTenonsAlongJoint(50, { mode: 'count', value: 5, width: 8 });
+    expect(result.count).toBe(5);
+    expect(result.spacing).toBeCloseTo(8.5, 6);
+    expect(result.clamped).toBe(false);
+  });
+
+  it('minEndMargin override widens/narrows the usable span independent of width (D3)', () => {
+    // jointLength=400, margin overridden to 20 (vs width=8 default) → usableSpan = 400-40 = 360.
+    const result = layoutTenonsAlongJoint(400, { mode: 'count', value: 3, width: 8, minEndMargin: 20 });
+    expect(result.count).toBe(3);
+    expect(result.spacing).toBeCloseTo(180, 6); // 360/2
+    expect(result.clamped).toBe(false);
   });
 });

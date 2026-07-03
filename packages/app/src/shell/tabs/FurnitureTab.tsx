@@ -40,7 +40,8 @@ import { AddManualShelfPinBoresCommand } from '../../commands/AddManualShelfPinB
 import { AddGrooveCommand } from '../../commands/AddGrooveCommand';
 import { AddTenonMortiseCommand } from '../../commands/AddTenonMortiseCommand';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
-import type { TenonMortiseParams } from '@zilventor/shared';
+import type { TenonMortiseCreateInput } from '@zilventor/shared';
+import { inferManualJoint } from '@zilventor/shared';
 import { LEFT_SIDE_INNER_FACE, RIGHT_SIDE_INNER_FACE } from '@zilventor/shared';
 import type { ComponentPath } from '@zilventor/shared';
 import { useCutListResult } from '../useCutListResult';
@@ -462,6 +463,71 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
     }
   };
 
+  /**
+   * Resolves one panel's dims + world-center pose from its .zipt manifest, for
+   * `inferManualJoint` — duplicated from AddTenonMortiseCommand.loadPanel's dims
+   * resolution + corner-to-center conversion (module-private in both, per this
+   * codebase's established panelDimsFromDoc-duplication convention; see
+   * AddManualJointBoresCommand/GenerateCarcassBoresCommand/etc.). Returns null
+   * (never throws) on any missing component/dims — the jointLength preload
+   * (P11 S3) is a best-effort live-preview aid, not load-bearing for Add.
+   */
+  const loadJointPanelInput = async (
+    opfs: { read(p: string): Promise<Uint8Array> },
+    asm: { components: Array<{ partPath: string; position: { x: number; y: number; z: number } }> },
+    partPath: string,
+  ): Promise<{ dims: { length: number; width: number; thickness: number }; pose: { translation: { x: number; y: number; z: number }; quaternion: [number, number, number, number] } } | null> => {
+    try {
+      const comp = asm.components.find((c) => c.partPath === partPath);
+      if (!comp) return null;
+      const bytes = await opfs.read(partPath);
+      const project = await unpackProject(bytes);
+      const doc = (project.manifest as { document?: { featureTree?: Array<Record<string, unknown>> } } | null)?.document;
+      const panel = (doc?.featureTree ?? []).find((f) => f.kind === 'panel') as
+        | { length: unknown; width: unknown; thickness: unknown }
+        | undefined;
+      if (!panel) return null;
+      const num = (v: unknown): number | null => {
+        if (typeof v === 'number') return v;
+        if (v !== null && typeof v === 'object' && (v as Record<string, unknown>).kind === 'literal') {
+          const val = (v as { value: unknown }).value;
+          if (typeof val === 'number') return val;
+        }
+        return null;
+      };
+      const length = num(panel.length), width = num(panel.width), thickness = num(panel.thickness);
+      if (length === null || width === null || thickness === null) return null;
+      const dims = { length, width, thickness };
+      const translation = {
+        x: comp.position.x + dims.length / 2,
+        y: comp.position.y + dims.width / 2,
+        z: comp.position.z + dims.thickness / 2,
+      };
+      return { dims, pose: { translation, quaternion: [0, 0, 0, 1] } };
+    } catch {
+      return null;
+    }
+  };
+
+  /** Real joint edge length (P11 D4) for the dialog's auto-layout live preview,
+   *  computed fresh here (not cached) — mirrors AddTenonMortiseCommand's own
+   *  re-derive-fresh convention. null when it can't be determined. */
+  const computeTenonMortiseJointLength = async (
+    opfs: { read(p: string): Promise<Uint8Array> },
+    panelPathA: string,
+    panelPathB: string,
+  ): Promise<number | null> => {
+    const asm = useAppStore.getState().activeAssembly;
+    if (!asm) return null;
+    const a = await loadJointPanelInput(opfs, asm, panelPathA);
+    const b = await loadJointPanelInput(opfs, asm, panelPathB);
+    if (!a || !b) return null;
+    const joint = inferManualJoint(a, b);
+    if (!joint) return null;
+    const { p0, p1 } = joint.line;
+    return Math.hypot(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+  };
+
   const handleAddTenonMortise = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
@@ -469,27 +535,37 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
       useAppStore.getState().setOneComponentPickHandle(null);
       const handleB = viewport.beginOneComponentPick(resolvePartPath, (panelPathB: string) => {
         useAppStore.getState().setOneComponentPickHandle(null);
-        useAppStore.getState().setTenonMortiseDialog({
-          panelPathA,
-          panelPathB,
-          onSubmit: async (params: TenonMortiseParams) => {
-            const opfs = await Opfs.forNavigator();
-            const beforeA = await tenonMortiseFeatureCount(opfs, panelPathA);
-            const beforeB = await tenonMortiseFeatureCount(opfs, panelPathB);
-            await useAppStore.getState().bus.execute(
-              new AddTenonMortiseCommand({ panelPathA, panelPathB, params, opfs, store: useAppStore }),
-            );
-            const afterA = await tenonMortiseFeatureCount(opfs, panelPathA);
-            const afterB = await tenonMortiseFeatureCount(opfs, panelPathB);
-            const unchanged =
-              beforeA !== null && afterA !== null && beforeB !== null && afterB !== null &&
-              afterA === beforeA && afterB === beforeB;
-            if (unchanged) {
-              showToast?.(t('toast.tenonMortiseNoJoint'));
-            }
-          },
-          onCancel: () => useAppStore.getState().setTenonMortiseDialog(null),
-        });
+        void (async () => {
+          const opfs = await Opfs.forNavigator();
+          const jointLength = await computeTenonMortiseJointLength(opfs, panelPathA, panelPathB);
+          useAppStore.getState().setTenonMortiseDialog({
+            panelPathA,
+            panelPathB,
+            jointLength,
+            onSubmit: async (params: TenonMortiseCreateInput) => {
+              const submitOpfs = await Opfs.forNavigator();
+              const beforeA = await tenonMortiseFeatureCount(submitOpfs, panelPathA);
+              const beforeB = await tenonMortiseFeatureCount(submitOpfs, panelPathB);
+              const cmd = new AddTenonMortiseCommand({ panelPathA, panelPathB, params, opfs: submitOpfs, store: useAppStore });
+              await useAppStore.getState().bus.execute(cmd);
+              const afterA = await tenonMortiseFeatureCount(submitOpfs, panelPathA);
+              const afterB = await tenonMortiseFeatureCount(submitOpfs, panelPathB);
+              const unchanged =
+                beforeA !== null && afterA !== null && beforeB !== null && afterB !== null &&
+                afterA === beforeA && afterB === beforeB;
+              // Auto-layout clamping (P11 D5) is a definitive signal from the command
+              // itself — check it ahead of the featureTree-diff no-op heuristic, since
+              // a clamped-but-successful Add is never a no-op (mutually exclusive in
+              // real usage; ordering keeps the two toasts unambiguous either way).
+              if (cmd.clamped) {
+                showToast?.(t('toast.tenonMortiseClamped'));
+              } else if (unchanged) {
+                showToast?.(t('toast.tenonMortiseNoJoint'));
+              }
+            },
+            onCancel: () => useAppStore.getState().setTenonMortiseDialog(null),
+          });
+        })();
       });
       useAppStore.getState().setOneComponentPickHandle(handleB);
     });
