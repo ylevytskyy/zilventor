@@ -362,6 +362,39 @@ describe('BrowserPane', () => {
     expect(s.selectedFeatureId).toBe(beforeFeatureId);
   });
 
+  // ---- P17 W1: keyholeSlot tree node + selection wiring ----
+
+  it('renders a labeled Keyhole Slot node for a keyholeSlot feature (not the mislabeled Extrusion fallback)', () => {
+    const keyholeSlot: any = {
+      kind: 'keyholeSlot', id: 'ks1', faceRole: 'Back', headDiameter: 10, shaftWidth: 5, slotLength: 20, depth: 6,
+    };
+    const part: PartDocument = {
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [keyholeSlot],
+    } as any;
+    render(<BrowserPane part={part} />);
+    expect(screen.getByText(/Keyhole Slot 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/Extrusion1/)).toBeNull();
+  });
+
+  it('clicking a Keyhole Slot node sets selectedKeyholeSlotId/selectedKeyholeSlotPartPath, not setSelectedFeature', () => {
+    useAppStore.getState().setSelectedKeyholeSlot(null, null);
+    const beforeFeatureId = useAppStore.getState().selectedFeatureId;
+    const keyholeSlot: any = {
+      kind: 'keyholeSlot', id: 'ks1', faceRole: 'Back', headDiameter: 10, shaftWidth: 5, slotLength: 20, depth: 6,
+    };
+    const part: PartDocument = {
+      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
+      featureTree: [keyholeSlot],
+    } as any;
+    render(<BrowserPane part={part} />);
+    fireEvent.click(screen.getByText(/Keyhole Slot 1/));
+    const s = useAppStore.getState();
+    expect(s.selectedKeyholeSlotId).toBe('ks1');
+    expect(s.selectedKeyholeSlotPartPath).toBe('p1');
+    expect(s.selectedFeatureId).toBe(beforeFeatureId);
+  });
+
 });
 
 describe('BrowserPane — panel feature (T28)', () => {

@@ -417,6 +417,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
 
   let sketchCount = 0;
   let grooveCount = 0;
+  let keyholeSlotCount = 0;
   let extrudeCount = 0;
   let revolveCount = 0;
   let filletCount = 0;
@@ -659,6 +660,19 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
                 onClick={() => useAppStore.getState().setSelectedGroove(f.id, part.id)}
               >
                 ▸ {t('browser.groove')}{grooveCount}
+                {renderErrorBadge(f.id)}
+              </li>
+            );
+          }
+          if (f.kind === 'keyholeSlot') {
+            keyholeSlotCount += 1;
+            return (
+              <li
+                key={f.id}
+                className="pl-3 cursor-pointer hover:text-white"
+                onClick={() => useAppStore.getState().setSelectedKeyholeSlot(f.id, part.id)}
+              >
+                ▸ {t('browser.keyholeSlot')} {keyholeSlotCount}
                 {renderErrorBadge(f.id)}
               </li>
             );

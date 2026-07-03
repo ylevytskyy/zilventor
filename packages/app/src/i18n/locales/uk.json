@@ -90,6 +90,7 @@
     "components_count": "Компоненти ({{count}})",
     "end_of_part": "Кінець деталі",
     "groove": "Паз",
+    "keyholeSlot": "Замковий паз",
     "no_part_open": "Немає відкритої деталі",
     "origin": "Початок координат"
   },
@@ -176,6 +177,7 @@
     "source": "Джерело",
     "bore_properties": "Властивості отвору",
     "groove_properties": "Властивості паза",
+    "keyholeSlot_properties": "Властивості замкового паза",
     "suppress": "Заблокувати",
     "type": "Тип",
     "unsuppress": "Розблокувати"

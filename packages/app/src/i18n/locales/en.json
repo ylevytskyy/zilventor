@@ -90,6 +90,7 @@
     "components_count": "Components ({{count}})",
     "end_of_part": "End of Part",
     "groove": "Groove",
+    "keyholeSlot": "Keyhole Slot",
     "no_part_open": "No part open",
     "origin": "Origin"
   },
@@ -176,6 +177,7 @@
     "source": "Source",
     "bore_properties": "Bore properties",
     "groove_properties": "Groove properties",
+    "keyholeSlot_properties": "Keyhole slot properties",
     "suppress": "Suppress",
     "type": "Type",
     "unsuppress": "Unsuppress"
