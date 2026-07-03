@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { RefObject } from 'react';
 import type { PanelSpecCache } from './resolvePanelSpec';
-import type { BoreOp, GrooveFeature, TenonMortiseFeature, PartInfo, PanelPreflightDiagnostic } from '@zilventor/shared';
+import type { BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature, PartInfo, PanelPreflightDiagnostic } from '@zilventor/shared';
 
 export type CutListCacheContextValue = {
   panelSpecCacheRef: RefObject<PanelSpecCache>;
@@ -12,6 +12,8 @@ export type CutListCacheContextValue = {
   partGroovesCacheRef: RefObject<Map<string, GrooveFeature[]>>;
   /** Tenon/mortise features per partPath; populated alongside partGroovesCacheRef when the kernel loads a part doc. */
   partTenonMortisesCacheRef: RefObject<Map<string, TenonMortiseFeature[]>>;
+  /** Keyhole-slot features per partPath; populated alongside partTenonMortisesCacheRef when the kernel loads a part doc. */
+  partKeyholeSlotsCacheRef: RefObject<Map<string, KeyholeSlotFeature[]>>;
   /** R1 preflight diagnostics collected by the last warmCache() pass (via
    *  loadCutListInputs → resolvePanelSpec); threaded onto CutListResult by
    *  useCutListResult so cut-list/manufacturing/nesting toasts stay live. */
@@ -40,6 +42,7 @@ export function useCutListCacheContext(): CutListCacheContextValue {
       partBoresCacheRef: { current: new Map() },
       partGroovesCacheRef: { current: new Map() },
       partTenonMortisesCacheRef: { current: new Map() },
+      partKeyholeSlotsCacheRef: { current: new Map() },
       diagnosticsCacheRef: { current: [] },
       warmCache: NOOP_ASYNC,
       invalidatePartPaths: NOOP_ASYNC,

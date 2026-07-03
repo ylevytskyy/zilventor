@@ -142,6 +142,7 @@ describe('FurnitureTab — R1 preflight toast wiring (production UI)', () => {
       },
       partGroovesCacheRef: { current: new Map() },
       partTenonMortisesCacheRef: { current: new Map() },
+      partKeyholeSlotsCacheRef: { current: new Map() },
       diagnosticsCacheRef: { current: cutListDiagnostics },
       warmCache: async () => {},
       invalidatePartPaths: async () => {},

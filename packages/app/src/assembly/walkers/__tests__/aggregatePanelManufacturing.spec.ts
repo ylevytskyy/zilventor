@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { aggregatePanelManufacturing } from '../aggregatePanelManufacturing';
-import type { CutListResult, CutListRow, BoreOp, TenonMortiseFeature } from '@zilventor/shared';
+import type { CutListResult, CutListRow, BoreOp, TenonMortiseFeature, KeyholeSlotFeature } from '@zilventor/shared';
 import type { BoringAggregateResult } from '../aggregateBoresRecursive';
 
 const tenonMortise = (over: Partial<TenonMortiseFeature> = {}): TenonMortiseFeature => ({
   kind: 'tenonMortise', id: 'tm1', pairId: 'p1', role: 'mortise', faceRole: 'Top',
   axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0, fitClearance: 1, ...over,
+});
+
+const keyholeSlot = (over: Partial<KeyholeSlotFeature> = {}): KeyholeSlotFeature => ({
+  kind: 'keyholeSlot', id: 'ks1', faceRole: 'Top', u: 200, v: 150, axis: 'u', direction: 1,
+  entryDiameter: 15, slotWidth: 8, slotLength: 30, depth: 6, ...over,
 });
 
 const row = (over: Partial<CutListRow> = {}): CutListRow => ({
@@ -99,6 +104,44 @@ describe('aggregatePanelManufacturing', () => {
     const out = aggregatePanelManufacturing(cut, boring, new Map());
     expect(out).toHaveLength(1);
     expect(out[0]!.tenonMortises).toEqual([]);
+  });
+
+  it('threads keyholeSlotsByPart onto the matching PanelManufacturingInput.keyholeSlots', () => {
+    const cut: CutListResult = { rows: [row()], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [panel()] };
+    const ks = keyholeSlot();
+    const out = aggregatePanelManufacturing(cut, boring, new Map(), new Map(), new Map([['p/side', [ks]]]));
+    expect(out).toHaveLength(1);
+    expect(out[0]!.keyholeSlots).toEqual([ks]);
+  });
+
+  it('machiningSignature distinguishes panels by keyholeSlots — same geometry+bores+grooves+tenonMortises but different keyholeSlots stay separate entries', () => {
+    const cut: CutListResult = { rows: [
+      row({ partPath: 'p/a', itemNumber: 1 }),
+      row({ partPath: 'p/b', itemNumber: 2 }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [
+      panel({ partPath: 'p/a', bores: [] }), panel({ partPath: 'p/b', bores: [] }),
+    ] };
+    const ksByPart = new Map([
+      ['p/a', [keyholeSlot({ id: 'ks-a', u: 100 })]],
+      ['p/b', [keyholeSlot({ id: 'ks-b', u: 700 })]],
+    ]);
+    const out = aggregatePanelManufacturing(cut, boring, new Map(), new Map(), ksByPart);
+    expect(out).toHaveLength(2);
+  });
+
+  it('merges panels sharing identical keyholeSlots into one entry (signature unaffected when keyholeSlotsByPart is omitted)', () => {
+    const cut: CutListResult = { rows: [
+      row({ partPath: 'p/a', itemNumber: 1, qty: 2 }),
+      row({ partPath: 'p/b', itemNumber: 2, qty: 3 }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [
+      panel({ partPath: 'p/a', bores: [] }), panel({ partPath: 'p/b', bores: [] }),
+    ] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out).toHaveLength(1);
+    expect(out[0]!.keyholeSlots).toEqual([]);
   });
 
   it('faceKey distinguishes bores by face.role — Top vs Bottom on same geometry are separate entries', () => {

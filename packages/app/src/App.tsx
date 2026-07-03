@@ -5479,7 +5479,7 @@ export default function App() {
   }, [invalidatePartPaths]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, partTenonMortisesCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, partTenonMortisesCacheRef, partKeyholeSlotsCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

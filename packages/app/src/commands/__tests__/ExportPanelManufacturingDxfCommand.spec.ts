@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { buildManufacturingZipEntries, buildCombinedManufacturingDxf, ExportPanelManufacturingDxfCommand } from '../ExportPanelManufacturingDxfCommand';
 import type { PanelManufacturingInput } from '../../drawing/renderPanelManufacturingDxf';
-import type { BoreOp } from '@zilventor/shared';
+import type { BoreOp, KeyholeSlotFeature } from '@zilventor/shared';
 
 // jsdom doesn't implement URL.createObjectURL — stub it for the fallback path.
 Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:stub'), writable: true });
@@ -205,6 +205,32 @@ function boreWithCam(faceRole: string, role: string): BoreOp {
   return { id: 'b1', face, u: 100, v: 50, diameter: 5, depth: 12, role, connectorId: 'c1',
     connectorKind: 'confirmat', toolNumber: 3, speed: 12000 } as unknown as BoreOp;
 }
+
+function keyholeSlot(over: Partial<KeyholeSlotFeature> = {}): KeyholeSlotFeature {
+  return { kind: 'keyholeSlot', id: 'ks1', faceRole: 'Top', u: 200, v: 150, axis: 'u', direction: 1,
+    entryDiameter: 15, slotWidth: 8, slotLength: 30, depth: 6, ...over };
+}
+
+// P17: keyhole slots must ride along through the zip-entry DXF and the
+// machining.csv sidecar, mirroring the pre-existing groove/bore coverage above.
+describe('ExportPanelManufacturingDxfCommand — keyhole slots', () => {
+  it('mode:folders zip DXF entries carry the KEYHOLE-SLOTS layer and machining.csv carries a keyholeSlot opType row', async () => {
+    const withKeyhole: PanelManufacturingInput = { ...input(1, 'Side'), keyholeSlots: [keyholeSlot()] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({ inputs: [withKeyhole], suggestedName: 'assembly-manufacturing.zip' }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const zip = unzipSync(bytes);
+    const dxf = strFromU8(zip['White_18/item-1-Side.dxf']!);
+    expect(dxf).toContain('KEYHOLE-SLOTS');
+    const csv = strFromU8(zip['machining.csv']!);
+    expect(csv).toContain('Side,keyholeSlot,15,6,KEYHOLE-SLOTS,,');
+  });
+});
 
 describe('ExportPanelManufacturingDxfCommand — W7 machining.csv sidecar', () => {
   it('mode:folders zip contains machining.csv at the ZIP ROOT with a parseable header + bore row', async () => {
