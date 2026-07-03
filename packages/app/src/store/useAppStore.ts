@@ -244,7 +244,13 @@ export type GrooveDialogState = {
 export type TenonMortiseDialogState = {
   panelPathA: string;
   panelPathB: string;
-  onSubmit: (params: import('@zilventor/shared').TenonMortiseParams) => Promise<void> | void;
+  /** Real joint edge length (P11), precomputed by FurnitureTab before opening
+   *  the dialog, for the auto-layout mode's live count/spacing preview. null
+   *  when it couldn't be computed (missing panel data or the two picks don't
+   *  form a butt joint) — the dialog still opens; auto-mode preview is simply
+   *  unavailable and manual mode is unaffected. */
+  jointLength: number | null;
+  onSubmit: (params: import('@zilventor/shared').TenonMortiseCreateInput) => Promise<void> | void;
   onCancel: () => void;
 };
 

@@ -126,6 +126,19 @@ export interface TenonMortiseParams {
   position?: number;
 }
 
+/**
+ * `AddTenonMortiseCommand`'s accepted input (P11): either literal `count`/
+ * `spacing` (today's manual path, unchanged) or an auto-layout descriptor
+ * that the command resolves to literals via `layoutTenonsAlongJoint` before
+ * constructing the pair (P11 D1) — the persisted `TenonMortiseFeature` shape
+ * never changes either way.
+ */
+export type TenonMortiseCreateInput =
+  | TenonMortiseParams
+  | (Omit<TenonMortiseParams, 'count' | 'spacing'> & {
+      layout: { mode: 'count' | 'pitch'; value: number; minEndMargin?: number };
+    });
+
 export interface TenonMortiseIds {
   tenonId: string;
   mortiseId: string;
@@ -137,6 +150,56 @@ export interface TenonMortiseIds {
 function jointLength(j: JointInput): number {
   const { p0, p1 } = j.line;
   return Math.hypot(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+}
+
+export interface TenonLayoutOptions {
+  mode: 'count' | 'pitch';
+  value: number;
+  width: number;
+  /** Space between the outermost tenon's edge and the panel edge, per side.
+   *  Defaults to `width` (P11 D3) when omitted. */
+  minEndMargin?: number;
+}
+
+export interface TenonLayoutResult {
+  count: number;
+  spacing: number;
+  /** true when the requested count/pitch didn't fit within the joint's usable
+   *  span and was clamped down to the largest feasible count (min 1). */
+  clamped: boolean;
+}
+
+/**
+ * Derives an evenly-distributed, centered tenon `count`/`spacing` from a
+ * joint's real edge length (P11) — the auto-layout counterpart to hand-
+ * entering `count`/`spacing` literals in `TenonMortiseParams`.
+ *
+ * `mode: 'count'` targets exactly N tenons; `mode: 'pitch'` targets a ~P mm
+ * spacing, with count derived (nearest whole gap count) and spacing then
+ * recalculated so the tenons land evenly across the usable span.
+ *
+ * Never throws: when the requested count/pitch doesn't fit within the usable
+ * span (`jointLen - 2*margin`), clamps to the largest feasible count (minimum
+ * 1, still centered) and reports `clamped: true` so the caller can warn.
+ */
+export function layoutTenonsAlongJoint(
+  jointLen: number,
+  opts: TenonLayoutOptions,
+): TenonLayoutResult {
+  const margin = opts.minEndMargin ?? opts.width;
+  const usableSpan = Math.max(0, jointLen - 2 * margin);
+  const maxCount = Math.floor(usableSpan / opts.width) + 1;
+
+  const requestedCount =
+    opts.mode === 'count'
+      ? Math.max(1, Math.floor(opts.value))
+      : Math.max(1, Math.round((opts.value > 0 ? usableSpan / opts.value : 0)) + 1);
+
+  const count = Math.min(requestedCount, maxCount);
+  const clamped = count < requestedCount;
+  const spacing = count > 1 ? usableSpan / (count - 1) : 0;
+
+  return { count, spacing, clamped };
 }
 
 /**

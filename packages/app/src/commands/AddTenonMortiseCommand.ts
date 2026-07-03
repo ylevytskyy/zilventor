@@ -1,6 +1,6 @@
 import type { Command } from './Command';
-import type { PanelInput, PartDocument, TenonMortiseFeature, TenonMortiseParams } from '@zilventor/shared';
-import { inferManualJoint, generateTenonMortisePair, CURRENT_FORMAT_VERSION } from '@zilventor/shared';
+import type { PanelInput, PartDocument, TenonMortiseFeature, TenonMortiseCreateInput, TenonMortiseParams } from '@zilventor/shared';
+import { inferManualJoint, generateTenonMortisePair, layoutTenonsAlongJoint, CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { JointInput } from '@zilventor/shared';
 import { addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
 import { packProject, unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
@@ -40,10 +40,19 @@ let tenonMortiseCounter = 0;
 export type AddTenonMortiseOpts = {
   panelPathA: string;
   panelPathB: string;
-  params: TenonMortiseParams;
+  params: TenonMortiseCreateInput;
   opfs: OpfsRW;
   store?: typeof useAppStore;
 };
+
+/** mirrors tenonMortiseMath.ts's private jointLength one-liner (not exported —
+ *  P11's own convention, per the existing "mirrors connectorCatalog.ts's private
+ *  one-liner" comment on that function; not worth widening that module's surface
+ *  for a second private call site). */
+function jointLength(line: { p0: { x: number; y: number; z: number }; p1: { x: number; y: number; z: number } }): number {
+  const { p0, p1 } = line;
+  return Math.hypot(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+}
 
 type LoadedPanel = {
   input: PanelInput;
@@ -69,6 +78,12 @@ export class AddTenonMortiseCommand implements Command {
   /** partPath → prior full manifest bytes (for revert). Captured during apply(). */
   private priorBytes = new Map<string, Uint8Array>();
   private readonly store: typeof useAppStore;
+  /** Set during apply() when `opts.params` carries a `layout` descriptor (P11):
+   *  true if the requested count/pitch didn't fit the joint's usable span and
+   *  was clamped down (see `layoutTenonsAlongJoint`). false for literal params
+   *  or a feasible auto-layout. Callers (FurnitureTab) read this after
+   *  `bus.execute` to decide whether to surface a clamp-warning toast. */
+  clamped = false;
 
   constructor(private readonly opts: AddTenonMortiseOpts) {
     this.store = opts.store ?? useAppStore;
@@ -97,6 +112,30 @@ export class AddTenonMortiseCommand implements Command {
     };
   }
 
+  /**
+   * Resolves `TenonMortiseCreateInput` to a literal `TenonMortiseParams` (P11 D1):
+   * a plain literal input passes through unchanged (clamped=false); a `layout`
+   * descriptor is resolved via `layoutTenonsAlongJoint` against the joint's REAL
+   * edge length (computed fresh here, not the dialog's preload — mirrors this
+   * command's existing pattern of re-deriving the joint fresh rather than
+   * trusting a caller-supplied value, per P11 D4). Sets `this.clamped`.
+   */
+  private resolveParams(input: TenonMortiseCreateInput, joint: JointInput): TenonMortiseParams {
+    if (!('layout' in input)) {
+      this.clamped = false;
+      return input;
+    }
+    const { layout, ...rest } = input;
+    const { count, spacing, clamped } = layoutTenonsAlongJoint(jointLength(joint.line), {
+      mode: layout.mode,
+      value: layout.value,
+      width: rest.width,
+      ...(layout.minEndMargin !== undefined ? { minEndMargin: layout.minEndMargin } : {}),
+    });
+    this.clamped = clamped;
+    return { ...rest, count, spacing };
+  }
+
   async apply(): Promise<void> {
     const asm = this.store.getState().activeAssembly;
     if (!asm) return;
@@ -110,8 +149,10 @@ export class AddTenonMortiseCommand implements Command {
     // JointInput is structurally compatible with Joint — same line/panelA/panelB/faceA/endB fields.
     const ji = joint as unknown as JointInput;
 
+    const resolvedParams = this.resolveParams(this.opts.params, ji);
+
     const n = tenonMortiseCounter++;
-    const { tenon, mortise } = generateTenonMortisePair(ji, this.opts.params, {
+    const { tenon, mortise } = generateTenonMortisePair(ji, resolvedParams, {
       tenonId: `tenonMortise-tenon-${n}`,
       mortiseId: `tenonMortise-mortise-${n}`,
       pairId: `tenonMortise-pair-${n}`,
