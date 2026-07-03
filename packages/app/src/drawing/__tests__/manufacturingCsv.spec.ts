@@ -119,6 +119,31 @@ describe('buildManufacturingCsv', () => {
     expect(csv).not.toContain('MORTISES');
   });
 
+  // P15 Task A: layoutTenonsAlongJoint (AddTenonMortiseCommand.ts) resolves auto-layout to
+  // one TenonMortiseFeature carrying a literal count, not N separate features. The DXF
+  // renderer already draws one polyline per physical tab (tenonMortiseRects returns one
+  // rect per tab); the CSV must emit one row per tab too, not one row per feature.
+  it('emits one row per physical tab when count > 1, not one row per feature', () => {
+    const t: TenonMortiseFeature = { kind: 'tenonMortise', id: 'tm5', pairId: 'p1', role: 'tenon',
+      faceRole: 'Top', axis: 'u', position: 100, width: 10, depth: 8, count: 3, spacing: 30,
+      fitClearance: 1 };
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [t] }]);
+    const rows = csv.trim().split('\n').slice(1);
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toBe('SidePanel,tenon,,8,TENONS,,');
+    }
+  });
+
+  it('emits exactly one row for count:1 (regression — no over-counting for the common case)', () => {
+    const t: TenonMortiseFeature = { kind: 'tenonMortise', id: 'tm6', pairId: 'p1', role: 'tenon',
+      faceRole: 'Top', axis: 'u', position: 100, width: 10, depth: 8, count: 1, spacing: 0,
+      fitClearance: 1 };
+    const csv = buildManufacturingCsv([{ ...base, tenonMortises: [t] }]);
+    const rows = csv.trim().split('\n').slice(1);
+    expect(rows).toHaveLength(1);
+  });
+
   it('skips a tenonMortise whose face role is not representable (matches tenonMortiseRects rejection — absent from the DXF too)', () => {
     const m = { kind: 'tenonMortise', id: 'tm4', pairId: 'p1', role: 'mortise',
       faceRole: 'Unknown', axis: 'u', position: 10, width: 6, depth: 9, count: 1, spacing: 0,
