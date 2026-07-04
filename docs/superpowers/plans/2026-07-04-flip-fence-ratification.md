@@ -1,9 +1,12 @@
 # ABF Parity — Ratification Doc: Bore Face-Flip + Flip-Fence (TOP/BOT)
 
-**Status:** OPTIONS DOC AWAITING USER ANSWERS — not a committed design. Source claims are
-single-source, doc-tagged "(plausible)" (vendor tutorial titles only). Answer with single
-letters, e.g. **"Q1=A, Q2=A, Q3=D, Q4=C"** — or better, a screenshot/description of the real
-ABF dialog + a real flip-fence export, which supersedes everything below.
+**Status:** RATIFIED 2026-07-04 — user answered **Q1=A, Q2=A, Q3=D, Q4=C** (all recommended
+options). Build scope: bore-level flip primitive only (flipBoreFace + FlipBoreFaceCommand +
+BorePropertiesPanel button); fence skipped. Source claims remain single-source "(plausible)";
+a real ABF dialog screenshot would still supersede the Q1/Q2 semantics if it ever surfaces.
+Scope calls made during build (need ratification): S1 — panelDims lookup miss in the panel →
+silent no-op guard (matches existing early-return idiom); S2 — flip button conditionally
+rendered for broad faces only, not disabled-but-visible (matches isHinge/isShelfPin idiom).
 
 ## 1. Doc claims vs verified code
 

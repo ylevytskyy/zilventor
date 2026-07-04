@@ -47,6 +47,14 @@ vi.mock('../../commands/UpdateShelfPinStartOffsetCommand', () => ({
   },
 }));
 
+vi.mock('../../commands/FlipBoreFaceCommand', () => ({
+  FlipBoreFaceCommand: class {
+    constructor(public opts: unknown) {}
+    async apply() {}
+    async revert() {}
+  },
+}));
+
 const shelfPinBore = (): BoreOp => ({
   id: 'pin-col-front-3',
   face: { featureId: 'panel', role: 'Top', instance: 0 },
@@ -73,6 +81,16 @@ const hingeCupBore = (): BoreOp => ({
   role: 'hingeCup',
   connectorId: 'hinge-0',
   connectorKind: 'hinge',
+});
+
+const bottomFaceShelfPinBore = (): BoreOp => ({
+  ...shelfPinBore(),
+  face: { featureId: 'panel', role: 'Bottom', instance: 0 },
+});
+
+const frontFaceConfirmatBore = (): BoreOp => ({
+  ...confirmatBore(),
+  face: { featureId: 'panel', role: 'Front', instance: 0 },
 });
 
 type DocEntry = {
@@ -486,5 +504,78 @@ describe('BorePropertiesPanel', () => {
     expect('speed' in instance.opts.values).toBe(false);
     executeSpy.mockRestore();
     applySpy.mockRestore();
+  });
+
+  // ── Flip face button (Top/Bottom broad-face bores only) ───────────────────
+  it('shows the Flip face button for a Top-role bore', () => {
+    const bore = shelfPinBore(); // face.role: 'Top'
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+    expect(screen.getByRole('button', { name: /flip face/i })).toBeTruthy();
+  });
+
+  it('shows the Flip face button for a Bottom-role bore', () => {
+    const bore = bottomFaceShelfPinBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+    expect(screen.getByRole('button', { name: /flip face/i })).toBeTruthy();
+  });
+
+  it('does NOT show the Flip face button for a Front-role bore', () => {
+    const bore = frontFaceConfirmatBore();
+    setSelectedBore(bore);
+    render(<BorePropertiesPanel {...makeProps(bore)} />);
+    expect(screen.queryByRole('button', { name: /flip face/i })).toBeNull();
+  });
+
+  it('clicking Flip face dispatches FlipBoreFaceCommand via bus.execute() with the live bore, resolved panelDims, partPath/doc/opfs', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    const { FlipBoreFaceCommand } = await import('../../commands/FlipBoreFaceCommand');
+    const applySpy = vi.spyOn(FlipBoreFaceCommand.prototype, 'apply').mockResolvedValue(undefined);
+
+    const bore = shelfPinBore();
+    setSelectedBore(bore, 'parts/side.zipt');
+    const props = makeProps(bore, 'parts/side.zipt');
+    render(<BorePropertiesPanel {...props} />);
+
+    const flipBtn = screen.getByRole('button', { name: /flip face/i });
+    fireEvent.click(flipBtn);
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(applySpy).toHaveBeenCalled();
+    const instance = executeSpy.mock.calls[0]![0] as unknown as {
+      opts: {
+        bore: BoreOp;
+        panelDims: { length: number; width: number; thickness: number };
+        partPath: string;
+        doc: unknown;
+        opfs: unknown;
+      };
+    };
+    expect(instance).toBeInstanceOf(FlipBoreFaceCommand);
+    expect(instance.opts.bore).toBe(bore);
+    expect(instance.opts.panelDims).toEqual({ length: 720, width: 560, thickness: 18 });
+    expect(instance.opts.partPath).toBe('parts/side.zipt');
+    expect(instance.opts.opfs).toBeNull();
+    executeSpy.mockRestore();
+    applySpy.mockRestore();
+  });
+
+  it('does NOT dispatch FlipBoreFaceCommand when getConnectorDocs has no entry for the selected partPath (S1 guard)', async () => {
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+
+    const bore = shelfPinBore();
+    setSelectedBore(bore, 'parts/side.zipt');
+    const props = makeProps(bore, 'parts/side.zipt');
+    props.getConnectorDocs = () => []; // no matching entry → no panelDims available
+    render(<BorePropertiesPanel {...props} />);
+
+    const flipBtn = screen.getByRole('button', { name: /flip face/i });
+    fireEvent.click(flipBtn);
+
+    expect(executeSpy).not.toHaveBeenCalled();
+    executeSpy.mockRestore();
   });
 });
