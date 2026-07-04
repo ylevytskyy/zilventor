@@ -3,6 +3,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AssemblyTab } from '../AssemblyTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
+import { DeleteComponentCommand } from '../../../commands/DeleteComponentCommand';
+import { DeleteAssemblyConstraintCommand } from '../../../commands/DeleteAssemblyConstraintCommand';
+import { ToggleConstraintSuppressionCommand } from '../../../commands/ToggleConstraintSuppressionCommand';
+import { RenumberBomCommand } from '../../../commands/RenumberBomCommand';
 
 vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
   ImportStepAsComponentCommand: vi.fn().mockImplementation(() => ({
@@ -145,6 +149,94 @@ describe('AssemblyTab BOM panel', () => {
     const map = useAppStore.getState().activeAssembly!.bomItemNumbers;
     expect(map['parts/alpha.zipt::none']).toBe(1);
     expect(map['parts/zelda.zipt::none']).toBe(2);
+  });
+});
+
+describe('AssemblyTab — commands route through bus.execute (undoable)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().selectComponent(null);
+    useAppStore.getState().selectConstraint(null);
+  });
+
+  it('Delete button dispatches DeleteComponentCommand via bus.execute', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C1', partPath: 'p', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().selectComponent('C1');
+    const bus = useAppStore.getState().bus;
+    const spy = vi.spyOn(bus, 'execute');
+    render(<AssemblyTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy.mock.calls[0]![0]).toBeInstanceOf(DeleteComponentCommand);
+    spy.mockRestore();
+  });
+
+  it('Delete Constraint button dispatches DeleteAssemblyConstraintCommand via bus.execute', async () => {
+    const constraint = { id: 'K1', kind: 'mate', suppressed: false, refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 } as any } as any;
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
+      components: [], constraints: [constraint], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().selectConstraint('K1');
+    const bus = useAppStore.getState().bus;
+    const spy = vi.spyOn(bus, 'execute');
+    render(<AssemblyTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^delete constraint$/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy.mock.calls[0]![0]).toBeInstanceOf(DeleteAssemblyConstraintCommand);
+    spy.mockRestore();
+  });
+
+  it('Suppress button dispatches ToggleConstraintSuppressionCommand via bus.execute', async () => {
+    const constraint = { id: 'K1', kind: 'mate', suppressed: false, refA: {} as any, refB: {} as any, offset: { kind: 'literal', value: 0 } as any } as any;
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
+      components: [], constraints: [constraint], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.getState().selectConstraint('K1');
+    const bus = useAppStore.getState().bus;
+    const spy = vi.spyOn(bus, 'execute');
+    render(<AssemblyTab />);
+    fireEvent.click(screen.getByRole('button', { name: /^suppress$/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy.mock.calls[0]![0]).toBeInstanceOf(ToggleConstraintSuppressionCommand);
+    spy.mockRestore();
+  });
+
+  it('Renumber button dispatches RenumberBomCommand via bus.execute', async () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'a', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C1', partPath: 'parts/zelda.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'C2', partPath: 'parts/alpha.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    const partInfo = new Map([
+      ['parts/alpha.zipt', { name: 'alpha' }],
+      ['parts/zelda.zipt', { name: 'zelda' }],
+    ]);
+    const bus = useAppStore.getState().bus;
+    const spy = vi.spyOn(bus, 'execute');
+    render(<AssemblyTab partInfo={partInfo} />);
+    fireEvent.click(screen.getByRole('button', { name: /^renumber$/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy.mock.calls[0]![0]).toBeInstanceOf(RenumberBomCommand);
+    spy.mockRestore();
   });
 });
 

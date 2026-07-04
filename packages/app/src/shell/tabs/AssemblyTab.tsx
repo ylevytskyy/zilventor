@@ -115,8 +115,9 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           disabled={!selectedId}
           onClick={async () => {
             if (!selectedId) return;
+            const { bus } = useAppStore.getState();
             const cmd = new DeleteComponentCommand({ id: selectedId });
-            await cmd.apply();
+            await bus.execute(cmd);
           }}
           style={btn}
         >
@@ -197,8 +198,9 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           disabled={!selectedConstraintId}
           onClick={async () => {
             if (!selectedConstraintId) return;
+            const { bus } = useAppStore.getState();
             const cmd = new DeleteAssemblyConstraintCommand({ id: selectedConstraintId });
-            await cmd.apply();
+            await bus.execute(cmd);
           }}
           style={btn}
         >
@@ -209,8 +211,9 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           disabled={!selectedConstraintId}
           onClick={async () => {
             if (!selectedConstraintId) return;
+            const { bus } = useAppStore.getState();
             const cmd = new ToggleConstraintSuppressionCommand({ id: selectedConstraintId });
-            await cmd.apply();
+            await bus.execute(cmd);
           }}
           style={btn}
         >
@@ -234,8 +237,9 @@ export function AssemblyTab({ partInfo }: Props = {}): JSX.Element {
           aria-label={t('tab.asm.renumber')}
           disabled={!hasAssembly}
           onClick={async () => {
+            const { bus } = useAppStore.getState();
             const cmd = new RenumberBomCommand({ partInfo: partInfo ?? new Map() });
-            await cmd.apply();
+            await bus.execute(cmd);
           }}
           style={btn}
         >
