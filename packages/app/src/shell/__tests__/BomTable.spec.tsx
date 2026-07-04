@@ -5,6 +5,9 @@ import { useAppStore } from '../../store/useAppStore';
 import type { AssemblyDocument, PartInfo } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import { bomRowKey } from '@zilventor/shared/src/bomRow';
+import { SetBomItemNumberCommand } from '../../commands/SetBomItemNumberCommand';
+import { SetComponentColorCommand } from '../../commands/SetComponentColorCommand';
+import { SetComponentColorOverrideCommand } from '../../commands/SetComponentColorOverrideCommand';
 
 function seedAssembly(doc: AssemblyDocument): void {
   useAppStore.setState({
@@ -89,6 +92,23 @@ describe('BomTable', () => {
     expect(useAppStore.getState().activeAssembly!.bomItemNumbers[cubeKey]).toBe(5);
   });
 
+  it('blurring the Item# input dispatches SetBomItemNumberCommand via bus.execute() (undoable)', () => {
+    seedAssembly(makeAsm());
+    render(<BomTable partInfo={basicPartInfo()} />);
+    const cubeKey = bomRowKey('parts/cube.zipt', undefined);
+    const cubeRow = rowFor('cube');
+    const cubeItemCell = within(cubeRow).getAllByRole('cell')[0]!;
+    fireEvent.click(within(cubeItemCell).getByText('1'));
+    const input = screen.getByLabelText(`item-number-${cubeKey}`) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '5' } });
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.blur(input);
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(SetBomItemNumberCommand);
+    executeSpy.mockRestore();
+  });
+
   it('inline-edit conflict bumps colliding row', () => {
     const cubeKey = bomRowKey('parts/cube.zipt', undefined);
     const shelfKey = bomRowKey('parts/shelf.zipt', undefined);
@@ -162,6 +182,32 @@ describe('BomTable', () => {
     expect(next.components[1]!.color).toBeUndefined();
   });
 
+  it('choosing a color for a row spanning multiple top-level components dispatches ONE SetComponentColorCommand via bus.execute() (single undo entry)', () => {
+    const asm = makeAsm({
+      colors: { Cherry: '#ff0000' },
+      components: [
+        { id: 'C1', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'C2', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    seedAssembly(asm);
+    const partInfo = new Map<string, PartInfo>([['parts/cube.zipt', { name: 'cube' }]]);
+    render(<BomTable partInfo={partInfo} />);
+    fireEvent.click(screen.getByText('—'));
+    const select = screen.getByLabelText('component-color') as HTMLSelectElement;
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.change(select, { target: { value: 'palette:Cherry' } });
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0];
+    expect(instance).toBeInstanceOf(SetComponentColorCommand);
+    expect((instance as unknown as { opts: { componentIds: string[] } }).opts.componentIds.slice().sort())
+      .toEqual(['C1', 'C2']);
+    executeSpy.mockRestore();
+  });
+
   it('color picker on a sub-asm leaf row writes to colorOverrides for every leaf path', () => {
     const subAsmPath = 'sub.ziasm';
     const subDoc: AssemblyDocument = {
@@ -203,6 +249,45 @@ describe('BomTable', () => {
     const kb = pathKey(['sub-id', 'leaf-b']);
     expect(overrides[ka]).toEqual({ kind: 'palette', name: 'Cherry' });
     expect(overrides[kb]).toEqual({ kind: 'palette', name: 'Cherry' });
+  });
+
+  it('color picker on a sub-asm leaf row dispatches SetComponentColorOverrideCommand via bus.execute() once per leaf path', () => {
+    const subAsmPath = 'sub.ziasm';
+    const subDoc: AssemblyDocument = {
+      id: 'S', name: 'sub', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'leaf-a', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+        { id: 'leaf-b', partPath: 'parts/cube.zipt',
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [], colors: {},
+      bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [],
+      hardware: [],
+    };
+    const top = makeAsm({
+      colors: { Cherry: '#ff0000' },
+      components: [
+        { id: 'sub-id', partPath: subAsmPath,
+          position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+    });
+    seedAssembly(top);
+    useAppStore.getState().setSubAssemblyDocs({ [subAsmPath]: subDoc });
+    const partInfo = new Map<string, PartInfo>([['parts/cube.zipt', { name: 'cube' }]]);
+    render(<BomTable partInfo={partInfo} />);
+    const cubeRow = rowFor('cube');
+    fireEvent.click(within(cubeRow).getByText('—'));
+    const select = screen.getByLabelText('component-color') as HTMLSelectElement;
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.change(select, { target: { value: 'palette:Cherry' } });
+    expect(executeSpy).toHaveBeenCalledTimes(2);
+    for (const call of executeSpy.mock.calls) {
+      expect(call[0]).toBeInstanceOf(SetComponentColorOverrideCommand);
+    }
+    executeSpy.mockRestore();
   });
 
   it('Export CSV button invokes ExportBomCsvCommand (showSaveFilePicker is called)', async () => {

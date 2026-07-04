@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { AssemblyDocument } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { StatisticsReportTable } from '../StatisticsReportTable';
 import type { StatisticsReport } from '../../commands/buildStatisticsReport';
+import { SetUnitPriceCommand } from '../../commands/SetUnitPriceCommand';
 
 function makeAsm(overrides: Partial<AssemblyDocument> = {}): AssemblyDocument {
   return {
@@ -78,6 +79,18 @@ describe('StatisticsReportTable', () => {
     fireEvent.change(input, { target: { value: '0.08' } });
     fireEvent.blur(input);
     expect(useAppStore.getState().activeAssembly!.unitPrices).toEqual({ 'connector:confirmat': 0.08 });
+  });
+
+  it('editing a unit-price input dispatches SetUnitPriceCommand via bus.execute() (undoable)', () => {
+    render(<StatisticsReportTable report={report} suggestedName="demo-statistics" />);
+    const input = screen.getByLabelText('unit-price-connector:confirmat') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '0.08' } });
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.blur(input);
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(SetUnitPriceCommand);
+    executeSpy.mockRestore();
   });
 
   it('checking "save as default" also writes the app-global defaultPriceBook', () => {

@@ -4,6 +4,9 @@ import BrowserPane from '../BrowserPane';
 import type { PartDocument, AssemblyDocument, PanelPreflightDiagnostic } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { CutListCacheContext } from '../CutListCacheContext';
+import { SetComponentColorOverrideCommand } from '../../commands/SetComponentColorOverrideCommand';
+import { SetCutListItemNumberCommand } from '../../commands/SetCutListItemNumberCommand';
+import type { PanelSpecCache } from '../resolvePanelSpec';
 
 describe('BrowserPane', () => {
   beforeEach(() => {
@@ -961,5 +964,97 @@ describe('BrowserPane — Nesting tab R1 preflight toast wiring (production UI)'
     );
     fireEvent.click(screen.getByLabelText('Nesting tab'));
     expect(toasts.some((m) => /BadPanel/.test(m) && /material/i.test(m))).toBe(true);
+  });
+});
+
+// fix/shell-undo-routing: color-override + cut-list item-number edits must
+// route through bus.execute() so they participate in undo/redo, not .apply().
+describe('BrowserPane — command bus routing', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      activeDocument: null,
+      activeAssembly: null,
+      subAssemblyDocs: {},
+      expandedSubAsmPaths: new Set<string>(),
+      bomTabActive: false,
+      cutListTabActive: false,
+      nestingTabActive: false,
+      selectedComponentPaths: [],
+      editComponentDialogOpen: false,
+      editingComponentId: null,
+    } as any);
+  });
+
+  it('right-click override-color on a leaf component dispatches SetComponentColorOverrideCommand via bus.execute()', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C1', partPath: 'parts/leg.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('#abc123');
+    render(<BrowserPane part={null} />);
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.contextMenu(screen.getByText(/leg/));
+    expect(promptSpy).toHaveBeenCalled();
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(SetComponentColorOverrideCommand);
+    executeSpy.mockRestore();
+    promptSpy.mockRestore();
+  });
+
+  it('editing a cut-list row item number dispatches SetCutListItemNumberCommand via bus.execute()', () => {
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C1', partPath: 'parts/side.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [{ id: 'm-birch', name: 'Birch 18mm', defaultThickness: 18, color: '#d8c896' }],
+      hardware: [],
+    };
+    useAppStore.setState({
+      activeDocument: { kind: 'assembly', document: asm },
+      activeAssembly: asm,
+      cutListTabActive: true,
+    } as any);
+    const ctxValue = {
+      panelSpecCacheRef: {
+        current: new Map([
+          ['parts/side.zipt', {
+            length: 600, width: 400, thickness: 18, materialId: 'm-birch', grain: 'length' as const,
+            edgeBands: { front: null, back: null, left: null, right: null },
+          }],
+        ]) as PanelSpecCache,
+      },
+      partInfoCacheRef: { current: new Map() },
+      partBoresCacheRef: { current: new Map() },
+      partGroovesCacheRef: { current: new Map() },
+      partTenonMortisesCacheRef: { current: new Map() },
+      partKeyholeSlotsCacheRef: { current: new Map() },
+      diagnosticsCacheRef: { current: [] },
+      warmCache: async () => {},
+      invalidatePartPaths: async () => {},
+    };
+    render(
+      <CutListCacheContext.Provider value={ctxValue as any}>
+        <BrowserPane part={null} />
+      </CutListCacheContext.Provider>,
+    );
+    fireEvent.doubleClick(screen.getByLabelText(/Item#/));
+    const input = screen.getByDisplayValue('1');
+    fireEvent.change(input, { target: { value: '5' } });
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    fireEvent.blur(input);
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(SetCutListItemNumberCommand);
+    executeSpy.mockRestore();
   });
 });

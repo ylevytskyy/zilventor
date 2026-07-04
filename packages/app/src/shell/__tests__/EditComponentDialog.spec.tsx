@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EditComponentDialog } from '../EditComponentDialog';
 import { useAppStore } from '../../store/useAppStore';
+import { SetComponentColorCommand } from '../../commands/SetComponentColorCommand';
+import { ToggleSubAssemblyFlexibleCommand } from '../../commands/ToggleSubAssemblyFlexibleCommand';
 import type { AssemblyDocument, ComponentInstance } from '@zilventor/shared';
 
 describe('EditComponentDialog', () => {
@@ -87,6 +89,34 @@ describe('EditComponentDialog — color row (4c)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
 
     expect(useAppStore.getState().activeAssembly!.components[0]!.color).toBeUndefined();
+  });
+
+  it('OK dispatches SetComponentColorCommand via bus.execute() (undoable)', () => {
+    const componentWithColor: ComponentInstance = {
+      id: 'C1', partPath: 'parts/leg.zipt',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { rx: 0, ry: 0, rz: 0 },
+      visible: true,
+      color: { kind: 'palette', name: 'Maple' },
+    };
+    seedAssembly({ components: [componentWithColor], colors: { Maple: '#d4a574' } });
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+
+    render(
+      <EditComponentDialog
+        initial={componentWithColor}
+        onCommit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0];
+    expect(instance).toBeInstanceOf(SetComponentColorCommand);
+    expect((instance as unknown as { opts: { componentIds: string[] } }).opts.componentIds).toEqual(['C1']);
+    executeSpy.mockRestore();
   });
 
   it('lets the user add a new palette color and select it', () => {
@@ -213,5 +243,34 @@ describe('EditComponentDialog — sub-asm Flexible row (4d T24)', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(useAppStore.getState().activeAssembly!.components[0]!.flexible).toBe(true);
+  });
+
+  it('toggling Flexible dispatches ToggleSubAssemblyFlexibleCommand via bus.execute() (undoable)', () => {
+    const subPlacement: ComponentInstance = {
+      id: 'SUB1', partPath: 'sub/drawer.ziasm',
+      position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+    };
+    seedSubAsm(subPlacement, { 'sub/drawer.ziasm': {
+      id: 'SA', name: 'drawer', units: 'mm', parameters: {}, properties: {},
+      components: [],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [],
+      hardware: [],
+    } as AssemblyDocument });
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    render(
+      <EditComponentDialog
+        initial={subPlacement}
+        onCommit={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText(/flexible/i));
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    const instance = executeSpy.mock.calls[0]![0];
+    expect(instance).toBeInstanceOf(ToggleSubAssemblyFlexibleCommand);
+    executeSpy.mockRestore();
   });
 });

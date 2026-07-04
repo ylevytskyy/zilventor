@@ -38,10 +38,11 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
   const flexibleChecked = !!useAppStore((s) =>
     s.activeAssembly?.components.find((c) => c.id === initial.id)?.flexible,
   );
+  const bus = useAppStore((s) => s.bus);
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
-    void new SetComponentColorCommand({ id: initial.id, color }).apply();
+    void bus.execute(new SetComponentColorCommand({ componentIds: [initial.id], color }));
     onCommit({
       position: { x: Number(x), y: Number(y), z: Number(z) },
       rotation: { rx: Number(rx), ry: Number(ry), rz: Number(rz) },
@@ -107,7 +108,7 @@ export function EditComponentDialog({ initial, onCommit, onCancel }: Props): JSX
               aria-label={t('aria.flexible')}
               checked={flexibleChecked}
               onChange={() => {
-                void new ToggleSubAssemblyFlexibleCommand({ componentId: initial.id }).apply();
+                void bus.execute(new ToggleSubAssemblyFlexibleCommand({ componentId: initial.id }));
               }}
             />
             <span>{t('common.flexible')}</span>

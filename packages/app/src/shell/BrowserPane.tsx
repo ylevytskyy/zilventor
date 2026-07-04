@@ -65,6 +65,7 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
   // so selecting via these rows (unlike the part-mode click handlers below,
   // which pass the in-memory part.id) resolves correctly.
   const { partGroovesCacheRef, partKeyholeSlotsCacheRef } = useCutListCacheContext();
+  const bus = useAppStore((s) => s.bus);
 
   function renderNodes(
     list: ComponentInstance[],
@@ -127,10 +128,10 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
                   const hex = window.prompt(t('dialog.overrideColor'));
                   if (hex === null) return;
                   const trimmed = hex.trim();
-                  void new SetComponentColorOverrideCommand({
+                  void bus.execute(new SetComponentColorOverrideCommand({
                     path,
                     color: trimmed === '' ? null : { kind: 'hex', hex: trimmed },
-                  }).apply();
+                  }));
                 }
               }}
             >
@@ -214,6 +215,7 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
   const connectorRows = useConnectorBomResult();
   const statisticsReport = useStatisticsReport();
   const { warmCache } = useCutListCacheContext();
+  const bus = useAppStore((s) => s.bus);
 
   // Warm the panel-spec cache whenever the Cut List tab becomes active so
   // production users see real rows (not an empty list) without needing to
@@ -316,7 +318,7 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
         <CutListTable
           result={cutListResult}
           onSelectRow={(ids) => useAppStore.getState().selectComponents(ids)}
-          onEditItemNumber={(k, n) => void new SetCutListItemNumberCommand({ rowKey: k, n }).apply()}
+          onEditItemNumber={(k, n) => void bus.execute(new SetCutListItemNumberCommand({ rowKey: k, n }))}
           onExportCsv={() => void new ExportCutListCsvCommand({ result: cutListResult, hardwareRows, connectorRows, suggestedName: `${asm.name}-cutlist.csv` }).apply()}
         />
         <HardwareTable rows={hardwareRows} />

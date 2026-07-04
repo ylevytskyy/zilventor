@@ -32,6 +32,7 @@ export function BomTable({ partInfo }: Props) {
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [colorEditingRowKey, setColorEditingRowKey] = useState<string | null>(null);
+  const bus = useAppStore((s) => s.bus);
 
   return (
     <div data-testid="bom-table">
@@ -61,7 +62,7 @@ export function BomTable({ partInfo }: Props) {
                     onBlur={() => {
                       const n = Number.parseInt(editValue, 10);
                       if (Number.isFinite(n) && n > 0 && n <= 9999) {
-                        void new SetBomItemNumberCommand({ rowKey: r.rowKey, n }).apply();
+                        void bus.execute(new SetBomItemNumberCommand({ rowKey: r.rowKey, n }));
                       } else {
                         useAppStore.getState().setStatus(t('status.item_num_invalid'));
                       }
@@ -89,13 +90,17 @@ export function BomTable({ partInfo }: Props) {
                     value={r.color}
                     palette={palette}
                     onChange={(next) => {
+                      const topLevelIds: string[] = [];
                       for (const cid of r.componentIds) {
                         const path = parsePathKey(cid);
                         if (path.length === 1) {
-                          void new SetComponentColorCommand({ id: path[0]!, color: next }).apply();
+                          topLevelIds.push(path[0]!);
                         } else {
-                          void new SetComponentColorOverrideCommand({ path, color: next ?? null }).apply();
+                          void bus.execute(new SetComponentColorOverrideCommand({ path, color: next ?? null }));
                         }
+                      }
+                      if (topLevelIds.length > 0) {
+                        void bus.execute(new SetComponentColorCommand({ componentIds: topLevelIds, color: next }));
                       }
                       setColorEditingRowKey(null);
                     }}
