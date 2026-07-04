@@ -205,4 +205,35 @@ describe('packGuillotine', () => {
     const out = packGuillotine([row({ length: 950, width: 950, grain: 'length' })], 1000, 1000, 0, 'm1');
     expect('remnant' in out.sheets[0]!).toBe(false);
   });
+
+  it('reports the merged remnant when the guillotine split fragments a corner into two co-aligned free rects', () => {
+    // Sheet 1000x1000, kerf=0. FFD places 'tall' (max=700) before 'short' (max=600):
+    //   tall(600x700) at (0,0) -> right=(600,0,400,700), bottom=(0,700,1000,300)
+    //   short(600x100) doesn't fit `right` (w=400<600) -> placed in `bottom` at (0,700)
+    //     -> right2=(600,700,400,100), bottom2=(0,800,1000,200)
+    // Final free rects: right(600,0,400,700), right2(600,700,400,100), bottom2(0,800,1000,200).
+    // right and right2 share x=600,w=400 and are exactly contiguous (700+100 boundary,
+    // no kerf) -> merge into (600,0,400,800), area 320000 > bottom2's 200000, so the
+    // merged rect becomes the reported remnant (pre-fix it was bottom2, {x:0,y:800,length:1000,width:200}).
+    const rows: NestInputRow[] = [
+      row({ rowKey: 'tall', itemNumber: 1, length: 600, width: 700, grain: 'length' }),
+      row({ rowKey: 'short', itemNumber: 2, length: 600, width: 100, grain: 'length' }),
+    ];
+    const out = packGuillotine(rows, 1000, 1000, 0, 'm1');
+    expect(out.sheets).toHaveLength(1);
+    expect(out.sheets[0]!.remnant).toEqual({ x: 600, y: 0, length: 400, width: 800 });
+  });
+
+  it('does not merge across a real kerf gap (same corner-fragmenting layout, kerf=3)', () => {
+    // Same panel layout as above but kerf=3: the two x=600-aligned free rects end up
+    // 3mm apart (a genuine saw-kerf boundary), so they must NOT merge. The largest
+    // qualifying rect stays the un-merged `right` fragment, same as pre-fix behavior.
+    const rows: NestInputRow[] = [
+      row({ rowKey: 'tall', itemNumber: 1, length: 600, width: 700, grain: 'length' }),
+      row({ rowKey: 'short', itemNumber: 2, length: 600, width: 100, grain: 'length' }),
+    ];
+    const out = packGuillotine(rows, 1000, 1000, 3, 'm1');
+    expect(out.sheets).toHaveLength(1);
+    expect(out.sheets[0]!.remnant).toEqual({ x: 603, y: 0, length: 397, width: 700 });
+  });
 });
