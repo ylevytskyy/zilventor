@@ -60,6 +60,19 @@ test('T-6-28: assembly section reopen → Regenerate (pose-aware, no "not yet su
   await page.goto('/');
   await waitForKernelReady(page);
 
+  // Disable autoRegen: DrawingCanvas's own auto-regen effect races this spec's manual
+  // "assert stale → click Regenerate" flow in step 10 (see debug-loop root-cause notes
+  // on T-6-4-stale-banner-regen.spec.ts / T-6-18-drawing-reopen.spec.ts / T-6-19 / T-6-21
+  // for the first occurrences of this race — auto-regen clears the stale marker from the
+  // DOM concurrently with the manual click, causing "element was detached from the DOM,
+  // retrying" and, under contention, a click timeout).
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __zilventorStore: { getState(): { setAutoRegen: (v: boolean) => void } };
+    };
+    w.__zilventorStore.getState().setAutoRegen(false);
+  });
+
   // ── Step 1: Build Part A (30×30×20) via UI ────────────────────────────────
   await buildBox(page, { width: 30, height: 30, depth: 20 });
 
