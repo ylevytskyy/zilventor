@@ -3,6 +3,7 @@ import type { AssemblyDocument, BooleanOperation, ChamferEdgeSpec, ComponentColo
 import type { ComponentPath } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
 import type { DofStatus, PrimitiveCoordsDiff } from '@zilventor/sketcher-worker';
+import type { AbfPanelRecord } from '@zilventor/shared/src/dxf/abfPanelExtraction';
 import type { KernelClient } from '../kernel-client/KernelClient';
 import type { ViewportRef } from '../viewport/Viewport';
 import { createCommandBus, type CommandBus } from '../commands/CommandBus';
@@ -379,6 +380,14 @@ type AppState = {
   linearPatternDialogOpen: boolean;
   mirrorDialogOpen: boolean;
   importFromInventorDialogOpen: boolean;
+  abfImportDialogOpen: boolean;
+  /** S1-extracted panel records awaiting S4 dialog material/thickness selection —
+   *  set by the triggering ribbon handler (S5) before opening the dialog. */
+  abfImportPendingRecords: readonly AbfPanelRecord[] | null;
+  /** Basename (sans extension) of the picked ABF DXF file — set by the ribbon handler
+   *  (S5) alongside abfImportPendingRecords; threaded into ImportAbfFlattenDxfCommand's
+   *  optional assemblyName so the new assembly is named after the source file. */
+  abfImportFileName: string | null;
   holeDialogOpen: boolean;
   holePlacementMode: 'fromSketch' | 'linear' | 'concentric' | 'atFace';
   holeSketchId: string | null;
@@ -464,6 +473,9 @@ type AppState = {
   setLinearPatternDialogOpen(v: boolean): void;
   setMirrorDialogOpen(v: boolean): void;
   setImportFromInventorDialogOpen(v: boolean): void;
+  setAbfImportDialogOpen(v: boolean): void;
+  setAbfImportPendingRecords(records: readonly AbfPanelRecord[] | null): void;
+  setAbfImportFileName(name: string | null): void;
   componentPatternDialogOpen: boolean;
   mirrorComponentDialogOpen: boolean;
   setComponentPatternDialogOpen(v: boolean): void;
@@ -915,6 +927,12 @@ export const useAppStore = create<AppState>((set) => ({
   setMirrorDialogOpen: (v) => set({ mirrorDialogOpen: v }),
   importFromInventorDialogOpen: false,
   setImportFromInventorDialogOpen: (v) => set({ importFromInventorDialogOpen: v }),
+  abfImportDialogOpen: false,
+  setAbfImportDialogOpen: (v) => set({ abfImportDialogOpen: v }),
+  abfImportPendingRecords: null,
+  setAbfImportPendingRecords: (records) => set({ abfImportPendingRecords: records }),
+  abfImportFileName: null,
+  setAbfImportFileName: (name) => set({ abfImportFileName: name }),
   componentPatternDialogOpen: false,
   mirrorComponentDialogOpen: false,
   setComponentPatternDialogOpen: (v) => set({ componentPatternDialogOpen: v }),

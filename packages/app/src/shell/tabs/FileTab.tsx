@@ -329,6 +329,26 @@ export default function FileTab() {
     }));
   };
 
+  const handleImportAbfFlattenDxf = async () => {
+    const file = await pickFile([{ description: 'DXF file', accept: { 'image/vnd.dxf': ['.dxf'] } }]);
+    if (!file) return;
+    if (file.size > DXF_MAX_BYTES) {
+      setErrorDialog(t('status.dxfFileTooLarge', {
+        sizeMb: (file.size / 1024 / 1024).toFixed(1),
+        maxMb: (DXF_MAX_BYTES / 1024 / 1024).toFixed(0),
+      }));
+      return;
+    }
+    const text = await file.text();
+    const { parseDxf } = await import('@zilventor/shared');
+    const { extractAbfPanels } = await import('@zilventor/shared/src/dxf/abfPanelExtraction');
+    const records = extractAbfPanels(parseDxf(text));
+    const { setAbfImportPendingRecords, setAbfImportDialogOpen, setAbfImportFileName } = useAppStore.getState();
+    setAbfImportFileName(file.name.replace(/\.dxf$/i, ''));
+    setAbfImportPendingRecords(records);
+    setAbfImportDialogOpen(true);
+  };
+
   return (
     <div className="flex gap-2 px-3 py-2 text-xs text-neutral-300">
       <button className="hover:text-white" onClick={handleNewPart}>{t('menu.file.newPart')}</button>
@@ -378,6 +398,12 @@ export default function FileTab() {
         onClick={() => { void handleImportDxf(); }}
       >
         {t('menu.file.importDxf')}
+      </button>
+      <button
+        className="hover:text-white disabled:text-neutral-500"
+        onClick={() => { void handleImportAbfFlattenDxf(); }}
+      >
+        {t('menu.file.importAbfFlattenDxf')}
       </button>
       {errorDialog && (
         <div role="alertdialog" aria-label={t('common.error')} className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
