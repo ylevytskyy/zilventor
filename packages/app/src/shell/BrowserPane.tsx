@@ -18,6 +18,9 @@ import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorO
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { RepairCabinetGeometryCommand, hasRepairableLegacyPose } from '../commands/RepairCabinetGeometryCommand';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
+import { deriveImportedPanelDraft } from '../import/deriveImportedPanelDraft';
+import { ConvertImportedPartToPanelCommand } from '../commands/ConvertImportedPartToPanelCommand';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
 import { DeletePanelFeatureCommand } from '../commands/DeletePanelFeatureCommand';
 import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
@@ -140,9 +143,37 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
                   }
                 } else {
                   // Right-click on a leaf opens an Override color dialog (minimal: prompt for hex).
+                  // Typing "convert" instead converts an imported STEP part into a parametric panel.
                   const hex = window.prompt(t('dialog.overrideColor'));
                   if (hex === null) return;
                   const trimmed = hex.trim();
+                  if (trimmed.toLowerCase() === 'convert') {
+                    void (async () => {
+                      const opfs = await Opfs.forNavigator();
+                      const bytes = await opfs.read(c.partPath);
+                      const project = await unpackProject(bytes);
+                      const doc = (project.manifest as { document: PartDocument }).document;
+                      if (!doc.featureTree.some((f) => f.kind === 'imported')) {
+                        window.alert(t('dialog.convertToPanel.notImported'));
+                        return;
+                      }
+                      const defaultMaterialId = useAppStore.getState().activeAssembly?.materials[0]?.id ?? '';
+                      const draft = deriveImportedPanelDraft(doc, defaultMaterialId);
+                      if (!draft) {
+                        window.alert(t('dialog.convertToPanel.noGeometry'));
+                        return;
+                      }
+                      useAppStore.getState().setPanelDialog({
+                        mode: 'assembly',
+                        initial: draft,
+                        onSubmit: (panel) => {
+                          void bus.execute(new ConvertImportedPartToPanelCommand({ partPath: c.partPath, panel, opfs }));
+                        },
+                        onCancel: () => useAppStore.getState().setPanelDialog(null),
+                      });
+                    })();
+                    return;
+                  }
                   void bus.execute(new SetComponentColorOverrideCommand({
                     path,
                     color: trimmed === '' ? null : { kind: 'hex', hex: trimmed },

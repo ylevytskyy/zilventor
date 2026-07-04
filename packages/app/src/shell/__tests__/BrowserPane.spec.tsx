@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import BrowserPane from '../BrowserPane';
-import type { PartDocument, AssemblyDocument, PanelPreflightDiagnostic } from '@zilventor/shared';
+import type { PartDocument, AssemblyDocument, PanelPreflightDiagnostic, ImportedFeature } from '@zilventor/shared';
+import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import { useAppStore } from '../../store/useAppStore';
 import { CutListCacheContext } from '../CutListCacheContext';
 import { SetComponentColorOverrideCommand } from '../../commands/SetComponentColorOverrideCommand';
@@ -9,6 +10,13 @@ import { SetCutListItemNumberCommand } from '../../commands/SetCutListItemNumber
 import { EditPanelFeatureCommand } from '../../commands/EditPanelFeatureCommand';
 import { DeletePanelFeatureCommand } from '../../commands/DeletePanelFeatureCommand';
 import type { PanelSpecCache } from '../resolvePanelSpec';
+import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
+import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
+import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
+
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => ({
+  Opfs: { forNavigator: vi.fn() },
+}));
 
 describe('BrowserPane', () => {
   beforeEach(() => {
@@ -939,6 +947,7 @@ describe('BrowserPane — command bus routing', () => {
       selectedComponentPaths: [],
       editComponentDialogOpen: false,
       editingComponentId: null,
+      panelDialog: null,
     } as any);
   });
 
@@ -1013,5 +1022,81 @@ describe('BrowserPane — command bus routing', () => {
     expect(executeSpy).toHaveBeenCalledTimes(1);
     expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(SetCutListItemNumberCommand);
     executeSpy.mockRestore();
+  });
+
+  it('right-click "convert" on an imported leaf opens the panel dialog with a derived PanelFeature initial', async () => {
+    const importedDoc: PartDocument = {
+      ...(addFeature(newPart('stepimport') as PartDocument, {
+        kind: 'imported', id: 'imp1', sourceStep: 'x.step', bodyRef: 'blob1',
+      } as ImportedFeature)),
+      cachedGeometry: { brepBlobId: 'blob1', triangleCount: 12, boundingBox: [0, 0, 0, 600, 400, 18] },
+    };
+    const bytes = await writeTarGz([{
+      name: 'manifest.json',
+      data: new TextEncoder().encode(JSON.stringify({ formatVersion: CURRENT_FORMAT_VERSION, kind: 'part', document: importedDoc })),
+    }]);
+    vi.mocked(Opfs.forNavigator).mockResolvedValue({
+      read: async () => bytes,
+      write: async () => {},
+    } as any);
+
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C2', partPath: 'parts/stepimport.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    useAppStore.setState({ activeAssembly: asm } as any);
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('convert');
+    render(<BrowserPane part={null} />);
+    fireEvent.contextMenu(screen.getByText(/stepimport/));
+
+    await waitFor(() => expect(useAppStore.getState().panelDialog).not.toBeNull());
+    const dialog = useAppStore.getState().panelDialog!;
+    expect(dialog.initial).toMatchObject({
+      kind: 'panel',
+      length: { kind: 'literal', value: 600 },
+      width: { kind: 'literal', value: 400 },
+      thickness: { kind: 'literal', value: 18 },
+    });
+
+    promptSpy.mockRestore();
+  });
+
+  it('right-click "convert" on a leaf with no imported feature shows an alert and does not open the panel dialog', async () => {
+    const plainDoc = newPart('plain') as PartDocument;
+    const bytes = await writeTarGz([{
+      name: 'manifest.json',
+      data: new TextEncoder().encode(JSON.stringify({ formatVersion: CURRENT_FORMAT_VERSION, kind: 'part', document: plainDoc })),
+    }]);
+    vi.mocked(Opfs.forNavigator).mockResolvedValue({
+      read: async () => bytes,
+      write: async () => {},
+    } as any);
+
+    const asm: AssemblyDocument = {
+      id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
+      components: [
+        { id: 'C3', partPath: 'parts/plain.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true },
+      ],
+      constraints: [], groundedComponentPaths: [],
+      colors: {}, bomItemNumbers: {}, cutListItemNumbers: {}, colorOverrides: {},
+      materials: [], hardware: [],
+    };
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('convert');
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    render(<BrowserPane part={null} />);
+    fireEvent.contextMenu(screen.getByText(/plain/));
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalled());
+    expect(useAppStore.getState().panelDialog).toBeNull();
+
+    promptSpy.mockRestore();
+    alertSpy.mockRestore();
   });
 });
