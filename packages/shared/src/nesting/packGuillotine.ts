@@ -4,6 +4,48 @@ import type { NestInputRow } from './types';
 import type { NestSheet, PlacedPanel } from './nestState';
 
 interface FreeRect { x: number; y: number; w: number; h: number; }
+
+// Tolerance for free-rect adjacency/equality comparisons, mm. Matches the MERGE_EPS
+// convention used for polygon-edge merging in drawing/hatchGenerator.ts. Deliberately
+// tiny (not kerf-sized): two free rects separated by a real kerf cut are `kerfMm` apart,
+// which must NOT merge — kerf is baked into each rect's own coordinates at split time
+// (see the `right`/`bottom` construction below), so a genuine kerf boundary always shows
+// up as a >0 gap here. Only rects that truly abut (no cut ever ran between them) merge.
+const FREE_RECT_EPS = 1e-6;
+
+/**
+ * Fixpoint-merge a sheet's free-rect list: any two rects that share a full common
+ * edge (same x+w, vertically contiguous — or same y+h, horizontally contiguous)
+ * collapse into one larger rect. Repeats until no pair merges. Pure/order-independent.
+ */
+export function mergeFreeRects(rects: readonly FreeRect[]): FreeRect[] {
+  let list = rects.slice();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    outer: for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!, b = list[j]!;
+        let merged: FreeRect | null = null;
+        if (Math.abs(a.x - b.x) < FREE_RECT_EPS && Math.abs(a.w - b.w) < FREE_RECT_EPS) {
+          if (Math.abs(a.y + a.h - b.y) < FREE_RECT_EPS) merged = { x: a.x, y: a.y, w: a.w, h: a.h + b.h };
+          else if (Math.abs(b.y + b.h - a.y) < FREE_RECT_EPS) merged = { x: b.x, y: b.y, w: b.w, h: a.h + b.h };
+        }
+        if (!merged && Math.abs(a.y - b.y) < FREE_RECT_EPS && Math.abs(a.h - b.h) < FREE_RECT_EPS) {
+          if (Math.abs(a.x + a.w - b.x) < FREE_RECT_EPS) merged = { x: a.x, y: a.y, w: a.w + b.w, h: a.h };
+          else if (Math.abs(b.x + b.w - a.x) < FREE_RECT_EPS) merged = { x: b.x, y: b.y, w: a.w + b.w, h: a.h };
+        }
+        if (merged) {
+          list = list.filter((_, k) => k !== i && k !== j);
+          list.push(merged);
+          changed = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return list;
+}
 interface PanelInstance {
   itemNumber: number;
   rowKey: string;
@@ -99,7 +141,7 @@ export function packGuillotine(
     const totalArea = placed.reduce((sum, p) => sum + p.length * p.width, 0);
     const utilizationPct = Math.round((totalArea / (sheetLengthMm * sheetWidthMm)) * 1000) / 10;
     const remnantMinDimMm = 100;
-    const largestQualifyingFreeRect = freeRects
+    const largestQualifyingFreeRect = mergeFreeRects(freeRects)
       .filter((r) => r.w >= remnantMinDimMm && r.h >= remnantMinDimMm)
       .reduce<FreeRect | null>((best, r) => {
         if (!best || r.w * r.h > best.w * best.h) return r;
