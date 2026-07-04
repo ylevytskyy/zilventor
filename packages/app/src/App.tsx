@@ -68,6 +68,7 @@ import { OpenPlaceComponentDialogCommand } from './commands/OpenPlaceComponentDi
 import { SweepDialog } from './shell/SweepDialog';
 import { AddSweepFeatureCommand } from './commands/AddSweepFeatureCommand';
 import { ImportFromInventorDialog, type ImportDialogStatus } from './shell/ImportFromInventorDialog';
+import { ImportAbfFlattenDxfDialog } from './shell/ImportAbfFlattenDxfDialog';
 import { PanelDialog } from './shell/PanelDialog';
 import type { MaterialEntry, PanelFeature, PartDocument } from '@zilventor/shared';
 import type { PanelOverlaySpec, MarkerOverlaySpec } from './viewport/SceneManager';
@@ -460,6 +461,11 @@ export default function App() {
   const importFromInventorDialogOpen = useAppStore((s) => s.importFromInventorDialogOpen);
   const setImportFromInventorDialogOpen = useAppStore((s) => s.setImportFromInventorDialogOpen);
   const [importStatus, setImportStatus] = useState<ImportDialogStatus>({ kind: 'idle' });
+  const abfImportDialogOpen = useAppStore((s) => s.abfImportDialogOpen);
+  const setAbfImportDialogOpen = useAppStore((s) => s.setAbfImportDialogOpen);
+  const abfImportPendingRecords = useAppStore((s) => s.abfImportPendingRecords);
+  const setAbfImportPendingRecords = useAppStore((s) => s.setAbfImportPendingRecords);
+  const abfImportMaterials = useAppStore((s) => s.activeAssembly?.materials ?? s.activePart?.materials ?? []);
   const revolveDialogOpen = useAppStore((s) => s.revolveDialogOpen);
   const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
   const filletDialogOpen = useAppStore((s) => s.filletDialogOpen);
@@ -5799,6 +5805,29 @@ export default function App() {
             setImportStatus({ kind: 'done', summary: cmd.summary! });
           } catch (e) {
             setImportStatus({ kind: 'error', message: (e as Error).message });
+          }
+        }}
+      />
+      <ImportAbfFlattenDxfDialog
+        isOpen={abfImportDialogOpen}
+        groupTokens={[...new Set((abfImportPendingRecords ?? []).map((r) => r.materialGroup.token))]}
+        materials={abfImportMaterials}
+        onCancel={() => {
+          setAbfImportDialogOpen(false);
+          setAbfImportPendingRecords(null);
+        }}
+        onConfirm={async (selections) => {
+          const records = abfImportPendingRecords ?? [];
+          setAbfImportDialogOpen(false);
+          setAbfImportPendingRecords(null);
+          if (records.length === 0) return;
+          if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
+          const { ImportAbfFlattenDxfCommand } = await import('./commands/ImportAbfFlattenDxfCommand');
+          const { bus } = useAppStore.getState();
+          try {
+            await bus.execute(new ImportAbfFlattenDxfCommand({ records, selections, opfs: opfsRef.current }));
+          } catch (e) {
+            useAppStore.getState().setStatus(`ABF import failed: ${(e as Error).message}`);
           }
         }}
       />
