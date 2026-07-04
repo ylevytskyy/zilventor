@@ -34,4 +34,46 @@ describe('RenumberCutListCommand', () => {
     await new RenumberCutListCommand({ result: { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } } }).apply();
     expect(useAppStore.getState().activeAssembly).toBeNull();
   });
+
+  it('is a named, undoable Command', () => {
+    const cmd = new RenumberCutListCommand({ result: { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } } });
+    expect(cmd.name).toBe('RenumberCutList');
+    expect(typeof cmd.revert).toBe('function');
+  });
+
+  it('revert restores the exact prior numbering, including keys dropped by renumber', async () => {
+    useAppStore.setState({
+      activeAssembly: {
+        id: 'A', name: 'A', units: 'mm', parameters: {}, properties: {},
+        components: [], constraints: [], groundedComponentPaths: [],
+        colors: {}, bomItemNumbers: {},
+        // Prior map has a stale key ('k-gone') that won't appear in the new
+        // result's rows at all, plus a key that will be renumbered.
+        cutListItemNumbers: { 'k-gone': 7, 'k-oak': 42 },
+        colorOverrides: {}, materials: [],
+      },
+    } as any);
+    const result: CutListResult = {
+      rows: [
+        { rowKey: 'k-oak', itemNumber: 99, qty: 1, length: 600, width: 400, thickness: 18, materialId: 'm-oak', materialName: 'Oak', grain: 'length', edgeBands: { front: null, back: null, left: null, right: null }, partPath: 'p', partName: 'P', componentPathKeys: [] },
+      ],
+      bandTotals: [],
+      excluded: { componentCount: 0, partCount: 0 },
+    };
+    const cmd = new RenumberCutListCommand({ result });
+    await cmd.apply();
+    // Apply replaced the whole map — the stale key is gone.
+    expect(useAppStore.getState().activeAssembly!.cutListItemNumbers).toEqual({ 'k-oak': 1 });
+
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly!.cutListItemNumbers).toEqual({ 'k-gone': 7, 'k-oak': 42 });
+  });
+
+  it('revert no-ops when apply itself no-op\'d (activeAssembly was null)', async () => {
+    useAppStore.setState({ activeAssembly: null });
+    const cmd = new RenumberCutListCommand({ result: { rows: [], bandTotals: [], excluded: { componentCount: 0, partCount: 0 } } });
+    await cmd.apply();
+    await cmd.revert();
+    expect(useAppStore.getState().activeAssembly).toBeNull();
+  });
 });

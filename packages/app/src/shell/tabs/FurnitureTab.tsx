@@ -78,16 +78,16 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
     const onSubmit = async (panel: PanelFeature) => {
       const state = useAppStore.getState();
       if (state.activePart) {
-        await new AddPanelFeatureCommand(panel).apply();
+        await state.bus.execute(new AddPanelFeatureCommand(panel));
       } else if (state.activeAssembly) {
         const opfs = await Opfs.forNavigator();
         const partName = `Panel-${panel.id}`;
         const partPath = `parts/${partName}.zipt`;
-        await new CreateAndPlacePanelCommand({
+        await state.bus.execute(new CreateAndPlacePanelCommand({
           partName, partPath, panel,
           partMaterials: state.activeAssembly.materials,
           opfs,
-        }).apply();
+        }));
       }
     };
     await new OpenPanelDialogCommand({ onSubmit }).apply();
@@ -676,7 +676,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
           <button type="button" className="text-xs hover:text-white"
             onClick={() => void new OpenCutListTabCommand().apply()}>{t('ribbon.furniture.cutList')}</button>
           <button type="button" className="text-xs hover:text-white"
-            onClick={() => void new RenumberCutListCommand({ result: cutListResult }).apply()}>{t('tab.asm.renumber')}</button>
+            onClick={() => void useAppStore.getState().bus.execute(new RenumberCutListCommand({ result: cutListResult }))}>{t('tab.asm.renumber')}</button>
           <button type="button" className="text-xs hover:text-white"
             onClick={() => void new ExportCutListCsvCommand({
               result: cutListResult,

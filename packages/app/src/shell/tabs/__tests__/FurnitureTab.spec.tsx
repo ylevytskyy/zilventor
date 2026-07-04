@@ -3,12 +3,40 @@ import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-li
 import FurnitureTab from '../FurnitureTab';
 import { useAppStore } from '../../../store/useAppStore';
 import { newPart } from '@zilventor/kernel/src/adapter/PartDocument';
-import type { AssemblyDocument, PanelPreflightDiagnostic } from '@zilventor/shared';
+import type { AssemblyDocument, PanelFeature, PanelPreflightDiagnostic } from '@zilventor/shared';
 import { CutListCacheContext } from '../../CutListCacheContext';
+import { AddPanelFeatureCommand } from '../../../commands/AddPanelFeatureCommand';
+import { CreateAndPlacePanelCommand } from '../../../commands/CreateAndPlacePanelCommand';
+import { RenumberCutListCommand } from '../../../commands/RenumberCutListCommand';
 
 // jsdom doesn't implement URL.createObjectURL — stub it for the DXF download fallback path.
 Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:stub'), writable: true });
 Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), writable: true });
+
+// jsdom has no navigator.storage.getDirectory; stub Opfs so the assembly-mode
+// Panel onSubmit branch (CreateAndPlacePanelCommand) doesn't throw when it
+// calls Opfs.forNavigator(). Mirrors packages/app/src/__tests__/App.spec.tsx.
+vi.mock('@zilventor/kernel/src/storage/Opfs', () => {
+  class FakeOpfs {
+    static async forNavigator(): Promise<FakeOpfs> { return new FakeOpfs(); }
+    async read(): Promise<Uint8Array> { throw new Error('ENOENT (mocked)'); }
+    async write(): Promise<void> { /* swallow */ }
+    async exists(): Promise<boolean> { return false; }
+  }
+  return { Opfs: FakeOpfs };
+});
+
+const PANEL: PanelFeature = {
+  kind: 'panel',
+  id: 'pf-test',
+  length: { kind: 'literal', value: 600 },
+  width: { kind: 'literal', value: 400 },
+  thickness: { kind: 'literal', value: 18 },
+  thicknessFromMaterial: true,
+  materialId: 'mat-1',
+  grain: 'length',
+  edgeBands: { front: null, back: null, left: null, right: null },
+};
 
 const seedAsm: AssemblyDocument = {
   id: 'A1', name: 'cabinet', units: 'mm', parameters: {}, properties: {},
@@ -65,6 +93,36 @@ describe('FurnitureTab', () => {
     const btn = screen.getByRole('button', { name: /Panel/i });
     expect(btn).toBeDisabled();
   });
+
+  it('handlePanel onSubmit dispatches AddPanelFeatureCommand via bus.execute (part mode)', async () => {
+    useAppStore.getState().setActivePart(newPart('P1'));
+    render(<FurnitureTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Panel/i }));
+    await waitFor(() => expect(useAppStore.getState().panelDialog).not.toBeNull());
+    const dialog = useAppStore.getState().panelDialog!;
+    expect(dialog.mode).toBe('part');
+
+    const executeSpy = vi.spyOn(useAppStore.getState().bus, 'execute');
+    dialog.onSubmit(PANEL);
+    await waitFor(() => {
+      expect(executeSpy).toHaveBeenCalledWith(expect.any(AddPanelFeatureCommand));
+    });
+  });
+
+  it('handlePanel onSubmit dispatches CreateAndPlacePanelCommand via bus.execute (assembly mode)', async () => {
+    seedAssemblyMode();
+    render(<FurnitureTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Panel/i }));
+    await waitFor(() => expect(useAppStore.getState().panelDialog).not.toBeNull());
+    const dialog = useAppStore.getState().panelDialog!;
+    expect(dialog.mode).toBe('assembly');
+
+    const executeSpy = vi.spyOn(useAppStore.getState().bus, 'execute');
+    dialog.onSubmit(PANEL);
+    await waitFor(() => {
+      expect(executeSpy).toHaveBeenCalledWith(expect.any(CreateAndPlacePanelCommand));
+    });
+  });
 });
 
 describe('FurnitureTab Cut List panel (5d T21)', () => {
@@ -92,6 +150,15 @@ describe('FurnitureTab Cut List panel (5d T21)', () => {
     render(<FurnitureTab />);
     fireEvent.click(screen.getByRole('button', { name: 'Renumber' }));
     await waitFor(() => expect(useAppStore.getState().activeAssembly!.cutListItemNumbers).toEqual({}));
+  });
+
+  it('clicking Renumber dispatches via bus.execute (undoable)', async () => {
+    const executeSpy = vi.spyOn(useAppStore.getState().bus, 'execute');
+    render(<FurnitureTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Renumber' }));
+    await waitFor(() => {
+      expect(executeSpy).toHaveBeenCalledWith(expect.any(RenumberCutListCommand));
+    });
   });
 });
 
