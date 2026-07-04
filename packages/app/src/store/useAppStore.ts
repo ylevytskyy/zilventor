@@ -503,6 +503,7 @@ type AppState = {
   showBores: boolean;
   autoRegen: boolean;
   dxfExportMode: 'folders' | 'combined';
+  layerScheme: 'native' | 'abf';
   machiningPresets: MachiningPreset[];
   addMachiningPreset: (p: MachiningPreset) => void;
   updateMachiningPreset: (p: MachiningPreset) => void;
@@ -542,6 +543,7 @@ type AppState = {
   setCutListTabActive: (v: boolean) => void;
   setStatisticsTabActive: (v: boolean) => void;
   setDxfExportMode: (mode: 'folders' | 'combined') => void;
+  setLayerScheme: (scheme: 'native' | 'abf') => void;
   setShowComponentColors: (v: boolean) => void;
   setShowEdgeBands: (v: boolean) => void;
   setShowBores: (v: boolean) => void;
@@ -940,6 +942,7 @@ export const useAppStore = create<AppState>((set) => ({
   showBores: typeof localStorage !== 'undefined' ? localStorage.getItem('showBores') !== 'false' : true,
   autoRegen: typeof localStorage !== 'undefined' ? localStorage.getItem('autoRegen') !== 'false' : true,
   dxfExportMode: 'folders',
+  layerScheme: 'native',
   machiningPresets: readMachiningPresetsFromStorage(),
   labelHeaderPresets: readLabelHeaderPresetsFromStorage(),
   labelHeaderPresetsDialogOpen: false,
@@ -1000,6 +1003,7 @@ export const useAppStore = create<AppState>((set) => ({
   setCutListTabActive: (v) => set({ cutListTabActive: v }),
   setStatisticsTabActive: (v) => set({ statisticsTabActive: v }),
   setDxfExportMode: (mode) => set({ dxfExportMode: mode }),
+  setLayerScheme: (scheme) => set({ layerScheme: scheme }),
   setShowComponentColors: (v) => set({ showComponentColors: v }),
   setShowEdgeBands: (v) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('showEdgeBands', String(v));

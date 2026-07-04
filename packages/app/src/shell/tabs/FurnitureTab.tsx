@@ -69,6 +69,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const panelManufacturingInputs = usePanelManufacturingInputs();
   const showBores = useAppStore((s) => s.showBores);
   const dxfExportMode = useAppStore((s) => s.dxfExportMode);
+  const layerScheme = useAppStore((s) => s.layerScheme);
   const labelTemplate = useAppStore((s) => s.labelTemplate);
   const labelHeaderLine1 = useAppStore((s) => s.labelHeaderLine1);
   const labelHeaderLine2 = useAppStore((s) => s.labelHeaderLine2);
@@ -886,6 +887,21 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
             aria-pressed={dxfExportMode === 'combined'}
             onClick={() => useAppStore.getState().setDxfExportMode('combined')}>
             {t('ribbon.furniture.dxfModeCombined')}
+          </button>
+          <span className="text-xs text-neutral-500" aria-label={t('ribbon.furniture.layerScheme')}>
+            {t('ribbon.furniture.layerScheme')}
+          </span>
+          <button type="button"
+            className={layerScheme === 'native' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={layerScheme === 'native'}
+            onClick={() => useAppStore.getState().setLayerScheme('native')}>
+            {t('ribbon.furniture.layerSchemeNative')}
+          </button>
+          <button type="button"
+            className={layerScheme === 'abf' ? 'text-xs text-white' : 'text-xs hover:text-white text-neutral-500'}
+            aria-pressed={layerScheme === 'abf'}
+            onClick={() => useAppStore.getState().setLayerScheme('abf')}>
+            {t('ribbon.furniture.layerSchemeAbf')}
           </button>
           <button type="button" className="text-xs hover:text-white"
             aria-label={t('ribbon.furniture.machiningPresets')}
