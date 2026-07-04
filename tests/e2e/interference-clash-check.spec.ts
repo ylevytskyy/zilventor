@@ -257,13 +257,26 @@ test(
     await setupNewAssemblyWithMaterials(page);
 
     // 2. Create cabinet — places a .ziasm containing panel components.
-    //    The Left Side panel (length=720, width=560, thickness=18) is at cabinet position (0,0,0)
-    //    → world X:[-360,+360], Y:[-280,+280], Z:[0,18].
+    //    Post-fix (cabinet-pose-fix plan §3): Left Side (role='leftSide', local dims
+    //    L=H=720, W=D=560, T=Tc=18, cabinet-local position (0,0,0)) carries an additive
+    //    pose: translation = position + (0, D/2, H/2) = (0, 280, 360), rotation ≈90° about
+    //    Y. That rotation maps local +Z (thickness) → world X, local length → world Z, and
+    //    leaves local width on world Y — so the composed world AABB is
+    //    X:[0,18] Y:[0,560] Z:[0,720] (verified against the live app below, not hand-typed).
+    //    (The OLD comment here described the PRE-FIX bug: composedPoses hardcoded identity
+    //    rotation and dropped c.rotation/c.pose entirely, so panels rendered flat at their
+    //    raw `position` — giving a false X:[-360,+360] Y:[-280,+280] Z:[0,18] box. That
+    //    geometry no longer exists once composedPoses reads c.pose.)
     const cabinetId = await createCabinetAndGetId(page);
 
     // 3. Place a 100×100×18 panel in the ROOT assembly at (0, 0, 0).
-    //    World: X:[-50,+50], Y:[-50,+50], Z:[0,18].
-    //    Overlap with Left Side: 100×100×18 = 180 000 mm³ >> VOLUME_THRESHOLD_MM3=1.0.
+    //    World: X:[-50,+50], Y:[-50,+50], Z:[0,18] (flat, unrotated — a root-level panel is
+    //    untouched by the pose fix).
+    //    Overlap with Left Side (X:[0,18] Y:[0,560] Z:[0,720]): intersection is
+    //    X:[0,18]∩[-50,50]=[0,18], Y:[0,560]∩[-50,50]=[0,50], Z:[0,720]∩[0,18]=[0,18]
+    //    → 18×50×18 = 16 200 mm³ >> VOLUME_THRESHOLD_MM3=1.0 (still a real, non-empty overlap;
+    //    SC-11(b)'s count>0 expectation holds post-fix for a different geometric reason than
+    //    the stale comment claimed).
     await placePanel(page, 'OverlapPanel', 'OverlapPanel.zipt', 0);
 
     // 4. Run interference check
@@ -306,6 +319,85 @@ test(
 
     // No unexpected console errors
     expect(consoleErrors.filter((e) => !e.includes('ResizeObserver'))).toHaveLength(0);
+
+    // 7. NEW (cabinet-pose-fix plan Slice 9): read the Left Side panel's ACTUAL composed
+    //    world pose from the LIVE app (not hand-typed) and derive its world AABB from that
+    //    pose + its known local box, to prove the comment above matches real runtime geometry.
+    //    Mirrors runClashCheck's BFS pattern: unpack the cabinet's .ziasm, find the
+    //    role='leftSide' leaf, compose its local pose with the cabinet component's own pose
+    //    via the same componentLocalPose/composePoses helpers composedPoses.ts uses.
+    const leftSideAabb = await page.evaluate(async (cabId: string) => {
+      const w = window as any;
+      const { componentLocalPose } = await import('/src/assembly/walkers/componentLocalPose.ts');
+      const { composePoses } = await import('/src/assembly/walkers/composedPoses.ts');
+
+      const unpackAssembly: (bytes: Uint8Array) => Promise<any> = w.__zilventorUnpackAssembly;
+      const opfs = await w.__zilventorGetOpfs();
+      const activeAssembly = w.__zilventorStore.getState().activeAssembly;
+
+      const cabinetComp = activeAssembly.components.find((c: any) => c.id === cabId);
+      if (!cabinetComp) throw new Error('cabinet component not found in root assembly');
+      const cabinetDoc = await unpackAssembly(await opfs.read(cabinetComp.partPath));
+
+      const leftSideComp = cabinetDoc.components.find((c: any) => c.role === 'leftSide');
+      if (!leftSideComp) throw new Error('role=leftSide component not found inside cabinet .ziasm');
+
+      const cabinetPose = componentLocalPose(cabinetComp);
+      const leftSideLocalPose = componentLocalPose(leftSideComp);
+      const worldPose = composePoses(cabinetPose, leftSideLocalPose);
+
+      // leftSide template dims (baseCabinet.ts): L=H=720, W=D=560, T=Tc=18.
+      // Local box per buildPanelBox convention: X∈[-L/2,L/2], Y∈[-W/2,W/2], Z∈[0,T].
+      const L = 720, Wd = 560, T = 18;
+      const corners: Array<{ x: number; y: number; z: number }> = [];
+      for (const x of [-L / 2, L / 2]) {
+        for (const y of [-Wd / 2, Wd / 2]) {
+          for (const z of [0, T]) corners.push({ x, y, z });
+        }
+      }
+
+      // Inline quaternion rotation (mirrors kernel/src/assembly/quat.ts quatRotateVec) —
+      // a bare `@zilventor/kernel/...` specifier can't be dynamically imported from this
+      // raw page.evaluate script (only Vite-transformed app modules resolve bare specifiers).
+      function rotate(q: [number, number, number, number], v: { x: number; y: number; z: number }) {
+        const [qx, qy, qz, qw] = q;
+        const cx = qy * v.z - qz * v.y + qw * v.x;
+        const cy = qz * v.x - qx * v.z + qw * v.y;
+        const cz = qx * v.y - qy * v.x + qw * v.z;
+        return {
+          x: v.x + 2 * (qy * cz - qz * cy),
+          y: v.y + 2 * (qz * cx - qx * cz),
+          z: v.z + 2 * (qx * cy - qy * cx),
+        };
+      }
+
+      const worldCorners = corners.map((c) => {
+        const r = rotate(worldPose.quaternion, c);
+        return {
+          x: r.x + worldPose.translation.x,
+          y: r.y + worldPose.translation.y,
+          z: r.z + worldPose.translation.z,
+        };
+      });
+
+      const xs = worldCorners.map((c) => c.x);
+      const ys = worldCorners.map((c) => c.y);
+      const zs = worldCorners.map((c) => c.z);
+      return {
+        xMin: Math.min(...xs), xMax: Math.max(...xs),
+        yMin: Math.min(...ys), yMax: Math.max(...ys),
+        zMin: Math.min(...zs), zMax: Math.max(...zs),
+      };
+    }, cabinetId);
+    console.log('[e2e] SC-11(b) leftSide world AABB =', JSON.stringify(leftSideAabb));
+
+    const AABB_TOL = 1e-3;
+    expect(Math.abs(leftSideAabb.xMin - 0), `xMin: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
+    expect(Math.abs(leftSideAabb.xMax - 18), `xMax: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
+    expect(Math.abs(leftSideAabb.yMin - 0), `yMin: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
+    expect(Math.abs(leftSideAabb.yMax - 560), `yMax: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
+    expect(Math.abs(leftSideAabb.zMin - 0), `zMin: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
+    expect(Math.abs(leftSideAabb.zMax - 720), `zMax: ${JSON.stringify(leftSideAabb)}`).toBeLessThan(AABB_TOL);
   },
 );
 
