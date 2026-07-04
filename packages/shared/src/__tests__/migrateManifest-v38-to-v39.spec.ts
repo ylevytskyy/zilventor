@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v38 → v39 (P8 — producedPanels field)', () => {
   it('CURRENT_FORMAT_VERSION is 39', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(40);
+    expect(CURRENT_FORMAT_VERSION).toBe(41);
   });
 
   it('migrates a v38 assembly to v39 without seeding producedPanels', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v38 → v39 (P8 — producedPanels field)', () => {
       document: { id: 'a', name: 'A', hardware: [] },
     };
     const out = migrateManifest(v38);
-    expect(out.formatVersion).toBe(40);
+    expect(out.formatVersion).toBe(41);
     expect((out.document as { producedPanels?: unknown }).producedPanels).toBeUndefined();
   });
 

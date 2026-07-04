@@ -1,7 +1,7 @@
 import { inferFromGeometry } from './inferFromGeometry';
 import { BUILTIN_CATALOG } from './hardware/builtinCatalog';
 
-export const CURRENT_FORMAT_VERSION = 40 as const;
+export const CURRENT_FORMAT_VERSION = 41 as const;
 
 export type AnyManifest = { formatVersion: number; [k: string]: unknown };
 
@@ -482,6 +482,12 @@ const migrations: Record<number, MigrateFn> = {
     const m = deepClone(mIn);
     return { ...m, formatVersion: 40 };
   },
+  // v40 → v41: additive-only field: BoreOp.sku. No existing document needs
+  // mutation; the bump pins the new schema.
+  40: (mIn) => {
+    const m = deepClone(mIn);
+    return { ...m, formatVersion: 41 };
+  },
 };
 
 function normalizeKind(m: AnyManifest): AnyManifest {
@@ -497,7 +503,7 @@ function normalizeKind(m: AnyManifest): AnyManifest {
      m.formatVersion === 31 || m.formatVersion === 32 ||
      m.formatVersion === 33 || m.formatVersion === 34 || m.formatVersion === 35 ||
      m.formatVersion === 36 || m.formatVersion === 37 || m.formatVersion === 38 ||
-     m.formatVersion === 39 || m.formatVersion === 40) &&
+     m.formatVersion === 39 || m.formatVersion === 40 || m.formatVersion === 41) &&
     (m as unknown as { kind?: unknown }).kind === undefined
   ) {
     return { ...m, kind: 'part' } as AnyManifest;
