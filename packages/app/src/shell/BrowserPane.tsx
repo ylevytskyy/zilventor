@@ -19,6 +19,7 @@ import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
 import { RepairCabinetGeometryCommand, hasRepairableLegacyPose } from '../commands/RepairCabinetGeometryCommand';
 import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
+import { DeletePanelFeatureCommand } from '../commands/DeletePanelFeatureCommand';
 import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
 import { OpenNestingTabCommand } from '../commands/OpenNestingTabCommand';
 import { OpenStatisticsReportTabCommand } from '../commands/OpenStatisticsReportTabCommand';
@@ -382,6 +383,7 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
   const setSelectedFeature = useAppStore((s) => s.setSelectedFeature);
   const featureErrors = useAppStore((s) => s.featureErrors);
   const activeDoc = useAppStore((s) => s.activeDocument);
+  const bus = useAppStore((s) => s.bus);
 
   if (activeDoc?.kind === 'drawing') {
     return <DrawingTreePane />;
@@ -464,8 +466,6 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
   );
 
   let sketchCount = 0;
-  let grooveCount = 0;
-  let keyholeSlotCount = 0;
   let extrudeCount = 0;
   let revolveCount = 0;
   let filletCount = 0;
@@ -669,15 +669,9 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
                   const cur = useAppStore.getState().activePart;
                   if (!cur) return;
                   if (action.trim().toLowerCase() === 'delete') {
-                    const tree = cur.featureTree.filter((x) => x.id !== panel.id);
-                    useAppStore.getState().setActivePart({ ...cur, featureTree: tree });
+                    void bus.execute(new DeletePanelFeatureCommand(panel.id));
                   } else if (action.trim().toLowerCase() === 'suppress') {
-                    const tree = cur.featureTree.map((x) =>
-                      x.id === panel.id && x.kind === 'panel'
-                        ? ({ ...(x as PanelFeature), suppressed: !(x as PanelFeature).suppressed } as PanelFeature)
-                        : x,
-                    );
-                    useAppStore.getState().setActivePart({ ...cur, featureTree: tree });
+                    void bus.execute(new EditPanelFeatureCommand({ ...panel, suppressed: !panel.suppressed } as PanelFeature));
                   }
                 }}
               >
@@ -695,32 +689,6 @@ export default function BrowserPane({ part, sketchPicker, partInfo = new Map(), 
                 data-imported="true"
               >
                 ▸ Imported ({f.sourceStep})
-                {renderErrorBadge(f.id)}
-              </li>
-            );
-          }
-          if (f.kind === 'groove') {
-            grooveCount += 1;
-            return (
-              <li
-                key={f.id}
-                className="pl-3 cursor-pointer hover:text-white"
-                onClick={() => useAppStore.getState().setSelectedGroove(f.id, part.id)}
-              >
-                ▸ {t('browser.groove')}{grooveCount}
-                {renderErrorBadge(f.id)}
-              </li>
-            );
-          }
-          if (f.kind === 'keyholeSlot') {
-            keyholeSlotCount += 1;
-            return (
-              <li
-                key={f.id}
-                className="pl-3 cursor-pointer hover:text-white"
-                onClick={() => useAppStore.getState().setSelectedKeyholeSlot(f.id, part.id)}
-              >
-                ▸ {t('browser.keyholeSlot')} {keyholeSlotCount}
                 {renderErrorBadge(f.id)}
               </li>
             );

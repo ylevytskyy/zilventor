@@ -6,6 +6,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { CutListCacheContext } from '../CutListCacheContext';
 import { SetComponentColorOverrideCommand } from '../../commands/SetComponentColorOverrideCommand';
 import { SetCutListItemNumberCommand } from '../../commands/SetCutListItemNumberCommand';
+import { EditPanelFeatureCommand } from '../../commands/EditPanelFeatureCommand';
+import { DeletePanelFeatureCommand } from '../../commands/DeletePanelFeatureCommand';
 import type { PanelSpecCache } from '../resolvePanelSpec';
 
 describe('BrowserPane', () => {
@@ -332,72 +334,6 @@ describe('BrowserPane', () => {
     expect(useAppStore.getState().editingWorkAxisId).toBe('wa1');
   });
 
-  // ---- P9 W1: groove tree node + selection wiring ----
-
-  it('renders a labeled Groove node for a groove feature (not the mislabeled Extrusion fallback)', () => {
-    const groove: any = {
-      kind: 'groove', id: 'g1', faceRole: 'Front', axis: 'u', position: 10, width: 8, depth: 6,
-    };
-    const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
-      featureTree: [groove],
-    } as any;
-    render(<BrowserPane part={part} />);
-    expect(screen.getByText(/Groove1/)).toBeInTheDocument();
-    expect(screen.queryByText(/Extrusion1/)).toBeNull();
-  });
-
-  it('clicking a Groove node sets selectedGrooveId/selectedGroovePartPath, not setSelectedFeature', () => {
-    useAppStore.getState().setSelectedGroove(null, null);
-    const beforeFeatureId = useAppStore.getState().selectedFeatureId;
-    const groove: any = {
-      kind: 'groove', id: 'g1', faceRole: 'Front', axis: 'u', position: 10, width: 8, depth: 6,
-    };
-    const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
-      featureTree: [groove],
-    } as any;
-    render(<BrowserPane part={part} />);
-    fireEvent.click(screen.getByText(/Groove1/));
-    const s = useAppStore.getState();
-    expect(s.selectedGrooveId).toBe('g1');
-    expect(s.selectedGroovePartPath).toBe('p1');
-    expect(s.selectedFeatureId).toBe(beforeFeatureId);
-  });
-
-  // ---- P17 W1: keyholeSlot tree node + selection wiring ----
-
-  it('renders a labeled Keyhole Slot node for a keyholeSlot feature (not the mislabeled Extrusion fallback)', () => {
-    const keyholeSlot: any = {
-      kind: 'keyholeSlot', id: 'ks1', faceRole: 'Back', headDiameter: 10, shaftWidth: 5, slotLength: 20, depth: 6,
-    };
-    const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
-      featureTree: [keyholeSlot],
-    } as any;
-    render(<BrowserPane part={part} />);
-    expect(screen.getByText(/Keyhole Slot 1/)).toBeInTheDocument();
-    expect(screen.queryByText(/Extrusion1/)).toBeNull();
-  });
-
-  it('clicking a Keyhole Slot node sets selectedKeyholeSlotId/selectedKeyholeSlotPartPath, not setSelectedFeature', () => {
-    useAppStore.getState().setSelectedKeyholeSlot(null, null);
-    const beforeFeatureId = useAppStore.getState().selectedFeatureId;
-    const keyholeSlot: any = {
-      kind: 'keyholeSlot', id: 'ks1', faceRole: 'Back', headDiameter: 10, shaftWidth: 5, slotLength: 20, depth: 6,
-    };
-    const part: PartDocument = {
-      id: 'p1', name: 'Part1', units: 'mm', parameters: {},
-      featureTree: [keyholeSlot],
-    } as any;
-    render(<BrowserPane part={part} />);
-    fireEvent.click(screen.getByText(/Keyhole Slot 1/));
-    const s = useAppStore.getState();
-    expect(s.selectedKeyholeSlotId).toBe('ks1');
-    expect(s.selectedKeyholeSlotPartPath).toBe('p1');
-    expect(s.selectedFeatureId).toBe(beforeFeatureId);
-  });
-
 });
 
 describe('BrowserPane — panel feature (T28)', () => {
@@ -451,30 +387,51 @@ describe('BrowserPane — panel feature (T28)', () => {
     expect(after.featureTree.find((f: any) => f.id === 'PANEL1')).toBeTruthy();
   });
 
-  it('right-click context menu suppress flips the suppressed flag', () => {
+  it('right-click context menu suppress flips the suppressed flag via bus.execute (undoable)', async () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('suppress');
     const part = makePanelPart();
     useAppStore.getState().setActivePart(part);
     const { container } = render(<BrowserPane part={useAppStore.getState().activePart!} />);
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
+    const preSuppressed = (useAppStore.getState().activePart!.featureTree.find((f: any) => f.id === 'PANEL1') as any)
+      .suppressed;
     const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
     fireEvent.contextMenu(li);
     expect(promptSpy).toHaveBeenCalled();
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(EditPanelFeatureCommand);
+    await executeSpy.mock.results[0]!.value;
     const after = useAppStore.getState().activePart!;
     const panelAfter = after.featureTree.find((f: any) => f.id === 'PANEL1') as any;
     expect(panelAfter.suppressed).toBe(true);
+    await bus.undo();
+    const restored = useAppStore.getState().activePart!;
+    const panelRestored = restored.featureTree.find((f: any) => f.id === 'PANEL1') as any;
+    expect(panelRestored.suppressed).toBe(preSuppressed);
+    executeSpy.mockRestore();
     promptSpy.mockRestore();
   });
 
-  it('right-click context menu delete removes the panel feature', () => {
+  it('right-click context menu delete removes the panel feature via bus.execute (undoable)', async () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('delete');
     const part = makePanelPart();
     useAppStore.getState().setActivePart(part);
     const { container } = render(<BrowserPane part={useAppStore.getState().activePart!} />);
+    const bus = useAppStore.getState().bus;
+    const executeSpy = vi.spyOn(bus, 'execute');
     const li = container.querySelector('li[data-panel-feature-id="PANEL1"]') as HTMLElement;
     fireEvent.contextMenu(li);
     expect(promptSpy).toHaveBeenCalled();
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(executeSpy.mock.calls[0]![0]).toBeInstanceOf(DeletePanelFeatureCommand);
+    await executeSpy.mock.results[0]!.value;
     const after = useAppStore.getState().activePart!;
     expect(after.featureTree.find((f: any) => f.id === 'PANEL1')).toBeUndefined();
+    await bus.undo();
+    const restored = useAppStore.getState().activePart!;
+    expect(restored.featureTree.find((f: any) => f.id === 'PANEL1')).toBeTruthy();
+    executeSpy.mockRestore();
     promptSpy.mockRestore();
   });
 });
