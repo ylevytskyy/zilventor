@@ -90,4 +90,15 @@ describe('drawerSlideMath', () => {
     expect(new Set(leftBoxIds).size).toBe(1);
     expect([...new Set(leftCabIds)][0]).toBe([...new Set(leftBoxIds)][0]);
   });
+
+  it('stamps sku when slideSkuId present', () => {
+    const withSku = drawerSlideMath({ ...ctx, slideSkuId: 'drawer-slide-500-fullext' });
+    withSku.cabinetBores.forEach((b) => expect(b.sku).toBe('drawer-slide-500-fullext'));
+    withSku.boxBores.forEach((b) => expect(b.sku).toBe('drawer-slide-500-fullext'));
+  });
+
+  it('omits sku when absent', () => {
+    r.cabinetBores.forEach((b) => expect('sku' in b).toBe(false));
+    r.boxBores.forEach((b) => expect('sku' in b).toBe(false));
+  });
 });

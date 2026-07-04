@@ -75,6 +75,12 @@ describe('buildBlindCornerCabinet — hinge boring', () => {
     expect(out.doorBores![0]!.cupBores).toHaveLength(hingeCount);
   });
 
+  it('stamps the template hardware skuId onto every cup and plate bore', () => {
+    const out = buildBlindCornerCabinet(P, REGISTRY);
+    for (const b of out.doorBores![0]!.cupBores) expect(b.sku).toBe('hinge-35mm-cup-full');
+    for (const b of out.plateBores![0]!.plateBores) expect(b.sku).toBe('hinge-35mm-cup-full');
+  });
+
   it('plateBores has plate holes on the live-side carcass panel', () => {
     const out = buildBlindCornerCabinet(P, REGISTRY);
     expect(out.plateBores).toBeDefined();

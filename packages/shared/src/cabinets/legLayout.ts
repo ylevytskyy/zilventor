@@ -28,6 +28,7 @@ export function legLevelerBores(
   spec: LegLevelerSpec,
   face: FaceName,
   idBase: string,
+  sku?: string, // caller-resolved hardware-catalog id (CatalogEntry.id), stamped onto every bore
 ): BoreOp[] {
   const hw = spec.patternW / 2;
   const hd = spec.patternD / 2;
@@ -47,5 +48,6 @@ export function legLevelerBores(
     role: 'legLeveler' as BoreOp['role'],
     connectorId: `${idBase}-${i}`,
     connectorKind: 'legLeveler' as BoreOp['connectorKind'],
+    ...(sku ? { sku } : {}),
   }));
 }

@@ -44,7 +44,7 @@ export function tandemSlideMath(
   boxBottomBores: BoreOp[];
   boxBackBores: BoreOp[];
 } {
-  const { drawerIndex: i, openBottomZ, slotH, cabinet, box } = ctx;
+  const { drawerIndex: i, openBottomZ, slotH, cabinet, box, slideSkuId } = ctx;
   const { D, Tc } = cabinet;
   const { bd, bw } = box;
 
@@ -83,6 +83,7 @@ export function tandemSlideMath(
         role: 'tandem-cabinet' as BoreRole,
         connectorId,
         connectorKind: 'tandem',
+        ...(slideSkuId ? { sku: slideSkuId } : {}),
       });
     });
 
@@ -102,6 +103,7 @@ export function tandemSlideMath(
         role: 'tandem-drawer-bottom' as BoreRole,
         connectorId,
         connectorKind: 'tandem',
+        ...(slideSkuId ? { sku: slideSkuId } : {}),
       });
     });
 
@@ -116,6 +118,7 @@ export function tandemSlideMath(
       role: 'tandem-drawer-back' as BoreRole,
       connectorId,
       connectorKind: 'tandem',
+      ...(slideSkuId ? { sku: slideSkuId } : {}),
     });
   }
 

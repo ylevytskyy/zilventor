@@ -464,3 +464,101 @@ test('T-P9-W3b: combined-mode manufacturing DXF export — machining.csv fires a
 
   expect(pageErrors, 'No browser page errors during combined-mode CSV second-download export').toHaveLength(0);
 });
+
+test('T-M2.1c: manufacturing DXF export — ABF layer scheme via store field', async ({ page }) => {
+  test.setTimeout(120_000);
+  page.setDefaultTimeout(60_000);
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(`PAGEERROR: ${e.message}`));
+
+  await page.goto('/');
+  await waitForKernelReady(page);
+
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: unknown }).showSaveFilePicker = async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    };
+  });
+
+  await page.evaluate(async () => {
+    const { ExportPanelManufacturingDxfCommand } = await import(
+      '/src/commands/ExportPanelManufacturingDxfCommand.ts'
+    );
+    (window as any).__zilventorStore.getState().setLayerScheme('abf');
+    const layerScheme = (window as any).__zilventorStore.getState().layerScheme;
+
+    // Top-face bore, numeric depth — should produce DEPTH12 under the ABF scheme.
+    const faceBore = {
+      id: 'bore-t-m2-1c-face',
+      face: { featureId: 'panel', role: 'Top', instance: 0 },
+      u: 100,
+      v: 80,
+      diameter: 5,
+      depth: 12,
+      role: 'confirmat-face',
+      connectorId: 'c0',
+      connectorKind: 'confirmat',
+    };
+
+    // Left-face (edge) bore, numeric depth — should produce ABF-DSIDE-8.
+    const edgeBore = {
+      id: 'bore-t-m2-1c-edge',
+      face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 100,
+      v: 80,
+      diameter: 8,
+      depth: 10,
+      role: 'confirmat-edge',
+      connectorId: 'c1',
+      connectorKind: 'confirmat',
+    };
+
+    const input = {
+      itemNumber: 1,
+      partName: 'Side Panel',
+      spec: {
+        length: 600,
+        width: 720,
+        thickness: 18,
+        materialId: 'm-birch-18',
+        grain: 'none',
+        edgeBands: { front: null, back: null, left: null, right: null },
+      },
+      materialName: 'Birch 18mm',
+      bores: [faceBore, edgeBore],
+      grooves: [],
+      qty: 1,
+    };
+
+    await new ExportPanelManufacturingDxfCommand({
+      inputs: [input as never],
+      suggestedName: 'test-abf-manufacturing.zip',
+      layerScheme,
+    }).apply();
+  });
+
+  const zipB64 = await page.evaluate((): string | null => {
+    const w = window as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array };
+    if (!w.__zilventorManufacturingDxfBytes) return null;
+    const bytes = w.__zilventorManufacturingDxfBytes;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
+  });
+  expect(zipB64, '__zilventorManufacturingDxfBytes must be set after command.apply()').not.toBeNull();
+
+  const zipBytes = new Uint8Array(Buffer.from(zipB64!, 'base64'));
+  const entries = unzipSync(zipBytes);
+  const names = Object.keys(entries);
+
+  const dxfName = names.find((n) => n.endsWith('.dxf'));
+  expect(dxfName, 'zip must contain a .dxf entry').toBeDefined();
+  const dxf = strFromU8(entries[dxfName!]!);
+
+  expect(dxf, 'DXF must contain the ABF cutting-lines outline layer').toContain('ABF_cuttingLines');
+  expect(dxf, 'DXF must contain the DEPTH12 face-bore layer').toContain('DEPTH12');
+  expect(dxf, 'DXF must contain the ABF-DSIDE- edge-bore layer').toContain('ABF-DSIDE-');
+
+  expect(pageErrors, 'No browser page errors during ABF layer-scheme export').toHaveLength(0);
+});

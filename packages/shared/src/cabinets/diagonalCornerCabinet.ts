@@ -248,6 +248,7 @@ export function buildDiagonalCornerCabinet(
     'right',
     'full',
     uPositions,
+    'hinge-35mm-cup-full', // matches this template's hardware skuId below
   );
 
   // Ø5 plate bores on Front Stile 1 (the hinge stile)
@@ -258,6 +259,8 @@ export function buildDiagonalCornerCabinet(
     DIAGONAL_STILE_INNER_FACE,
     uPositions,
     frontSetback,
+    undefined,
+    'hinge-35mm-cup-full', // matches this template's hardware skuId below
   );
 
   return {

@@ -3,7 +3,7 @@ import { migrateManifest, CURRENT_FORMAT_VERSION, type AnyManifest } from '../fi
 
 describe('migrateManifest v39 → v40 (P16 — keyholeSlot feature kind)', () => {
   it('CURRENT_FORMAT_VERSION is 40', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe(40);
+    expect(CURRENT_FORMAT_VERSION).toBe(41);
   });
 
   it('migrates a v39 part to v40 without mutating its featureTree entries', () => {
@@ -13,7 +13,7 @@ describe('migrateManifest v39 → v40 (P16 — keyholeSlot feature kind)', () =>
       document: { id: 'p', name: 'P', featureTree: [{ kind: 'panel', id: 'pf-1' }] },
     };
     const out = migrateManifest(v39);
-    expect(out.formatVersion).toBe(40);
+    expect(out.formatVersion).toBe(41);
     // migrateManifest also seeds the standard origin features (unrelated to this
     // bump) — find the panel entry rather than asserting full array equality.
     const featureTree = (out.document as { featureTree: Array<{ kind: string; id: string }> }).featureTree;

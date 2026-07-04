@@ -270,6 +270,12 @@ describe('buildDiagonalCornerCabinet — hinge boring', () => {
     expect(out.doorBores![0]!.cupBores).toHaveLength(hingeCountForHeight(doorH));
   });
 
+  it('stamps the template hardware skuId onto every cup and plate bore', () => {
+    const out = buildDiagonalCornerCabinet(P, REGISTRY);
+    for (const b of out.doorBores![0]!.cupBores) expect(b.sku).toBe('hinge-35mm-cup-full');
+    for (const b of out.plateBores![0]!.plateBores) expect(b.sku).toBe('hinge-35mm-cup-full');
+  });
+
   it('plateBores defined, targets Front Stile 1 (hinge stile, spec §4.6)', () => {
     const out = buildDiagonalCornerCabinet(P, REGISTRY);
     expect(out.plateBores).toBeDefined();

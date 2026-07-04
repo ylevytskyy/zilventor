@@ -1,8 +1,14 @@
 import { createDxfDocument, type DxfDocument, type XdataItem } from './dxfWriter';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
 import { layoutCombinedGrid } from './layoutCombinedGrid';
+import { abfBoreLayer, ABF_OUTLINE_LAYER } from './abfLayerScheme';
 import { buildTenonMortiseCutters } from '@zilventor/shared';
 import type { PanelSpec, BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature, PanelEdgeKey } from '@zilventor/shared';
+
+/** DXF layer-naming scheme: 'native' (existing MANUFACTURING_LAYERS) or 'abf' (ABF-compatible,
+ *  see abfLayerScheme.ts). Omitted/'native' is byte-identical to the pre-existing output. */
+export type LayerScheme = 'native' | 'abf';
+export type RenderDxfOpts = { layerScheme?: LayerScheme };
 
 /**
  * CAM metadata (R2.2) → DXF XDATA convention: a labeled key/value pair per
@@ -55,17 +61,37 @@ export function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y:
   }
 }
 
-function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number, dx = 0, dy = 0): void {
+/** Face (Top/Bottom, the two large thickness-normal faces) vs edge (Front/Back/Left/Right)
+ *  orientation, for abfBoreLayer's face-vs-edge convention. Mirrors boreToFlat's own
+ *  role classification. */
+function boreOrientation(role: BoreOp['face']['role']): 'face' | 'edge' {
+  return role === 'Top' || role === 'Bottom' ? 'face' : 'edge';
+}
+
+/** Effective DXF layer for a bore: presetLayerName ALWAYS wins; else under the 'abf' scheme
+ *  abfBoreLayer's name (falling back to the native name when it returns null, e.g. a
+ *  throughAll bore — no invented THRU convention); else the native name. */
+function boreLayer(b: BoreOp, nativeLayer: string, scheme: LayerScheme): string {
+  if (b.presetLayerName !== undefined) return b.presetLayerName;
+  if (scheme === 'abf') {
+    const abfLayer = abfBoreLayer(b, boreOrientation(b.face.role));
+    if (abfLayer !== null) return abfLayer;
+  }
+  return nativeLayer;
+}
+
+function drawBores(doc: DxfDocument, bores: BoreOp[], len: number, wid: number, dx = 0, dy = 0, scheme: LayerScheme = 'native'): void {
   for (const b of bores) {
     const f = boreToFlat(b, len, wid);
     if (!f) continue;
-    doc.circle(b.presetLayerName ?? f.layer, f.x + dx, f.y + dy, b.diameter / 2, camXdata(b));
+    doc.circle(boreLayer(b, f.layer, scheme), f.x + dx, f.y + dy, b.diameter / 2, camXdata(b));
     doc.text(L.boreInfo, f.x + dx + b.diameter / 2 + 1, f.y + dy, 4, boreLabel(b));
   }
 }
 
-function drawOutline(doc: DxfDocument, len: number, wid: number, dx = 0, dy = 0): void {
-  doc.lwpolyline(L.outline,
+function drawOutline(doc: DxfDocument, len: number, wid: number, dx = 0, dy = 0, scheme: LayerScheme = 'native'): void {
+  const layer = scheme === 'abf' ? ABF_OUTLINE_LAYER : L.outline;
+  doc.lwpolyline(layer,
     [{ x: dx, y: dy }, { x: len + dx, y: dy }, { x: len + dx, y: wid + dy }, { x: dx, y: wid + dy }], true);
 }
 
@@ -245,12 +271,13 @@ function drawGrain(doc: DxfDocument, spec: PanelSpec, len: number, wid: number, 
   }
 }
 
-export function renderPanelManufacturingDxf(input: PanelManufacturingInput): string {
+export function renderPanelManufacturingDxf(input: PanelManufacturingInput, opts?: RenderDxfOpts): string {
+  const scheme = opts?.layerScheme ?? 'native';
   const doc = createDxfDocument();
   const len = input.spec.length;
   const wid = input.spec.width;
-  drawOutline(doc, len, wid);
-  drawBores(doc, input.bores, len, wid);
+  drawOutline(doc, len, wid, 0, 0, scheme);
+  drawBores(doc, input.bores, len, wid, 0, 0, scheme);
   drawGrooves(doc, input.grooves, len, wid);
   drawTenonMortises(doc, input.tenonMortises ?? [], len, wid);
   drawKeyholeSlots(doc, input.keyholeSlots ?? [], len, wid);
@@ -265,11 +292,11 @@ export function renderPanelManufacturingDxf(input: PanelManufacturingInput): str
 }
 
 /** Layer names one panel's manufacturing entities actually draw into (mirrors renderPanelManufacturingDxf's calls). */
-function neededLayers(input: PanelManufacturingInput): string[] {
-  const layers = new Set<string>([L.outline, L.info, L.dimensions]);
+function neededLayers(input: PanelManufacturingInput, scheme: LayerScheme): string[] {
+  const layers = new Set<string>([scheme === 'abf' ? ABF_OUTLINE_LAYER : L.outline, L.info, L.dimensions]);
   for (const b of input.bores) {
     const f = boreToFlat(b, input.spec.length, input.spec.width);
-    if (f) { layers.add(b.presetLayerName ?? f.layer); layers.add(L.boreInfo); }
+    if (f) { layers.add(boreLayer(b, f.layer, scheme)); layers.add(L.boreInfo); }
   }
   for (const g of input.grooves) {
     if (grooveRect(g, input.spec.length, input.spec.width)) layers.add(g.presetLayerName ?? L.grooves);
@@ -292,21 +319,22 @@ function neededLayers(input: PanelManufacturingInput): string[] {
  * row-wrapped grid (50mm gutter, see layoutCombinedGrid) instead of one file per panel.
  * Single header + single LAYER table (deduped union of every layer any panel needs).
  */
-export function renderCombinedManufacturingDxf(inputs: PanelManufacturingInput[]): string {
+export function renderCombinedManufacturingDxf(inputs: PanelManufacturingInput[], opts?: RenderDxfOpts): string {
+  const scheme = opts?.layerScheme ?? 'native';
   const offsets = layoutCombinedGrid(
     inputs.map((i) => ({ width: i.spec.length, height: i.spec.width })),
     50,
   );
   const allLayers = new Set<string>();
-  for (const input of inputs) for (const layer of neededLayers(input)) allLayers.add(layer);
+  for (const input of inputs) for (const layer of neededLayers(input, scheme)) allLayers.add(layer);
 
   const doc = createDxfDocument([...allLayers]);
   inputs.forEach((input, idx) => {
     const { x: dx, y: dy } = offsets[idx]!;
     const len = input.spec.length;
     const wid = input.spec.width;
-    drawOutline(doc, len, wid, dx, dy);
-    drawBores(doc, input.bores, len, wid, dx, dy);
+    drawOutline(doc, len, wid, dx, dy, scheme);
+    drawBores(doc, input.bores, len, wid, dx, dy, scheme);
     drawGrooves(doc, input.grooves, len, wid, dx, dy);
     drawTenonMortises(doc, input.tenonMortises ?? [], len, wid, dx, dy);
     drawKeyholeSlots(doc, input.keyholeSlots ?? [], len, wid, dx, dy);

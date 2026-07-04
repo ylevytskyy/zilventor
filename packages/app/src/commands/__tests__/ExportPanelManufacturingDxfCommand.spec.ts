@@ -206,6 +206,13 @@ function boreWithCam(faceRole: string, role: string): BoreOp {
     connectorKind: 'confirmat', toolNumber: 3, speed: 12000 } as unknown as BoreOp;
 }
 
+// Minimal bore fixture (no CAM fields) for layerScheme tests below.
+function bore(faceRole: string, role: string, diameter: number, depth: number): BoreOp {
+  const face: BoreOp['face'] = { featureId: 'panel', role: faceRole, instance: 0 };
+  return { id: 'b-abf', face, u: 100, v: 50, diameter, depth, role, connectorId: 'c1',
+    connectorKind: 'confirmat' } as unknown as BoreOp;
+}
+
 function keyholeSlot(over: Partial<KeyholeSlotFeature> = {}): KeyholeSlotFeature {
   return { kind: 'keyholeSlot', id: 'ks1', faceRole: 'Top', u: 200, v: 150, axis: 'u', direction: 1,
     entryDiameter: 15, slotWidth: 8, slotLength: 30, depth: 6, ...over };
@@ -310,5 +317,79 @@ describe('ExportPanelManufacturingDxfCommand — W7 machining.csv sidecar', () =
     }
     expect(calls).toHaveLength(1);
     expect(calls[0]!.suggestedName).toBe('assembly-manufacturing-combined.dxf');
+  });
+});
+
+// layerScheme: threads the constructor opt through to the renderer's ABF-compatible
+// layer naming (renderPanelManufacturingDxf.ts / abfLayerScheme.ts). Native/omitted
+// scheme must stay byte-for-byte the pre-existing output — covered by the pre-existing
+// tests above (OUTLINE etc.); this block only exercises the new 'abf' path.
+describe('ExportPanelManufacturingDxfCommand — layerScheme', () => {
+  it('mode:folders, layerScheme:"abf" writes ABF_cuttingLines outline + DEPTH<n> face-bore layer into the zip DXF entry', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [bore('Top', 'confirmat-face', 5, 12)] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [withBore], suggestedName: 'assembly-manufacturing.zip', layerScheme: 'abf',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const zip = unzipSync(bytes);
+    const dxf = strFromU8(zip['White_18/item-1-Side.dxf']!);
+    expect(dxf).toContain('ABF_cuttingLines');
+    expect(dxf).toContain('DEPTH12');
+  });
+
+  it('mode:folders, layerScheme omitted: no ABF_cuttingLines token appears', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [bore('Top', 'confirmat-face', 5, 12)] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [withBore], suggestedName: 'assembly-manufacturing.zip',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const zip = unzipSync(bytes);
+    const dxf = strFromU8(zip['White_18/item-1-Side.dxf']!);
+    expect(dxf).not.toContain('ABF_cuttingLines');
+  });
+
+  it('mode:combined, layerScheme:"abf" writes ABF_cuttingLines outline + DEPTH<n> face-bore layer into the combined DXF bytes', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [bore('Top', 'confirmat-face', 5, 12)] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [withBore], suggestedName: 'assembly-manufacturing.zip', mode: 'combined', layerScheme: 'abf',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const dxf = new TextDecoder().decode(bytes);
+    expect(dxf).toContain('ABF_cuttingLines');
+    expect(dxf).toContain('DEPTH12');
+  });
+
+  it('mode:combined, layerScheme omitted: no ABF_cuttingLines token appears', async () => {
+    const withBore: PanelManufacturingInput = { ...input(1, 'Side'), bores: [bore('Top', 'confirmat-face', 5, 12)] };
+    const stub = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) });
+    (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker = stub;
+    try {
+      await new ExportPanelManufacturingDxfCommand({
+        inputs: [withBore], suggestedName: 'assembly-manufacturing.zip', mode: 'combined',
+      }).apply();
+    } finally {
+      delete (globalThis as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+    }
+    const bytes = (globalThis as unknown as { __zilventorManufacturingDxfBytes?: Uint8Array }).__zilventorManufacturingDxfBytes!;
+    const dxf = new TextDecoder().decode(bytes);
+    expect(dxf).not.toContain('ABF_cuttingLines');
   });
 });

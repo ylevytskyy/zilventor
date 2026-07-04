@@ -20,6 +20,9 @@ export interface DrawerSlideCtx {
   cabinet: { H: number; D: number; Tc: number };
   box: { bd: number; bw?: number };
   slideLength: number;
+  /** Hardware-catalog SKU for the slide, resolved by AddDrawerBankCommand; stamped onto
+   *  every emitted BoreOp.sku when present. Absent-not-set contract (exactOptionalPropertyTypes). */
+  slideSkuId?: string;
 }
 
 /**
@@ -42,7 +45,7 @@ export function drawerSlideMath(ctx: DrawerSlideCtx): {
   cabinetBores: BoreOp[];
   boxBores: BoreOp[];
 } {
-  const { drawerIndex: i, openBottomZ, slotH, bh, slideLength } = ctx;
+  const { drawerIndex: i, openBottomZ, slotH, bh, slideLength, slideSkuId } = ctx;
 
   // Rail center in world space — the independent oracle target (§14.4)
   const slideWorldZ = openBottomZ + i * slotH + BOX_VERT_CLEARANCE + bh / 2;
@@ -86,6 +89,7 @@ export function drawerSlideMath(ctx: DrawerSlideCtx): {
         role: 'drawerSlide-cabinet' as BoreRole,
         connectorId,
         connectorKind: 'drawerSlide',
+        ...(slideSkuId ? { sku: slideSkuId } : {}),
       });
       boxBores.push({
         id: `drawerSlide-${i}-${side}-box-${k}`,
@@ -97,6 +101,7 @@ export function drawerSlideMath(ctx: DrawerSlideCtx): {
         role: 'drawerSlide-box' as BoreRole,
         connectorId,
         connectorKind: 'drawerSlide',
+        ...(slideSkuId ? { sku: slideSkuId } : {}),
       });
     });
   }

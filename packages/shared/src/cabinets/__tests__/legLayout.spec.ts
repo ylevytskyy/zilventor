@@ -41,4 +41,15 @@ describe('legLevelerBores', () => {
     }
     expect(new Set(bores.map((b) => b.id)).size).toBe(4); // unique ids
   });
+
+  it('stamps sku onto every bore when the optional sku arg is passed', () => {
+    const bores = legLevelerBores({ u: 100, v: 200 }, spec, face, 'leg-0', 'leg-leveler-100');
+    expect(bores).toHaveLength(4);
+    for (const b of bores) expect(b.sku).toBe('leg-leveler-100');
+  });
+
+  it('omits sku when the optional sku arg is absent', () => {
+    const bores = legLevelerBores({ u: 100, v: 200 }, spec, face, 'leg-0');
+    for (const b of bores) expect('sku' in b).toBe(false);
+  });
 });

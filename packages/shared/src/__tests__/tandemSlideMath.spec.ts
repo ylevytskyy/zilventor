@@ -207,4 +207,17 @@ describe('tandemSlideMath', () => {
       expect(boxLocalZ).toBeCloseTo(TANDEM_CABINET_RUNNER_HEIGHT, 6);
     }
   });
+
+  it('stamps sku when slideSkuId present', () => {
+    const withSku = tandemSlideMath({ ...ctx, slideSkuId: 'drawer-slide-tandem-500' });
+    withSku.cabinetBores.forEach((b) => expect(b.sku).toBe('drawer-slide-tandem-500'));
+    withSku.boxBottomBores.forEach((b) => expect(b.sku).toBe('drawer-slide-tandem-500'));
+    withSku.boxBackBores.forEach((b) => expect(b.sku).toBe('drawer-slide-tandem-500'));
+  });
+
+  it('omits sku when absent', () => {
+    r.cabinetBores.forEach((b) => expect('sku' in b).toBe(false));
+    r.boxBottomBores.forEach((b) => expect('sku' in b).toBe(false));
+    r.boxBackBores.forEach((b) => expect('sku' in b).toBe(false));
+  });
 });

@@ -816,6 +816,16 @@ describe('dxfExportMode', () => {
   });
 });
 
+describe('layerScheme', () => {
+  it('defaults to native and setLayerScheme switches it', () => {
+    expect(useAppStore.getState().layerScheme).toBe('native');
+    useAppStore.getState().setLayerScheme('abf');
+    expect(useAppStore.getState().layerScheme).toBe('abf');
+    useAppStore.getState().setLayerScheme('native');
+    expect(useAppStore.getState().layerScheme).toBe('native');
+  });
+});
+
 describe('machiningPresetsDialogOpen', () => {
   it('defaults to closed and toggleMachiningPresetsDialog opens/closes it', () => {
     expect(useAppStore.getState().machiningPresetsDialogOpen).toBe(false);

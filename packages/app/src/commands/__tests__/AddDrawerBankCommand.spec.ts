@@ -264,6 +264,8 @@ describe('AddDrawerBankCommand — apply (H1)', () => {
 
     expect(leftSlideBores.length).toBeGreaterThan(0);
     expect(rightSlideBores.length).toBeGreaterThan(0);
+    leftSlideBores.forEach((b) => expect(b.sku).toBe(DEFAULT_DRAWER_SLIDE_SKU));
+    rightSlideBores.forEach((b) => expect(b.sku).toBe(DEFAULT_DRAWER_SLIDE_SKU));
   });
 
   it('degenerate guard (C-8): openW ≤ 57 → apply() rejects with drawerBank.error.tooSmall, 0 components added', async () => {

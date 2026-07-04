@@ -117,4 +117,25 @@ describe('handleBoreUV', () => {
       }),
     ).not.toThrow();
   });
+
+  it('stamps sku onto both bores when the optional sku field is passed', () => {
+    const [b0, b1] = handleBoreUV({
+      frontHeight: 500,
+      frontWidth: 200,
+      cc: 96,
+      sku: 'bar-pull-96',
+    });
+    expect(b0.sku).toBe('bar-pull-96');
+    expect(b1.sku).toBe('bar-pull-96');
+  });
+
+  it('omits sku when the optional sku field is absent', () => {
+    const [b0, b1] = handleBoreUV({
+      frontHeight: 500,
+      frontWidth: 200,
+      cc: 96,
+    });
+    expect('sku' in b0).toBe(false);
+    expect('sku' in b1).toBe(false);
+  });
 });

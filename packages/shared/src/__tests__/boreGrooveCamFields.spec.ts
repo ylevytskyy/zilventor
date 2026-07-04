@@ -27,6 +27,27 @@ describe('BoreOp — P3 W1 CAM fields (toolNumber/speed/presetLayerName)', () =>
   });
 });
 
+describe('BoreOp — sku field', () => {
+  it('omits sku when not set (exactOptionalPropertyTypes, absent-not-set)', () => {
+    const bore: BoreOp = {
+      id: 'b1', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+    };
+    expect('sku' in bore).toBe(false);
+  });
+
+  it('accepts sku when explicitly set', () => {
+    const bore: BoreOp = {
+      id: 'b2', face: { featureId: 'panel', role: 'Left', instance: 0 },
+      u: 10, v: 20, diameter: 5, depth: 13, role: 'confirmat-face',
+      connectorId: 'c0', connectorKind: 'confirmat',
+      sku: 'BLUM-71B3550',
+    };
+    expect(bore.sku).toBe('BLUM-71B3550');
+  });
+});
+
 describe('GrooveSpec/GrooveFeature — P3 W1 CAM fields', () => {
   it('GrooveSpec omits toolNumber/speed/presetLayerName when not set', () => {
     const spec: GrooveSpec = {

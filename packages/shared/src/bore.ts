@@ -51,6 +51,12 @@ export interface BoreOp {
    *  Falls back to the existing MANUFACTURING_LAYERS scheme when absent.
    *  Absent-not-set contract (exactOptionalPropertyTypes). */
   presetLayerName?: string;
+  /** Hardware-catalog SKU (corresponds to CatalogEntry.id), set when this bore was
+   *  generated for catalog hardware. Drives the ABF-compatible DEPTH<depth>-ARTICLE<sku>
+   *  DXF layer scheme. Absent-not-set contract (exactOptionalPropertyTypes): no special-
+   *  cased fallback when absent.
+   */
+  sku?: string;
 }
 
 type Vec3 = { x: number; y: number; z: number };

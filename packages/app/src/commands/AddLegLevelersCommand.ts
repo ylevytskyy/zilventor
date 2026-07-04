@@ -153,7 +153,7 @@ export class AddLegLevelersCommand implements Command {
     const newBores = withPresetValues(positions.flatMap((pos, i) => {
       const u = pos.x - bottomComp.position.x;
       const v = dims.depth - pos.y;
-      return legLevelerBores({ u, v }, spec, face, `leg-${i}`);
+      return legLevelerBores({ u, v }, spec, face, `leg-${i}`, entry.id);
     }), this.opts.presetValues);
 
     // ─── 4. Append bores to bottom panel — one write ─────────────────────────
