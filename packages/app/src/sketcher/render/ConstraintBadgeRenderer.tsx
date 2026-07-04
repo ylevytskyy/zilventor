@@ -43,9 +43,9 @@ export function ConstraintBadgeRenderer({ primitives, constraints, worldToScreen
             }}
             onClick={(ev) => {
               ev.stopPropagation();
-              const activeSketchId = useAppStore.getState().activeSketchId;
+              const { activeSketchId, bus } = useAppStore.getState();
               if (!activeSketchId) return;
-              void new RemoveConstraintCommand(activeSketchId, c).apply();
+              void bus.execute(new RemoveConstraintCommand(activeSketchId, c));
             }}>
             {GLYPH[c.kind]}
           </button>

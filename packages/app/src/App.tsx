@@ -2082,12 +2082,12 @@ export default function App() {
         if (e.key === 'g' || e.key === 'G') {
           const sel = useAppStore.getState().selectedComponentPaths[0];
           const id = sel ? sel[sel.length - 1] ?? null : null;
-          if (id) { void new ToggleGroundedCommand({ componentId: id }).apply(); e.preventDefault(); return; }
+          if (id) { void useAppStore.getState().bus.execute(new ToggleGroundedCommand({ componentId: id })); e.preventDefault(); return; }
         }
       }
       if (isAssembly && e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
         const id = useAppStore.getState().selectedConstraintId;
-        if (id) { void new ToggleConstraintSuppressionCommand({ id }).apply(); e.preventDefault(); return; }
+        if (id) { void useAppStore.getState().bus.execute(new ToggleConstraintSuppressionCommand({ id })); e.preventDefault(); return; }
       }
       if (e.key === 'F7') {
         e.preventDefault();
@@ -4402,9 +4402,9 @@ export default function App() {
       ...(placeConstraintMode === 'tangent' && isCylCyl ? { r1: offsetOrAngle, r2: parseParamOrLiteral(value2Expression) } : {}),
     });
     if (editingConstraintId) {
-      await new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }).apply();
+      await useAppStore.getState().bus.execute(new EditAssemblyConstraintCommand({ id: editingConstraintId, patch: constraint }));
     } else {
-      await new AddAssemblyConstraintCommand({ constraint }).apply();
+      await useAppStore.getState().bus.execute(new AddAssemblyConstraintCommand({ constraint }));
     }
     if (close) {
       useAppStore.getState().resetPlaceConstraintDialog();
@@ -4436,7 +4436,7 @@ export default function App() {
     if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
     const cmd = new PlaceComponentCommand({ partPath, opfs: opfsRef.current });
     try {
-      await cmd.apply();
+      await useAppStore.getState().bus.execute(cmd);
     } catch (e) {
       console.error('Place failed:', e);
     }
@@ -4448,7 +4448,7 @@ export default function App() {
     if (!id) return;
     const cmd = new EditComponentCommand({ id, patch });
     try {
-      await cmd.apply();
+      await useAppStore.getState().bus.execute(cmd);
     } catch (e) {
       console.error('Edit failed:', e);
     }
@@ -5032,7 +5032,7 @@ export default function App() {
       store: { setActivePart: useAppStore.getState().setActivePart },
     });
     try {
-      await cmd.apply();
+      await useAppStore.getState().bus.execute(cmd);
     } catch (e) {
       console.error('Sweep commit failed:', e);
     }
@@ -5052,7 +5052,7 @@ export default function App() {
       kernel, registry: parameterRegistry,
       store: { setActivePart: useAppStore.getState().setActivePart },
     });
-    try { await cmd.apply(); } catch (e) { console.error('WorkPlane commit failed:', e); }
+    try { await useAppStore.getState().bus.execute(cmd); } catch (e) { console.error('WorkPlane commit failed:', e); }
     useAppStore.getState().resetWorkPlaneDialog();
   }, [activePart, kernel]);
 
@@ -5069,7 +5069,7 @@ export default function App() {
       kernel, registry: parameterRegistry,
       store: { setActivePart: useAppStore.getState().setActivePart },
     });
-    try { await cmd.apply(); } catch (e) { console.error('WorkAxis commit failed:', e); }
+    try { await useAppStore.getState().bus.execute(cmd); } catch (e) { console.error('WorkAxis commit failed:', e); }
     useAppStore.getState().resetWorkAxisDialog();
   }, [activePart, kernel]);
 
@@ -5086,7 +5086,7 @@ export default function App() {
       kernel, registry: parameterRegistry,
       store: { setActivePart: useAppStore.getState().setActivePart },
     });
-    try { await cmd.apply(); } catch (e) { console.error('WorkPoint commit failed:', e); }
+    try { await useAppStore.getState().bus.execute(cmd); } catch (e) { console.error('WorkPoint commit failed:', e); }
     useAppStore.getState().resetWorkPointDialog();
   }, [activePart, kernel]);
 

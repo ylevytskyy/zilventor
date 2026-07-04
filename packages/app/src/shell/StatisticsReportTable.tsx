@@ -19,6 +19,7 @@ function PriceCell({ line }: { line: StatisticsReportLine }): JSX.Element {
   const { t } = useTranslation();
   const [value, setValue] = useState(line.unitPrice !== undefined ? String(round2(line.unitPrice)) : '');
   const [asDefault, setAsDefault] = useState(false);
+  const bus = useAppStore((s) => s.bus);
 
   useEffect(() => {
     setValue(line.unitPrice !== undefined ? String(round2(line.unitPrice)) : '');
@@ -27,7 +28,7 @@ function PriceCell({ line }: { line: StatisticsReportLine }): JSX.Element {
   const commit = (): void => {
     const n = Number(value);
     if (!Number.isFinite(n) || n < 0) return;
-    void new SetUnitPriceCommand({ key: line.key, price: n }).apply();
+    void bus.execute(new SetUnitPriceCommand({ key: line.key, price: n }));
     if (asDefault) useAppStore.getState().setDefaultPrice(line.key, n);
   };
 
