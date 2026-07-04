@@ -4,3 +4,4 @@ export * from './cornerCabinet';
 export * from './legLayout';
 export * from './blindCornerCabinet';
 export * from './diagonalCornerCabinet';
+export * from './repairCabinetPose';
