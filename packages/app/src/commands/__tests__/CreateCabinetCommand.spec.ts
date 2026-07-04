@@ -24,11 +24,21 @@ vi.mock('@zilventor/shared', async (importOriginal) => {
       registry: Parameters<typeof actual.buildBaseCabinet>[1],
     ) => {
       const built = actual.buildBaseCabinet(params, registry);
-      if (params.name !== 'Pose Passthrough') return built;
-      return {
-        ...built,
-        layout: built.layout.map((c, i) => (i === 0 ? { ...c, pose: TEST_POSE } : c)),
-      };
+      if (params.name === 'Pose Passthrough') {
+        return {
+          ...built,
+          layout: built.layout.map((c, i) => (i === 0 ? { ...c, pose: TEST_POSE } : c)),
+        };
+      }
+      if (params.name === 'Pose Absent') {
+        // Slice 3 gave every real template entry a pose; strip them so the
+        // absence-stays-absent contract can still be exercised.
+        return {
+          ...built,
+          layout: built.layout.map(({ pose: _pose, ...rest }) => rest),
+        };
+      }
+      return built;
     },
   };
 });
@@ -445,11 +455,15 @@ describe('CreateCabinetCommand — layout pose threading', () => {
   it('leaves pose truly absent (no key) when the layout entry has none', async () => {
     seedAssembly();
     const opfs = new MemOpfs();
-    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Pose Absent' },
+      opfs,
+    }).apply();
 
-    const project = await unpackProject(await opfs.read('Base Cabinet 1.ziasm'));
+    const project = await unpackProject(await opfs.read('Pose Absent.ziasm'));
     const doc = (project.manifest as { document: { components: Array<{ partPath: string }> } }).document;
-    const leftSide = doc.components.find((c) => c.partPath === 'Base Cabinet 1 - Left Side.zipt')!;
+    const leftSide = doc.components.find((c) => c.partPath === 'Pose Absent - Left Side.zipt')!;
     expect('pose' in leftSide).toBe(false);
   });
 });
