@@ -188,6 +188,7 @@
     "axis_v": "V (мм)",
     "column_start_offset": "Початковий відступ колонки (мм)",
     "diameter_mm": "Ø (мм)",
+    "flip_face": "Перевернути грань",
     "height": "Висота",
     "machining_preset": "Пресет обробки",
     "regenerate_to_enable_move": "Регенеруйте присадку для переміщення",

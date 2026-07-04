@@ -9,6 +9,7 @@ import { ApplyMachiningPresetCommand } from '../commands/ApplyMachiningPresetCom
 import { DeleteConnectorCommand } from '../commands/DeleteConnectorCommand';
 import { MoveConnectorCommand } from '../commands/MoveConnectorCommand';
 import { UpdateShelfPinStartOffsetCommand } from '../commands/UpdateShelfPinStartOffsetCommand';
+import { FlipBoreFaceCommand } from '../commands/FlipBoreFaceCommand';
 import { collectConnectorMembers } from './collectConnectorMembers';
 
 type OpfsRW = { read(p: string): Promise<Uint8Array>; write(p: string, b: Uint8Array): Promise<void> };
@@ -161,6 +162,7 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
   const hasJointDir = bore.connectorKind === 'confirmat' || bore.connectorKind === 'minifix' || bore.connectorKind === 'dowel';
   const isHinge = bore.connectorKind === 'hinge';
   const isShelfPin = bore.role === 'shelfPin-system32';
+  const isBroadFace = bore.face.role === 'Top' || bore.face.role === 'Bottom';
 
   // The persisted (committed) start offset for the selected panel's grid.
   const persistedOffset = getLiveDoc(selectedBorePartPath)?.shelfPinParams?.startOffset ?? 0;
@@ -265,6 +267,22 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
     useAppStore.getState().setSelectedBore(null, null);
   }
 
+  function handleFlipFace() {
+    const panelDims = getConnectorDocs().find((d) => d.partPath === selectedBorePartPath)?.panelDims;
+    if (!panelDims) return;
+    const liveDoc = getLiveDoc(selectedBorePartPath!);
+    if (!liveDoc) return;
+    const liveBore = (liveDoc.bores ?? []).find((b) => b.id === selectedBoreId);
+    if (!liveBore) return;
+    void bus.execute(new FlipBoreFaceCommand({
+      bore: liveBore,
+      panelDims,
+      partPath: selectedBorePartPath!,
+      doc: liveDoc,
+      opfs: opfs ?? null,
+    }));
+  }
+
   return (
     <div style={{ padding: '8px 12px', borderTop: '1px solid #333', fontSize: 11 }}>
       <div style={{ fontWeight: 600, marginBottom: 6, color: '#ccc' }}>
@@ -347,6 +365,14 @@ export function BorePropertiesPanel({ getLiveBores, getLiveDoc, getConnectorDocs
             {t('common.apply')}
           </button>
         </label>
+      )}
+      {isBroadFace && (
+        <button
+          onClick={handleFlipFace}
+          style={{ marginTop: 6, marginRight: 6, fontSize: 11, padding: '2px 10px', background: '#2a2a2a', color: '#eee', border: '1px solid #555', borderRadius: 2, cursor: 'pointer' }}
+        >
+          {t('bore.flip_face', 'Flip face')}
+        </button>
       )}
       <button
         onClick={handleDelete}

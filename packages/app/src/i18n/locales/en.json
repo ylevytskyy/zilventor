@@ -188,6 +188,7 @@
     "axis_v": "V (mm)",
     "column_start_offset": "Column start offset (mm)",
     "diameter_mm": "Ø (mm)",
+    "flip_face": "Flip face",
     "height": "Height",
     "machining_preset": "Machining preset",
     "regenerate_to_enable_move": "Regenerate bores to enable move",
