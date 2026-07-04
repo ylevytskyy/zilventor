@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderPanelManufacturingDxf, tenonMortiseRects } from '../renderPanelManufacturingDxf';
+import { renderPanelManufacturingDxf, tenonMortiseRects, boreToFlat } from '../renderPanelManufacturingDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
 import type { BoreOp, GrooveFeature, TenonMortiseFeature, KeyholeSlotFeature } from '@zilventor/shared';
 import { parseDxf, syntheticSideBoreToReal } from '@zilventor/shared';
@@ -102,6 +102,18 @@ describe('renderPanelManufacturingDxf — bores', () => {
     // Top case: x=u=9, y=v=300 (both coordinates used) — NOT x=len=800 (the Right-case constant,
     // which boreToFlat's Left/Right branches would have pinned x to, ignoring u entirely).
     expect(dxf).toMatch(/CIRCLE[\s\S]*?\n9\.0+\n[\s\S]*?\n300\.0+\n/);
+  });
+});
+
+// Groundwork for docs/superpowers/plans/2026-07-04-flip-fence-ratification.md (Q2): pins
+// boreToFlat's EXISTING Bottom-face mirror convention (v mirrors across panel width, u
+// unchanged) as pre-existing, verified display behavior — distinct from any future flip-fence
+// convention the ratification doc's Q2 may settle on.
+describe('boreToFlat — Bottom-face mirror convention (pre-existing, pinned)', () => {
+  it('mirrors v across panel width and leaves u unchanged for a Bottom-role bore', () => {
+    const b = bore('Bottom', 10, 20, 8, 12); // u=10, v=20 on an 800x600 panel
+    const flat = boreToFlat(b, 800, 600);
+    expect(flat).toEqual({ x: 10, y: 580, layer: 'BORES-BACK-8MM' }); // y = wid(600) - v(20)
   });
 });
 
