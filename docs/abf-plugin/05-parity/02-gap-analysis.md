@@ -67,7 +67,7 @@ Correction to the outline's framing: ZilInventor's DXF codec targets **AC1015 (A
 
 Both tools are DXF-only for CNC output — neither ships MPR, XNC, CIX, or any other CAM-native format. ZilInventor's CIX support is explicitly deferred pending a real sample file (per the inventory); ABF's roadmap only gestures at "other machine manufacturers' input standards" generically, unshipped.
 
-**Update (2026-07-04):** a real ABF flatten DXF sample has since been analyzed at byte level — see [`04-abf-flatten-dxf-sample-analysis.md`](04-abf-flatten-dxf-sample-analysis.md), whose §7 gap table supersedes the format-detail deltas below wherever they conflict (it confirms ABF's version is AC1021, documents the actual layer grammar, and identifies a live OCS-extrusion defect in ZilInventor's importer for this file class).
+**Update (2026-07-04):** a real ABF flatten DXF sample has since been analyzed at byte level — see [`04-abf-flatten-dxf-sample-analysis.md`](04-abf-flatten-dxf-sample-analysis.md), whose §7 gap table supersedes the format-detail deltas below wherever they conflict (it confirms ABF's version is AC1021, documents the actual layer grammar, and EXEC-verifies ZilInventor's importer resolves the file class's block-internal OCS extrusion correctly; `ATTRIB` part-name parsing shipped 2026-07-04, so the file class imports with panel identity intact).
 
 Confirmed deltas:
 

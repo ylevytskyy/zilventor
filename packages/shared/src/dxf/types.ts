@@ -14,7 +14,7 @@ export type DxfEntity =
   | (DxfEntityCommon & { type: 'MTEXT'; x: number; y: number; height: number; value: string; rotation: number })
   | (DxfEntityCommon & { type: 'LWPOLYLINE'; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion })
   | (DxfEntityCommon & { type: 'POLYLINE'; closed: boolean; vertices: Array<{ x: number; y: number; bulge: number }>; extrusion?: DxfExtrusion })
-  | (DxfEntityCommon & { type: 'INSERT'; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number; columns: number; rows: number; colSpacing: number; rowSpacing: number })
+  | (DxfEntityCommon & { type: 'INSERT'; name: string; x: number; y: number; xscale: number; yscale: number; rotation: number; columns: number; rows: number; colSpacing: number; rowSpacing: number; attribs?: Array<{ tag: string; value: string }> })
   | (DxfEntityCommon & { type: 'SPLINE'; degree: number; closed: boolean; controlPoints: Array<{ x: number; y: number }>; fitPoints: Array<{ x: number; y: number }>; knots: number[]; weights: number[] })
   | (DxfEntityCommon & { type: 'ELLIPSE'; cx: number; cy: number; majorX: number; majorY: number; ratio: number; startParam: number; endParam: number; extrusion?: DxfExtrusion })
   | (DxfEntityCommon & { type: 'POINT'; x: number; y: number; extrusion?: DxfExtrusion })

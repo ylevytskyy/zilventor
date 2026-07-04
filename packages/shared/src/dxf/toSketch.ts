@@ -290,7 +290,9 @@ function buildCurveFromEllipse(
  *
  * 4b SIMPLIFYING ASSUMPTIONS (revisit in 4c):
  * - w/h of a rectangle are not scaled (same reasoning as before).
- * - Block-internal entities ignore their own OCS extrusion under an insert (rare, deferred).
+ * (Block-internal OCS extrusion, formerly deferred here, is handled since 4c: block-internal
+ * entities route through the same ocsXY/ocsReflected-aware mapping as top-level ones —
+ * regression-locked in toSketch.spec.ts "block-internal OCS extrusion".)
  */
 export function transformPrimitive(m: Affine, p: SketchPrimitive): SketchPrimitive {
   // Carry color/lineStyle through the transform (Task 5). SketchStyle is the precise type.
