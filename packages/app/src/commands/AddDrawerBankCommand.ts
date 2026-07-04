@@ -312,6 +312,7 @@ export class AddDrawerBankCommand implements Command {
         cabinet: { H: dims.height, D: dims.depth, Tc: dims.Tc },
         box: { bd: boxResult.outer.depth, bw: boxResult.outer.width },
         slideLength: boxResult.outer.depth,
+        slideSkuId,
       };
 
       if (isTandem) {

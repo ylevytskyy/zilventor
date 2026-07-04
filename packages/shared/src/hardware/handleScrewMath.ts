@@ -36,6 +36,8 @@ export interface HandleBoreInput {
    * connectorIds don't collide across drawer fronts.
    */
   idPrefix?: string;
+  /** Caller-resolved hardware-catalog id (CatalogEntry.id), stamped onto both bores. */
+  sku?: string;
 }
 
 const BORE_DIAMETER = 5;
@@ -52,7 +54,7 @@ const BORE_FACE: FaceName = { featureId: 'panel', role: 'Top', instance: 0 };
  * Each bore gets a DISTINCT `connectorId` (§13.4) so the BOM counts 2 screws per pull.
  */
 export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
-  const { frontHeight, frontWidth, cc, idPrefix = 'hdl' } = input;
+  const { frontHeight, frontWidth, cc, idPrefix = 'hdl', sku } = input;
 
   // §13.1-B5 / PC-1 width guard: bores span v = width/2 ± cc/2;
   // outermost bore edge at v = width/2 + cc/2 + diameter/2 = (cc + diameter)/2 + width/2
@@ -89,6 +91,7 @@ export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
     role: 'handleScrew-face',
     connectorId: connectorId0,
     connectorKind: 'handleScrew',
+    ...(sku ? { sku } : {}),
   };
 
   const bore1: BoreOp = {
@@ -101,6 +104,7 @@ export function handleBoreUV(input: HandleBoreInput): [BoreOp, BoreOp] {
     role: 'handleScrew-face',
     connectorId: connectorId1,
     connectorKind: 'handleScrew',
+    ...(sku ? { sku } : {}),
   };
 
   return [bore0, bore1];

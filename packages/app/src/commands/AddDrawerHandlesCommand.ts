@@ -159,6 +159,7 @@ export class AddDrawerHandlesCommand implements Command {
         frontWidth,
         cc,
         idPrefix,
+        sku: catalogEntry.id,
       });
 
       // 5d. Append bores to front doc and write back

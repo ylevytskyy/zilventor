@@ -210,6 +210,7 @@ export function buildBlindCornerCabinet(
     openingSide,
     'full',
     uPositions,
+    'hinge-35mm-cup-full', // matches this template's hardware skuId below
   );
 
   // Plate bores on the live-side carcass panel via the shared `hingePlateBores`
@@ -223,6 +224,8 @@ export function buildBlindCornerCabinet(
     innerFace,
     uPositions,
     frontSetback,
+    undefined,
+    'hinge-35mm-cup-full', // matches this template's hardware skuId below
   );
 
   return {

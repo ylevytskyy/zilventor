@@ -275,4 +275,21 @@ describe('AddDrawerHandlesCommand', () => {
     const handleComps = updatedCab.components.filter((c) => c.role === 'drawerHandle');
     expect(handleComps).toHaveLength(0);
   });
+
+  it('F6-sku: stamps sku=bar-pull-128 onto every handleScrew bore', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinetWithFronts(opfs, 2);
+
+    const cmd = new AddDrawerHandlesCommand({ cabinetPath, cc: 128, opfs });
+    await cmd.apply();
+
+    const updatedCab = await unpackAssembly(await opfs.read(cabinetPath));
+    const frontComps = updatedCab.components.filter((c) => c.role === 'drawerFront');
+    for (const fc of frontComps) {
+      const bores = await boresOf(opfs, fc.partPath);
+      const handleBores = bores.filter((b) => b.connectorKind === 'handleScrew');
+      expect(handleBores.length).toBe(2);
+      for (const b of handleBores) expect(b.sku).toBe('bar-pull-128');
+    }
+  });
 });

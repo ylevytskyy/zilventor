@@ -341,3 +341,21 @@ describe('AddLegLevelersCommand — presetValues snapshot (P9 W2b)', () => {
     }
   });
 });
+
+describe('AddLegLevelersCommand — SKU stamping', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('stamps sku=leg-leveler-100 (the default skuId) onto every generated bore', async () => {
+    const opfs = new MemOpfs();
+    const cabinetPath = await seedCabinet(opfs);
+    await new AddLegLevelersCommand({ cabinetPath, params: { legsPerRow: R }, opfs, kernel: makeKernel() }).execute();
+
+    const legBores = (await boresOf(opfs, 'B.zipt')).filter((b) => b.role === 'legLeveler');
+    expect(legBores.length).toBe(4 * (2 * R));
+    for (const b of legBores) expect(b.sku).toBe('leg-leveler-100');
+  });
+});

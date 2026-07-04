@@ -151,6 +151,8 @@ describe('AddDrawerBankCommand — slideSystem=tandem (M4-C)', () => {
         b.v === TANDEM_CABINET_FRONT_SETBACK,
     );
     expect(leftFrontFix, 'expected front-fixing tandem-cabinet bore on left side at correct (u,v)').toBeDefined();
+    leftBores.filter((b) => b.role === 'tandem-cabinet').forEach((b) => expect(b.sku).toBe(DEFAULT_TANDEM_SLIDE_SKU));
+    rightBores.filter((b) => b.role === 'tandem-cabinet').forEach((b) => expect(b.sku).toBe(DEFAULT_TANDEM_SLIDE_SKU));
   });
 
   it('tandem: drawer-box bottom panel gets tandem-drawer-bottom bores — positional', async () => {

@@ -6,6 +6,7 @@ import { unpackProject, packProject } from '@zilventor/kernel/src/storage/Projec
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
 import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AssemblyDocument, BoreOp, DoorMathInput, MachiningPresetValues, PartDocument } from '@zilventor/shared';
+import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 
 class MemOpfs {
   files = new Map<string, Uint8Array>();
@@ -438,5 +439,36 @@ describe('AddDoorCommand — machining-preset snapshot (P15)', () => {
       expect(b.toolNumber).toBeUndefined();
       expect(b.speed).toBeUndefined();
     }
+  });
+});
+
+// ── SKU stamping: hinge-35mm-cup-<overlay> onto cup + plate bores ──
+
+describe('AddDoorCommand — SKU stamping (hinge-35mm-cup-<overlay>)', () => {
+  beforeEach(() => {
+    useAppStore.getState().setActiveDocument(null);
+    useAppStore.getState().setSubAssemblyDocs({});
+    useAppStore.getState().setBoreCacheInvalidator(null);
+  });
+
+  it('stamps sku=hinge-35mm-cup-full onto every cup and plate bore for overlay=full', async () => {
+    // SINGLE_DOOR_ZERO_DIMS uses overlay:'full' — must resolve to the BUILTIN_CATALOG entry.
+    expect(BUILTIN_CATALOG.some((e) => e.id === 'hinge-35mm-cup-full')).toBe(true);
+
+    const opfs = new MemOpfs();
+    const kernel = makeKernel();
+    const cabinetPath = await seedCabinet(opfs);
+
+    await new AddDoorCommand({ cabinetPath, params: SINGLE_DOOR_ZERO_DIMS, opfs, kernel }).apply();
+
+    const cab = await unpackAssembly(await opfs.read(cabinetPath));
+    const door = cab.components.find((c) => c.role === 'door')!;
+    const cupBores = (await boresOf(opfs, door.partPath)).filter((b) => b.role === 'hingeCup');
+    expect(cupBores.length).toBeGreaterThan(0);
+    for (const b of cupBores) expect(b.sku).toBe('hinge-35mm-cup-full');
+
+    const plateBores = (await boresOf(opfs, 'L.zipt')).filter((b) => b.role === 'hingePlate');
+    expect(plateBores.length).toBeGreaterThan(0);
+    for (const b of plateBores) expect(b.sku).toBe('hinge-35mm-cup-full');
   });
 });

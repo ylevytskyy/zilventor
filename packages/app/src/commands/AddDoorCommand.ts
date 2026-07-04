@@ -26,6 +26,7 @@ import {
   LEFT_SIDE_INNER_FACE,
   RIGHT_SIDE_INNER_FACE,
 } from '@zilventor/shared';
+import { BUILTIN_CATALOG } from '@zilventor/shared/src/hardware/builtinCatalog';
 import { newPart, addFeature } from '@zilventor/kernel/src/adapter/PartDocument';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import { packAssembly, unpackAssembly } from '@zilventor/kernel/src/storage/AssemblyPacker';
@@ -209,12 +210,17 @@ export class AddDoorCommand implements Command {
         // Cup bores on the carcass-facing broad face.
         // DOOR_CUP_FACE is imported from prisadkaFaceConventions.ts (Phase 0 output, §1).
         const uPositions = hingePositions(doorH, panel.doorSpec.hingeCount);
+        // SKU naming convention `hinge-35mm-cup-<overlay>` mirrors builtinCatalog.ts's
+        // BUILTIN_CATALOG entries (id: 'hinge-35mm-cup-full' | '-half' | '-inset').
+        const hingeSku = `hinge-35mm-cup-${resolvedParams.overlay}`;
+        const cupSku = BUILTIN_CATALOG.find((e) => e.id === hingeSku)?.id;
         const cupBores: BoreOp[] = withPresetValues(hingeCupBores(
           panel.dims,
           DOOR_CUP_FACE,
           panel.doorSpec.hingeSide,
           resolvedParams.overlay,
           uPositions,
+          cupSku,
         ), this.opts.cupPresetValues);
 
         // ADDENDUM §5: packDoorZipt is async (writeTarGz returns Promise<Uint8Array>).
@@ -365,11 +371,17 @@ export class AddDoorCommand implements Command {
       const dH = dp?.length.value ?? 0;
       const uPositions = hingePositions(dH, spec.hingeCount);
 
+      // SKU naming convention `hinge-35mm-cup-<overlay>` mirrors builtinCatalog.ts's
+      // BUILTIN_CATALOG entries (id: 'hinge-35mm-cup-full' | '-half' | '-inset').
+      const hingeSku = `hinge-35mm-cup-${spec.overlay}`;
+      const plateSku = BUILTIN_CATALOG.find((e) => e.id === hingeSku)?.id;
       const plates: BoreOp[] = withPresetValues(hingePlateBores(
         side.dims,
         sideInnerFace(spec.hingeSide),
         uPositions,
         DEFAULT_SHELF_PIN_PARAMS.frontSetback, // plate column coincides with система-32 front column
+        undefined,
+        plateSku,
       ), this.opts.platePresetValues);
 
       // Snapshot prior bores once per side path (idempotent across doors sharing a side).

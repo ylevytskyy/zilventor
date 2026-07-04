@@ -43,6 +43,7 @@ export function hingeCupBores(
   hingeSide: 'left' | 'right',
   overlay: 'full' | 'half' | 'inset',
   uPositions: number[],
+  sku?: string, // caller-resolved hardware-catalog id (CatalogEntry.id), stamped onto every cup
 ): BoreOp[] {
   const setback = CUP_SETBACK[overlay];
   const v = hingeSide === 'left' ? setback : doorDims.width - setback;
@@ -56,6 +57,7 @@ export function hingeCupBores(
     role: 'hingeCup' as BoreRole,
     connectorId: `hinge-${i}`,
     connectorKind: 'hinge',
+    ...(sku ? { sku } : {}),
   }));
 }
 
@@ -71,6 +73,7 @@ export function hingePlateBores(
   uPositions: number[],
   frontSetback: number,
   params?: { diameter?: number; depth?: number; pairSpacing?: number },
+  sku?: string, // caller-resolved hardware-catalog id (CatalogEntry.id), stamped onto every plate hole
 ): BoreOp[] {
   const diameter = params?.diameter ?? PLATE_DIAMETER;
   const depth = params?.depth ?? PLATE_DEPTH;
@@ -89,6 +92,7 @@ export function hingePlateBores(
         role: 'hingePlate' as BoreRole,
         connectorId: `hinge-${i}`,
         connectorKind: 'hinge',
+        ...(sku ? { sku } : {}),
       });
     }
   });

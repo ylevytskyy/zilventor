@@ -15,6 +15,7 @@ import {
 import { face2DFrame } from '../bore';
 import { DOOR_CUP_FACE, LEFT_SIDE_INNER_FACE } from '../prisadkaFaceConventions';
 import type { BoreOp } from '../bore';
+import { BUILTIN_CATALOG } from '../hardware/builtinCatalog';
 
 // Door part dims: length=doorH, width=doorW, thickness=Td (buildPanelBox convention).
 const DOOR_DIMS = { length: 716, width: 596, thickness: 18 };
@@ -131,6 +132,17 @@ describe('hingeCupBores — Ø35 cups on the door broad face', () => {
     expect(inset[0]!.v).toBeCloseTo(CUP_SETBACK.inset, 6);
     expect(CUP_SETBACK.inset).toBeGreaterThan(CUP_SETBACK.full);
   });
+
+  it('stamps sku onto every cup bore when the optional sku arg is passed', () => {
+    const bores = hingeCupBores(DOOR_DIMS, DOOR_CUP_FACE, 'left', 'full', u, 'hinge-35mm-cup-full');
+    expect(bores.length).toBeGreaterThan(0);
+    for (const b of bores) expect(b.sku).toBe('hinge-35mm-cup-full');
+  });
+
+  it('omits sku when the optional sku arg is absent', () => {
+    const bores = hingeCupBores(DOOR_DIMS, DOOR_CUP_FACE, 'left', 'full', u);
+    for (const b of bores) expect('sku' in b).toBe(false);
+  });
 });
 
 describe('hingePlateBores — Ø5 plate holes on the side broad face', () => {
@@ -173,4 +185,25 @@ describe('hingePlateBores — Ø5 plate holes on the side broad face', () => {
     const cupIds = new Set(cups.map((b) => b.connectorId));
     for (const p of plates) expect(cupIds.has(p.connectorId)).toBe(true);
   });
+
+  it('stamps sku onto every plate bore when the optional sku arg is passed', () => {
+    const bores = hingePlateBores(SIDE_DIMS, LEFT_SIDE_INNER_FACE, u, FRONT_SETBACK, undefined, 'hinge-35mm-cup-full');
+    expect(bores.length).toBeGreaterThan(0);
+    for (const b of bores) expect(b.sku).toBe('hinge-35mm-cup-full');
+  });
+
+  it('omits sku when the optional sku arg is absent', () => {
+    const bores = hingePlateBores(SIDE_DIMS, LEFT_SIDE_INNER_FACE, u, FRONT_SETBACK);
+    for (const b of bores) expect('sku' in b).toBe(false);
+  });
+});
+
+describe('hinge-35mm-cup-<overlay> catalog naming convention (locking test)', () => {
+  it.each(['full', 'half', 'inset'] as const)(
+    'BUILTIN_CATALOG contains an entry with id hinge-35mm-cup-%s',
+    (overlay) => {
+      const id = `hinge-35mm-cup-${overlay}`;
+      expect(BUILTIN_CATALOG.some((e) => e.id === id)).toBe(true);
+    },
+  );
 });
