@@ -181,6 +181,38 @@ export function PanelDialog(): JSX.Element | null {
 
   const [showRegistry, setShowRegistry] = React.useState(false);
 
+  // Re-sync local field state whenever a new dialog request opens. PanelDialog
+  // is rendered unconditionally by App (`<PanelDialog />`, never unmounted),
+  // so the useState lazy initializers above only ever run ONCE — on the very
+  // first render, back when `panelDialog` was still null (`initial` was
+  // `undefined`). Every subsequent `setPanelDialog({..., initial})` call (e.g.
+  // Convert-imported-part-to-panel's derived draft) was silently ignored by
+  // the already-mounted fields. Without this effect the dialog always shows
+  // stale/default values instead of the caller-supplied `initial`.
+  React.useEffect(() => {
+    if (!panelDialog) return;
+    const init = panelDialog.initial;
+    setLength(paramOrLiteralToText(init?.length) || '600');
+    setWidth(paramOrLiteralToText(init?.width) || '400');
+    setThickness(paramOrLiteralToText(init?.thickness) || '18');
+    setThicknessFromMaterial(init ? init.thicknessFromMaterial : true);
+    setMaterialId(init ? init.materialId : (materials[0]?.id ?? ''));
+    setGrain(init?.grain ?? 'length');
+    setEdgeBands(init
+      ? {
+          front: init.edgeBands.front?.materialId ?? null,
+          back: init.edgeBands.back?.materialId ?? null,
+          left: init.edgeBands.left?.materialId ?? null,
+          right: init.edgeBands.right?.materialId ?? null,
+        }
+      : { front: null, back: null, left: null, right: null });
+    setShowRegistry(false);
+    // Intentionally keyed on `panelDialog` identity only (open/close
+    // transitions), not `materials` — the registry can change while the
+    // dialog is open (Manage… editor) without clobbering user edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelDialog]);
+
   // Esc cancel handling.
   React.useEffect(() => {
     if (!panelDialog) return;
