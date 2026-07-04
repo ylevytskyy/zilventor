@@ -5461,6 +5461,8 @@ export default function App() {
       partTessellatedFacesCacheRef.current.delete(partPath);
       partTessellatedEdgesCacheRef.current.delete(partPath);
       loadedPartDocsRef.current.delete(partPath);
+      panelSpecCacheRef.current.delete(partPath);
+      partInfoCacheRef.current.delete(partPath);
       if (stalePartId && kernelClient) {
         try { await kernelClient.deletePart(stalePartId); } catch { /* best-effort */ }
       }
@@ -5474,7 +5476,7 @@ export default function App() {
       s.setActiveDocument({ kind: 'assembly', document: { ...asmDoc.document } });
       s.setSolverDirty(true);   // NEW: geometry reflow after cache invalidation
     }
-  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef, partTessellatedEdgesCacheRef]);
+  }, [assemblyPartIdCacheRef, assemblyRefCacheRef, geometryCacheRef, partTextureIdCacheRef, partBoresCacheRef, partTessellatedFacesCacheRef, partTessellatedEdgesCacheRef, panelSpecCacheRef, partInfoCacheRef]);
 
   // Register invalidatePartPaths into the store so bore commands can self-invalidate
   // caches on both apply() AND revert() (fixing undo/redo visual staleness).
