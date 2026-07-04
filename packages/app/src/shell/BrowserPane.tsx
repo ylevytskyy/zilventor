@@ -16,6 +16,8 @@ import { buildHardwareCache } from '../assembly/walkers/buildHardwareCache';
 import { resolveHardwareCatalog } from '@zilventor/shared/src/hardware/resolveCatalog';
 import { SetComponentColorOverrideCommand } from '../commands/SetComponentColorOverrideCommand';
 import { OpenProjectFileCommand } from '../commands/OpenProjectFileCommand';
+import { RepairCabinetGeometryCommand, hasRepairableLegacyPose } from '../commands/RepairCabinetGeometryCommand';
+import { Opfs } from '@zilventor/kernel/src/storage/Opfs';
 import { EditPanelFeatureCommand } from '../commands/EditPanelFeatureCommand';
 import { OpenCutListTabCommand } from '../commands/OpenCutListTabCommand';
 import { OpenNestingTabCommand } from '../commands/OpenNestingTabCommand';
@@ -119,6 +121,18 @@ function AssemblyTree({ components, doc, constraintLabel, selectedConstraintId }
               onContextMenu={(e) => {
                 e.preventDefault();
                 if (isSubAsm) {
+                  // Legacy cabinets (built before pose.translation/quaternion existed)
+                  // carry an identity-backfilled pose on their carcass components —
+                  // offer a one-click repair before the standalone-open convention.
+                  if (child && hasRepairableLegacyPose(child)) {
+                    if (window.confirm(t('dialog.repairCabinetPose'))) {
+                      void (async () => {
+                        const opfs = await Opfs.forNavigator();
+                        await bus.execute(new RepairCabinetGeometryCommand({ cabinetPath: c.partPath, opfs }));
+                      })();
+                    }
+                    return;
+                  }
                   // Right-click on a sub-asm opens the underlying .ziasm in standalone (Inventor convention).
                   if (window.confirm(t('dialog.openStandalone', { name: partFileName }))) {
                     OpenProjectFileCommand(c.partPath);
