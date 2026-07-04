@@ -46,6 +46,29 @@ describe('abfBoreLayer', () => {
   it('whole-number depth formats without trailing .0 (8.0 → "8")', () => {
     expect(abfBoreLayer(bore({ depth: 8.0 }), 'face')).toBe('DEPTH8');
   });
+
+  it('Cyrillic sku is transliterated for DXF-ASCII safety', () => {
+    expect(abfBoreLayer(bore({ depth: 13, sku: 'Петля' }), 'face'))
+      .toBe('DEPTH13-ARTICLEPetlya');
+  });
+
+  it('$-prefixed sku passes through unchanged (real ABF SKUs are $-prefixed)', () => {
+    expect(abfBoreLayer(bore({ depth: 13, sku: '$12345' }), 'face'))
+      .toBe('DEPTH13-ARTICLE$12345');
+  });
+
+  it('spaces and punctuation in sku collapse to a single underscore', () => {
+    expect(abfBoreLayer(bore({ depth: 13, sku: 'hinge 35mm, cup/full!' }), 'face'))
+      .toBe('DEPTH13-ARTICLEhinge_35mm_cup_full');
+  });
+
+  it('empty sku keeps current behavior (no -ARTICLE suffix)', () => {
+    expect(abfBoreLayer(bore({ depth: 13, sku: '' }), 'face')).toBe('DEPTH13');
+  });
+
+  it('undefined sku keeps current behavior (no -ARTICLE suffix)', () => {
+    expect(abfBoreLayer(bore({ depth: 13 }), 'face')).toBe('DEPTH13');
+  });
 });
 
 describe('ABF_OUTLINE_LAYER', () => {
