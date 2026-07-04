@@ -129,6 +129,24 @@ export function syntheticSideBoreToReal(bore: BoreOp): BoreOp {
   return bore;
 }
 
+/**
+ * Flip a bore's face role Top<->Bottom, mirroring v across the face's v-extent
+ * (v' = vLen - v, u unchanged) — the exact convention already pinned for
+ * boreToFlat's Bottom-face rendering (renderPanelManufacturingDxf.ts).
+ * No-op (returns the SAME bore reference) for Front/Back/Left/Right.
+ */
+export function flipBoreFace(
+  bore: BoreOp,
+  panelDims: { length: number; width: number; thickness: number },
+): BoreOp {
+  const flippedRole: PanelFaceRole | null = bore.face.role === 'Top' ? 'Bottom'
+    : bore.face.role === 'Bottom' ? 'Top'
+    : null;
+  if (flippedRole === null) return bore;
+  const { vLen } = faceExtents(panelDims, bore.face.role as PanelFaceRole);
+  return { ...bore, face: { ...bore.face, role: flippedRole }, v: vLen - bore.v, edited: true };
+}
+
 export function face2DFrame(
   panelDims: { length: number; width: number; thickness: number },
   faceName: PanelFaceRole,
