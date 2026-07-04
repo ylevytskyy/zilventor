@@ -1,4 +1,4 @@
-import { renderPanelManufacturingDxf, renderCombinedManufacturingDxf, type PanelManufacturingInput } from '../drawing/renderPanelManufacturingDxf';
+import { renderPanelManufacturingDxf, renderCombinedManufacturingDxf, type PanelManufacturingInput, type LayerScheme } from '../drawing/renderPanelManufacturingDxf';
 import { buildManufacturingCsv } from '../drawing/manufacturingCsv';
 import { buildDxfZip } from '../drawing/dxfZip';
 import { triggerDownload } from '../nesting/triggerDownload';
@@ -41,18 +41,22 @@ function materialFolder(materialName: string, materialId: string | undefined): s
 
 export function buildManufacturingZipEntries(
   inputs: PanelManufacturingInput[],
+  opts?: { layerScheme?: LayerScheme },
 ): Record<string, string> {
   const entries: Record<string, string> = {};
   for (const input of inputs) {
     const folder = materialFolder(input.materialName, input.spec?.materialId);
     entries[`${folder}/item-${input.itemNumber}-${sanitize(input.partName)}.dxf`] =
-      renderPanelManufacturingDxf(input);
+      renderPanelManufacturingDxf(input, opts);
   }
   return entries;
 }
 
-export function buildCombinedManufacturingDxf(inputs: PanelManufacturingInput[]): string {
-  return renderCombinedManufacturingDxf(inputs);
+export function buildCombinedManufacturingDxf(
+  inputs: PanelManufacturingInput[],
+  opts?: { layerScheme?: LayerScheme },
+): string {
+  return renderCombinedManufacturingDxf(inputs, opts);
 }
 
 function combinedDxfFileName(suggestedName: string): string {
@@ -77,6 +81,7 @@ export class ExportPanelManufacturingDxfCommand {
     inputs: PanelManufacturingInput[];
     suggestedName: string;
     mode?: 'folders' | 'combined' | undefined;
+    layerScheme?: LayerScheme | undefined;
     diagnostics?: PanelPreflightDiagnostic[] | undefined;
     showToast?: ((message: string) => void) | undefined;
   }) {}
@@ -95,10 +100,11 @@ export class ExportPanelManufacturingDxfCommand {
     // several e2e/unit contracts assert this) — instead, machining.csv ships as a second,
     // sequential download after the primary .dxf, gated on hasMachiningMetadata() below.
     // This supersedes the old "combined mode has no CSV at all" decision.
+    const layerOpts = this.opts.layerScheme !== undefined ? { layerScheme: this.opts.layerScheme } : {};
     const bytes = combined
-      ? new TextEncoder().encode(buildCombinedManufacturingDxf(this.opts.inputs))
+      ? new TextEncoder().encode(buildCombinedManufacturingDxf(this.opts.inputs, layerOpts))
       : buildDxfZip({
-          ...buildManufacturingZipEntries(this.opts.inputs),
+          ...buildManufacturingZipEntries(this.opts.inputs, layerOpts),
           'machining.csv': buildManufacturingCsv(this.opts.inputs),
         });
     globalThis.__zilventorManufacturingDxfBytes = bytes;

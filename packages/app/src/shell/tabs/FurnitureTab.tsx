@@ -870,6 +870,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
               diagnostics: cutListResult.diagnostics,
               showToast,
               mode: dxfExportMode,
+              layerScheme,
             }).apply()}>
             {t('ribbon.furniture.exportManufacturingDxf')}
           </button>
