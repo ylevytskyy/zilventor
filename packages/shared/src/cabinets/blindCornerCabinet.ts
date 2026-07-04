@@ -23,6 +23,7 @@ import type {
   PanelRole,
 } from './types';
 import { CabinetTemplateError } from './types';
+import { rolePose, type Quat } from './rolePose';
 
 const Td = DEFAULT_DOOR_THICKNESS;
 
@@ -52,8 +53,19 @@ function makePanel(
   return { role, fileNameSuffix: suffix, panel };
 }
 
-function makeLayout(suffix: string, x: number, y: number, z: number): CabinetComponentDef {
-  return { fileNameSuffix: suffix, position: { x, y, z }, rotation: { rx: 0, ry: 0, rz: 0 } };
+function makeLayout(
+  suffix: string,
+  x: number,
+  y: number,
+  z: number,
+  pose?: { translation: { x: number; y: number; z: number }; quaternion: Quat },
+): CabinetComponentDef {
+  return {
+    fileNameSuffix: suffix,
+    position: { x, y, z },
+    rotation: { rx: 0, ry: 0, rz: 0 },
+    ...(pose ? { pose } : {}),
+  };
 }
 
 export function buildBlindCornerCabinet(
@@ -131,20 +143,36 @@ export function buildBlindCornerCabinet(
   panels.push(makePanel('door', 'Door', doorH, doorW, Td, params.carcassMaterialId));
 
   // ─── Layout ─────────────────────────────────────────────────────────────────
+  // Rotations follow cabinet-pose-fix plan §3.2 by role-analogy to baseCabinet:
+  // leftSide/rightSide/blindFiller = side-panel family (ry=90, thickness->X);
+  // back = back family (rx=90); toekick = toekick family (rx=-90);
+  // bottom/top/shelf = translation-only (identity).
   const layout: CabinetComponentDef[] = [
-    makeLayout('Left Side',  0,        0,   0),
-    makeLayout('Right Side', W - Tc,   0,   0),
-    makeLayout('Bottom',     Tc,       Tb,  tkH),
-    makeLayout('Top',        Tc,       Tb,  H - Tc),
-    makeLayout('Back',       Tc,       0,   Tc),
-    makeLayout('Toekick',    Tc,       D - tkS - Tc, 0),
+    makeLayout('Left Side',  0,        0,   0,
+      rolePose({ x: 0, y: D / 2, z: H / 2 }, { rx: 0, ry: 90, rz: 0 })),
+    makeLayout('Right Side', W - Tc,   0,   0,
+      rolePose({ x: W - Tc, y: D / 2, z: H / 2 }, { rx: 0, ry: 90, rz: 0 })),
+    makeLayout('Bottom',     Tc,       Tb,  tkH,
+      rolePose({ x: Tc + (W - 2 * Tc) / 2, y: Tb + (D - Tb) / 2, z: tkH }, { rx: 0, ry: 0, rz: 0 })),
+    makeLayout('Top',        Tc,       Tb,  H - Tc,
+      rolePose({ x: Tc + (W - 2 * Tc) / 2, y: Tb + (D - Tb) / 2, z: H - Tc }, { rx: 0, ry: 0, rz: 0 })),
+    makeLayout('Back',       Tc,       0,   Tc,
+      rolePose({ x: Tc + (W - 2 * Tc) / 2, y: Tb, z: Tc + (H - 2 * Tc) / 2 }, { rx: 90, ry: 0, rz: 0 })),
+    makeLayout('Toekick',    Tc,       D - tkS - Tc, 0,
+      rolePose({ x: Tc + (W - 2 * Tc) / 2, y: D - tkS - Tc, z: tkH / 2 }, { rx: -90, ry: 0, rz: 0 })),
   ];
 
-  // Blind filler: face-forward on the dead side, between side panel and opening
+  // Blind filler: face-forward on the dead side, between side panel and opening.
+  // Side-panel family per plan §3.5: thickness->world X (horizontal), length
+  // (H-2Tc)->world Z, width (blindFillerW)->world Y — same permutation as
+  // leftSide/rightSide/cornerPost.
   if (blindSide === 'left') {
-    layout.push(makeLayout('Blind Filler', Tc, D - blindFillerW, Tc));
+    layout.push(makeLayout('Blind Filler', Tc, D - blindFillerW, Tc,
+      rolePose({ x: Tc, y: D - blindFillerW + blindFillerW / 2, z: Tc + (H - 2 * Tc) / 2 }, { rx: 0, ry: 90, rz: 0 })));
   } else {
-    layout.push(makeLayout('Blind Filler', W - Tc - blindFillerW, D - blindFillerW, Tc));
+    const fillerX = W - Tc - blindFillerW;
+    layout.push(makeLayout('Blind Filler', fillerX, D - blindFillerW, Tc,
+      rolePose({ x: fillerX, y: D - blindFillerW + blindFillerW / 2, z: Tc + (H - 2 * Tc) / 2 }, { rx: 0, ry: 90, rz: 0 })));
   }
 
   // Shelves: evenly distributed in the inner height
@@ -154,12 +182,22 @@ export function buildBlindCornerCabinet(
     const span = innerTop - innerBottom;
     for (let i = 0; i < shelfCount; i++) {
       const z = innerBottom + (span / (shelfCount + 1)) * (i + 1);
-      layout.push(makeLayout(`Shelf ${i + 1}`, Tc, Tb, z));
+      layout.push(makeLayout(`Shelf ${i + 1}`, Tc, Tb, z,
+        rolePose({ x: Tc + (W - 2 * Tc) / 2, y: Tb + (D - Tb) / 2, z }, { rx: 0, ry: 0, rz: 0 })));
     }
   }
 
-  // Door: store pose translation (center-based) so consumers and tests can use the center X
-  layout.push(makeLayout('Door', dp.pose.translation.x, dp.pose.translation.y, dp.pose.translation.z));
+  // Door: store pose translation (center-based) so consumers and tests can use
+  // the center X. Pushed as a literal layout object (not via makeLayout) so the
+  // pose carries doorMath's DOOR_POSE.quaternion directly — makeLayout's own
+  // pose param derives quaternions from Euler triples via rolePose, which
+  // would be the wrong tool for the door's Shepperd-derived upright pose.
+  layout.push({
+    fileNameSuffix: 'Door',
+    position: { x: dp.pose.translation.x, y: dp.pose.translation.y, z: dp.pose.translation.z },
+    rotation: { rx: 0, ry: 0, rz: 0 },
+    pose: { translation: dp.pose.translation, quaternion: dp.pose.quaternion },
+  });
 
   // ─── Hinge boring ───────────────────────────────────────────────────────────
   const hingeCount = hingeCountForHeight(doorH);
