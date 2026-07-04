@@ -30,6 +30,7 @@ import type {
   PanelRole,
 } from './types';
 import { CabinetTemplateError } from './types';
+import { rolePose } from './rolePose';
 
 const Td = DEFAULT_DOOR_THICKNESS; // 18 mm
 const MIN_DOOR_WIDTH = 100;        // mm (spec §4.2)
@@ -78,17 +79,34 @@ function makePanel(
   return { role, fileNameSuffix: suffix, panel };
 }
 
+/**
+ * Additive pose correction per cabinet-pose-fix plan §3.2/§3.5: `poseSpec`'s
+ * (dx,dy,dz) is the translation offset from the stored min-corner `position`
+ * to the pose's world-space translation (per role-family, mirrors baseCabinet/
+ * cornerCabinet), and (rx,ry,rz) is the Euler triple whose quaternion
+ * compensates buildPanelBox's centered/edge-anchored local box convention.
+ * Stored `position`/`rotation` numbers are never changed by this correction.
+ */
 function makeLayout(
   suffix: string,
   x: number,
   y: number,
   z: number,
   rz = 0,
+  poseSpec?: { dx: number; dy: number; dz: number; rx: number; ry: number; rz: number },
 ): CabinetComponentDef {
   return {
     fileNameSuffix: suffix,
     position: { x, y, z },
     rotation: { rx: 0, ry: 0, rz },
+    ...(poseSpec
+      ? {
+          pose: rolePose(
+            { x: x + poseSpec.dx, y: y + poseSpec.dy, z: z + poseSpec.dz },
+            { rx: poseSpec.rx, ry: poseSpec.ry, rz: poseSpec.rz },
+          ),
+        }
+      : {}),
   };
 }
 
@@ -182,14 +200,26 @@ export function buildDiagonalCornerCabinet(
   const uprightRot = { rx: -90, ry: ryDeg, rz: -90 } as const;
 
   const layout: CabinetComponentDef[] = [
-    makeLayout('Bottom',        0,          0,          0),
-    makeLayout('Top',           0,          0,          H - Tc),
-    makeLayout('Back 1',        0,          0,          Tc),
-    makeLayout('Back 2',        0,          0,          Tc,      90),  // rz=90 to run along +Y
-    makeLayout('Return Side 1', W1 - Tc,    0,          0),
-    makeLayout('Return Side 2', 0,          W2 - Tc,    0),
-    makeLayout('Toekick 1',     Tc,         0,          0),
-    makeLayout('Toekick 2',     0,          Tc,         0),
+    // Bottom/Top: pentagon-outline panels; buildOutlinePrism re-centers the
+    // outline to buildPanelBox's convention (PanelOps.ts:182-184), so the
+    // translation-only family (identity rotation) applies exactly like
+    // baseCabinet/cornerCabinet bottom/top.
+    makeLayout('Bottom',        0,          0,          0,       0, { dx: W1 / 2, dy: W2 / 2, dz: 0, rx: 0, ry: 0, rz: 0 }),
+    makeLayout('Top',           0,          0,          H - Tc,  0, { dx: W1 / 2, dy: W2 / 2, dz: 0, rx: 0, ry: 0, rz: 0 }),
+    // Back family, matches baseCabinet/cornerCabinet back (rx=90 for the
+    // wall-1-aligned back; rx=0,ry=90,rz=90 permutation for the wall-2-aligned
+    // back — same permutation cornerCabinet's Back 2 uses).
+    makeLayout('Back 1',        0,          0,          Tc,      0, { dx: W1 / 2, dy: Tb, dz: H / 2, rx: 90, ry: 0, rz: 0 }),
+    makeLayout('Back 2',        0,          0,          Tc,      90, { dx: 0, dy: W2 / 2, dz: H / 2, rx: 0, ry: 90, rz: 90 }),  // rz=90 to run along +Y
+    // Side-panel family, identical dims/position to cornerCabinet's Leg 1
+    // End / Leg 2 End — same pose formulas apply verbatim.
+    makeLayout('Return Side 1', W1 - Tc,    0,          0,       0, { dx: 0, dy: D1 / 2, dz: H / 2, rx: 0, ry: 90, rz: 0 }),
+    makeLayout('Return Side 2', 0,          W2 - Tc,    0,       0, { dx: D2 / 2, dy: 0, dz: H / 2, rx: -90, ry: 0, rz: -90 }),
+    // Toekick family, matches baseCabinet toekick (rx=-90) for the wall-1
+    // toekick; wall-2 toekick needs the same axis permutation as Back 2
+    // (rx=0,ry=90,rz=90) since its length runs along Y, thickness along X.
+    makeLayout('Toekick 1',     Tc,         0,          0,       0, { dx: (W1 - 2 * Tc) / 2, dy: 0, dz: tkH / 2, rx: -90, ry: 0, rz: 0 }),
+    makeLayout('Toekick 2',     0,          Tc,         0,       0, { dx: 0, dy: (W2 - 2 * Tc) / 2, dz: tkH / 2, rx: 0, ry: 90, rz: 90 }),
     {
       fileNameSuffix: 'Front Stile 1',
       position: { x: stile1X, y: stile1Y, z: H / 2 },

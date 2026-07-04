@@ -184,6 +184,7 @@ export class CreateCabinetCommand implements Command {
       rotation: { rx: c.rotation.rx, ry: c.rotation.ry, rz: c.rotation.rz },
       visible: true,
       role: built.panels.find((p) => p.fileNameSuffix === c.fileNameSuffix)!.role,
+      ...(c.pose ? { pose: c.pose } : {}),
     }));
     const hwComps: ComponentInstance[] = hardwareComponents.map((hw, i) => ({
       id: `HW${i + 1}`,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AssemblyConstraint, AssemblyDocument } from '@zilventor/shared';
 import { pathKey } from '@zilventor/shared';
+import { quatFromEulerXYZ } from '@zilventor/kernel/src/assembly/quat';
 import { flattenForSolver } from '../flattenForSolver';
 import type { SubAssemblyCache } from '../../SubAssemblyCache';
 
@@ -109,6 +110,23 @@ describe('flattenForSolver — flexible inlining', () => {
     expect(r.pathToUnknown.get(pathKey(['s', 'a']))).toBe(1);
     expect(r.pathToUnknown.get(pathKey(['s', 'b']))).toBe(2);
     expect(r.rigidSubtreeRoots.size).toBe(0);
+  });
+
+  it('seeds a flexible-sub-assembly leaf unknown with its rotation-derived quaternion, not identity', () => {
+    const sub = doc({ components: [
+      { id: 'a', partPath: 'p.zipt', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 90, rz: 0 }, visible: true },
+    ] });
+    const top = doc({ components: [
+      { id: 's', partPath: 'sub.ziasm', position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true, flexible: true },
+    ] });
+    const cache = { get: (p: string) => p === 'sub.ziasm' ? { kind: 'ok' as const, doc: sub, partPath: p } : undefined } as unknown as SubAssemblyCache;
+    const r = flattenForSolver(top, cache);
+    const idx = r.pathToUnknown.get(pathKey(['s', 'a']))!;
+    const expected = quatFromEulerXYZ(0, 90, 0);
+    expect(r.unknowns[idx]!.quaternion[0]).toBeCloseTo(expected[0]);
+    expect(r.unknowns[idx]!.quaternion[1]).toBeCloseTo(expected[1]);
+    expect(r.unknowns[idx]!.quaternion[2]).toBeCloseTo(expected[2]);
+    expect(r.unknowns[idx]!.quaternion[3]).toBeCloseTo(expected[3]);
   });
 
   it('inlines sub-asm constraints with path-prefixed componentPath', () => {

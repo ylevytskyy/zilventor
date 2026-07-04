@@ -13,6 +13,7 @@ import type { Command } from './Command';
 import type { ComponentInstance, PatternAxis } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { computeRectGridPoses } from '../assembly/poseHelpers';
+import { componentLocalPose } from '../assembly/walkers/componentLocalPose';
 
 export type CreateComponentPatternOpts = {
   sourceInstanceId: string;
@@ -37,10 +38,7 @@ export class CreateComponentPatternCommand implements Command {
     if (!src) return;
 
     // Prefer src.pose (solver/renderer canonical field); fall back to legacy position.
-    const srcPose = src.pose ?? {
-      translation: { x: src.position.x, y: src.position.y, z: src.position.z },
-      quaternion: [0, 0, 0, 1] as [number, number, number, number],
-    };
+    const srcPose = componentLocalPose(src);
 
     const poses = computeRectGridPoses(
       srcPose,

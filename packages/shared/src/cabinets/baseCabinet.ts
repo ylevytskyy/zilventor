@@ -9,6 +9,7 @@ import type {
   ResolvedCabinetMaterials,
 } from './types';
 import { CabinetTemplateError } from './types';
+import { rolePose, type Quat } from './rolePose';
 
 const SHELF_DEPTH_SHRINK_MM = 20;
 const HANGING_RAIL_HEIGHT_MM = 80;
@@ -31,65 +32,110 @@ export function buildBaseCabinet(
   const panels: CabinetPanelDef[] = [];
   const layout: CabinetComponentDef[] = [];
 
-  pushPanel(panels, layout, {
-    role: 'leftSide', fileNameSuffix: 'Left Side',
-    length: H, width: D, thickness: Tc,
-    materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('leftSide', materials.band ?? null),
-    position: { x: 0, y: 0, z: 0 },
-  });
+  {
+    const position = { x: 0, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'leftSide', fileNameSuffix: 'Left Side',
+      length: H, width: D, thickness: Tc,
+      materialId: materials.carcass.id, grain: 'length',
+      bands: bandsForRole('leftSide', materials.band ?? null),
+      position,
+      pose: rolePose(
+        { x: position.x, y: position.y + D / 2, z: position.z + H / 2 },
+        { rx: 0, ry: 90, rz: 0 },
+      ),
+    });
+  }
 
-  pushPanel(panels, layout, {
-    role: 'rightSide', fileNameSuffix: 'Right Side',
-    length: H, width: D, thickness: Tc,
-    materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('rightSide', materials.band ?? null),
-    position: { x: W - Tc, y: 0, z: 0 },
-  });
+  {
+    const position = { x: W - Tc, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'rightSide', fileNameSuffix: 'Right Side',
+      length: H, width: D, thickness: Tc,
+      materialId: materials.carcass.id, grain: 'length',
+      bands: bandsForRole('rightSide', materials.band ?? null),
+      position,
+      pose: rolePose(
+        { x: position.x, y: position.y + D / 2, z: position.z + H / 2 },
+        { rx: 0, ry: 90, rz: 0 },
+      ),
+    });
+  }
 
-  pushPanel(panels, layout, {
-    role: 'bottom', fileNameSuffix: 'Bottom',
-    length: W - 2 * Tc, width: D - Tb, thickness: Tc,
-    materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('bottom', materials.band ?? null),
-    position: { x: Tc, y: Tb, z: tkH },
-  });
+  {
+    const position = { x: Tc, y: Tb, z: tkH };
+    pushPanel(panels, layout, {
+      role: 'bottom', fileNameSuffix: 'Bottom',
+      length: W - 2 * Tc, width: D - Tb, thickness: Tc,
+      materialId: materials.carcass.id, grain: 'length',
+      bands: bandsForRole('bottom', materials.band ?? null),
+      position,
+      pose: rolePose(
+        { x: position.x + (W - 2 * Tc) / 2, y: position.y + (D - Tb) / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
-  pushPanel(panels, layout, {
-    role: 'top', fileNameSuffix: 'Top',
-    length: W - 2 * Tc, width: D - Tb, thickness: Tc,
-    materialId: materials.carcass.id, grain: 'length',
-    bands: bandsForRole('top', materials.band ?? null),
-    position: { x: Tc, y: Tb, z: H - Tc },
-  });
+  {
+    const position = { x: Tc, y: Tb, z: H - Tc };
+    pushPanel(panels, layout, {
+      role: 'top', fileNameSuffix: 'Top',
+      length: W - 2 * Tc, width: D - Tb, thickness: Tc,
+      materialId: materials.carcass.id, grain: 'length',
+      bands: bandsForRole('top', materials.band ?? null),
+      position,
+      pose: rolePose(
+        { x: position.x + (W - 2 * Tc) / 2, y: position.y + (D - Tb) / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
-  pushPanel(panels, layout, {
-    role: 'back', fileNameSuffix: 'Back',
-    length: W, width: H, thickness: Tb,
-    materialId: materials.back.id, grain: 'length',
-    bands: bandsForRole('back', materials.band ?? null),
-    position: { x: 0, y: 0, z: 0 },
-  });
+  {
+    const position = { x: 0, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'back', fileNameSuffix: 'Back',
+      length: W, width: H, thickness: Tb,
+      materialId: materials.back.id, grain: 'length',
+      bands: bandsForRole('back', materials.band ?? null),
+      position,
+      pose: rolePose(
+        { x: position.x + W / 2, y: position.y + Tb, z: position.z + H / 2 },
+        { rx: 90, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
   if (tkH > 0) {
+    const position = { x: Tc, y: D - tkS - Tc, z: 0 };
     pushPanel(panels, layout, {
       role: 'toekick', fileNameSuffix: 'Toekick',
       length: W - 2 * Tc, width: tkH, thickness: Tc,
       materialId: materials.carcass.id, grain: 'length',
       bands: bandsForRole('toekick', materials.band ?? null),
-      position: { x: Tc, y: D - tkS - Tc, z: 0 },
+      position,
+      pose: rolePose(
+        { x: position.x + (W - 2 * Tc) / 2, y: position.y, z: position.z + tkH / 2 },
+        { rx: -90, ry: 0, rz: 0 },
+      ),
     });
   }
 
   if (isWall) {
     // Top-back nailer for hanging the cabinet: spans the inner width, tucked
     // under the top panel and flush against the back.
+    const position = { x: Tc, y: Tb, z: H - Tc - HANGING_RAIL_HEIGHT_MM };
     pushPanel(panels, layout, {
       role: 'hangingRail', fileNameSuffix: 'Hanging Rail',
       length: W - 2 * Tc, width: HANGING_RAIL_HEIGHT_MM, thickness: Tc,
       materialId: materials.carcass.id, grain: 'length',
       bands: bandsForRole('hangingRail', materials.band ?? null),
-      position: { x: Tc, y: Tb, z: H - Tc - HANGING_RAIL_HEIGHT_MM },
+      position,
+      pose: rolePose(
+        { x: position.x + (W - 2 * Tc) / 2, y: position.y, z: position.z + HANGING_RAIL_HEIGHT_MM / 2 },
+        { rx: -90, ry: 0, rz: 0 },
+      ),
     });
   }
 
@@ -98,14 +144,20 @@ export function buildBaseCabinet(
     const innerTop = H - Tc;
     const span = innerTop - innerBottom;
     const step = span / (params.shelfCount + 1);
+    const shelfWidth = D - Tb - SHELF_DEPTH_SHRINK_MM;
     for (let i = 1; i <= params.shelfCount; i++) {
       const z = innerBottom + i * step;
+      const position = { x: Tc, y: Tb, z };
       pushPanel(panels, layout, {
         role: 'shelf', shelfIndex: i, fileNameSuffix: `Shelf ${i}`,
-        length: W - 2 * Tc, width: D - Tb - SHELF_DEPTH_SHRINK_MM, thickness: Tc,
+        length: W - 2 * Tc, width: shelfWidth, thickness: Tc,
         materialId: materials.carcass.id, grain: 'length',
         bands: bandsForRole('shelf', materials.band ?? null),
-        position: { x: Tc, y: Tb, z },
+        position,
+        pose: rolePose(
+          { x: position.x + (W - 2 * Tc) / 2, y: position.y + shelfWidth / 2, z: position.z },
+          { rx: 0, ry: 0, rz: 0 },
+        ),
       });
     }
   }
@@ -124,6 +176,7 @@ interface PushArgs {
   grain: GrainDirection;
   bands: PanelFeature['edgeBands'];
   position: { x: number; y: number; z: number };
+  pose: { translation: { x: number; y: number; z: number }; quaternion: Quat };
 }
 
 function pushPanel(
@@ -152,6 +205,7 @@ function pushPanel(
     fileNameSuffix: args.fileNameSuffix,
     position: args.position,
     rotation: { rx: 0, ry: 0, rz: 0 },
+    pose: args.pose,
   });
 }
 

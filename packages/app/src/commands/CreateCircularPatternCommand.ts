@@ -10,6 +10,7 @@ import type { Command } from './Command';
 import type { ComponentInstance, PatternAxis, Vec3 } from '@zilventor/shared';
 import { useAppStore } from '../store/useAppStore';
 import { computeCircularPoses } from '../assembly/poseHelpers';
+import { componentLocalPose } from '../assembly/walkers/componentLocalPose';
 
 export type CreateCircularPatternOpts = {
   sourceInstanceId: string;
@@ -33,10 +34,7 @@ export class CreateCircularPatternCommand implements Command {
     if (!src) return;
 
     // Prefer src.pose (solver/renderer canonical field); fall back to legacy position.
-    const srcPose = src.pose ?? {
-      translation: { x: src.position.x, y: src.position.y, z: src.position.z },
-      quaternion: [0, 0, 0, 1] as [number, number, number, number],
-    };
+    const srcPose = componentLocalPose(src);
 
     const poses = computeCircularPoses(
       srcPose,

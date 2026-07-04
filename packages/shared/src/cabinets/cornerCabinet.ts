@@ -9,6 +9,7 @@ import type {
   ResolvedCabinetMaterials,
 } from './types';
 import { CabinetTemplateError } from './types';
+import { rolePose, type Quat } from './rolePose';
 
 /**
  * Build an L-corner cabinet (slice 1). Geometry follows the same flat-slab,
@@ -40,72 +41,146 @@ export function buildCornerCabinet(
   const bandId = materials.band?.id ?? null;
 
   // Leg-1 outer side (far +X end): vertical, thin in X, spans leg-1 depth.
-  pushPanel(panels, layout, {
-    role: 'rightSide', fileNameSuffix: 'Leg 1 End',
-    length: H, width: D1, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: W1 - Tc, y: 0, z: 0 },
-  });
+  // Side-panel family (rotation ry=90), matches baseCabinet leftSide/rightSide:
+  // local length(H)->world Z, local width(D1)->world Y, local thickness(Tc)->world X.
+  {
+    const position = { x: W1 - Tc, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'rightSide', fileNameSuffix: 'Leg 1 End',
+      length: H, width: D1, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x, y: position.y + D1 / 2, z: position.z + H / 2 },
+        { rx: 0, ry: 90, rz: 0 },
+      ),
+    });
+  }
 
   // Leg-2 outer side (far +Y end): vertical, thin in Y, spans leg-2 depth.
-  pushPanel(panels, layout, {
-    role: 'leftSide', fileNameSuffix: 'Leg 2 End',
-    length: H, width: D2, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: 0, y: W2 - Tc, z: 0 },
-  });
+  // Leg 2 runs along Y, so its width (D2, depth-into-room-on-X) maps to world
+  // X and its thickness maps to world Y — a different axis permutation than
+  // Leg 1 End, hand-verified against the physical AABB (locking test).
+  {
+    const position = { x: 0, y: W2 - Tc, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'leftSide', fileNameSuffix: 'Leg 2 End',
+      length: H, width: D2, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + D2 / 2, y: position.y, z: position.z + H / 2 },
+        { rx: -90, ry: 0, rz: -90 },
+      ),
+    });
+  }
 
   // Back against the leg-1 wall (Y=0), spanning the full leg-1 length.
-  pushPanel(panels, layout, {
-    role: 'back', fileNameSuffix: 'Back 1',
-    length: W1, width: H, thickness: Tb,
-    materialId: materials.back.id, bandId,
-    position: { x: 0, y: 0, z: 0 },
-  });
+  // Back family (rotation rx=90), matches baseCabinet back: length(W1)->world X.
+  {
+    const position = { x: 0, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'back', fileNameSuffix: 'Back 1',
+      length: W1, width: H, thickness: Tb,
+      materialId: materials.back.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + W1 / 2, y: position.y + Tb, z: position.z + H / 2 },
+        { rx: 90, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
   // Back against the leg-2 wall (X=0), spanning the full leg-2 length.
-  pushPanel(panels, layout, {
-    role: 'back', fileNameSuffix: 'Back 2',
-    length: W2, width: H, thickness: Tb,
-    materialId: materials.back.id, bandId,
-    position: { x: 0, y: 0, z: 0 },
-  });
+  // Leg 2 runs along Y, so this back's length (W2) maps to world Y (not X
+  // like Back 1) — a different axis permutation, hand-verified against the
+  // physical AABB (locking test).
+  {
+    const position = { x: 0, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'back', fileNameSuffix: 'Back 2',
+      length: W2, width: H, thickness: Tb,
+      materialId: materials.back.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x, y: position.y + W2 / 2, z: position.z + H / 2 },
+        { rx: 0, ry: 90, rz: 90 },
+      ),
+    });
+  }
 
   // L-floor: leg-1 floor (full) + leg-2 strip beyond the shared corner zone.
-  pushPanel(panels, layout, {
-    role: 'bottom', fileNameSuffix: 'Bottom 1',
-    length: W1, width: D1, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: 0, y: 0, z: 0 },
-  });
-  pushPanel(panels, layout, {
-    role: 'bottom', fileNameSuffix: 'Bottom 2',
-    length: D2, width: W2 - D1, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: 0, y: D1, z: 0 },
-  });
+  // Translation-only family (rotation identity), matches baseCabinet bottom/top.
+  {
+    const position = { x: 0, y: 0, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'bottom', fileNameSuffix: 'Bottom 1',
+      length: W1, width: D1, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + W1 / 2, y: position.y + D1 / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
+  {
+    const position = { x: 0, y: D1, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'bottom', fileNameSuffix: 'Bottom 2',
+      length: D2, width: W2 - D1, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + D2 / 2, y: position.y + (W2 - D1) / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
   // L-top mirrors the L-floor at Z = H − Tc.
-  pushPanel(panels, layout, {
-    role: 'top', fileNameSuffix: 'Top 1',
-    length: W1, width: D1, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: 0, y: 0, z: H - Tc },
-  });
-  pushPanel(panels, layout, {
-    role: 'top', fileNameSuffix: 'Top 2',
-    length: D2, width: W2 - D1, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: 0, y: D1, z: H - Tc },
-  });
+  {
+    const position = { x: 0, y: 0, z: H - Tc };
+    pushPanel(panels, layout, {
+      role: 'top', fileNameSuffix: 'Top 1',
+      length: W1, width: D1, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + W1 / 2, y: position.y + D1 / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
+  {
+    const position = { x: 0, y: D1, z: H - Tc };
+    pushPanel(panels, layout, {
+      role: 'top', fileNameSuffix: 'Top 2',
+      length: D2, width: W2 - D1, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x + D2 / 2, y: position.y + (W2 - D1) / 2, z: position.z },
+        { rx: 0, ry: 0, rz: 0 },
+      ),
+    });
+  }
 
   // Full-height square corner post at the reentrant inner corner (depth2,depth1).
-  pushPanel(panels, layout, {
-    role: 'cornerPost', fileNameSuffix: 'Corner Post',
-    length: H, width: Tc, thickness: Tc,
-    materialId: materials.carcass.id, bandId,
-    position: { x: D2 - Tc, y: D1 - Tc, z: 0 },
-  });
+  // Side-panel family (rotation ry=90), same as leftSide/rightSide/Leg 1 End.
+  {
+    const position = { x: D2 - Tc, y: D1 - Tc, z: 0 };
+    pushPanel(panels, layout, {
+      role: 'cornerPost', fileNameSuffix: 'Corner Post',
+      length: H, width: Tc, thickness: Tc,
+      materialId: materials.carcass.id, bandId,
+      position,
+      pose: rolePose(
+        { x: position.x, y: position.y + Tc / 2, z: position.z + H / 2 },
+        { rx: 0, ry: 90, rz: 0 },
+      ),
+    });
+  }
 
   return { panels, layout };
 }
@@ -119,6 +194,7 @@ interface PushArgs {
   materialId: MaterialId;
   bandId: MaterialId | null;
   position: { x: number; y: number; z: number };
+  pose: { translation: { x: number; y: number; z: number }; quaternion: Quat };
 }
 
 function pushPanel(
@@ -146,6 +222,7 @@ function pushPanel(
     fileNameSuffix: args.fileNameSuffix,
     position: args.position,
     rotation: { rx: 0, ry: 0, rz: 0 },
+    pose: args.pose,
   });
 }
 
