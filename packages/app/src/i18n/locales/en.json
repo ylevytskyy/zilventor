@@ -772,6 +772,10 @@
     "openStandalone": "Open {{name}} in standalone?",
     "overrideColor": "Override color (hex, e.g. #d4a574); blank to clear:",
     "panelActions": "Panel actions: type \"suppress\" or \"delete\"",
+    "convertToPanel": {
+      "notImported": "This part has no imported geometry to convert.",
+      "noGeometry": "Can't derive panel dimensions: the imported part has no cached geometry."
+    },
     "repairCabinetPose": "Repair cabinet geometry? This backfills correct panel placement for a legacy cabinet without changing panel sizes or materials.",
     "solidWorksGuidance": "SolidWorks files (.SLDPRT / .SLDASM) use a proprietary format and can't be opened directly. In SolidWorks: File → Save As → Save as type: STEP AP242 (*.step) → Save, then open the .step file here.",
     "sweep": {
