@@ -114,4 +114,14 @@ describe('renderCombinedManufacturingDxf', () => {
     expect(dxf).toContain('1000\nTOOL_NUMBER');
     expect(dxf).toContain('1000\nSPEED');
   });
+
+  it('under abf scheme, the LAYER table declares ABF outline + bore names, not the stale native ones', () => {
+    const withBore = { ...base, itemNumber: 2, bores: [{ ...bore('Top', 100, 50, 5, 12), sku: 'X123' }] };
+    const dxf = renderCombinedManufacturingDxf([base, withBore], { layerScheme: 'abf' });
+    const names = layerTableNames(dxf);
+    expect(names).toContain('ABF_cuttingLines');
+    expect(names).toContain('DEPTH12-ARTICLEX123');
+    expect(names).not.toContain('OUTLINE');
+    expect(names).not.toContain('BORES-FRONT-5MM');
+  });
 });

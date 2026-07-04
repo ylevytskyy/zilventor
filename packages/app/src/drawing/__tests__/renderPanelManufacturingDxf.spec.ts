@@ -383,6 +383,65 @@ describe('renderPanelManufacturingDxf — CAM metadata (XDATA + preset layer rou
 // bores/curved features must be real CIRCLE/ARC entities, never LWPOLYLINE-approximated
 // circles. These tests parse the actual DXF output (instead of regexing raw text) to lock
 // that fidelity.
+// ABF layer scheme (docs/abf-plugin/05-parity/04-abf-flatten-dxf-sample-analysis.md §3):
+// an optional opts.layerScheme param renames bore + outline layers to the ABF convention.
+// Additive-default contract: omitted/'native' must be byte-identical to pre-existing output.
+describe('renderPanelManufacturingDxf — ABF layer scheme', () => {
+  it('a face bore with a sku gets DEPTH<d>-ARTICLE<sku> under abf scheme', () => {
+    const b = { ...bore('Top', 100, 50, 5, 12), sku: 'X123' };
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('DEPTH12-ARTICLEX123');
+    expect(dxf).not.toContain('BORES-FRONT-5MM');
+  });
+
+  it('a face bore with no sku gets a bare DEPTH<d> layer under abf scheme', () => {
+    const b = bore('Top', 100, 50, 5, 12);
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('\nDEPTH12\n');
+    expect(dxf).not.toContain('ARTICLE');
+  });
+
+  it('an edge bore gets ABF-DSIDE-<dia> under abf scheme (sku ignored)', () => {
+    const b = { ...bore('Front', 9, 300, 5, 32), sku: 'IGNORED' };
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('ABF-DSIDE-5');
+    expect(dxf).not.toContain('IGNORED');
+  });
+
+  it('a throughAll face bore falls back to the native layer name under abf scheme (no invented THRU convention)', () => {
+    const b = bore('Bottom', 100, 50, 8, 'throughAll');
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('BORES-BACK-8MM');
+    expect(dxf).not.toContain('DEPTH');
+  });
+
+  it('presetLayerName still wins over the ABF layer name', () => {
+    const b = { ...bore('Top', 100, 50, 5, 12), sku: 'X123', presetLayerName: 'CNC-TOOL-3' };
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('CNC-TOOL-3');
+    expect(dxf).not.toContain('DEPTH12-ARTICLEX123');
+  });
+
+  it('the outline goes on ABF_cuttingLines under abf scheme', () => {
+    const dxf = renderPanelManufacturingDxf(base, { layerScheme: 'abf' });
+    expect(dxf).toContain('ABF_cuttingLines');
+    expect(dxf).not.toContain('\nOUTLINE\n');
+  });
+
+  it('grooves stay on the native GROOVES layer under abf scheme (ratified passthrough)', () => {
+    const groove: GrooveFeature = { kind: 'groove', id: 'g1', faceRole: 'Top',
+      axis: 'u', position: 10, width: 6, depth: 9 };
+    const dxf = renderPanelManufacturingDxf({ ...base, grooves: [groove] }, { layerScheme: 'abf' });
+    expect(dxf).toContain('GROOVES');
+  });
+
+  it('regression: {layerScheme:"native"} output is byte-identical to opts omitted', () => {
+    const input: PanelManufacturingInput = { ...base,
+      bores: [{ ...bore('Top', 100, 50, 5, 12), sku: 'X123' }, bore('Front', 9, 300, 5, 32)] };
+    expect(renderPanelManufacturingDxf(input, { layerScheme: 'native' })).toBe(renderPanelManufacturingDxf(input));
+  });
+});
+
 describe('renderPanelManufacturingDxf — DXF fidelity (parse-based)', () => {
   it('every BORES-* layer entity parses as a real CIRCLE, never an approximated polyline', () => {
     const dxf = renderPanelManufacturingDxf({
