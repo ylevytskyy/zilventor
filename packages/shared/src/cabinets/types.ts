@@ -1,6 +1,7 @@
 import type { PanelFeature } from '../panel-feature';
 import type { MaterialEntry, MaterialId } from '../material';
 import type { BoreOp } from '../bore';
+import type { Vec3 } from '../types';
 
 export type PanelRole =
   | 'leftSide'
@@ -78,6 +79,7 @@ export interface CabinetComponentDef {
   readonly fileNameSuffix: string;
   readonly position: { readonly x: number; readonly y: number; readonly z: number };
   readonly rotation: { readonly rx: number; readonly ry: number; readonly rz: number };
+  readonly pose?: { readonly translation: Vec3; readonly quaternion: [number, number, number, number] };
 }
 
 export interface DoorBoresDef {

@@ -1,11 +1,37 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CreateCabinetCommand } from '../CreateCabinetCommand';
 import type { OpfsLike } from '../../assembly/SubAssemblyCache';
 import { useAppStore } from '../../store/useAppStore';
 import type { AssemblyDocument, MaterialEntry, PartDocument, Feature } from '@zilventor/shared';
 import { unpackProject } from '@zilventor/kernel/src/storage/ProjectPacker';
 import type { PanelRole } from '@zilventor/shared';
+
+// Only `buildBaseCabinet` is overridden, and only for the sentinel cabinet name
+// `'Pose Passthrough'` used by the pose-threading tests below — every other name
+// (including all pre-existing tests in this file) falls through to the real
+// implementation unmodified.
+const TEST_POSE = {
+  translation: { x: 1, y: 2, z: 3 },
+  quaternion: [0, 0, 0, 1] as [number, number, number, number],
+};
+vi.mock('@zilventor/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zilventor/shared')>();
+  return {
+    ...actual,
+    buildBaseCabinet: (
+      params: Parameters<typeof actual.buildBaseCabinet>[0],
+      registry: Parameters<typeof actual.buildBaseCabinet>[1],
+    ) => {
+      const built = actual.buildBaseCabinet(params, registry);
+      if (params.name !== 'Pose Passthrough') return built;
+      return {
+        ...built,
+        layout: built.layout.map((c, i) => (i === 0 ? { ...c, pose: TEST_POSE } : c)),
+      };
+    },
+  };
+});
 
 class MemOpfs implements OpfsLike {
   files = new Map<string, Uint8Array>();
@@ -395,5 +421,35 @@ describe('CreateCabinetCommand — diagonalCornerCabinet template', () => {
     await cmd.revert();
     expect(useAppStore.getState().activeAssembly!.components).toHaveLength(0);
     expect(await opfs.list()).toEqual([]);
+  });
+});
+
+describe('CreateCabinetCommand — layout pose threading', () => {
+  beforeEach(() => { useAppStore.getState().setActiveDocument(null); });
+
+  it('threads a layout pose into the built ComponentInstance when present', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({
+      template: 'baseCabinet',
+      params: { ...DEFAULTS, name: 'Pose Passthrough' },
+      opfs,
+    }).apply();
+
+    const project = await unpackProject(await opfs.read('Pose Passthrough.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string; pose?: unknown }> } }).document;
+    const leftSide = doc.components.find((c) => c.partPath === 'Pose Passthrough - Left Side.zipt');
+    expect(leftSide?.pose).toEqual(TEST_POSE);
+  });
+
+  it('leaves pose truly absent (no key) when the layout entry has none', async () => {
+    seedAssembly();
+    const opfs = new MemOpfs();
+    await new CreateCabinetCommand({ template: 'baseCabinet', params: { ...DEFAULTS }, opfs }).apply();
+
+    const project = await unpackProject(await opfs.read('Base Cabinet 1.ziasm'));
+    const doc = (project.manifest as { document: { components: Array<{ partPath: string }> } }).document;
+    const leftSide = doc.components.find((c) => c.partPath === 'Base Cabinet 1 - Left Side.zipt')!;
+    expect('pose' in leftSide).toBe(false);
   });
 });
