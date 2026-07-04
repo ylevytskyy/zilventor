@@ -919,6 +919,75 @@ describe('toSketch — HATCH nested inside INSERT block (Phase 4c)', () => {
   });
 });
 
+// ── Block-internal OCS extrusion (fix/dxf-block-internal-ocs-attrib) ────────
+
+describe('toSketch — block-internal OCS extrusion', () => {
+  it('mirrors a block-internal CIRCLE across extrusion (0,0,-1) before composing the INSERT translation', () => {
+    // Block BLK contains a CIRCLE at OCS (25.5,10) r=17.5 with extrusion (0,0,-1) (a face
+    // bore, per the ABF hinge-cup sample). Per the Arbitrary Axis Algorithm this mirrors
+    // Xocs: local WCS-within-block = (-25.5, 10). INSERT translates by (100,50) with no
+    // rotation/scale, so the composed world center is (100-25.5, 50+10) = (74.5, 60).
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'BLK', x: 100, y: 50,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: { BLK: [{ type: 'CIRCLE', layer: '0', cx: 25.5, cy: 10, r: 17.5, extrusion: { x: 0, y: 0, z: -1 } }] },
+      header: {}, layers: {}, blockBasePoints: { BLK: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    const p = r.primitives.find((p) => p.kind === 'circle');
+    expect(p).toBeDefined();
+    if (p && p.kind === 'circle') {
+      expect(p.cx).toBeCloseTo(74.5, 9);
+      expect(p.cy).toBeCloseTo(60, 9);
+      expect(p.r).toBeCloseTo(17.5, 9);
+    }
+  });
+
+  it('composes block-internal OCS mirroring through two levels of nested INSERT', () => {
+    // INNER block: CIRCLE at OCS (25.5,10) r=17.5, extrusion (0,0,-1) → mirrored local
+    // (-25.5, 10) within INNER's own frame.
+    // OUTER block: INSERTs INNER at local (5,0), no rotation/scale → within OUTER's frame:
+    // (5-25.5, 0+10) = (-20.5, 10).
+    // Top-level INSERT places OUTER at (100,50), no rotation/scale → world:
+    // (100-20.5, 50+10) = (79.5, 60).
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'OUTER', x: 100, y: 50,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: {
+        OUTER: [{ type: 'INSERT', layer: '0', name: 'INNER', x: 5, y: 0,
+          xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+        INNER: [{ type: 'CIRCLE', layer: '0', cx: 25.5, cy: 10, r: 17.5, extrusion: { x: 0, y: 0, z: -1 } }],
+      },
+      header: {}, layers: {}, blockBasePoints: { OUTER: { x: 0, y: 0 }, INNER: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    const p = r.primitives.find((p) => p.kind === 'circle');
+    expect(p).toBeDefined();
+    if (p && p.kind === 'circle') {
+      expect(p.cx).toBeCloseTo(79.5, 9);
+      expect(p.cy).toBeCloseTo(60, 9);
+    }
+  });
+
+  it('leaves an extrusion-less block-internal CIRCLE unaffected (regression guard)', () => {
+    // Same geometry as the first case but with NO extrusion vector: must resolve exactly
+    // as a plain (non-OCS) block-internal entity always has — no mirroring applied.
+    const parsed: ParsedDxf = {
+      entities: [{ type: 'INSERT', layer: '0', name: 'BLK', x: 100, y: 50,
+        xscale: 1, yscale: 1, rotation: 0, columns: 1, rows: 1, colSpacing: 0, rowSpacing: 0 }],
+      blocks: { BLK: [{ type: 'CIRCLE', layer: '0', cx: 25.5, cy: 10, r: 17.5 }] },
+      header: {}, layers: {}, blockBasePoints: { BLK: { x: 0, y: 0 } },
+    };
+    const r = toSketch(parsed);
+    const p = r.primitives.find((p) => p.kind === 'circle');
+    expect(p).toBeDefined();
+    if (p && p.kind === 'circle') {
+      expect(p.cx).toBeCloseTo(125.5, 9);
+      expect(p.cy).toBeCloseTo(60, 9);
+    }
+  });
+});
+
 // ── Task 5: INSERT block sub-entity color ───────────────────────────────────
 
 describe('toSketch — INSERT sub-entity color (Task 5)', () => {

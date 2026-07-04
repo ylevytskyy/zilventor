@@ -387,9 +387,33 @@ export function parseDxf(text: string): ParsedDxf {
   let currentBlock: string | null = null;
   let raw: RawEntity | null = null;
   let polyline: { layer: string; closed: boolean; extrusion?: { x: number; y: number; z: number }; vertices: Array<{ x: number; y: number; bulge: number }> } | null = null;
+  // Every INSERT is provisionally held here until we know whether group 66=1 ("attributes
+  // follow"); a trailing ATTRIB run then feeds `attribs`, terminated by SEQEND. If the next
+  // record is neither ATTRIB nor SEQEND, it is pushed immediately (the common no-attribs case).
+  let pendingInsert: { ent: Extract<DxfEntity, { type: 'INSERT' }> | null; attribs: Array<{ tag: string; value: string }> } | null = null;
+  const pushEnt = (ent: DxfEntity): void => {
+    if (section === 'ENTITIES') result.entities.push(ent);
+    else if (section === 'BLOCKS' && currentBlock) (result.blocks[currentBlock] ??= []).push(ent);
+  };
+  const finalizePendingInsert = (): void => {
+    if (!pendingInsert) return;
+    const { ent, attribs } = pendingInsert;
+    if (ent) pushEnt(attribs.length ? { ...ent, attribs } : ent);
+    pendingInsert = null;
+  };
 
   const flush = (): void => {
     if (!raw) return;
+    if (raw.type === 'ATTRIB') {
+      if (pendingInsert) pendingInsert.attribs.push({ tag: str(raw.pairs, 2), value: str(raw.pairs, 1) });
+      raw = null;
+      return;
+    }
+    if (raw.type === 'INSERT' && pendingInsert) {
+      pendingInsert.ent = readEntity(raw) as Extract<DxfEntity, { type: 'INSERT' }> | null;
+      raw = null;
+      return;
+    }
     if (raw.type === '__POLYHDR__' && polyline) {
       polyline.layer = str(raw.pairs, 8, '0');
       polyline.closed = (num(raw.pairs, 70) & 1) === 1;
@@ -424,6 +448,8 @@ export function parseDxf(text: string): ParsedDxf {
     if (p.code === 0) {
       flush();
       const kind = p.value;
+      // A pendingInsert not immediately followed by ATTRIB/SEQEND has no attribs after all.
+      if (pendingInsert && kind !== 'ATTRIB' && kind !== 'SEQEND') finalizePendingInsert();
       if (kind === 'SECTION') {
         const next = pairs[i + 1];
         section = next && next.code === 2 ? next.value : '';
@@ -442,13 +468,17 @@ export function parseDxf(text: string): ParsedDxf {
         raw = { type: '__POLYHDR__', pairs: [] };
       } else if (kind === 'VERTEX') {
         raw = { type: '__VERTEX__', pairs: [] };
+      } else if (kind === 'INSERT') {
+        pendingInsert = { ent: null, attribs: [] };
+        raw = { type: kind, pairs: [] };
       } else if (kind === 'SEQEND') {
         if (polyline) {
           const ent: DxfEntity = { type: 'POLYLINE', layer: polyline.layer, closed: polyline.closed, vertices: polyline.vertices,
             ...(polyline.extrusion ? { extrusion: polyline.extrusion } : {}) };
-          if (section === 'ENTITIES') result.entities.push(ent);
-          else if (section === 'BLOCKS' && currentBlock) (result.blocks[currentBlock] ??= []).push(ent);
+          pushEnt(ent);
           polyline = null;
+        } else {
+          finalizePendingInsert();
         }
       } else {
         raw = { type: kind, pairs: [] };

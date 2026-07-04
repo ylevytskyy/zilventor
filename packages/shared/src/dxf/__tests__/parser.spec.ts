@@ -294,6 +294,51 @@ describe('parseDxf INSERT arrays + BLOCK base points', () => {
   });
 });
 
+describe('parseDxf INSERT ATTRIB', () => {
+  it('collects trailing ATTRIB tag/value pairs into attribs when group 66=1', () => {
+    const dxf = entitiesDxf([
+      '  0', 'INSERT', '  2', 'BLK', ' 10', '5', ' 20', '7', ' 66', '1',
+      '  0', 'ATTRIB', '  2', 'Skp_GroupInstanceName', '  1', '__4. Дверка',
+      '  0', 'ATTRIB', '  2', 'Skp_ComponentInstanceName', '  1', 'ABC123',
+      '  0', 'SEQEND',
+    ].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('INSERT');
+    if (e.type === 'INSERT') {
+      expect(e.name).toBe('BLK');
+      expect([e.x, e.y]).toEqual([5, 7]);
+      expect(e.attribs).toEqual([
+        { tag: 'Skp_GroupInstanceName', value: '__4. Дверка' },
+        { tag: 'Skp_ComponentInstanceName', value: 'ABC123' },
+      ]);
+    }
+  });
+
+  it('omits the attribs key entirely when group 66 is absent', () => {
+    const dxf = entitiesDxf(['  0', 'INSERT', '  2', 'BLK', ' 10', '1', ' 20', '2'].join('\n'));
+    const e = parseDxf(dxf).entities[0]!;
+    expect(e.type).toBe('INSERT');
+    if (e.type === 'INSERT') expect('attribs' in e).toBe(false);
+  });
+
+  it('parses an entity following the SEQEND correctly (stream-advance guard)', () => {
+    const dxf = entitiesDxf([
+      '  0', 'INSERT', '  2', 'BLK', ' 10', '0', ' 20', '0', ' 66', '1',
+      '  0', 'ATTRIB', '  2', 'Skp_GroupInstanceName', '  1', 'X',
+      '  0', 'SEQEND',
+      '  0', 'LINE', '  8', '0', ' 10', '1', ' 20', '1', ' 11', '2', ' 21', '2',
+    ].join('\n'));
+    const r = parseDxf(dxf);
+    expect(r.entities).toHaveLength(2);
+    expect(r.entities[0]!.type).toBe('INSERT');
+    expect(r.entities[1]!.type).toBe('LINE');
+    const line = r.entities[1]!;
+    if (line.type === 'LINE') {
+      expect([line.x1, line.y1, line.x2, line.y2]).toEqual([1, 1, 2, 2]);
+    }
+  });
+});
+
 describe('parseDxf — LEADER', () => {
   it('parses leader vertices from repeated 10/20 pairs', () => {
     const dxf = entitiesDxf(['  0', 'LEADER', '  8', 'NOTES', ' 76', '3',
