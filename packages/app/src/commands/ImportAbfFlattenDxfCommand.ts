@@ -3,6 +3,7 @@ import { CURRENT_FORMAT_VERSION } from '@zilventor/shared';
 import type { AbfPanelRecord } from '@zilventor/shared/src/dxf/abfPanelExtraction';
 import { writeTarGz } from '@zilventor/kernel/src/storage/tarGzipUtil';
 import type { Command } from './Command';
+import i18n from '../i18n';
 import { useAppStore, type ActiveDocument } from '../store/useAppStore';
 import { dedupeName } from '../import/dedupeName';
 import { buildAbfPanelPart } from './buildAbfPanelPart';
@@ -25,6 +26,9 @@ export type ImportAbfFlattenDxfOpts = {
   /** S4 dialog-confirmed per-material-group selections, joined to records by groupToken. */
   readonly selections: readonly AbfImportGroupSelection[];
   readonly opfs: OpfsWriteDeleteLike;
+  /** Basename (sans extension) of the imported DXF file, threaded from the ribbon handler
+   *  (S5) — replaces the 'ABF Import' placeholder assembly name when present. */
+  readonly assemblyName?: string;
 };
 
 export type ImportAbfFlattenDxfSummary = {
@@ -116,7 +120,7 @@ export class ImportAbfFlattenDxfCommand implements Command {
 
     const assembly: AssemblyDocument = {
       id: crypto.randomUUID(),
-      name: 'ABF Import',
+      name: this.opts.assemblyName ?? 'ABF Import',
       units: 'mm',
       parameters: {},
       components,
@@ -134,14 +138,12 @@ export class ImportAbfFlattenDxfCommand implements Command {
     this.summary = { partsImported: components.length, boresImported, referenceCircles, nonRectangularPanels };
 
     useAppStore.getState().setActiveDocument({ kind: 'assembly', document: assembly });
-    useAppStore.getState().setStatus(
-      `Imported ${components.length} ABF panel${components.length === 1 ? '' : 's'} — ` +
-        `${boresImported} bore${boresImported === 1 ? '' : 's'} imported, ` +
-        `${referenceCircles} as reference geometry only` +
-        (nonRectangularPanels > 0
-          ? `, ${nonRectangularPanels} non-rectangular outline${nonRectangularPanels === 1 ? '' : 's'} flagged`
-          : ''),
-    );
+    const message =
+      i18n.t('status.importAbf.done', { count: components.length, bores: boresImported, referenceCircles }) +
+      (nonRectangularPanels > 0
+        ? i18n.t('status.importAbf.nonRectangularSuffix', { count: nonRectangularPanels })
+        : '');
+    useAppStore.getState().setStatus(message);
   }
 
   async revert(): Promise<void> {

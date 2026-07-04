@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAppStore } from '../../store/useAppStore';
+import i18n from '../../i18n';
 import { ImportAbfFlattenDxfCommand } from '../ImportAbfFlattenDxfCommand';
 import type { AbfPanelRecord } from '@zilventor/shared/src/dxf/abfPanelExtraction';
 import type { AbfImportGroupSelection } from '../../shell/ImportAbfFlattenDxfDialog';
@@ -73,11 +74,12 @@ describe('ImportAbfFlattenDxfCommand — happy path', () => {
     useAppStore.getState().setActiveDocument(priorAssembly());
   });
 
-  it('apply: activeDocument becomes a brand-new assembly with N components (one per record)', async () => {
+  it('apply: activeDocument becomes a brand-new assembly with N components (one per record); uses the filename-derived assemblyName when supplied, in place of the "ABF Import" placeholder', async () => {
     const cmd = new ImportAbfFlattenDxfCommand({
       records: [DOOR_PANEL, PLAIN_PANEL],
       selections: SELECTIONS,
       opfs: opfs as any,
+      assemblyName: 'Стелаж flatten',
     });
     await cmd.apply();
 
@@ -86,6 +88,7 @@ describe('ImportAbfFlattenDxfCommand — happy path', () => {
     if (activeDocument?.kind !== 'assembly') throw new Error('guard');
     expect(activeDocument.document.components).toHaveLength(2);
     expect(activeDocument.document.id).not.toBe('prior-asm');
+    expect(activeDocument.document.name).toBe('Стелаж flatten');
   });
 
   it('apply: components are placed at origin/identity pose with partPaths <panel name>.zipt', async () => {
@@ -143,9 +146,11 @@ describe('ImportAbfFlattenDxfCommand — happy path', () => {
     });
     await cmd.apply();
     expect(setStatusSpy).toHaveBeenCalledTimes(1);
-    const msg = setStatusSpy.mock.calls[0]![0] as string;
-    expect(msg).toMatch(/1 bore/i);
-    expect(msg).toMatch(/1.*reference/i);
+    // Assert against the same i18n resolution the command produces, so the test
+    // is locale-independent (matches the PlaceComponentCommand precedent).
+    expect(setStatusSpy).toHaveBeenCalledWith(
+      i18n.t('status.importAbf.done', { count: 1, bores: 1, referenceCircles: 1 }),
+    );
   });
 
   it('apply: dedupes OPFS name collisions against existing files', async () => {

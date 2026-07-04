@@ -455,6 +455,14 @@
       "to_face": "До грані",
       "to_next": "До наступного"
     },
+    "importAbf": {
+      "title": "Імпорт ABF розгортки DXF",
+      "materialGroupHeader": "Група матеріалу",
+      "materialHeader": "Матеріал",
+      "thicknessHeader": "Товщина (мм)",
+      "materialForGroup": "Матеріал для {{token}}",
+      "thicknessForGroup": "Товщина для {{token}}"
+    },
     "importInventor": {
       "cancelOnConflict": "Скасувати при конфлікті",
       "conflictLegend": "Якщо файл вже існує в призначенні:",
@@ -858,6 +866,7 @@
       "exportImage": "Експорт зображення",
       "exportStep": "Експорт STEP",
       "exportStl": "Експорт STL",
+      "importAbfFlattenDxf": "Імпорт ABF розгортки DXF…",
       "importDxf": "Імпорт DXF…",
       "importFromInventor": "Імпорт з Inventor",
       "newAssembly": "Нова збірка",
@@ -1226,6 +1235,10 @@
     "exportStatistics": {
       "empty": "Експортовано порожній звіт статистики",
       "lines": "Експортовано {{count}} рядків статистики"
+    },
+    "importAbf": {
+      "done": "Імпортовано {{count}} ABF-панелей — {{bores}} свердлінь імпортовано, {{referenceCircles}} як довідкова геометрія",
+      "nonRectangularSuffix": ", {{count}} нерегулярних контурів позначено"
     },
     "importingStep": "Імпорт STEP… (може тривати кілька хвилин для великих збірок)",
     "importingStepElapsed": "Імпорт STEP… {{elapsed}} минуло (великі збірки можуть тривати кілька хвилин)",

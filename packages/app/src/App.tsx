@@ -465,6 +465,8 @@ export default function App() {
   const setAbfImportDialogOpen = useAppStore((s) => s.setAbfImportDialogOpen);
   const abfImportPendingRecords = useAppStore((s) => s.abfImportPendingRecords);
   const setAbfImportPendingRecords = useAppStore((s) => s.setAbfImportPendingRecords);
+  const abfImportFileName = useAppStore((s) => s.abfImportFileName);
+  const setAbfImportFileName = useAppStore((s) => s.setAbfImportFileName);
   const abfImportMaterials = useAppStore((s) => s.activeAssembly?.materials ?? s.activePart?.materials ?? []);
   const revolveDialogOpen = useAppStore((s) => s.revolveDialogOpen);
   const setRevolveDialogOpen = useAppStore((s) => s.setRevolveDialogOpen);
@@ -5815,17 +5817,25 @@ export default function App() {
         onCancel={() => {
           setAbfImportDialogOpen(false);
           setAbfImportPendingRecords(null);
+          setAbfImportFileName(null);
         }}
         onConfirm={async (selections) => {
           const records = abfImportPendingRecords ?? [];
+          const assemblyName = abfImportFileName;
           setAbfImportDialogOpen(false);
           setAbfImportPendingRecords(null);
+          setAbfImportFileName(null);
           if (records.length === 0) return;
           if (!opfsRef.current) opfsRef.current = await Opfs.forNavigator();
           const { ImportAbfFlattenDxfCommand } = await import('./commands/ImportAbfFlattenDxfCommand');
           const { bus } = useAppStore.getState();
           try {
-            await bus.execute(new ImportAbfFlattenDxfCommand({ records, selections, opfs: opfsRef.current }));
+            await bus.execute(new ImportAbfFlattenDxfCommand({
+              records,
+              selections,
+              opfs: opfsRef.current,
+              ...(assemblyName ? { assemblyName } : {}),
+            }));
           } catch (e) {
             useAppStore.getState().setStatus(`ABF import failed: ${(e as Error).message}`);
           }

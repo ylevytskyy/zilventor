@@ -455,6 +455,14 @@
       "to_face": "To Face",
       "to_next": "To Next"
     },
+    "importAbf": {
+      "title": "Import ABF flatten DXF",
+      "materialGroupHeader": "Material group",
+      "materialHeader": "Material",
+      "thicknessHeader": "Thickness (mm)",
+      "materialForGroup": "Material for {{token}}",
+      "thicknessForGroup": "Thickness for {{token}}"
+    },
     "importInventor": {
       "cancelOnConflict": "Cancel on conflict",
       "conflictLegend": "If a file already exists in the target:",
@@ -858,6 +866,7 @@
       "exportImage": "Export Image",
       "exportStep": "Export STEP",
       "exportStl": "Export STL",
+      "importAbfFlattenDxf": "Import ABF flatten DXF…",
       "importDxf": "Import DXF…",
       "importFromInventor": "Import from Inventor",
       "newAssembly": "New Assembly",
@@ -1226,6 +1235,10 @@
     "exportStatistics": {
       "empty": "Exported empty statistics report",
       "lines": "Exported {{count}} statistics lines"
+    },
+    "importAbf": {
+      "done": "Imported {{count}} ABF panel(s) — {{bores}} bore(s) imported, {{referenceCircles}} as reference geometry only",
+      "nonRectangularSuffix": ", {{count}} non-rectangular outline(s) flagged"
     },
     "importingStep": "Importing STEP… (this can take several minutes for large assemblies)",
     "importingStepElapsed": "Importing STEP… {{elapsed}} elapsed (large assemblies can take several minutes)",

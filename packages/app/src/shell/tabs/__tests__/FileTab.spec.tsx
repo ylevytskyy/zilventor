@@ -4,6 +4,26 @@ import FileTab, { STEP_MAX_BYTES } from '../FileTab';
 import { useAppStore } from '../../../store/useAppStore';
 import type { AssemblyDocument } from '@zilventor/shared';
 
+const { FAKE_ABF_RECORDS } = vi.hoisted(() => ({
+  FAKE_ABF_RECORDS: [{
+    name: '__1. Panel',
+    materialGroup: { token: 'AUTO_THICKNESS_18', material: 'AUTO', thicknessMm: 18 },
+    length: 600,
+    width: 400,
+    rectangular: true,
+    outline: [{ x: 0, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }],
+    circles: [],
+  }],
+}));
+
+vi.mock('@zilventor/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zilventor/shared')>();
+  return { ...actual, parseDxf: vi.fn().mockReturnValue({ mocked: 'parsed-dxf' }) };
+});
+vi.mock('@zilventor/shared/src/dxf/abfPanelExtraction', () => ({
+  extractAbfPanels: vi.fn().mockReturnValue(FAKE_ABF_RECORDS),
+}));
+
 vi.mock('../../../commands/ImportStepAsComponentCommand', () => ({
   ImportStepAsComponentCommand: vi.fn().mockImplementation(() => ({
     name: 'ImportStepAsComponent',
@@ -451,6 +471,35 @@ describe('handleOpen — SolidWorks native branch', () => {
       expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
     expect(screen.getByRole('alertdialog').textContent).toMatch(/Save As/i);
+  });
+});
+
+describe('Import ABF flatten DXF button', () => {
+  beforeEach(() => {
+    useAppStore.getState().setAbfImportPendingRecords(null);
+    useAppStore.getState().setAbfImportDialogOpen(false);
+    useAppStore.getState().setAbfImportFileName(null);
+    delete (window as any).showOpenFilePicker;
+  });
+
+  it('renders alongside the other explicit import entries', () => {
+    render(<FileTab />);
+    expect(screen.getByRole('button', { name: /import abf flatten dxf/i })).toBeInTheDocument();
+  });
+
+  it('on file pick: parses the DXF, stores extracted records + file basename (sans extension), and opens the dialog', async () => {
+    const fakeFile = { name: 'Стелаж flatten.dxf', size: 10, text: async () => 'FAKE_DXF_TEXT' } as unknown as File;
+    const fakeHandle = { getFile: async () => fakeFile };
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([fakeHandle]);
+
+    render(<FileTab />);
+    fireEvent.click(screen.getByRole('button', { name: /import abf flatten dxf/i }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().abfImportDialogOpen).toBe(true);
+    });
+    expect(useAppStore.getState().abfImportPendingRecords).toEqual(FAKE_ABF_RECORDS);
+    expect(useAppStore.getState().abfImportFileName).toBe('Стелаж flatten');
   });
 });
 

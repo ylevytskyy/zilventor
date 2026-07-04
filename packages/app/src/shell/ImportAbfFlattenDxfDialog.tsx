@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { MaterialId, MaterialRegistry } from '@zilventor/shared';
 
 /**
@@ -8,8 +9,7 @@ import type { MaterialId, MaterialRegistry } from '@zilventor/shared';
  * token. `onConfirm` returns the per-group selections for the orchestrating
  * `ImportAbfFlattenDxfCommand` (S3) to consume.
  *
- * i18n copy is S5's job — dev-placeholder English strings only, per the
- * ratified plan (docs/superpowers/plans/2026-07-04-abf-import-as-panels.md, S4).
+ * i18n copy (S5): `dialog.importAbf.*` in en.json/uk.json.
  */
 
 export type AbfImportGroupSelection = {
@@ -36,6 +36,7 @@ function prefillThickness(groupToken: string): number {
 type RowState = { materialId: MaterialId; thickness: number };
 
 export function ImportAbfFlattenDxfDialog(props: ImportAbfFlattenDxfDialogProps): JSX.Element | null {
+  const { t } = useTranslation();
   const defaultMaterialId: MaterialId = props.materials[0]?.id ?? '';
 
   const [rows, setRows] = useState<Record<string, RowState>>(() => {
@@ -68,15 +69,15 @@ export function ImportAbfFlattenDxfDialog(props: ImportAbfFlattenDxfDialogProps)
   };
 
   return (
-    <div role="dialog" aria-label="Import ABF flatten DXF" className="fixed inset-0 bg-black/40 flex items-center justify-center">
+    <div role="dialog" aria-label={t('dialog.importAbf.title')} className="fixed inset-0 bg-black/40 flex items-center justify-center">
       <div className="bg-neutral-900 text-neutral-100 rounded shadow-lg p-4 w-[560px]">
-        <h2 className="text-sm font-semibold mb-3">Import ABF flatten DXF</h2>
+        <h2 className="text-sm font-semibold mb-3">{t('dialog.importAbf.title')}</h2>
         <table className="w-full text-xs mb-3">
           <thead>
             <tr>
-              <th className="text-left">Material group</th>
-              <th className="text-left">Material</th>
-              <th className="text-left">Thickness (mm)</th>
+              <th className="text-left">{t('dialog.importAbf.materialGroupHeader')}</th>
+              <th className="text-left">{t('dialog.importAbf.materialHeader')}</th>
+              <th className="text-left">{t('dialog.importAbf.thicknessHeader')}</th>
             </tr>
           </thead>
           <tbody>
@@ -87,7 +88,7 @@ export function ImportAbfFlattenDxfDialog(props: ImportAbfFlattenDxfDialogProps)
                   <td className="py-1 pr-2">{token}</td>
                   <td className="py-1 pr-2">
                     <select
-                      aria-label={`Material for ${token}`}
+                      aria-label={t('dialog.importAbf.materialForGroup', { token })}
                       value={row.materialId}
                       onChange={(e) => setMaterialId(token, e.target.value)}
                     >
@@ -98,7 +99,7 @@ export function ImportAbfFlattenDxfDialog(props: ImportAbfFlattenDxfDialogProps)
                   </td>
                   <td className="py-1">
                     <input
-                      aria-label={`Thickness for ${token}`}
+                      aria-label={t('dialog.importAbf.thicknessForGroup', { token })}
                       type="number"
                       value={row.thickness}
                       onChange={(e) => setThickness(token, Number(e.target.value))}
@@ -110,8 +111,8 @@ export function ImportAbfFlattenDxfDialog(props: ImportAbfFlattenDxfDialogProps)
           </tbody>
         </table>
         <div className="flex justify-end gap-2">
-          <button onClick={props.onCancel} className="text-xs px-2 py-1 hover:text-white">Cancel</button>
-          <button onClick={confirm} className="text-xs px-2 py-1 bg-blue-700 hover:bg-blue-600">Import</button>
+          <button onClick={props.onCancel} className="text-xs px-2 py-1 hover:text-white">{t('common.cancel')}</button>
+          <button onClick={confirm} className="text-xs px-2 py-1 bg-blue-700 hover:bg-blue-600">{t('common.import')}</button>
         </div>
       </div>
     </div>
