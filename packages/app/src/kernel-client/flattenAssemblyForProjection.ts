@@ -1,6 +1,7 @@
 import type { AssemblyDocument } from '@zilventor/shared';
 import { composePoses } from '../assembly/walkers/composedPoses';
 import type { Pose } from '../assembly/walkers/flattenForSolver';
+import { componentLocalPose } from '../assembly/walkers/componentLocalPose';
 
 export type ProjectionLeaf = {
   /** Kernel partId for this leaf (matches the id passed to kernel.execute). */
@@ -19,11 +20,7 @@ const IDENTITY_POSE: Pose = {
 };
 
 function componentPose(c: AssemblyDocument['components'][number]): Pose {
-  if (c.pose) return c.pose;
-  return {
-    translation: { x: c.position.x, y: c.position.y, z: c.position.z },
-    quaternion: [0, 0, 0, 1],
-  };
+  return componentLocalPose(c);
 }
 
 /**

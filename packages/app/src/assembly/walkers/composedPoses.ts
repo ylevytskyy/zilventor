@@ -2,6 +2,7 @@ import type { AssemblyDocument } from '@zilventor/shared';
 import { pathKey, parsePathKey } from '@zilventor/shared';
 import { quatMultiply, quatRotateVec } from '@zilventor/kernel/src/assembly/quat';
 import type { Pose } from './flattenForSolver';
+import { componentLocalPose } from './componentLocalPose';
 
 export type ComposedPosesInput = {
   pathToUnknown: Map<string, number>;
@@ -40,7 +41,7 @@ export function composedPoses(
       if (idx !== undefined) {
         myPose = input.poses[idx]!;
       } else {
-        myPose = { translation: { x: c.position.x, y: c.position.y, z: c.position.z }, quaternion: [0, 0, 0, 1] };
+        myPose = componentLocalPose(c);
       }
       out.set(key, myPose);
       if (!c.partPath.endsWith('.ziasm')) continue;

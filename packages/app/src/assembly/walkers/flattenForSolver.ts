@@ -1,6 +1,7 @@
 import type { AssemblyConstraint, AssemblyDocument, ComponentInstance, ComponentPath, Vec3 } from '@zilventor/shared';
 import { pathKey, parsePathKey } from '@zilventor/shared';
 import type { SubAssemblyCache } from '../SubAssemblyCache';
+import { componentLocalPose } from './componentLocalPose';
 
 export type Pose = { translation: Vec3; quaternion: [number, number, number, number] };
 
@@ -17,11 +18,7 @@ export type SolverInput = {
 };
 
 function initialPose(c: ComponentInstance): Pose {
-  if (c.pose) return c.pose;
-  return {
-    translation: { x: c.position.x, y: c.position.y, z: c.position.z },
-    quaternion: [0, 0, 0, 1],
-  };
+  return componentLocalPose(c);
 }
 
 function prefixRef<T extends { componentPath: ComponentPath }>(ref: T, prefix: ComponentPath): T {

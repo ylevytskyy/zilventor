@@ -3,6 +3,7 @@ import type { ComponentInstance, MirrorPlane } from '@zilventor/shared';
 import type { KernelApi } from '@zilventor/kernel/src/api';
 import { useAppStore } from '../store/useAppStore';
 import { computeMirroredPose } from '../assembly/poseHelpers';
+import { componentLocalPose } from '../assembly/walkers/componentLocalPose';
 import { dedupeName } from '../import/dedupeName';
 
 export type MirrorComponentOpts = {
@@ -53,10 +54,7 @@ export class MirrorComponentCommand implements Command {
     await opfs.write(this.mirrorPartPath, archiveBytes);
 
     // 4. Compute mirrored pose (R' = M * R * S, t' = M * t)
-    const srcPose = src.pose ?? {
-      translation: { x: src.position.x, y: src.position.y, z: src.position.z },
-      quaternion: [0, 0, 0, 1] as [number, number, number, number],
-    };
+    const srcPose = componentLocalPose(src);
     const mirroredPose = computeMirroredPose(srcPose, plane);
 
     // 5. Add the mirrored component instance to the assembly
