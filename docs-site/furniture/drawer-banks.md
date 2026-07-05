@@ -56,7 +56,7 @@ sides and drawer boxes (side-mount) or drawer bottoms/backs and cabinet sides (T
   faces and the drawer box sides; Tandem cuts the drawer box bottom/back and the cabinet
   sides. Switching slide systems after generating changes where the bores land.
 
-<!-- SCREENSHOT: Add Drawer Bank dialog with three drawers and per-row heights, and the resulting drawer boxes with slide bores in a cabinet — TODO follow-up -->
+![Add Drawer Bank dialog showing count, overlay, slide system, and per-drawer heights](/img/furniture/drawer-bank.png)
 
 ## See also
 

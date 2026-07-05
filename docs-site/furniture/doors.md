@@ -61,7 +61,7 @@ hinge-cup bores appear on the door and hinge-plate bores on the cabinet's hinge-
   automatically.
 - "Hinges (auto)" can't be overridden in this dialog; it's purely informational.
 
-<!-- SCREENSHOT: Add Door dialog with Style set to each of Slab/Shaker/Raised panel, and the resulting doors on a cabinet — TODO follow-up -->
+![Add Door dialog showing count, hinge side, overlay, style, and reveal defaults](/img/furniture/add-door.png)
 
 ## See also
 

@@ -52,7 +52,7 @@ shows quantity × unit price = line total. This is the single cost-report surfac
 - Category labels are exactly **Hardware**, **Connectors**, **Edge Band**, **Linear
   Material**, **Panels** — not "joints" or "sheet goods" wording.
 
-<!-- SCREENSHOT: Statistics report table showing all five categories with sample line items — TODO follow-up -->
+![Statistics report table showing Hardware, Connectors, Edge Band, Linear Material, and Panels categories with sample line items](/img/furniture/cost-statistics.png)
 
 ## See also
 

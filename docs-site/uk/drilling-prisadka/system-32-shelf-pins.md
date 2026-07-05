@@ -88,7 +88,7 @@ Zilventor пропонує два способи застосувати її:
   ручному вибору кожної сторони — авто-режим ще й коректно віддзеркалює, тоді як у ручному режимі
   (з вибором кожної сторони окремо) це залишається на вашій відповідальності.
 
-<!-- SCREENSHOT: ShelfPinDialog with default values, and the resulting two-column pin grid on a cabinet side panel's inner face — TODO follow-up -->
+![Система-32 (shelf pins) dialog showing pitch, diameter, depth, setbacks, margins, and column defaults](/img/drilling-prisadka/system-32.png)
 
 ## Див. також
 

@@ -77,4 +77,4 @@ page.*
 - [Cut List](../furniture/cut-list.md)
 
 <!-- SCREENSHOT: Furniture ribbon Nesting panel with Rich/Compact toggle, header line fields, and Export Labels (PDF) button — TODO follow-up -->
-<!-- SCREENSHOT: printed A4 page of labels in Rich template showing the mini diagram and QR code — TODO follow-up -->
+![Printed A4 page of shop labels in the Rich template, each with item number, dimensions, and a QR code](/img/manufacturing/labels.png)

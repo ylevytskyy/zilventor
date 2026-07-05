@@ -58,7 +58,7 @@ Groove прорізає єдиний прямий канал у панелі: о
   локалізована кишеня. Якщо потрібен короткий локалізований фрезерований виріз, дивіться
   [Замкові пази](./keyhole-slots.md).
 
-<!-- SCREENSHOT: GrooveDialog with default values, and the resulting groove cut into a cabinet side panel's inner face — TODO follow-up -->
+![Groove dialog showing face, axis, position, width, and depth defaults with a live preview line on the panel](/img/drilling-prisadka/groove.png)
 
 ## Див. також
 

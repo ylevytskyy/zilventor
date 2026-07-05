@@ -65,7 +65,7 @@ title: Секції шухляд
   грані боків шафи та боки ящика шухляди; Tandem вирізає днище/задню стінку ящика шухляди і
   боки шафи. Перемикання систем напрямних після генерації змінює розташування свердлінь.
 
-<!-- SCREENSHOT: Add Drawer Bank dialog with three drawers and per-row heights, and the resulting drawer boxes with slide bores in a cabinet — TODO follow-up -->
+![Add Drawer Bank dialog showing count, overlay, slide system, and per-drawer heights](/img/furniture/drawer-bank.png)
 
 ## Див. також
 

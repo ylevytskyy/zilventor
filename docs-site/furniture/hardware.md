@@ -56,7 +56,7 @@ hardware/BOM table.*
   `attachPoints`; leg-leveler entries can add a screw-pattern block. Import is all-or-nothing
   — one bad or duplicate `id` fails the whole batch.
 
-<!-- SCREENSHOT: Add Hardware dialog with the Hinges category selected, and the Import SKU… flow — TODO follow-up -->
+![Add Hardware dialog with the Hinges category, a hinge selected, and Import SKU option](/img/furniture/hardware.png)
 
 ## See also
 

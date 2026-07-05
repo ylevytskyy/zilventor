@@ -56,7 +56,7 @@ title: Вартість і статистика
 - Назви категорій точно такі: **Фурнітура**, **З'єднувачі**, **Кромка**, **Погонний
   матеріал**, **Плити** — а не формулювання на кшталт «з'єднання» чи «листові матеріали».
 
-<!-- SCREENSHOT: Statistics report table showing all five categories with sample line items — TODO follow-up -->
+![Statistics report table showing Hardware, Connectors, Edge Band, Linear Material, and Panels categories with sample line items](/img/furniture/cost-statistics.png)
 
 ## Див. також
 

@@ -107,5 +107,5 @@ ADR 0001): виробничий файл, що
 - [Регульовані ніжки](./leg-levelers.md)
 - ADR: `docs/adr/0001-machining-presets-global-with-snapshot.md`
 
-<!-- SCREENSHOT: Machining Presets dialog with a filled preset form + existing preset list — TODO follow-up -->
+![Machining Presets dialog showing an existing preset and a filled-in preset form](/img/drilling-prisadka/machining-presets.png)
 <!-- SCREENSHOT: Bore properties panel showing the Machining preset dropdown + Apply button — TODO follow-up -->

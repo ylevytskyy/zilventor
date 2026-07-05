@@ -69,7 +69,7 @@ title: Двері
   (шейкер) або Філенку з фаскою після генерації не додасть свердління петель автоматично.
 - «Петлі (авто)» неможливо перевизначити в цьому діалозі; це суто інформаційне значення.
 
-<!-- SCREENSHOT: Add Door dialog with Style set to each of Slab/Shaker/Raised panel, and the resulting doors on a cabinet — TODO follow-up -->
+![Add Door dialog showing count, hinge side, overlay, style, and reveal defaults](/img/furniture/add-door.png)
 
 ## Див. також
 

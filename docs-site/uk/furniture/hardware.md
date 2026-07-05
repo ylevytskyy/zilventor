@@ -61,7 +61,7 @@ title: Фурнітура
   гвинтів. Імпорт відбувається все-або-нічого — один поганий або дубльований `id` провалює
   всю партію.
 
-<!-- SCREENSHOT: Add Hardware dialog with the Hinges category selected, and the Import SKU… flow — TODO follow-up -->
+![Add Hardware dialog with the Hinges category, a hinge selected, and Import SKU option](/img/furniture/hardware.png)
 
 ## Див. також
 

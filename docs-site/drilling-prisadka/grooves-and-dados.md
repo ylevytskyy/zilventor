@@ -58,7 +58,7 @@ cabinet side, or a drawer-bottom groove into a drawer box's sides and front.
   localized pocket. If you need a short, localized routed cutout instead, see
   [Keyhole Slots](./keyhole-slots.md).
 
-<!-- SCREENSHOT: GrooveDialog with default values, and the resulting groove cut into a cabinet side panel's inner face — TODO follow-up -->
+![Groove dialog showing face, axis, position, width, and depth defaults with a live preview line on the panel](/img/drilling-prisadka/groove.png)
 
 ## See also
 

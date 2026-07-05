@@ -85,7 +85,7 @@ export the same way, and merge with existing bores rather than duplicating.
   manually — auto also mirrors correctly, which manual (picking each side separately) leaves
   up to you to get right.
 
-<!-- SCREENSHOT: ShelfPinDialog with default values, and the resulting two-column pin grid on a cabinet side panel's inner face — TODO follow-up -->
+![Система-32 (shelf pins) dialog showing pitch, diameter, depth, setbacks, margins, and column defaults](/img/drilling-prisadka/system-32.png)
 
 ## See also
 
