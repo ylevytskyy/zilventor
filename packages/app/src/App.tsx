@@ -4775,9 +4775,17 @@ export default function App() {
   }, [selectedBoreId, selectedBorePartPath]);
 
   // PartInfo cache sync: resolve the document.name and iProperties (partNumber,
-  // description) for each unique partPath referenced by the active assembly so
-  // BomTable / autosave merge can show human names + Inventor metadata.
+  // description) for each unique partPath referenced by the active assembly —
+  // recursing into nested .ziasm sub-assembly docs (cabinets always place their
+  // panels one level down) — so BomTable / autosave merge / labels / CSV can
+  // show human names + Inventor metadata instead of '(missing part)'.
   // Cached per-path; bumps partInfoVersion to re-render.
+  //
+  // Anti-loop guard: same pattern as the subAssemblyDocs loader effect below —
+  // this effect only writes partInfoCacheRef + partInfoVersion, neither of
+  // which is a dep here, so its own writes can't re-trigger it. It re-runs
+  // when subAssemblyDocsForInnerPoses changes identity (new nested docs
+  // loaded) to pick up parts that weren't reachable yet on the first pass.
   useEffect(() => {
     if (!assembly) return;
     let cancelled = false;
@@ -4787,18 +4795,29 @@ export default function App() {
       const cache = partInfoCacheRef.current;
       const before = cache.size;
       const seen = new Set<string>();
-      for (const c of assembly.components) {
-        if (seen.has(c.partPath)) continue;
-        seen.add(c.partPath);
-        if (cache.has(c.partPath)) continue;
-        await resolvePartInfo(opfs, c.partPath, cache);
+      const subAssemblyDocsSnap = useAppStore.getState().subAssemblyDocs;
+      const stack: AssemblyDocument[] = [assembly];
+      while (stack.length) {
+        const d = stack.pop()!;
+        for (const c of d.components) {
+          if (!seen.has(c.partPath)) {
+            seen.add(c.partPath);
+            if (!cache.has(c.partPath)) {
+              await resolvePartInfo(opfs, c.partPath, cache);
+            }
+          }
+          if (c.partPath.endsWith('.ziasm')) {
+            const sub = subAssemblyDocsSnap[c.partPath];
+            if (sub) stack.push(sub);
+          }
+        }
       }
       if (!cancelled && cache.size !== before) {
         setPartInfoVersion((v) => v + 1);
       }
     })();
     return () => { cancelled = true; };
-  }, [assembly]);
+  }, [assembly, subAssemblyDocsForInnerPoses]);
 
   // Selection-sync: forward the store's selectedComponentPaths to the viewport
   // so it can render outline overlays on the selected component meshes.
@@ -5438,6 +5457,17 @@ export default function App() {
     }
     diagnosticsCacheRef.current = [];
     await loadCutListInputs(opfs, leafPaths, panelSpecCacheRef.current, diagnosticsCacheRef.current);
+    // Also resolve partInfo (document name/iProperties) for every leaf panel
+    // path reached by this recursive walk. The eager resolve effect above
+    // covers the same ground, but this warm can run first (Cut List tab
+    // opened before that effect's async pass lands) — without this, opening
+    // the tab wouldn't fix '(missing part)' rows on its own.
+    const partInfoCache = partInfoCacheRef.current;
+    const beforePartInfoSize = partInfoCache.size;
+    for (const p of leafPaths) {
+      if (!partInfoCache.has(p)) await resolvePartInfo(opfs, p, partInfoCache);
+    }
+    if (partInfoCache.size !== beforePartInfoSize) setPartInfoVersion((v) => v + 1);
     // Force useCutListResult to re-run by bumping the assembly identity (no-op content change).
     s.setActiveDocument({ kind: 'assembly', document: { ...a } });
   }, [panelSpecCacheRef]);
@@ -5489,7 +5519,7 @@ export default function App() {
   }, [invalidatePartPaths]);
 
   return (
-    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, partTenonMortisesCacheRef, partKeyholeSlotsCacheRef, diagnosticsCacheRef, warmCache: warmCutListCache, invalidatePartPaths }}>
+    <CutListCacheContext.Provider value={{ panelSpecCacheRef, partInfoCacheRef, partBoresCacheRef, partGroovesCacheRef, partTenonMortisesCacheRef, partKeyholeSlotsCacheRef, diagnosticsCacheRef, partInfoVersion, warmCache: warmCutListCache, invalidatePartPaths }}>
     <div className="flex flex-col h-full">
       {kernelOffline && (
         <div

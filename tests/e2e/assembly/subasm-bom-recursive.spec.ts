@@ -89,13 +89,13 @@ test('T42 — 3-level sub-asm BOM aggregates to qty=12 + CSV export', async ({ p
   const rows = bomTable.locator('tbody tr');
   await expect(rows).toHaveCount(1);
   await expect(rows.first().locator('td').nth(3)).toHaveText('12');
+  // Part Name column must resolve the real seeded part doc name ("cube"),
+  // not the '(missing part)' placeholder — the partInfo cache must recurse
+  // into nested .ziasm sub-assemblies the same way the leaf-path walk does.
+  await expect(rows.first().locator('td').nth(4)).toHaveText('cube');
 
   // Export CSV (mock the save picker with AbortError so the dev hook
-  // captures bytes without a save dialog). The partNames cache effect
-  // only walks top-level components, so nested part references like
-  // `parts/cube.zipt` resolve to '(missing part)' until something else
-  // populates the cache — that's outside T42's success criteria, which
-  // is the qty aggregation + CSV emission. Assert on qty + path only.
+  // captures bytes without a save dialog).
   await page.evaluate(() => {
     (window as any).showSaveFilePicker = async () => {
       throw new DOMException('cancelled', 'AbortError');
@@ -110,7 +110,8 @@ test('T42 — 3-level sub-asm BOM aggregates to qty=12 + CSV export', async ({ p
   });
   expect(csv).not.toBeNull();
   expect(csv).toContain('Item#,Part #,Description,QTY,Part Name,Color,Part Path\n');
-  // One row, qty=12, no color, parts/cube.zipt (Part#/Description/Part Name
-  // vary — nested resolution not asserted here, see comment above).
-  expect(csv).toMatch(/\n\d+,[^,]*,[^,]*,12,[^,]*,,parts\/cube\.zipt\n/);
+  // One row, qty=12, no color, parts/cube.zipt, Part Name resolved to the
+  // real seeded name ("cube") — nested part references must not fall back
+  // to '(missing part)'.
+  expect(csv).toMatch(/\n\d+,[^,]*,[^,]*,12,cube,,parts\/cube\.zipt\n/);
 });

@@ -18,6 +18,10 @@ export type CutListCacheContextValue = {
    *  loadCutListInputs → resolvePanelSpec); threaded onto CutListResult by
    *  useCutListResult so cut-list/manufacturing/nesting toasts stay live. */
   diagnosticsCacheRef: RefObject<PanelPreflightDiagnostic[]>;
+  /** Bumped after each partInfoCacheRef population pass so consumers (e.g.
+   *  useCutListResult) know to recompute even when activeAssembly/subAssemblyDocs
+   *  identity hasn't changed. */
+  partInfoVersion: number;
   /** Warms the panelSpecCacheRef from OPFS for all leaf parts in the active assembly. */
   warmCache: () => Promise<void>;
   /**
@@ -44,6 +48,7 @@ export function useCutListCacheContext(): CutListCacheContextValue {
       partTenonMortisesCacheRef: { current: new Map() },
       partKeyholeSlotsCacheRef: { current: new Map() },
       diagnosticsCacheRef: { current: [] },
+      partInfoVersion: 0,
       warmCache: NOOP_ASYNC,
       invalidatePartPaths: NOOP_ASYNC,
     };

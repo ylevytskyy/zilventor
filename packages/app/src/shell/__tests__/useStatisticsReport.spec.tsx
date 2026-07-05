@@ -59,6 +59,7 @@ function makeCacheValue(): CutListCacheContextValue {
     partTenonMortisesCacheRef: { current: new Map() },
     partKeyholeSlotsCacheRef: { current: new Map() },
     diagnosticsCacheRef: { current: [] },
+    partInfoVersion: 0,
     warmCache: () => Promise.resolve(),
     invalidatePartPaths: () => Promise.resolve(),
   };
