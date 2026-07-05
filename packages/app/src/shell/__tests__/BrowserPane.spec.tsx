@@ -595,6 +595,17 @@ describe('BrowserPane BOM tab strip', () => {
     expect(screen.queryByTestId('bom-table')).toBeNull();
   });
 
+  it('clicking BOM after Cut List clears cutListTabActive so BOM renders instead of stale Cut List content', async () => {
+    useAppStore.getState().setActiveDocument({ kind: 'assembly', document: asm });
+    render(<BrowserPane part={null} partInfo={new Map([['parts/leg.zipt', { name: 'leg' }]])} />);
+    fireEvent.click(screen.getByLabelText('Cut List tab'));
+    await waitFor(() => expect(useAppStore.getState().cutListTabActive).toBe(true));
+    fireEvent.click(screen.getByLabelText('BOM tab'));
+    expect(useAppStore.getState().bomTabActive).toBe(true);
+    expect(useAppStore.getState().cutListTabActive).toBe(false);
+    expect(screen.getByTestId('bom-table')).toBeInTheDocument();
+  });
+
   it('part mode hides the tab strip', () => {
     const part: PartDocument = {
       id: 'p1', name: 'Part1', units: 'mm', parameters: {}, properties: {},
