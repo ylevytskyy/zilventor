@@ -473,3 +473,23 @@ describe('renderPanelManufacturingDxf — DXF fidelity (parse-based)', () => {
     expect(closedPolys.every((e) => e.type === 'LWPOLYLINE' && e.vertices.length <= 4)).toBe(true);
   });
 });
+
+// Regression guard: renderPanelManufacturingDxf previously called createDxfDocument() with no
+// extra layers, so dynamic per-diameter bore layers (BORES-FRONT-*MM etc.) were referenced by
+// entities' group-8 code but never declared as TABLES/LAYER records — an undeclared-layer DXF.
+// neededLayers() (this file) already computes exactly this set and is used correctly by the
+// sibling renderCombinedManufacturingDxf; this locks the single-panel path onto the same fix.
+describe('renderPanelManufacturingDxf — LAYER table declarations', () => {
+  it('declares every layer an entity references as a TABLES/LAYER record', () => {
+    const dxf = renderPanelManufacturingDxf({ ...base, bores: [bore('Top', 100, 50, 5, 12)] });
+    const parsed = parseDxf(dxf);
+    const usedLayers = new Set(parsed.entities.map((e) => e.layer));
+    const declaredLayers = new Set(Object.keys(parsed.layers));
+    expect(usedLayers.size).toBeGreaterThan(0);
+    for (const layer of usedLayers) {
+      expect(declaredLayers.has(layer)).toBe(true);
+    }
+    expect(declaredLayers.has('OUTLINE')).toBe(true);
+    expect(declaredLayers.has('BORES-FRONT-5MM')).toBe(true);
+  });
+});

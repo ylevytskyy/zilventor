@@ -274,7 +274,7 @@ function drawGrain(doc: DxfDocument, spec: PanelSpec, len: number, wid: number, 
 
 export function renderPanelManufacturingDxf(input: PanelManufacturingInput, opts?: RenderDxfOpts): string {
   const scheme = opts?.layerScheme ?? 'native';
-  const doc = createDxfDocument();
+  const doc = createDxfDocument(neededLayers(input, scheme));
   const len = input.spec.length;
   const wid = input.spec.width;
   drawOutline(doc, len, wid, 0, 0, scheme);
