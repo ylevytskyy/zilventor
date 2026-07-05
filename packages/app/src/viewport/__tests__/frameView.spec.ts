@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { computeCameraFrame } from '../frameView';
+import { computeCameraFrame, computeClippingForDistance } from '../frameView';
 
 // Bounding sphere helper: every corner of `box` must satisfy
 //   near <= |corner - camera| <= far   (model fully inside the depth range)
@@ -82,5 +82,45 @@ describe('computeCameraFrame', () => {
     expect(f.near).toBeGreaterThan(0);
     expect(f.far).toBeGreaterThan(f.near);
     expect(f.position.distanceTo(f.target)).toBeGreaterThan(0);
+  });
+});
+
+// Live re-clipping (viewport-camera-clipping fix): OrbitControls dollying moves
+// the camera outside the near/far window computed once at fit-time. This helper
+// re-derives near/far from the *current* camera-to-target distance so it can be
+// recomputed on every 'change' event, not just at file-open.
+describe('computeClippingForDistance', () => {
+  it('typical case: near/far derived from the distance/radius margin', () => {
+    const { near, far } = computeClippingForDistance(3000, 1000);
+    expect(near).toBeCloseTo(1500, 6);
+    expect(far).toBeCloseTo(4500, 6);
+  });
+
+  it('zoomed-in case: near falls back to the dist/1000 floor, never negative', () => {
+    const { near } = computeClippingForDistance(100, 1000);
+    expect(near).toBeCloseTo(0.1, 6);
+    expect(near).toBeGreaterThan(0);
+  });
+
+  it('zoomed-out case: far grows to cover the model at the new distance', () => {
+    const { far } = computeClippingForDistance(100000, 1000);
+    expect(far).toBeCloseTo(101500, 6);
+  });
+
+  it('degenerate radius=0 keeps 0 < near < far', () => {
+    const { near, far } = computeClippingForDistance(500, 0);
+    expect(near).toBeGreaterThan(0);
+    expect(far).toBeGreaterThan(near);
+  });
+
+  it('computeCameraFrame delegates to the same formula (fit-path parity)', () => {
+    const box = new THREE.Box3(new THREE.Vector3(-100, -50, -200), new THREE.Vector3(100, 50, 200));
+    const f = computeCameraFrame(box, 40, 1.7, new THREE.Vector3(1, 1, 1));
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    const dist = f.position.distanceTo(f.target);
+    const expected = computeClippingForDistance(dist, sphere.radius);
+    expect(f.near).toBeCloseTo(expected.near, 6);
+    expect(f.far).toBeCloseTo(expected.far, 6);
   });
 });

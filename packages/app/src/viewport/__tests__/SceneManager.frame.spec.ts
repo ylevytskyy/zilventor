@@ -30,6 +30,21 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
         return this;
       },
     };
+    // Minimal EventDispatcher shape so SceneManager's 'change' listener wiring
+    // can be exercised (real OrbitControls extends THREE.EventDispatcher).
+    private listeners: Record<string, Array<() => void>> = {};
+    addEventListener(type: string, fn: () => void): void {
+      (this.listeners[type] ??= []).push(fn);
+    }
+    removeEventListener(type: string, fn: () => void): void {
+      const arr = this.listeners[type];
+      if (!arr) return;
+      const i = arr.indexOf(fn);
+      if (i >= 0) arr.splice(i, 1);
+    }
+    dispatchEvent(type: string): void {
+      for (const fn of this.listeners[type] ?? []) fn();
+    }
     update() {}
     dispose() {}
   }
@@ -85,5 +100,56 @@ describe('SceneManager — fit-to-model framing', () => {
     mgr.setMesh(small.pos, small.idx);
     expect(mgr.camera.position.distanceTo(framedPos)).toBeCloseTo(0, 6);
     expect(mgr.camera.far).toBe(framedFar);
+  });
+});
+
+describe('SceneManager — live re-clipping on zoom (OrbitControls change)', () => {
+  let mgr: SceneManager;
+  beforeEach(() => {
+    mgr = new SceneManager(document.createElement('canvas'));
+  });
+
+  function fireControlsChange(m: SceneManager): void {
+    (m.controls as unknown as { dispatchEvent(type: string): void }).dispatchEvent('change');
+  }
+
+  function targetVec(m: SceneManager): THREE.Vector3 {
+    return new THREE.Vector3(m.controls.target.x, m.controls.target.y, m.controls.target.z);
+  }
+
+  it('is a no-op (no throw, near/far unchanged) when change fires before any model is framed', () => {
+    const nearBefore = mgr.camera.near;
+    const farBefore = mgr.camera.far;
+    expect(() => fireControlsChange(mgr)).not.toThrow();
+    expect(mgr.camera.near).toBe(nearBefore);
+    expect(mgr.camera.far).toBe(farBefore);
+  });
+
+  it('grows the far plane on a dolly-out so the model stays inside the depth range', () => {
+    mgr.requestFrameOnNextMesh();
+    const big = boxMesh(2000); // bounding-sphere radius ~1732
+    mgr.setMesh(big.pos, big.idx);
+    const framedFar = mgr.camera.far;
+    const target = targetVec(mgr);
+    const dir = mgr.camera.position.clone().sub(target).normalize();
+    // Dolly the camera far outside the fit-time far plane.
+    mgr.camera.position.copy(target.clone().add(dir.multiplyScalar(50000)));
+    fireControlsChange(mgr);
+    expect(mgr.camera.far).toBeGreaterThan(framedFar);
+    expect(mgr.camera.far).toBeGreaterThan(50000);
+  });
+
+  it('shrinks the near plane on a dolly-in so the model front face is not clipped', () => {
+    mgr.requestFrameOnNextMesh();
+    const big = boxMesh(2000); // bounding-sphere radius ~1732
+    mgr.setMesh(big.pos, big.idx);
+    const framedNear = mgr.camera.near;
+    const target = targetVec(mgr);
+    const dir = mgr.camera.position.clone().sub(target).normalize();
+    // Dolly the camera in close, well within the fit-time near plane.
+    mgr.camera.position.copy(target.clone().add(dir.multiplyScalar(50)));
+    fireControlsChange(mgr);
+    expect(mgr.camera.near).toBeLessThan(framedNear);
+    expect(mgr.camera.near).toBeGreaterThan(0);
   });
 });

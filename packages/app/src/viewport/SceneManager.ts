@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { computeCameraFrame } from './frameView';
+import { computeCameraFrame, computeClippingForDistance } from './frameView';
 import { pathKey, findTextureDef, face2DFrame, boreGizmoAxis, type BoreOp, type BoreConnectorKind, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
@@ -110,6 +110,11 @@ export class SceneManager {
   // (the camera is otherwise hardcoded for ~500mm parts and buries itself in
   // large imports); cleared after framing so edits don't yank the camera.
   private frameOnNextMesh = false;
+  // Bounding-sphere radius of the model, cached whenever frameToModel() measures
+  // it. OrbitControls has no min/maxDistance and the fit-time near/far window is
+  // otherwise static, so dollying the camera past it clips the model; this cache
+  // lets the 'change' listener below re-derive near/far from the live distance.
+  private modelRadius: number | null = null;
   // T28: keyed by ComponentPathKey (pathKey(componentPath))
   private componentMeshes = new Map<ComponentPathKey, THREE.Mesh>();
   // T28: per-partPath geometry cache. Callers register geometry for each unique
@@ -169,6 +174,17 @@ export class SceneManager {
     tandem:       '#e87c2e',   // orange — TANDEM under-mount slide
   } satisfies Record<BoreConnectorKind, string>;
 
+  // Re-derives near/far from the live camera-to-target distance on every
+  // OrbitControls 'change' (dolly/pan/orbit). No-op until a model has been
+  // framed at least once (modelRadius cached by frameToModel()).
+  private handleControlsChange = (): void => {
+    if (this.modelRadius === null) return;
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const { near, far } = computeClippingForDistance(dist, this.modelRadius);
+    this.camera.near = near;
+    this.camera.far = far;
+    this.camera.updateProjectionMatrix();
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true, alpha: true });
@@ -182,6 +198,7 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.1;
+    this.controls.addEventListener?.('change', this.handleControlsChange);
 
     const grid = new THREE.GridHelper(500, 10, 0x444444, 0x222222);
     grid.rotateX(Math.PI / 2);
@@ -281,6 +298,10 @@ export class SceneManager {
       has = true;
     }
     if (!has || box.isEmpty()) return false;
+
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    this.modelRadius = sphere.radius > 0 && Number.isFinite(sphere.radius) ? sphere.radius : 1;
 
     const dir = this.camera.position.clone().sub(this.controls.target);
     const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, dir);
@@ -1154,6 +1175,7 @@ export class SceneManager {
 
 
   dispose(): void {
+    this.controls.removeEventListener?.('change', this.handleControlsChange);
     this.controls.dispose();
     for (const u of this.storeUnsubscribers) u();
     this.storeUnsubscribers.length = 0;
