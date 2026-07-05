@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "zilventor"
+  },
+  "targets": {
+    "zilventor": {
+      "hosting": {
+        "app": [
+          "zilventor"
+        ],
+        "docs": [
+          "zilventor-docs"
+        ]
+      }
+    }
   }
 }
