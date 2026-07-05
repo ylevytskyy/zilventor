@@ -297,7 +297,13 @@ function AssemblyModePane({ part: _part, partInfo, showToast }: { part: PartDocu
       <button
         type="button"
         aria-label={t('aria.bom_tab')}
-        onClick={() => { setBomTabActive(true); useAppStore.getState().setProductionTabActive(false); }}
+        onClick={() => {
+          setBomTabActive(true);
+          useAppStore.getState().setCutListTabActive(false);
+          useAppStore.getState().setNestingTabActive(false);
+          useAppStore.getState().setStatisticsTabActive(false);
+          useAppStore.getState().setProductionTabActive(false);
+        }}
         className={`px-2 py-0.5 text-xs ${bomTabActive ? 'bg-shell-panel text-white' : 'text-neutral-400'}`}
       >
         {t('tab.bom')}

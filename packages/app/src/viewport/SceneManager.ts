@@ -306,16 +306,19 @@ export class SceneManager {
 
   /**
    * Frame the camera to the current renderable geometry (part mesh + visible
-   * component meshes), preserving the current view direction and deriving
-   * near/far from the model size. Returns false (leaving any pending request
-   * armed) when there is no geometry yet to measure.
+   * component meshes), deriving near/far from the model size. By default
+   * preserves the current view direction (live camera→target vector); pass
+   * `dir` to force a specific view direction instead (e.g. Home's isometric
+   * reset) without changing the no-arg behavior used elsewhere (Fit,
+   * maybeFrameToModel). Returns false (leaving any pending request armed)
+   * when there is no geometry yet to measure.
    */
-  frameToModel(): boolean {
+  frameToModel(dir?: THREE.Vector3): boolean {
     const box = this.measureModelBox();
     if (!box) return false;
 
-    const dir = this.camera.position.clone().sub(this.controls.target);
-    const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, dir);
+    const viewDir = dir ?? this.camera.position.clone().sub(this.controls.target);
+    const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, viewDir);
     this.camera.position.copy(frame.position);
     this.camera.near = frame.near;
     this.camera.far = frame.far;

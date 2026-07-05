@@ -90,6 +90,34 @@ describe('SceneManager — fit-to-model framing', () => {
     expect(mgr.camera.near).toBeGreaterThan(0);
   });
 
+  it('frameToModel(dir) forces the isometric (1,1,1) direction instead of the live camera→target vector', () => {
+    // Start the camera off-axis so the live direction is NOT (1,1,1).
+    mgr.camera.position.set(1000, 0, 0);
+    mgr.controls.target.copy(new THREE.Vector3(0, 0, 0));
+    const big = boxMesh(200);
+    mgr.setMesh(big.pos, big.idx);
+    mgr.frameToModel(new THREE.Vector3(1, 1, 1));
+    const target = new THREE.Vector3(mgr.controls.target.x, mgr.controls.target.y, mgr.controls.target.z);
+    const dir = mgr.camera.position.clone().sub(target).normalize();
+    const iso = new THREE.Vector3(1, 1, 1).normalize();
+    expect(dir.x).toBeCloseTo(iso.x, 5);
+    expect(dir.y).toBeCloseTo(iso.y, 5);
+    expect(dir.z).toBeCloseTo(iso.z, 5);
+  });
+
+  it('frameToModel() with no arg preserves the live camera→target direction (Fit behavior unchanged)', () => {
+    mgr.camera.position.set(1000, 0, 0);
+    mgr.controls.target.copy(new THREE.Vector3(0, 0, 0));
+    const big = boxMesh(200);
+    mgr.setMesh(big.pos, big.idx);
+    mgr.frameToModel();
+    const target = new THREE.Vector3(mgr.controls.target.x, mgr.controls.target.y, mgr.controls.target.z);
+    const dir = mgr.camera.position.clone().sub(target).normalize();
+    expect(dir.x).toBeCloseTo(1, 5);
+    expect(dir.y).toBeCloseTo(0, 5);
+    expect(dir.z).toBeCloseTo(0, 5);
+  });
+
   it('is one-shot: a subsequent edit re-mesh does NOT re-frame', () => {
     mgr.requestFrameOnNextMesh();
     const big = boxMesh(14000);

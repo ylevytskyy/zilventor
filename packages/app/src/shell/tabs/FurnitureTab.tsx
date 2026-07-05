@@ -182,6 +182,24 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   };
 
   /**
+   * Resolve a ComponentPath to the CONTAINING CABINET's .ziasm path (never the leaf
+   * panel). A clicked panel nested inside a cabinet raycasts to a 2-element path
+   * [cabinetComponentId, panelComponentId] — resolvePartPath above resolves that to
+   * the panel's .zipt, which breaks handlers that feed the result to unpackAssembly
+   * (expects an assembly, not a part). Used by the 5 cabinet-level pickers (Add Door,
+   * Add Drawers, Add Leg Levelers, Add Handles, Add Face Frame).
+   */
+  const resolveCabinetPath = (path: ComponentPath): string => {
+    const state = useAppStore.getState();
+    const topComp = state.activeAssembly?.components.find((c) => c.id === path[path.length - 1]);
+    if (topComp) return topComp.partPath;
+    for (const [cabPath, doc] of Object.entries(state.subAssemblyDocs)) {
+      if (doc.components.some((c) => c.id === path[path.length - 1])) return cabPath;
+    }
+    return String(path[path.length - 1]);
+  };
+
+  /**
    * Addendum §3: calls viewport.beginOneComponentPick(resolvePartPath, onPick) with 2 args,
    * stores the returned handle via setOneComponentPickHandle(handle).
    * App.tsx's pointer handler reads oneComponentPickHandle and feeds .pick(clientX, clientY).
@@ -190,7 +208,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const handleAddDoor = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolveCabinetPath, (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
       useAppStore.getState().setAddDoorDialog({
         cabinetPath,
@@ -233,7 +251,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const handleAddDrawers = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, async (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolveCabinetPath, async (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
       const opfs = await Opfs.forNavigator();
       const cab = await unpackAssembly(await opfs.read(cabinetPath));
@@ -276,7 +294,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const handleAddLegLevelers = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolveCabinetPath, (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
       useAppStore.getState().setAddLegLevelersDialog({
         cabinetPath,
@@ -309,7 +327,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const handleAddHandles = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolveCabinetPath, (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
       useAppStore.getState().setAddDrawerHandleDialog({
         cabinetPath,
@@ -338,7 +356,7 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
   const handleAddFaceFrame = () => {
     const viewport = useAppStore.getState().viewport;
     if (!viewport) return;
-    const handle = viewport.beginOneComponentPick(resolvePartPath, (cabinetPath: string) => {
+    const handle = viewport.beginOneComponentPick(resolveCabinetPath, (cabinetPath: string) => {
       useAppStore.getState().setOneComponentPickHandle(null);
       useAppStore.getState().setAddFaceFrameDialog({
         cabinetPath,

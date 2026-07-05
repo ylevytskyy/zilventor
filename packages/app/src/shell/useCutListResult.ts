@@ -13,7 +13,7 @@ const EMPTY_RESULT: CutListResult = {
 export function useCutListResult(): CutListResult {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const { panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef } = useCutListCacheContext();
+  const { panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY_RESULT;
@@ -33,5 +33,9 @@ export function useCutListResult(): CutListResult {
       partInfoCacheRef.current ?? new Map(),
       diagnosticsCacheRef.current ?? [],
     );
-  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef]);
+    // partInfoVersion is a dep even though it isn't read in the body above:
+    // partInfoCacheRef is a stable ref (its identity never changes), so
+    // without this the memo wouldn't recompute after a resolvePartInfo
+    // pass completes and populates the cache in place.
+  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion]);
 }
