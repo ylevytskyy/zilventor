@@ -7,7 +7,7 @@ title: The Browser Tree
 > sub-assemblies, and (for a selected part) its own feature list — and it's how you navigate
 > structure without hunting through the 3D viewport.
 
-<!-- SCREENSHOT: the Browser pane showing an expanded sub-assembly with a leaf part's feature tree open underneath — TODO follow-up -->
+![Browser pane showing an expanded sub-assembly (a base cabinet) with its seven leaf parts listed underneath](/img/concepts/browser-tree.png)
 
 ## Expanding and selecting
 

@@ -67,7 +67,7 @@ title: Документи та типи
 **Вигляд**: тут узагалі немає моделювання чи інструментів збірки, оскільки креслення лише
 проєктує й анотує геометрію, що вже існує деінде.
 
-<!-- SCREENSHOT: the ribbon tab set side-by-side (or in sequence) for a part, an assembly, and a drawing, showing the Model/Assembly swap and the shorter drawing tab set — TODO follow-up -->
+![Ribbon tab set for a part document, showing the Model tab and its Create/Work Features/Modify/Pattern/Parameters groups](/img/concepts/ribbon-part.png)
 
 ## Як збірки посилаються на деталі та підзбірки
 

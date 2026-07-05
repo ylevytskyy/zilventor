@@ -92,7 +92,7 @@ On **OK**, the two corner points are normalized into a width/height rectangle.
   ([Modify Features](./modify-features.md)) — the names overlap on purpose (they do
   analogous things), but the sketch-tab versions only ever touch 2D sketch geometry.
 
-<!-- SCREENSHOT: Sketch tab ribbon with draw tools, Construction toggle, and the Numeric rectangle dialog open — TODO follow-up -->
+![Sketch tab ribbon with draw tools, Construction toggle, and the Numeric rectangle dialog open](/img/modeling/sketch-ribbon.png)
 
 ## See also
 

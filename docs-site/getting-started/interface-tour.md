@@ -109,4 +109,4 @@ The status bar runs along the bottom of the window, left to right:
 - [Cost and Statistics](../furniture/cost-and-statistics.md)
 - [Production Reconciliation](../manufacturing/production-reconciliation.md)
 
-<!-- SCREENSHOT: the full main window with the four regions labeled — ribbon (top), browser pane (left), properties panel (right), status bar (bottom) — TODO follow-up -->
+![Main window showing the ribbon (top), browser pane (left) with an expanded cabinet assembly, viewport, and status bar (bottom)](/img/getting-started/main-window.png)

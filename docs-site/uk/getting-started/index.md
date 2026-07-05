@@ -51,4 +51,4 @@ Zilventor — це CAD-застосунок, який працює повніс�
 | [Довідник](../reference/index.md) | Клавіатурні скорочення, формати файлів та глосарій термінів |
 | [Усунення несправностей](../troubleshooting/index.md) | Відомі обмеження, проблеми з браузерами та часті запитання |
 
-<!-- SCREENSHOT: the full Zilventor app window on first launch, showing the ribbon, viewport, and browser tree — TODO follow-up -->
+![Zilventor app window on first launch, showing the ribbon, viewport, and browser tree](/img/getting-started/app-window.png)

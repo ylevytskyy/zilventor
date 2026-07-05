@@ -104,7 +104,7 @@ Extrude чи Revolve. Вкладка Sketch у Zilventor надає невели
   ([Зміна елементів](./modify-features.md)) — назви перетинаються навмисно (вони виконують
   аналогічні дії), але версії вкладки Sketch працюють лише з 2D-геометрією ескізу.
 
-<!-- SCREENSHOT: Sketch tab ribbon with draw tools, Construction toggle, and the Numeric rectangle dialog open — TODO follow-up -->
+![Sketch tab ribbon with draw tools, Construction toggle, and the Numeric rectangle dialog open](/img/modeling/sketch-ribbon.png)
 
 ## Дивіться також
 

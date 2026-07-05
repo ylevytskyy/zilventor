@@ -51,4 +51,4 @@ coming from a general-purpose CAD tool, the sections that will feel new are
 | [Reference](../reference/index.md) | Keyboard shortcuts, file formats, and a glossary of terms |
 | [Troubleshooting](../troubleshooting/index.md) | Known limitations, browser issues, and frequently asked questions |
 
-<!-- SCREENSHOT: the full Zilventor app window on first launch, showing the ribbon, viewport, and browser tree — TODO follow-up -->
+![Zilventor app window on first launch, showing the ribbon, viewport, and browser tree](/img/getting-started/app-window.png)

@@ -65,7 +65,7 @@ title: Параметри та конфігурації
   перемонтовується, тож повторне відкриття деталі завжди починається без жодної позначеної
   активною конфігурації, навіть якщо якась була активна, коли ви востаннє працювали з файлом.
 
-<!-- SCREENSHOT: Parameters panel (F7) showing Name/Value/Unit/Expression columns — TODO follow-up -->
+![Parameters panel (F7) showing Name/Expression/Value/Unit columns](/img/concepts/parameters-panel.png)
 <!-- SCREENSHOT: Configurations dialog (Model ▸ Configurations…) with several rows and one active/highlighted — TODO follow-up -->
 
 ## Дивіться також

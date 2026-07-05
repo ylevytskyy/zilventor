@@ -7,7 +7,7 @@ title: Дерево браузера
 > підзбірок і (для вибраної деталі) її власного списку елементів — і саме через нього ви
 > навігуєте структурою, не порпаючись у 3D-в'юпорті.
 
-<!-- SCREENSHOT: the Browser pane showing an expanded sub-assembly with a leaf part's feature tree open underneath — TODO follow-up -->
+![Browser pane showing an expanded sub-assembly (a base cabinet) with its seven leaf parts listed underneath](/img/concepts/browser-tree.png)
 
 ## Розгортання та вибір
 
