@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { computeCameraFrame } from './frameView';
+import { computeCameraFrame, computeClippingForDistance } from './frameView';
 import { pathKey, findTextureDef, face2DFrame, boreGizmoAxis, type BoreOp, type BoreConnectorKind, type PanelFaceRole, type ComponentPath, type ComponentPathKey, type MaterialEntry, type PanelEdgeKey } from '@zilventor/shared';
 import { globalTextureCache } from './textureCache';
 import { useAppStore } from '../store/useAppStore';
@@ -169,6 +169,27 @@ export class SceneManager {
     tandem:       '#e87c2e',   // orange — TANDEM under-mount slide
   } satisfies Record<BoreConnectorKind, string>;
 
+  // Re-derives near/far from the live camera-to-target distance AND a fresh
+  // measurement of the model bounds on every OrbitControls 'change' (dolly/pan/
+  // orbit). Deliberately re-measures every time (no cached radius) — a model
+  // can be edited bigger after the initial fit, or displayed without ever
+  // going through frameToModel() (e.g. a restored session), and a stale/absent
+  // radius would leave the camera clipping the model exactly like the bug this
+  // fixes. THREE caches geometry.boundingBox per geometry, so this is cheap:
+  // expandByObject just transforms each mesh's 8 corners. No-op when there's
+  // no geometry yet to measure.
+  private handleControlsChange = (): void => {
+    const box = this.measureModelBox();
+    if (!box) return;
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    const radius = sphere.radius > 0 && Number.isFinite(sphere.radius) ? sphere.radius : 1;
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const { near, far } = computeClippingForDistance(dist, radius);
+    this.camera.near = near;
+    this.camera.far = far;
+    this.camera.updateProjectionMatrix();
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true, alpha: true });
@@ -182,6 +203,7 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.1;
+    this.controls.addEventListener?.('change', this.handleControlsChange);
 
     const grid = new THREE.GridHelper(500, 10, 0x444444, 0x222222);
     grid.rotateX(Math.PI / 2);
@@ -265,12 +287,10 @@ export class SceneManager {
   }
 
   /**
-   * Frame the camera to the current renderable geometry (part mesh + visible
-   * component meshes), preserving the current view direction and deriving
-   * near/far from the model size. Returns false (leaving any pending request
-   * armed) when there is no geometry yet to measure.
+   * Measure the Box3 of the current renderable geometry (part mesh + visible
+   * component meshes). Returns null when there's nothing to measure yet.
    */
-  frameToModel(): boolean {
+  private measureModelBox(): THREE.Box3 | null {
     this.scene.updateMatrixWorld(true);
     const box = new THREE.Box3();
     let has = false;
@@ -280,7 +300,19 @@ export class SceneManager {
       box.expandByObject(mesh);
       has = true;
     }
-    if (!has || box.isEmpty()) return false;
+    if (!has || box.isEmpty()) return null;
+    return box;
+  }
+
+  /**
+   * Frame the camera to the current renderable geometry (part mesh + visible
+   * component meshes), preserving the current view direction and deriving
+   * near/far from the model size. Returns false (leaving any pending request
+   * armed) when there is no geometry yet to measure.
+   */
+  frameToModel(): boolean {
+    const box = this.measureModelBox();
+    if (!box) return false;
 
     const dir = this.camera.position.clone().sub(this.controls.target);
     const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, dir);
@@ -1154,6 +1186,7 @@ export class SceneManager {
 
 
   dispose(): void {
+    this.controls.removeEventListener?.('change', this.handleControlsChange);
     this.controls.dispose();
     for (const u of this.storeUnsubscribers) u();
     this.storeUnsubscribers.length = 0;

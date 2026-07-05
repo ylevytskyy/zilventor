@@ -17,6 +17,20 @@ export interface CameraFrame {
  * model bounds along the requested view direction and derives near/far from the
  * model size so nothing is clipped at any orbit angle.
  */
+/**
+ * Derive a [near, far] clipping window from a camera-to-target distance and
+ * the model's bounding-sphere radius. Used both at fit-time (computeCameraFrame)
+ * and live, on every OrbitControls 'change' event, so dollying the camera never
+ * moves it outside a stale near/far window computed once at file-open.
+ */
+export function computeClippingForDistance(dist: number, radius: number): { near: number; far: number } {
+  const r = Number.isFinite(radius) && radius > 0 ? radius : 0;
+  const near = Math.max(dist - r * 1.5, dist / 1000, 0.01);
+  let far = dist + r * 1.5;
+  if (far <= near) far = near + Math.max(near * 0.001, 0.01);
+  return { near, far };
+}
+
 export function computeCameraFrame(
   box: THREE.Box3,
   fovDeg: number,
@@ -43,7 +57,6 @@ export function computeCameraFrame(
   d.normalize();
 
   const position = center.clone().add(d.multiplyScalar(dist));
-  const near = Math.max(dist - r * 1.5, dist / 1000);
-  const far = dist + r * 1.5;
+  const { near, far } = computeClippingForDistance(dist, r);
   return { position, target: center, near, far };
 }
