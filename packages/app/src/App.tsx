@@ -5548,7 +5548,7 @@ export default function App() {
       <FileOpenOverlay onCancel={handleCancelOpen} />
       <div className="grid flex-1 min-h-0" style={{ gridTemplateRows: 'auto auto 1fr auto', gridTemplateColumns: '220px 1fr 260px' }}>
         <header role="banner" className="col-span-3 bg-shell-panel border-b border-shell-border flex items-center" id="region-appbar">
-          <div className="px-3 py-1 text-sm font-semibold">ZilInventor</div>
+          <div className="px-3 py-1 text-sm font-semibold">Zilventor</div>
           <div className="ml-auto px-3"><LanguageSwitcher /></div>
         </header>
         <div role="navigation" aria-label={t('aria.ribbon')} className="col-span-3 bg-shell-panel border-b border-shell-border" id="region-ribbon">

@@ -103,7 +103,7 @@ export function NewDrawingDialog(): JSX.Element | null {
               if (typeof (window as any).showOpenFilePicker !== 'function') return;
               try {
                 const [handle] = await (window as any).showOpenFilePicker({
-                  types: [{ description: 'ZilInventor files', accept: { 'application/octet-stream': ['.zipt', '.ziasm'] } }],
+                  types: [{ description: 'Zilventor files', accept: { 'application/octet-stream': ['.zipt', '.ziasm'] } }],
                   multiple: false,
                 });
                 const kind = (handle.name as string).endsWith('.ziasm') ? 'assembly' : 'part';

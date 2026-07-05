@@ -619,7 +619,7 @@ export function migrateManifest(m: AnyManifest): AnyManifest {
   }
   if (m.formatVersion > CURRENT_FORMAT_VERSION) {
     throw new Error(
-      `file is from a newer version of ZilInventor (formatVersion=${m.formatVersion}, current=${CURRENT_FORMAT_VERSION})`
+      `file is from a newer version of Zilventor (formatVersion=${m.formatVersion}, current=${CURRENT_FORMAT_VERSION})`
     );
   }
   let current = m;
