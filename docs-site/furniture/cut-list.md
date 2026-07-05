@@ -50,7 +50,7 @@ downloads a `.csv` file.*
 - Gross sizes (with kerf/oversize allowance for nesting) come from the nesting settings, not
   from the cut list itself.
 
-<!-- SCREENSHOT: Cut List table with several panels, the Edge Band Totals sub-table, and an exported CSV opened in a spreadsheet — TODO follow-up -->
+![Cut List tab in the Browser pane showing panel rows with material, dimensions, and grain](/img/furniture/cut-list.png)
 
 ## See also
 

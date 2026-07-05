@@ -63,7 +63,7 @@ values and every dependent sketch/feature regenerates. This is a live apply, not
   file.
 
 ![Parameters panel (F7) showing Name/Expression/Value/Unit columns](/img/concepts/parameters-panel.png)
-<!-- SCREENSHOT: Configurations dialog (Model ▸ Configurations…) with several rows and one active/highlighted — TODO follow-up -->
+![Configurations dialog (Model ▸ Configurations…) showing two configuration rows](/img/concepts/configurations.png)
 
 ## See also
 

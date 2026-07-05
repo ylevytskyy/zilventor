@@ -85,5 +85,5 @@ title: Відомість матеріалів
 - [Таблиці отворів і специфікації](../drawings/hole-tables-and-parts-lists.md)
 - [Пакувальний лист](../manufacturing/packing-slip.md)
 
-<!-- SCREENSHOT: BOM tab in the Browser pane showing a populated table with a few rows across all columns — TODO follow-up -->
+![BOM tab in the Browser pane showing a populated table with a few rows across all columns](/img/assemblies/bom.png)
 <!-- SCREENSHOT: BOM table with the Item # cell in inline-edit state — TODO follow-up -->

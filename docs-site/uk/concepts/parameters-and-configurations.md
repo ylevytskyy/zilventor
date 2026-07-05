@@ -66,7 +66,7 @@ title: Параметри та конфігурації
   активною конфігурації, навіть якщо якась була активна, коли ви востаннє працювали з файлом.
 
 ![Parameters panel (F7) showing Name/Expression/Value/Unit columns](/img/concepts/parameters-panel.png)
-<!-- SCREENSHOT: Configurations dialog (Model ▸ Configurations…) with several rows and one active/highlighted — TODO follow-up -->
+![Configurations dialog (Model ▸ Configurations…) showing two configuration rows](/img/concepts/configurations.png)
 
 ## Дивіться також
 

@@ -69,7 +69,7 @@ title: Генерування присадки корпусу
 - Щоб отримати координати свердління для верстата, дивіться
   [Експорт даних присадки](./exporting-boring-data.md).
 
-<!-- SCREENSHOT: BoringDialog with all three connector checkboxes checked, and the resulting bore markers on a base cabinet in the 3D viewport — TODO follow-up -->
+![Boring dialog with all three connector-type checkboxes (Confirmat, Minifix, Dowel) checked](/img/drilling-prisadka/boring-dialog.png)
 
 ## Див. також
 

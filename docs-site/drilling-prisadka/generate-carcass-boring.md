@@ -68,7 +68,7 @@ type; bore data is written to each involved panel's document.*
 - To get the drilling coordinates out to a machine, see
   [Exporting Boring Data](./exporting-boring-data.md).
 
-<!-- SCREENSHOT: BoringDialog with all three connector checkboxes checked, and the resulting bore markers on a base cabinet in the 3D viewport — TODO follow-up -->
+![Boring dialog with all three connector-type checkboxes (Confirmat, Minifix, Dowel) checked](/img/drilling-prisadka/boring-dialog.png)
 
 ## See also
 

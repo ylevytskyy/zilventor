@@ -102,4 +102,4 @@ appears under an "Excluded" list with a reason.*
 - [Manufacturing DXF](./manufacturing-dxf.md)
 
 <!-- SCREENSHOT: Furniture ribbon Nesting panel with Generate Nest, Export DXF (Nest), Export Labels (PDF) buttons — TODO follow-up -->
-<!-- SCREENSHOT: Nesting sub-tab showing one material section with two sheets, utilization %, and a REMNANT label on a sheet — TODO follow-up -->
+![Nesting sub-tab showing one material section with a sheet layout, utilization %, and a remnant label](/img/manufacturing/nesting.png)

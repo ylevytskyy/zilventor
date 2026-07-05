@@ -58,7 +58,7 @@ title: Розкрій
 - Загальні розміри (з припуском на ширину пропилу/оверсайз для розкладки) походять із
   налаштувань розкладки, а не з самого розкрою.
 
-<!-- SCREENSHOT: Cut List table with several panels, the Edge Band Totals sub-table, and an exported CSV opened in a spreadsheet — TODO follow-up -->
+![Cut List tab in the Browser pane showing panel rows with material, dimensions, and grain](/img/furniture/cut-list.png)
 
 ## Див. також
 

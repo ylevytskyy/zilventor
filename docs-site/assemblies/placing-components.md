@@ -113,5 +113,5 @@ Fields in the "Edit Component" dialog:
 - [Keyboard Shortcuts](../reference/keyboard-shortcuts.md)
 - [Glossary](../reference/glossary.md)
 
-<!-- SCREENSHOT: the Place Component dialog showing the 4-column thumbnail grid with several parts and sub-assemblies — TODO follow-up -->
+![Place Component dialog showing the thumbnail grid with parts and sub-assemblies](/img/assemblies/place-component.png)
 <!-- SCREENSHOT: the Edit Component dialog with Position, Rotation, visible checkbox, and Color picker fields visible — TODO follow-up -->
