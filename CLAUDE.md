@@ -7,7 +7,8 @@ Project-specific guidance; overrides global rules where it conflicts.
 Deterministic-first: per-package unit suites + root typecheck before any LLM judgment; a
 change touching product code is not done until the affected e2e surface ran green on a fresh
 dev server. Baselines (verify against, 2026-07-05): e2e 243/243 · app 3833 · shared 1633 ·
-kernel 306 unit + 380/381 integration · typecheck 0 across 5 packages.
+kernel 306 unit + 380/381 integration · typecheck 0 across 5 packages. (app 3833→3843 on the
+fix/app-bugs merge, 2026-07-05: +10 locking tests for the 5 manual-triage bug fixes.)
 
 ## Prerequisites
 
