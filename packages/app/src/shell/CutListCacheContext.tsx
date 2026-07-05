@@ -22,6 +22,14 @@ export type CutListCacheContextValue = {
    *  useCutListResult) know to recompute even when activeAssembly/subAssemblyDocs
    *  identity hasn't changed. */
   partInfoVersion: number;
+  /** Bumped by the assembly mesh-sync effect (App.tsx) after it finishes
+   *  repopulating partBoresCacheRef/partGroovesCacheRef/etc. from OPFS for a
+   *  render cycle. Consumers that memoize over the bore/groove/tenon caches
+   *  (e.g. useBoringResult) list this as a dep so they recompute once the
+   *  async reload actually lands — independent of activeAssembly/
+   *  subAssemblyDocs identity and of whether the Cut List tab has ever been
+   *  opened. */
+  geometryReadyTick: number;
   /** Warms the panelSpecCacheRef from OPFS for all leaf parts in the active assembly. */
   warmCache: () => Promise<void>;
   /**
@@ -49,6 +57,7 @@ export function useCutListCacheContext(): CutListCacheContextValue {
       partKeyholeSlotsCacheRef: { current: new Map() },
       diagnosticsCacheRef: { current: [] },
       partInfoVersion: 0,
+      geometryReadyTick: 0,
       warmCache: NOOP_ASYNC,
       invalidatePartPaths: NOOP_ASYNC,
     };

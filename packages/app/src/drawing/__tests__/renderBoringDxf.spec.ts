@@ -155,6 +155,42 @@ describe('renderBoringDxf — panel label', () => {
   });
 });
 
+// ── LAYER table declarations: every layer an entity references must also be a declared
+// TABLES/LAYER record, not just present on an entity's group-8 code. ─────────────────────────────
+/** Raw-text scan of just the TABLE LAYER section's group-2 names (mirrors
+ *  renderCombinedManufacturingDxf.spec.ts's layerTableNames helper). */
+function layerTableNames(dxf: string): string[] {
+  const lines = dxf.split('\n');
+  const names: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] === '  0' && lines[i + 1] === 'LAYER') {
+      for (let j = i + 2; j < lines.length; j++) {
+        if (lines[j] === '  0') break;
+        if (lines[j] === '  2') { names.push(lines[j + 1]!); break; }
+      }
+    }
+  }
+  return names;
+}
+
+describe('renderBoringDxf — LAYER table declarations', () => {
+  it('declares OUTLINE and every dynamic bore layer as LAYER-table records', () => {
+    const result: BoringAggregateResult = {
+      panels: [
+        panel('cabinet/side.zipt', 'Side Panel', [
+          bore({ id: 'b1', u: 37, v: 96, diameter: 5, depth: 34 }),
+          bore({ id: 'b2', u: 37, v: 288, diameter: 8, depth: 'throughAll' }),
+        ], { length: 720, width: 560, thickness: 18 }),
+      ],
+    };
+    const dxf = renderBoringDxf(result);
+    const names = layerTableNames(dxf);
+    expect(names).toContain('OUTLINE');
+    expect(names).toContain('D5_T34');
+    expect(names).toContain('D8_THROUGH');
+  });
+});
+
 // ── Golden snapshot: representative fixture with known dims + two bores ────────────────────────
 describe('renderBoringDxf — golden snapshot', () => {
   const goldenPanel = panel(

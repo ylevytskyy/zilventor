@@ -50,8 +50,18 @@ function drawPanelOutline(
  *  Each panel gets a TEXT label (partName) on the ANNOTATIONS layer just below
  *  its outline, and the outline uses real panel length×width when PanelSpec dims
  *  are available, falling back to bore-span + padding when they are not. */
+/** Layer names this result's entities actually draw into: OUTLINE plus every panel's
+ *  dynamic per-(Ø,depth) bore layer (mirrors renderPanelManufacturingDxf's neededLayers). */
+function neededLayers(result: BoringAggregateResult): string[] {
+  const layers = new Set<string>(['OUTLINE']);
+  for (const panel of result.panels) {
+    for (const b of panel.bores) layers.add(boreLayer(b));
+  }
+  return [...layers];
+}
+
 export function renderBoringDxf(result: BoringAggregateResult): string {
-  const doc = createDxfDocument();
+  const doc = createDxfDocument(neededLayers(result));
   let xOffset = 0;
   for (const panel of result.panels) {
     const { w, h } = panelOutlineSize(panel);
