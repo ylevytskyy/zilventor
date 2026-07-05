@@ -79,7 +79,7 @@ describe('App shell', () => {
     for (const id of ['region-appbar', 'region-ribbon', 'region-browser', 'region-viewport', 'region-properties', 'region-statusbar']) {
       expect(document.getElementById(id)).toBeTruthy();
     }
-    expect(screen.getByText('ZilInventor')).toBeTruthy();
+    expect(screen.getByText('Zilventor')).toBeTruthy();
   });
 });
 

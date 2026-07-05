@@ -22,8 +22,8 @@ export default defineConfig({
       // can exercise caching without spinning up a separate preview server.
       devOptions: { enabled: true, type: 'module' },
       manifest: {
-        name: 'ZilInventor',
-        short_name: 'ZilInventor',
+        name: 'Zilventor',
+        short_name: 'Zilventor',
         theme_color: '#1f1f1f',
         background_color: '#1f1f1f',
         display: 'standalone',

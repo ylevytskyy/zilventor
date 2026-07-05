@@ -106,7 +106,7 @@ export default function FileTab() {
         const saved = await saveBlob(
           new Blob([archive.buffer as ArrayBuffer]),
           `${doc.name}.zidw`,
-          [{ description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
+          [{ description: 'Zilventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } }],
         );
         if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
@@ -117,7 +117,7 @@ export default function FileTab() {
         const saved = await saveBlob(
           new Blob([archive.buffer as ArrayBuffer]),
           `${doc.name}.ziasm`,
-          [{ description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
+          [{ description: 'Zilventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } }],
         );
         if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
         return;
@@ -129,7 +129,7 @@ export default function FileTab() {
       const saved = await saveBlob(
         new Blob([bytes.buffer as ArrayBuffer]),
         `${activePart.name}.zipt`,
-        [{ description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
+        [{ description: 'Zilventor part', accept: { 'application/zilinventor-part': ['.zipt'] } }],
       );
       if (saved) setStatus(t('status.savedAt', { time: new Date().toLocaleTimeString() }));
     } catch (e) {
@@ -145,9 +145,9 @@ export default function FileTab() {
     let token = -1;
     try {
       const file = await pickFile([
-        { description: 'ZilInventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
-        { description: 'ZilInventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
-        { description: 'ZilInventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
+        { description: 'Zilventor part', accept: { 'application/zilinventor-part': ['.zipt'] } },
+        { description: 'Zilventor assembly', accept: { 'application/zilinventor-assembly': ['.ziasm'] } },
+        { description: 'Zilventor drawing', accept: { 'application/zilinventor-drawing': ['.zidw'] } },
         { description: 'STEP file', accept: { 'application/step': ['.step', '.stp'] } },
         { description: 'SolidWorks file', accept: { 'application/sldworks': ['.sldprt', '.sldasm'] } },
         { description: 'ZIP archive (with STEP inside)', accept: { 'application/zip': ['.zip'] } },
@@ -297,7 +297,7 @@ export default function FileTab() {
       if (token !== -1 && useAppStore.getState().fileOpenSeq !== token) return;
       const msg = (e as Error).message;
       if (/newer/i.test(msg)) {
-        setErrorDialog('This file was saved by a newer ZilInventor. Update to open.');
+        setErrorDialog('This file was saved by a newer Zilventor. Update to open.');
       } else if (/gzip|corrupt/i.test(msg)) {
         setErrorDialog("Can't open this file — it may be corrupted.");
       } else {

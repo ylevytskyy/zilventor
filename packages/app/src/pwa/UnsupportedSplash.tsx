@@ -41,7 +41,7 @@ export function UnsupportedSplash() {
           Browser not supported
         </h1>
         <p style={{ margin: '0 0 20px', fontSize: '15px', lineHeight: '1.6', color: '#aaa' }}>
-          ZilInventor requires features that are not available in your current browser:
+          Zilventor requires features that are not available in your current browser:
           Origin Private File System (OPFS) storage and module Web Workers.
         </p>
         <div
