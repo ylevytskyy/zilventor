@@ -60,6 +60,7 @@ function makeCacheValue(): CutListCacheContextValue {
     partKeyholeSlotsCacheRef: { current: new Map() },
     diagnosticsCacheRef: { current: [] },
     partInfoVersion: 0,
+    geometryReadyTick: 0,
     warmCache: () => Promise.resolve(),
     invalidatePartPaths: () => Promise.resolve(),
   };

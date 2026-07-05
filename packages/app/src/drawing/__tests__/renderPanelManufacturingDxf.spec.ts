@@ -69,7 +69,8 @@ describe('renderPanelManufacturingDxf — bores', () => {
     expect(dxf).toContain('BORES-FRONT-5MM');
     expect(dxf).toMatch(/CIRCLE[\s\S]*?\n100\.0+\n[\s\S]*?\n50\.0+\n/);
     expect(dxf).toContain('BORE-INFO');
-    expect(dxf).toContain('O5x12'); // depth label
+    expect(dxf).toContain('%%c5x12'); // depth label, %%c = DXF diameter control code
+    expect(dxf).not.toContain('O5x12');
   });
   it('mirrors a Bottom (back) bore to (u, W - v) on the BORES-BACK layer', () => {
     const dxf = renderPanelManufacturingDxf({ ...base,
@@ -77,7 +78,8 @@ describe('renderPanelManufacturingDxf — bores', () => {
     expect(dxf).toContain('BORES-BACK-8MM');
     // v=50 mirrors to W-v = 550
     expect(dxf).toMatch(/CIRCLE[\s\S]*?\n100\.0+\n[\s\S]*?\n550\.0+\n/);
-    expect(dxf).toContain('O8 THRU');
+    expect(dxf).toContain('%%c8 THRU');
+    expect(dxf).not.toContain('O8 THRU');
   });
   it('projects a Front edge bore onto the top edge (X=v, Y=W)', () => {
     const dxf = renderPanelManufacturingDxf({ ...base,

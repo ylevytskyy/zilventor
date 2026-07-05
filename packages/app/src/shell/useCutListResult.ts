@@ -13,7 +13,7 @@ const EMPTY_RESULT: CutListResult = {
 export function useCutListResult(): CutListResult {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const { panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion } = useCutListCacheContext();
+  const { panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion, geometryReadyTick } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY_RESULT;
@@ -37,5 +37,12 @@ export function useCutListResult(): CutListResult {
     // partInfoCacheRef is a stable ref (its identity never changes), so
     // without this the memo wouldn't recompute after a resolvePartInfo
     // pass completes and populates the cache in place.
-  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion]);
+    // geometryReadyTick: same reasoning for panelSpecCacheRef, populated by
+    // the assembly mesh-sync effect (not the partInfo-resolve effect that
+    // bumps partInfoVersion). Without this dep, a component that mounts
+    // before that effect's first pass completes (e.g. the Furniture tab
+    // opened right after cabinet creation) permanently sees rows=[] for any
+    // panel resolved only after mount, until something else bumps
+    // activeAssembly/subAssemblyDocs identity.
+  }, [activeAssembly, subAssemblyDocs, panelSpecCacheRef, partInfoCacheRef, diagnosticsCacheRef, partInfoVersion, geometryReadyTick]);
 }

@@ -45,7 +45,8 @@ export type PanelManufacturingInput = {
 const VALID_FACE_ROLES = new Set(['Top', 'Bottom', 'Front', 'Back', 'Left', 'Right']);
 
 function boreLabel(b: BoreOp): string {
-  return b.depth === 'throughAll' ? `O${b.diameter} THRU` : `O${b.diameter}x${b.depth}`;
+  // DXF R12 diameter symbol = %%c (see renderDrawingDxf.ts:525-526)
+  return b.depth === 'throughAll' ? `%%c${b.diameter} THRU` : `%%c${b.diameter}x${b.depth}`;
 }
 
 /** Exported so manufacturingCsv.ts reuses the same default-layer derivation as the DXF writer instead of duplicating it. */

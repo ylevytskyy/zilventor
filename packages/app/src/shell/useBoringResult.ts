@@ -9,7 +9,7 @@ const EMPTY: BoringAggregateResult = { panels: [] };
 export function useBoringResult(): BoringAggregateResult {
   const activeAssembly = useAppStore((s) => s.activeAssembly);
   const subAssemblyDocs = useAppStore((s) => s.subAssemblyDocs);
-  const { partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef } = useCutListCacheContext();
+  const { partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef, geometryReadyTick } = useCutListCacheContext();
 
   return useMemo(() => {
     if (!activeAssembly) return EMPTY;
@@ -31,5 +31,11 @@ export function useBoringResult(): BoringAggregateResult {
       partInfoCacheRef.current ?? new Map(),
       panelSpecCacheRef.current ?? new Map(),
     );
-  }, [activeAssembly, subAssemblyDocs, partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef]);
+    // geometryReadyTick: bumped by the assembly mesh-sync effect after it
+    // finishes repopulating partBoresCacheRef from OPFS. Without this dep, the
+    // memo above stays stuck at whatever it saw at eviction time (usually 0
+    // bores) until something else bumps activeAssembly/subAssemblyDocs
+    // identity — e.g. opening the Cut List tab — instead of recomputing as
+    // soon as the real bores actually land.
+  }, [activeAssembly, subAssemblyDocs, partBoresCacheRef, partInfoCacheRef, panelSpecCacheRef, geometryReadyTick]);
 }
