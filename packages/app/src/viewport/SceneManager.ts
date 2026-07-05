@@ -110,11 +110,6 @@ export class SceneManager {
   // (the camera is otherwise hardcoded for ~500mm parts and buries itself in
   // large imports); cleared after framing so edits don't yank the camera.
   private frameOnNextMesh = false;
-  // Bounding-sphere radius of the model, cached whenever frameToModel() measures
-  // it. OrbitControls has no min/maxDistance and the fit-time near/far window is
-  // otherwise static, so dollying the camera past it clips the model; this cache
-  // lets the 'change' listener below re-derive near/far from the live distance.
-  private modelRadius: number | null = null;
   // T28: keyed by ComponentPathKey (pathKey(componentPath))
   private componentMeshes = new Map<ComponentPathKey, THREE.Mesh>();
   // T28: per-partPath geometry cache. Callers register geometry for each unique
@@ -174,13 +169,23 @@ export class SceneManager {
     tandem:       '#e87c2e',   // orange — TANDEM under-mount slide
   } satisfies Record<BoreConnectorKind, string>;
 
-  // Re-derives near/far from the live camera-to-target distance on every
-  // OrbitControls 'change' (dolly/pan/orbit). No-op until a model has been
-  // framed at least once (modelRadius cached by frameToModel()).
+  // Re-derives near/far from the live camera-to-target distance AND a fresh
+  // measurement of the model bounds on every OrbitControls 'change' (dolly/pan/
+  // orbit). Deliberately re-measures every time (no cached radius) — a model
+  // can be edited bigger after the initial fit, or displayed without ever
+  // going through frameToModel() (e.g. a restored session), and a stale/absent
+  // radius would leave the camera clipping the model exactly like the bug this
+  // fixes. THREE caches geometry.boundingBox per geometry, so this is cheap:
+  // expandByObject just transforms each mesh's 8 corners. No-op when there's
+  // no geometry yet to measure.
   private handleControlsChange = (): void => {
-    if (this.modelRadius === null) return;
+    const box = this.measureModelBox();
+    if (!box) return;
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    const radius = sphere.radius > 0 && Number.isFinite(sphere.radius) ? sphere.radius : 1;
     const dist = this.camera.position.distanceTo(this.controls.target);
-    const { near, far } = computeClippingForDistance(dist, this.modelRadius);
+    const { near, far } = computeClippingForDistance(dist, radius);
     this.camera.near = near;
     this.camera.far = far;
     this.camera.updateProjectionMatrix();
@@ -282,12 +287,10 @@ export class SceneManager {
   }
 
   /**
-   * Frame the camera to the current renderable geometry (part mesh + visible
-   * component meshes), preserving the current view direction and deriving
-   * near/far from the model size. Returns false (leaving any pending request
-   * armed) when there is no geometry yet to measure.
+   * Measure the Box3 of the current renderable geometry (part mesh + visible
+   * component meshes). Returns null when there's nothing to measure yet.
    */
-  frameToModel(): boolean {
+  private measureModelBox(): THREE.Box3 | null {
     this.scene.updateMatrixWorld(true);
     const box = new THREE.Box3();
     let has = false;
@@ -297,11 +300,19 @@ export class SceneManager {
       box.expandByObject(mesh);
       has = true;
     }
-    if (!has || box.isEmpty()) return false;
+    if (!has || box.isEmpty()) return null;
+    return box;
+  }
 
-    const sphere = new THREE.Sphere();
-    box.getBoundingSphere(sphere);
-    this.modelRadius = sphere.radius > 0 && Number.isFinite(sphere.radius) ? sphere.radius : 1;
+  /**
+   * Frame the camera to the current renderable geometry (part mesh + visible
+   * component meshes), preserving the current view direction and deriving
+   * near/far from the model size. Returns false (leaving any pending request
+   * armed) when there is no geometry yet to measure.
+   */
+  frameToModel(): boolean {
+    const box = this.measureModelBox();
+    if (!box) return false;
 
     const dir = this.camera.position.clone().sub(this.controls.target);
     const frame = computeCameraFrame(box, this.camera.fov, this.camera.aspect, dir);

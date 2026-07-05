@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
-import { SceneManager } from '../SceneManager';
+import { SceneManager, type ComponentLeaf } from '../SceneManager';
+import { computeClippingForDistance } from '../frameView';
 
 vi.mock('three', async (orig) => {
   const actual = (await orig()) as typeof import('three');
@@ -117,12 +118,29 @@ describe('SceneManager — live re-clipping on zoom (OrbitControls change)', () 
     return new THREE.Vector3(m.controls.target.x, m.controls.target.y, m.controls.target.z);
   }
 
-  it('is a no-op (no throw, near/far unchanged) when change fires before any model is framed', () => {
+  it('is a no-op (no throw, near/far unchanged) when change fires with no geometry in the scene', () => {
     const nearBefore = mgr.camera.near;
     const farBefore = mgr.camera.far;
     expect(() => fireControlsChange(mgr)).not.toThrow();
     expect(mgr.camera.near).toBe(nearBefore);
     expect(mgr.camera.far).toBe(farBefore);
+  });
+
+  it('LOCKING (restored-session gap): derives near/far from a live measurement even when the mesh was set without ever going through frameToModel()', () => {
+    // No requestFrameOnNextMesh() — this is the path a restored session takes:
+    // geometry is displayed directly, frameToModel() never runs, so there is
+    // no cached radius anywhere. The 'change' listener must still measure the
+    // model live and re-derive near/far, not no-op at the constructor defaults
+    // (0.1 / 10000), which is the second path to the "model is cut off" bug.
+    const big = boxMesh(2000); // bounding-sphere radius sqrt(3)*1000 ~= 1732.05, centered at origin
+    mgr.setMesh(big.pos, big.idx);
+    const target = targetVec(mgr);
+    const dist = mgr.camera.position.distanceTo(target); // camera still at constructor default (400,400,400)
+    const radius = Math.sqrt(3) * 1000;
+    const expected = computeClippingForDistance(dist, radius);
+    fireControlsChange(mgr);
+    expect(mgr.camera.near).toBeCloseTo(expected.near, 3);
+    expect(mgr.camera.far).toBeCloseTo(expected.far, 3);
   });
 
   it('grows the far plane on a dolly-out so the model stays inside the depth range', () => {
@@ -151,5 +169,37 @@ describe('SceneManager — live re-clipping on zoom (OrbitControls change)', () 
     fireControlsChange(mgr);
     expect(mgr.camera.near).toBeLessThan(framedNear);
     expect(mgr.camera.near).toBeGreaterThan(0);
+  });
+
+  it('STALENESS: reflects a model that grew after the initial fit, not a cached fit-time radius', () => {
+    mgr.requestFrameOnNextMesh();
+    const big = boxMesh(2000); // bounding-sphere radius ~1732
+    mgr.setMesh(big.pos, big.idx);
+
+    // Grow the scene bounds AFTER the fit: add a second (component) mesh far
+    // away, simulating an edit that enlarges the model post-framing. A cached
+    // fit-time radius would go stale here; a live measurement must not.
+    const farGeom = new THREE.BoxGeometry(10, 10, 10);
+    mgr.setPartGeometry('parts/far.zipt', farGeom);
+    const grownLeaf: ComponentLeaf = {
+      kind: 'leaf',
+      componentPath: ['far'],
+      partPath: 'parts/far.zipt',
+      worldPose: { translation: { x: 60000, y: 0, z: 0 }, quaternion: [0, 0, 0, 1] },
+      visible: true,
+    };
+    mgr.setComponentMeshes([grownLeaf]);
+
+    // Dolly the camera IN close (dist tiny) so the far-plane value is
+    // dominated by the radius term, not the distance term — this isolates
+    // whether the recompute uses a STALE fit-time radius (~1732, which would
+    // cap far around 1732*1.5+50 ~= 2650) or a fresh measurement of the grown
+    // model (now spanning out to x=60000, radius in the tens of thousands).
+    const target = targetVec(mgr);
+    const dir = mgr.camera.position.clone().sub(target).normalize();
+    mgr.camera.position.copy(target.clone().add(dir.multiplyScalar(50)));
+    fireControlsChange(mgr);
+
+    expect(mgr.camera.far).toBeGreaterThan(20000);
   });
 });
