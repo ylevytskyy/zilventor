@@ -1,11 +1,10 @@
 import { defineConfig } from 'vitepress'
 
-// TODO: flip to false once UK tree is complete
 export default defineConfig({
   title: 'Zilventor',
   description: 'User manual for the Zilventor furniture-CAD app',
   lang: 'en-US',
-  ignoreDeadLinks: true,
+  ignoreDeadLinks: false,
 
   themeConfig: {
     search: {
@@ -183,13 +182,159 @@ export default defineConfig({
       link: '/uk/',
       themeConfig: {
         nav: [
-          { text: 'Home', link: '/uk/' }
+          { text: 'Початок роботи', link: '/uk/getting-started/' },
+          { text: 'Моделювання', link: '/uk/modeling/' },
+          { text: 'Меблі', link: '/uk/furniture/' },
+          { text: 'Присадка', link: '/uk/drilling-prisadka/' },
+          { text: 'Виробництво', link: '/uk/manufacturing/' },
+          { text: 'Довідка', link: '/uk/reference/' }
         ],
         sidebar: [
           {
-            text: 'Головна',
+            text: 'Початок роботи',
+            collapsed: true,
             items: [
-              { text: 'Home', link: '/uk/' }
+              { text: 'Початок роботи', link: '/uk/getting-started/' },
+              { text: 'Підтримка браузерів', link: '/uk/getting-started/browser-support' },
+              { text: 'Огляд інтерфейсу', link: '/uk/getting-started/interface-tour' },
+              { text: 'Ваш перший проєкт', link: '/uk/getting-started/your-first-project' }
+            ]
+          },
+          {
+            text: 'Основні поняття',
+            collapsed: true,
+            items: [
+              { text: 'Основні поняття', link: '/uk/concepts/' },
+              { text: 'Документи та їх типи', link: '/uk/concepts/documents-and-kinds' },
+              { text: 'Матеріали', link: '/uk/concepts/materials' },
+              { text: 'Параметри та конфігурації', link: '/uk/concepts/parameters-and-configurations' },
+              { text: 'Збереження та сесії', link: '/uk/concepts/saving-and-sessions' },
+              { text: 'Дерево браузера', link: '/uk/concepts/the-browser-tree' }
+            ]
+          },
+          {
+            text: 'Моделювання',
+            collapsed: true,
+            items: [
+              { text: 'Моделювання', link: '/uk/modeling/' },
+              { text: 'Ескізи', link: '/uk/modeling/sketching' },
+              { text: 'Обмеження', link: '/uk/modeling/constraints' },
+              { text: 'Розміри', link: '/uk/modeling/dimensions' },
+              { text: 'Видавлювання, обертання та зсув', link: '/uk/modeling/extrude-revolve-sweep' },
+              { text: 'Редагування елементів', link: '/uk/modeling/modify-features' },
+              { text: 'Робочі елементи', link: '/uk/modeling/work-features' },
+              { text: 'Масиви та дзеркало', link: '/uk/modeling/patterns-and-mirror' }
+            ]
+          },
+          {
+            text: 'Складання',
+            collapsed: true,
+            items: [
+              { text: 'Складання', link: '/uk/assemblies/' },
+              { text: 'Розміщення компонентів', link: '/uk/assemblies/placing-components' },
+              { text: 'Обмеження', link: '/uk/assemblies/constraints' },
+              { text: 'Масиви та дзеркало', link: '/uk/assemblies/patterns-and-mirror' },
+              { text: 'Специфікація (BOM)', link: '/uk/assemblies/bill-of-materials' },
+              { text: 'Перевірка перетинів', link: '/uk/assemblies/interference-check' }
+            ]
+          },
+          {
+            text: 'Меблі',
+            collapsed: true,
+            items: [
+              { text: 'Меблі', link: '/uk/furniture/' },
+              { text: 'Панелі', link: '/uk/furniture/panels' },
+              { text: 'Шафи', link: '/uk/furniture/cabinets' },
+              { text: 'Двері', link: '/uk/furniture/doors' },
+              { text: 'Блоки шухляд', link: '/uk/furniture/drawer-banks' },
+              { text: 'Лицьові рамки', link: '/uk/furniture/face-frames' },
+              { text: 'Фурнітура', link: '/uk/furniture/hardware' },
+              { text: 'Список розкрою', link: '/uk/furniture/cut-list' },
+              { text: 'Вартість і статистика', link: '/uk/furniture/cost-and-statistics' }
+            ]
+          },
+          {
+            text: 'Присадка',
+            collapsed: true,
+            items: [
+              { text: 'Присадка', link: '/uk/drilling-prisadka/' },
+              { text: 'Генерувати присадку корпусу', link: '/uk/drilling-prisadka/generate-carcass-boring' },
+              { text: 'Полицетримачі System-32', link: '/uk/drilling-prisadka/system-32-shelf-pins' },
+              { text: 'Пази та фальці', link: '/uk/drilling-prisadka/grooves-and-dados' },
+              { text: 'Замкові пази', link: '/uk/drilling-prisadka/keyhole-slots' },
+              { text: 'Шип і паз', link: '/uk/drilling-prisadka/mortise-and-tenon' },
+              { text: 'Ручки', link: '/uk/drilling-prisadka/handles-and-pulls' },
+              { text: 'Регульовані ніжки', link: '/uk/drilling-prisadka/leg-levelers' },
+              { text: 'Пресети обробки', link: '/uk/drilling-prisadka/machining-presets' },
+              { text: 'Редагування та очищення присадки', link: '/uk/drilling-prisadka/editing-and-clearing-bores' },
+              { text: 'Експорт даних присадки', link: '/uk/drilling-prisadka/exporting-boring-data' }
+            ]
+          },
+          {
+            text: 'Креслення',
+            collapsed: true,
+            items: [
+              { text: 'Креслення', link: '/uk/drawings/' },
+              { text: 'Аркуші', link: '/uk/drawings/sheets' },
+              { text: 'Основні та проєкційні види', link: '/uk/drawings/base-and-projected-views' },
+              { text: 'Розрізи', link: '/uk/drawings/section-views' },
+              { text: 'Виносні елементи', link: '/uk/drawings/detail-views' },
+              { text: 'Розірвані види', link: '/uk/drawings/broken-views' },
+              { text: 'Розміри', link: '/uk/drawings/dimensions' },
+              { text: 'Позначення', link: '/uk/drawings/annotations' },
+              { text: 'Таблиці отворів і специфікації', link: '/uk/drawings/hole-tables-and-parts-lists' },
+              { text: 'Шаблони', link: '/uk/drawings/templates' },
+              { text: 'Експорт креслень', link: '/uk/drawings/exporting-drawings' }
+            ]
+          },
+          {
+            text: 'Виробництво',
+            collapsed: true,
+            items: [
+              { text: 'Виробництво', link: '/uk/manufacturing/' },
+              { text: 'Виробничий DXF', link: '/uk/manufacturing/manufacturing-dxf' },
+              { text: 'Розкладка на листі', link: '/uk/manufacturing/nesting' },
+              { text: 'Редагування розкладки', link: '/uk/manufacturing/editing-the-nest' },
+              { text: 'Етикетки та QR', link: '/uk/manufacturing/labels-and-qr' },
+              { text: 'Схема шарів ABF', link: '/uk/manufacturing/abf-layer-scheme' },
+              { text: 'Метадані CAM', link: '/uk/manufacturing/cam-metadata' },
+              { text: 'Звіт про вартість', link: '/uk/manufacturing/cost-report' },
+              { text: 'Пакувальний лист', link: '/uk/manufacturing/packing-slip' },
+              { text: 'Звірка виробництва', link: '/uk/manufacturing/production-reconciliation' }
+            ]
+          },
+          {
+            text: 'Імпорт і міграція',
+            collapsed: true,
+            items: [
+              { text: 'Імпорт і міграція', link: '/uk/import-migration/' },
+              { text: 'Файли STEP', link: '/uk/import-migration/step-files' },
+              { text: 'Файли DXF', link: '/uk/import-migration/dxf-files' },
+              { text: 'Імпорт ABF (розгортка)', link: '/uk/import-migration/abf-flatten-import' },
+              { text: 'Перетворення на панель', link: '/uk/import-migration/convert-to-panel' },
+              { text: 'Міграція з Inventor', link: '/uk/import-migration/inventor-migration' },
+              { text: 'Файли SolidWorks', link: '/uk/import-migration/solidworks-files' }
+            ]
+          },
+          {
+            text: 'Довідка',
+            collapsed: true,
+            items: [
+              { text: 'Довідка', link: '/uk/reference/' },
+              { text: 'Гарячі клавіші', link: '/uk/reference/keyboard-shortcuts' },
+              { text: 'Формати файлів', link: '/uk/reference/file-formats' },
+              { text: 'Формати експорту', link: '/uk/reference/export-formats' },
+              { text: 'Глосарій', link: '/uk/reference/glossary' }
+            ]
+          },
+          {
+            text: 'Усунення несправностей',
+            collapsed: true,
+            items: [
+              { text: 'Усунення несправностей', link: '/uk/troubleshooting/' },
+              { text: 'Відомі обмеження', link: '/uk/troubleshooting/known-limitations' },
+              { text: 'Проблеми з браузером', link: '/uk/troubleshooting/browser-issues' },
+              { text: 'Часті запитання', link: '/uk/troubleshooting/faq' }
             ]
           }
         ]

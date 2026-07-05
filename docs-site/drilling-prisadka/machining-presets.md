@@ -20,7 +20,7 @@ editing when you created them. Applying a preset **copies (snapshots) its curren
 values** onto the bore or groove you applied it to. After that, the bore/groove and
 the preset are independent — editing or deleting the preset later never changes
 anything you already applied it to. This is deliberate (see
-[ADR 0001](../../docs/adr/0001-machining-presets-global-with-snapshot.md)): a
+ADR 0001): a
 production file that already went to the CNC must not silently drift because someone
 retuned a preset for a different job afterwards. If you need a bore's tool/depth to
 change, edit that bore directly.

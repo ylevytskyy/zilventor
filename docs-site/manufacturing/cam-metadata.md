@@ -12,7 +12,7 @@ CAM metadata isn't a setting you turn on — it's a byproduct of using
 [machining presets](../drilling-prisadka/machining-presets.md). When a preset
 that has a **Tool number** and/or **Speed** value is applied to a bore or
 groove, those two values are snapshotted onto that feature, per
-[ADR 0001](../../docs/adr/0001-machining-presets-global-with-snapshot.md) —
+ADR 0001 —
 editing or deleting the preset afterward never changes a feature it was
 already applied to.
 
@@ -93,7 +93,7 @@ as `ZILVENTOR`-APPID XDATA in the DXF, and, in combined mode, as a row in
 - [Machining Presets](../drilling-prisadka/machining-presets.md)
 - [Exporting Boring Data](../drilling-prisadka/exporting-boring-data.md)
 - [Known Limitations](../troubleshooting/known-limitations.md)
-- ADR: [0001 — Machining presets global with snapshot](../../docs/adr/0001-machining-presets-global-with-snapshot.md)
+- ADR: 0001 — Machining presets global with snapshot
 
 <!-- SCREENSHOT: Machining Presets dialog with Tool number and Speed fields filled in — TODO follow-up -->
 <!-- SCREENSHOT: exported machining.csv opened in a spreadsheet showing toolNumber/speed columns — TODO follow-up -->
