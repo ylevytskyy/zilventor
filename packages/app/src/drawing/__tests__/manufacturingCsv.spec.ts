@@ -186,6 +186,26 @@ describe('buildManufacturingCsv', () => {
     expect(csv.trim().split('\n')).toEqual(['partName,opType,diameter,depth,layer,toolNumber,speed']);
   });
 
+  // Gap analysis (.vp-native/GAP-ANALYSIS.md §5): PanelSpec.edgeBands already carries
+  // {materialId, thickness} per side but machining.csv had no edgeband row at all — the
+  // material/thickness ViyarPro's `edges.{side}` kromka object carries was silently dropped.
+  it('emits an edgeband row for a banded side with side, materialId, and thickness', () => {
+    const banded = { ...base, spec: { ...(base.spec as any), edgeBands: {
+      front: { materialId: 'm1', thickness: 0.8 }, back: null, left: null, right: null,
+    } } };
+    const csv = buildManufacturingCsv([banded as any]);
+    expect(csv).toContain('SidePanel,edgeband,front,m1,0.8,,');
+  });
+
+  it('emits no edgeband row for a side with no band', () => {
+    const banded = { ...base, spec: { ...(base.spec as any), edgeBands: {
+      front: { materialId: 'm1', thickness: 0.8 }, back: null, left: null, right: null,
+    } } };
+    const csv = buildManufacturingCsv([banded as any]);
+    const rows = csv.trim().split('\n').slice(1);
+    expect(rows).toHaveLength(1); // only the 'front' row — none for back/left/right
+  });
+
   it('covers every panel in the input collection, in order', () => {
     const b1 = bore('Top', 'confirmat-face', 100, 50, 5, 12);
     const b2 = bore('Top', 'confirmat-face', 100, 50, 5, 12);

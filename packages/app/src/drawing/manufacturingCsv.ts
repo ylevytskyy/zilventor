@@ -1,5 +1,8 @@
 import { boreToFlat, grooveRect, tenonMortiseRects, keyholeSlotFlat, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
 import { MANUFACTURING_LAYERS as L } from './manufacturingLayers';
+import type { PanelEdgeKey } from '@zilventor/shared';
+
+const EDGE_ORDER: readonly PanelEdgeKey[] = ['front', 'back', 'left', 'right'];
 
 // Copied verbatim from buildBoringCsv.ts/buildBomCsv.ts (csvCell is local in each, not
 // shared) — RFC 4180 quote/escape, never strip: keeps Unicode part names legible.
@@ -72,6 +75,23 @@ export function buildManufacturingCsv(inputs: PanelManufacturingInput[]): string
         numCell(f.speed),
       ].join(',');
       for (let i = 0; i < rects.length; i++) out.push(row);
+    }
+    // Gap analysis (.vp-native/GAP-ANALYSIS.md §5): PanelSpec.edgeBands already carries
+    // {materialId, thickness} per side but was never surfaced in the manufacturing export —
+    // one row per banded side, reusing the diameter/depth/layer slots (side/materialId/
+    // thickness) so the row shape stays a single 7-column format for every op type.
+    for (const edge of EDGE_ORDER) {
+      const band = input.spec.edgeBands[edge];
+      if (!band) continue;
+      out.push([
+        csvCell(input.partName),
+        'edgeband',
+        edge,
+        csvCell(band.materialId),
+        String(band.thickness),
+        '',
+        '',
+      ].join(','));
     }
     for (const s of input.keyholeSlots ?? []) {
       if (!keyholeSlotFlat(s, len, wid)) continue;
