@@ -40,12 +40,19 @@ export function sanitizeSkuForLayer(sku: string): string {
  * ABF-compatible DXF layer name for a bore, per the ratified sample-evidenced
  * convention (docs/abf-plugin/05-parity/04-abf-flatten-dxf-sample-analysis.md §3):
  * face bores → `DEPTH<depth>-ARTICLE<sku>` (bare `DEPTH<depth>` when no sku);
- * edge bores → `ABF-DSIDE-<dia>` (sku ignored). Returns null for a `throughAll`
- * bore (Rule 4: no invented THRU convention) — caller falls back to the native
- * layer scheme. Face-vs-edge classification is the caller's job.
+ * edge bores → `ABF-DSIDE-<dia>` (sku ignored). A `throughAll` bore WITH a sku
+ * gets the Rule-3 `D<diameter>-DEPTHF-<sku>` family (orientation-independent —
+ * the sample's DEPTHF instance was itself a mixed face/edge split); a
+ * `throughAll` bore with no sku still returns null (Rule 4: no invented THRU
+ * convention when there's no hardware identity to hang the DEPTHF layer on) —
+ * caller falls back to the native layer scheme. Face-vs-edge classification is
+ * the caller's job.
  */
 export function abfBoreLayer(b: BoreOp, orientation: 'face' | 'edge'): string | null {
-  if (b.depth === 'throughAll') return null;
+  if (b.depth === 'throughAll') {
+    const sku = b.sku !== undefined ? sanitizeSkuForLayer(b.sku) : '';
+    return sku ? `D${b.diameter}-DEPTHF-${sku}` : null;
+  }
   if (orientation === 'edge') return `ABF-DSIDE-${b.diameter}`;
   const sku = b.sku !== undefined ? sanitizeSkuForLayer(b.sku) : '';
   return sku ? `DEPTH${b.depth}-ARTICLE${sku}` : `DEPTH${b.depth}`;

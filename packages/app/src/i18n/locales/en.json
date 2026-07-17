@@ -1093,6 +1093,7 @@
       "exportBoringCsv": "Export CSV (Boring)",
       "exportBoringDxf": "Export DXF (Boring)",
       "exportManufacturingDxf": "Export DXF (Manufacturing)",
+      "exportViyarProDxf": "Export DXF (ViyarPro)",
       "machiningPresets": "Machining Presets",
       "exportCsv": "Export CSV",
       "exportNestDxf": "Export DXF (Nest)",

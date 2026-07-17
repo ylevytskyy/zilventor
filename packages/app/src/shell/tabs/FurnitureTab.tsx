@@ -28,6 +28,7 @@ import { ClearBoresCommand } from '../../commands/ClearBoresCommand';
 import { ExportBoringCsvCommand } from '../../commands/ExportBoringCsvCommand';
 import { ExportBoringDxfCommand } from '../../commands/ExportBoringDxfCommand';
 import { ExportPanelManufacturingDxfCommand } from '../../commands/ExportPanelManufacturingDxfCommand';
+import { ExportViyarProFlattenDxfCommand } from '../../commands/ExportViyarProFlattenDxfCommand';
 import { ExportPanelLabelsCommand } from '../../commands/ExportPanelLabelsCommand';
 import { usePanelManufacturingInputs } from '../usePanelManufacturingInputs';
 import { AddDoorCommand } from '../../commands/AddDoorCommand';
@@ -891,6 +892,15 @@ export default function FurnitureTab({ showToast }: { showToast?: ((message: str
               layerScheme,
             }).apply()}>
             {t('ribbon.furniture.exportManufacturingDxf')}
+          </button>
+          <button type="button" className="text-xs hover:text-white disabled:text-neutral-500"
+            disabled={!activeAssembly || panelManufacturingInputs.length === 0}
+            aria-disabled={!activeAssembly || panelManufacturingInputs.length === 0}
+            onClick={() => void new ExportViyarProFlattenDxfCommand({
+              inputs: panelManufacturingInputs,
+              suggestedName: `${activeAssembly?.name ?? 'assembly'}-viyarpro.dxf`,
+            }).apply()}>
+            {t('ribbon.furniture.exportViyarProDxf')}
           </button>
           <span className="text-xs text-neutral-500" aria-label={t('ribbon.furniture.dxfExportMode')}>
             {t('ribbon.furniture.dxfExportMode')}

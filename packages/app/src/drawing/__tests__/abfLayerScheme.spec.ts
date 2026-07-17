@@ -38,9 +38,25 @@ describe('abfBoreLayer', () => {
       .toBe('ABF-DSIDE-8');
   });
 
-  it('throughAll bore → null (caller falls back to native scheme)', () => {
+  it('throughAll bore without sku → null (caller falls back to native scheme)', () => {
     expect(abfBoreLayer(bore({ depth: 'throughAll' }), 'face')).toBeNull();
     expect(abfBoreLayer(bore({ depth: 'throughAll' }), 'edge')).toBeNull();
+  });
+
+  it('throughAll bore WITH sku → D<diameter>-DEPTHF-<sku> (ViyarPro flatten DEPTHF convention), regardless of orientation', () => {
+    expect(abfBoreLayer(bore({ diameter: 7, depth: 'throughAll', sku: '$44817' }), 'face'))
+      .toBe('D7-DEPTHF-$44817');
+    expect(abfBoreLayer(bore({ diameter: 7, depth: 'throughAll', sku: '$44817' }), 'edge'))
+      .toBe('D7-DEPTHF-$44817');
+  });
+
+  it('throughAll bore with empty-string sku still → null (no bare DEPTHF form, unlike DEPTH<depth>)', () => {
+    expect(abfBoreLayer(bore({ depth: 'throughAll', sku: '' }), 'face')).toBeNull();
+  });
+
+  it('throughAll bore sku is transliterated/sanitized the same as face-bore sku', () => {
+    expect(abfBoreLayer(bore({ diameter: 5, depth: 'throughAll', sku: 'Петля' }), 'face'))
+      .toBe('D5-DEPTHF-Petlya');
   });
 
   it('whole-number depth formats without trailing .0 (8.0 → "8")', () => {

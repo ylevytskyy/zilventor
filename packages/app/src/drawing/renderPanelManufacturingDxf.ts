@@ -64,8 +64,9 @@ export function boreToFlat(b: BoreOp, len: number, wid: number): { x: number; y:
 
 /** Face (Top/Bottom, the two large thickness-normal faces) vs edge (Front/Back/Left/Right)
  *  orientation, for abfBoreLayer's face-vs-edge convention. Mirrors boreToFlat's own
- *  role classification. */
-function boreOrientation(role: BoreOp['face']['role']): 'face' | 'edge' {
+ *  role classification. Exported so other ABF-scheme DXF renderers (e.g.
+ *  renderViyarProFlattenDxf.ts) reuse this classification instead of re-deriving it. */
+export function boreOrientation(role: BoreOp['face']['role']): 'face' | 'edge' {
   return role === 'Top' || role === 'Bottom' ? 'face' : 'edge';
 }
 
