@@ -14,11 +14,31 @@ export type XdataItem =
   | { code: 1040; value: number }
   | { code: 1070; value: number };
 
+/** A 3D point [x, y, z], used by the polyface-mesh / 3D-line emitters. */
+export type Vec3 = readonly [number, number, number];
+
 export type DxfDocument = {
   /** Emit a LINE entity. Optional aci (AutoCAD Color Index, group 62) overrides layer color. */
   line(layer: string, x1: number, y1: number, x2: number, y2: number, aci?: number): void;
+  /** Emit a LINE entity with independent Z on each endpoint (the 2D `line()` always emits Z=0). */
+  line3d(layer: string, p1: Vec3, p2: Vec3): void;
   /** Emit a POLYLINE/VERTEX[]/SEQEND entity sequence (R12 — not LWPOLYLINE). */
   polyline(layer: string, points: ReadonlyArray<readonly [number, number]>): void;
+  /**
+   * Emit a legacy closed/open 3D POLYLINE (AcDb3dPolyline, flags 70 = 9 closed / 8 open) with
+   * VERTEX entities (AcDb3dPolylineVertex, flags 70=32) — the ViyarPro/ABF cutting-line dialect
+   * (see .vp-native/variants/f4.dxf). `closed` repeats the first point as a final vertex
+   * (N+1 total) — required by the accepted dialect, not implied by the closed flag alone.
+   */
+  polyline3d(layer: string, points: ReadonlyArray<readonly [number, number]>, closed: boolean): void;
+  /**
+   * Emit a single-quad polyface mesh (AcDbPolyFaceMesh, POLYLINE flags 70=64, 71=4 vertices,
+   * 72=2 faces): 4 position VERTEX + 2 triangular face-record VERTEX (indices -1/2/3 and
+   * -2/1/4, coords 0,0,0) + SEQEND. ALL 6 VERTEX entities carry flags 70=192 (the golden
+   * reference's value — not the AutoCAD-doc "128 alone" convention). Used for the ViyarPro/ABF
+   * "solid representation" requirement: 6 of these (one per box face) per panel.
+   */
+  polyfaceMesh(layer: string, quad: readonly [Vec3, Vec3, Vec3, Vec3]): void;
   /** Emit a CIRCLE entity. Optional xdata (ZILVENTOR APPID) emitted last, per DXF spec. */
   circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[]): void;
   /** Emit a native ARC entity. Angles in degrees (DXF group 50/51 convention). */
@@ -29,6 +49,28 @@ export type DxfDocument = {
   text(layer: string, x: number, y: number, height: number, value: string, rotation?: number): void;
   /** Capture all geometry emitted inside `build` into an anonymous BLOCK; returns its *D name. */
   block(build: () => void): string;
+  /**
+   * Capture all geometry emitted inside `build` into a NAMED BLOCK (flag 70=0), with its own
+   * BLOCK_RECORD table entry. Entities emitted inside `build` (including nested insert() calls)
+   * are owned (group 330) by this block's BLOCK_RECORD handle. Returns `name` unchanged.
+   */
+  namedBlock(name: string, build: () => void): string;
+  /**
+   * Emit an INSERT entity referencing `blockName`, optionally followed by one ATTRIB per entry
+   * in `attribs` and a terminating SEQEND (AcDb group 66=1 "attributes follow" flag set only
+   * when attribs is non-empty). Usable both in the top-level ENTITIES stream and inside a
+   * `namedBlock()` build callback (nested INSERT).
+   */
+  insert(
+    blockName: string,
+    x: number,
+    y: number,
+    attribs?: ReadonlyArray<{ tag: string; value: string }>,
+    /** Opt-in Z coordinate (group 30, applied to both INSERT and every ATTRIB) and layer
+     *  (group 8, applied to INSERT and ATTRIB — SEQEND stays layer '0' regardless). Omitting
+     *  either reproduces the exact prior output (Z literal '0.0', layer '0'). */
+    opts?: { z?: number; layer?: string },
+  ): void;
   /** Emit a native DIMENSION entity (R12). Coordinates are already transformed/Y-flipped. */
   dimension(opts: {
     layer: string;
@@ -100,12 +142,40 @@ export function hexToAci(hex: string): number {
 }
 
 /**
+ * Opt-in HEADER overrides. Omitting a field (the default) reproduces the exact prior
+ * HEADER output for that field byte-for-byte.
+ */
+export type CreateDxfDocumentOpts = {
+  /** $ACADVER. Defaults to 'AC1015' (prior behavior). */
+  acadVersion?: 'AC1015' | 'AC1021';
+  /** $INSUNITS (group 70 integer), e.g. 4 = Millimeters. Omitted by default. */
+  insunits?: number;
+  /** $MEASUREMENT (group 70 integer), e.g. 1 = Metric. Omitted by default. */
+  measurement?: number;
+  /** $EXTMIN/$EXTMAX (real document extents). Omitted by default (no sentinel emitted). */
+  bbox?: { minX: number; minY: number; maxX: number; maxY: number };
+  /**
+   * Opt-in TABLES/OBJECTS richness proven necessary (empirically, via live viyar.pro upload)
+   * to clear the server's InvalidScaleError: adds DimStyle1 + Dimensions DIMSTYLE entries (3
+   * total incl. STANDARD), a Tahoma STYLE entry (2 total incl. STANDARD), and an OBJECTS
+   * section whose root dictionary declares ACAD_SECTIONVIEWSTYLE / ACDB_RECOMPOSE_DATA /
+   * AcDbVariableDictionary (minimal empty DICTIONARY objects — presence is what's checked).
+   * Also emits $DIMALTF=25.4 in HEADER — live server debugging isolated this as the actual
+   * InvalidScaleError trigger. See .vp-native/variants/f4.dxf. Omitted/false (the default)
+   * reproduces the exact prior HEADER/TABLES/OBJECTS output byte-for-byte.
+   */
+  sketchupCompat?: boolean;
+};
+
+/**
  * @param extraLayers Additional LAYER table records to declare beyond the fixed
  * `LAYERS` set, e.g. dynamic per-diameter bore layers for a combined multi-unit
  * document. Deduped against `LAYERS` and against each other; omitting it (the
  * default) reproduces the exact prior LAYER table byte-for-byte.
+ * @param opts Opt-in HEADER overrides — see `CreateDxfDocumentOpts`. Omitting it (the
+ * default) reproduces the exact prior HEADER output byte-for-byte.
  */
-export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocument {
+export function createDxfDocument(extraLayers: readonly string[] = [], opts: CreateDxfDocumentOpts = {}): DxfDocument {
   // ── Handle allocator (AC1015 requires handles on all named records) ───────
   // Starts at 0x100 so low handles are reserved for well-known table records.
   let handleSeq = 0x100;
@@ -145,9 +215,12 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
   }
   tables.push('  0', 'ENDTAB');
 
-  // STYLE (STANDARD)
-  tables.push('  0', 'TABLE', '  2', 'STYLE', '  5', nextHandle(), ' 70', '     1');
+  // STYLE (STANDARD [+ Tahoma under sketchupCompat])
+  tables.push('  0', 'TABLE', '  2', 'STYLE', '  5', nextHandle(), ' 70', `     ${opts.sketchupCompat ? 2 : 1}`);
   tables.push('  0', 'STYLE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbTextStyleTableRecord', '  2', 'STANDARD', ' 70', '     0', ' 40', '0.0', ' 41', '1.0', ' 50', '0.0', ' 71', '     0', ' 42', '2.5', '  3', 'txt', '  4', '');
+  if (opts.sketchupCompat) {
+    tables.push('  0', 'STYLE', '  5', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbTextStyleTableRecord', '  2', 'Tahoma', ' 70', '     0', ' 40', '0.0', ' 41', '1.0', ' 50', '0.0', ' 71', '     0', ' 42', '0.2', '  3', '', '  4', '');
+  }
   tables.push('  0', 'ENDTAB');
 
   // VIEW (empty)
@@ -162,20 +235,26 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
   tables.push('  0', 'ENDTAB');
 
   // DIMSTYLE — one shared STANDARD style (drives native DIMENSION regen)
+  // [+ DimStyle1 + Dimensions under sketchupCompat — see CreateDxfDocumentOpts.sketchupCompat]
   // NOTE: DIMSTYLE records use group 105 for their handle (not 5) per DXF spec.
-  tables.push('  0', 'TABLE', '  2', 'DIMSTYLE', '  5', nextHandle(), ' 70', '     1');
+  tables.push('  0', 'TABLE', '  2', 'DIMSTYLE', '  5', nextHandle(), ' 70', `     ${opts.sketchupCompat ? 3 : 1}`);
   tables.push('  0', 'DIMSTYLE', '105', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbDimStyleTableRecord', '  2', 'STANDARD', ' 70', '     0', '140', '3.5', ' 41', '2.5', '147', '0.625', ' 77', '     1', ' 73', '     0', ' 74', '     0');
+  if (opts.sketchupCompat) {
+    tables.push('  0', 'DIMSTYLE', '105', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbDimStyleTableRecord', '  2', 'DimStyle1', ' 70', '     0');
+    tables.push('  0', 'DIMSTYLE', '105', nextHandle(), '100', 'AcDbSymbolTableRecord', '100', 'AcDbDimStyleTableRecord', '  2', 'Dimensions', ' 70', '     0');
+  }
   tables.push('  0', 'ENDTAB');
 
-  // BLOCK_RECORD (*Model_Space, *Paper_Space)
-  tables.push('  0', 'TABLE', '  2', 'BLOCK_RECORD', '  5', nextHandle(), ' 70', '     2');
-  tables.push('  0', 'BLOCK_RECORD', '  5', modelSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Model_Space');
-  tables.push('  0', 'BLOCK_RECORD', '  5', paperSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Paper_Space');
-  tables.push('  0', 'ENDTAB');
+  // BLOCK_RECORD (*Model_Space, *Paper_Space [+ any namedBlock() records, appended lazily —
+  // see `namedBlockRecords` below]). The TABLE row's own handle is reserved now (same relative
+  // position in the handle sequence as before) but the row itself, and the closing ENDTAB/ENDSEC
+  // for the whole TABLES section, are assembled lazily in toString() so namedBlock() calls made
+  // after createDxfDocument() returns can still contribute BLOCK_RECORD entries.
+  const blockRecordTableHandle = nextHandle();
+  const namedBlockRecords: string[] = [];
+  let namedBlockCount = 0;
 
-  tables.push('  0', 'ENDSEC');
-
-  // ── BLOCKS section accumulator (block definitions appended by block()) ──
+  // ── BLOCKS section accumulator (block definitions appended by block()/namedBlock()) ──
   const blockDefs: string[] = [];
 
   // Internal entities accumulator — populated by emitters
@@ -184,6 +263,15 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
   let sink: string[] = ents;
   let anonCounter = 0;
   let currentOwner = modelSpaceHandle; // entities reference their owning block record
+
+  // Lazily-allocated handle for INSERT/SEQEND's group-347 material-object reference. Allocated
+  // on first insert() call (not eagerly) so documents that never call insert() keep an identical
+  // handle sequence — and thus byte-identical output — to before this feature existed.
+  let materialHandleCache: string | undefined;
+  const materialHandle = (): string => {
+    if (materialHandleCache === undefined) materialHandleCache = nextHandle();
+    return materialHandleCache;
+  };
 
   return {
     line(layer, x1, y1, x2, y2, aci) {
@@ -200,12 +288,49 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
       );
     },
 
+    line3d(layer, [x1, y1, z1], [x2, y2, z2]) {
+      sink.push(
+        '  0', 'LINE',
+        '  5', nextHandle(),
+        '330', currentOwner,
+        '100', 'AcDbEntity',
+        '  8', layer,
+        '100', 'AcDbLine',
+        ' 10', fmt(x1), ' 20', fmt(y1), ' 30', fmt(z1),
+        ' 11', fmt(x2), ' 21', fmt(y2), ' 31', fmt(z2),
+      );
+    },
+
     polyline(layer, points) {
       if (points.length < 2) return;
       sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDb2dPolyline', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', '     0');
       for (const [x, y] of points) {
         sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDb2dVertex', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0');
       }
+      sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
+    },
+
+    polyline3d(layer, points, closed) {
+      if (points.length < 2) return;
+      sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDb3dPolyline', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', `     ${closed ? 9 : 8}`);
+      const emitVertex = (x: number, y: number): void => {
+        sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDb3dPolylineVertex', ' 10', fmt(x), ' 20', fmt(y), ' 30', '0.0', ' 70', '    32');
+      };
+      for (const [x, y] of points) emitVertex(x, y);
+      if (closed) emitVertex(points[0]![0], points[0]![1]);
+      sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
+    },
+
+    polyfaceMesh(layer, quad) {
+      sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbPolyFaceMesh', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', '    64', ' 71', '     4', ' 72', '     2');
+      for (const [x, y, z] of quad) {
+        sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDbPolyFaceMeshVertex', ' 10', fmt(x), ' 20', fmt(y), ' 30', fmt(z), ' 70', '   192');
+      }
+      const faceRecord = (a: number, b: number, c: number): void => {
+        sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDbPolyFaceMeshVertex', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', '   192', ' 71', `     ${a}`, ' 72', `     ${b}`, ' 73', `     ${c}`);
+      };
+      faceRecord(-1, 2, 3);
+      faceRecord(-2, 1, 4);
       sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
@@ -244,6 +369,93 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
         '  8', '0',
       );
       return name;
+    },
+
+    namedBlock(name, build) {
+      const blockRecordHandle = nextHandle();
+      namedBlockCount++;
+      namedBlockRecords.push(
+        '  0', 'BLOCK_RECORD',
+        '  5', blockRecordHandle,
+        '100', 'AcDbSymbolTableRecord',
+        '100', 'AcDbBlockTableRecord',
+        '  2', name,
+      );
+      const blockHandle = nextHandle();
+      const endblkHandle = nextHandle();
+      const prevSink = sink;
+      const prevOwner = currentOwner;
+      const body: string[] = [];
+      sink = body;
+      currentOwner = blockRecordHandle;
+      try { build(); } finally { sink = prevSink; currentOwner = prevOwner; }
+      blockDefs.push(
+        '  0', 'BLOCK',
+        '  5', blockHandle,
+        '330', blockRecordHandle,
+        '100', 'AcDbEntity',
+        '  8', '0',
+        '100', 'AcDbBlockBegin',
+        '  2', name,
+        ' 70', '     0',   // named (non-anonymous) block flag
+        ' 10', '0.0', ' 20', '0.0', ' 30', '0.0',
+        '  3', name,
+        '  1', '',
+        ...body,
+        '  0', 'ENDBLK',
+        '  5', endblkHandle,
+        '330', blockRecordHandle,
+        '100', 'AcDbEntity',
+        '  8', '0',
+        '100', 'AcDbBlockEnd',
+      );
+      return name;
+    },
+
+    insert(blockName, x, y, attribs, opts) {
+      const insertHandle = nextHandle();
+      const hasAttribs = attribs !== undefined && attribs.length > 0;
+      const layer = opts?.layer ?? '0';
+      const z = opts?.z !== undefined ? fmt(opts.z) : '0.0';
+      sink.push(
+        '  0', 'INSERT',
+        '  5', insertHandle,
+        '330', currentOwner,
+        '100', 'AcDbEntity',
+        '  8', layer,
+        '347', materialHandle(),
+        '100', 'AcDbBlockReference',
+        ...(hasAttribs ? [' 66', '     1'] : []),
+        '  2', blockName,
+        ' 10', fmt(x), ' 20', fmt(y), ' 30', z,
+      );
+      if (hasAttribs) {
+        for (const a of attribs) {
+          sink.push(
+            '  0', 'ATTRIB',
+            '  5', nextHandle(),
+            '330', insertHandle,
+            '100', 'AcDbEntity',
+            '  8', layer,
+            '100', 'AcDbText',
+            ' 10', '0.0', ' 20', '0.0', ' 30', z,
+            ' 40', '1.0',
+            '  1', a.value,
+            '100', 'AcDbAttribute',
+            '  2', a.tag,
+            ' 70', '     1',
+            '280', '     0',
+          );
+        }
+        sink.push(
+          '  0', 'SEQEND',
+          '  5', nextHandle(),
+          '330', insertHandle,
+          '100', 'AcDbEntity',
+          '  8', '0',
+          '347', materialHandle(),
+        );
+      }
     },
 
     dimension(opts) {
@@ -308,6 +520,19 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
     },
 
     toString() {
+      // BLOCK_RECORD TABLE — assembled here (not eagerly) so namedBlock() calls made after
+      // createDxfDocument() returns can contribute their BLOCK_RECORD entries. Fixed count is
+      // 2 (*Model_Space, *Paper_Space) + one per namedBlock() call; omitting namedBlock() (the
+      // default) reproduces the exact prior count (2) and table byte-for-byte.
+      const blockRecordTable = [
+        '  0', 'TABLE', '  2', 'BLOCK_RECORD', '  5', blockRecordTableHandle, ' 70', `     ${2 + namedBlockCount}`,
+        '  0', 'BLOCK_RECORD', '  5', modelSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Model_Space',
+        '  0', 'BLOCK_RECORD', '  5', paperSpaceHandle, '100', 'AcDbSymbolTableRecord', '100', 'AcDbBlockTableRecord', '  2', '*Paper_Space',
+        ...namedBlockRecords,
+        '  0', 'ENDTAB',
+      ];
+      const fullTables = [...tables, ...blockRecordTable, '  0', 'ENDSEC'];
+
       const blockSection = [
         '  0', 'SECTION', '  2', 'BLOCKS',
         '  0', 'BLOCK', '  5', nextHandle(), '100', 'AcDbEntity', '  8', '0', '100', 'AcDbBlockBegin', '  2', '*Model_Space', ' 70', '     0', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', '  3', '*Model_Space', '  1', '',
@@ -326,16 +551,48 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
       // Allocate the OBJECTS dictionary handle BEFORE reading handleSeq for
       // $HANDSEED, so that the seed value exceeds ALL allocated handles.
       const dictHandle = nextHandle();
-      const objectsSection = [
-        '  0', 'SECTION', '  2', 'OBJECTS',
-        '  0', 'DICTIONARY', '  5', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
-        '  0', 'ENDSEC',
-      ];
+      // Under sketchupCompat, the root dictionary declares 3 named entries pointing at minimal
+      // empty DICTIONARY objects — presence is what viyar.pro's importer checks (see
+      // CreateDxfDocumentOpts.sketchupCompat), not their contents.
+      const objectsSection = opts.sketchupCompat
+        ? (() => {
+            const sectionViewStyleHandle = nextHandle();
+            const recomposeDataHandle = nextHandle();
+            const variableDictHandle = nextHandle();
+            return [
+              '  0', 'SECTION', '  2', 'OBJECTS',
+              '  0', 'DICTIONARY', '  5', dictHandle, '330', '0', '100', 'AcDbDictionary', ' 70', '     0',
+              '  3', 'ACAD_SECTIONVIEWSTYLE', '350', sectionViewStyleHandle,
+              '  3', 'ACDB_RECOMPOSE_DATA', '350', recomposeDataHandle,
+              '  3', 'AcDbVariableDictionary', '350', variableDictHandle,
+              '  0', 'DICTIONARY', '  5', sectionViewStyleHandle, '330', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
+              '  0', 'DICTIONARY', '  5', recomposeDataHandle, '330', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
+              '  0', 'DICTIONARY', '  5', variableDictHandle, '330', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
+              '  0', 'ENDSEC',
+            ];
+          })()
+        : [
+            '  0', 'SECTION', '  2', 'OBJECTS',
+            '  0', 'DICTIONARY', '  5', dictHandle, '100', 'AcDbDictionary', ' 70', '     0',
+            '  0', 'ENDSEC',
+          ];
 
       // Assemble HEADER last so $HANDSEED reflects every handle allocated above.
+      // Opt-in variables ($INSUNITS/$MEASUREMENT/$EXTMIN/$EXTMAX) are omitted entirely unless
+      // the caller supplied them — omitting `opts` reproduces the prior HEADER byte-for-byte.
       const headerSection = [
         '  0', 'SECTION', '  2', 'HEADER',
-        '  9', '$ACADVER', '  1', 'AC1015',
+        '  9', '$ACADVER', '  1', opts.acadVersion ?? 'AC1015',
+        ...(opts.insunits !== undefined ? ['  9', '$INSUNITS', ' 70', `     ${opts.insunits}`] : []),
+        ...(opts.measurement !== undefined ? ['  9', '$MEASUREMENT', ' 70', `     ${opts.measurement}`] : []),
+        ...(opts.bbox !== undefined ? [
+          '  9', '$EXTMIN', ' 10', fmt(opts.bbox.minX), ' 20', fmt(opts.bbox.minY), ' 30', '0.0',
+          '  9', '$EXTMAX', ' 10', fmt(opts.bbox.maxX), ' 20', fmt(opts.bbox.maxY), ' 30', '0.0',
+        ] : []),
+        // $DIMALTF (alternate-units scale factor) — the header var live server debugging
+        // isolated as the actual InvalidScaleError trigger (a raw export + this single
+        // patched line got a full accept, 0 errors). Part of sketchupCompat, not its own opt.
+        ...(opts.sketchupCompat ? ['  9', '$DIMALTF', ' 40', '25.4'] : []),
         '  9', '$HANDSEED', '  5', handleSeq.toString(16).toUpperCase(),
         '  0', 'ENDSEC',
       ];
@@ -344,7 +601,7 @@ export function createDxfDocument(extraLayers: readonly string[] = []): DxfDocum
       return [
         ...headerSection,
         ...classesSection,
-        ...tables,
+        ...fullTables,
         ...blockSection,
         ...entSection,
         ...objectsSection,

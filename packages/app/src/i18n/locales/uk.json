@@ -1093,6 +1093,7 @@
       "exportBoringCsv": "Експорт CSV (присадка)",
       "exportBoringDxf": "Експорт DXF (присадка)",
       "exportManufacturingDxf": "Експорт DXF (Виробництво)",
+      "exportViyarProDxf": "Експорт DXF (ViyarPro)",
       "machiningPresets": "Пресети обробки",
       "exportCsv": "Експорт CSV",
       "exportNestDxf": "Експорт DXF (Розкладка)",
