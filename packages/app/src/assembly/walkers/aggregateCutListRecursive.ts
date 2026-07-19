@@ -13,6 +13,10 @@ type GroupAcc = {
   normalized: { L: number; W: number };
   componentPathKeys: string[];
   partPath: string;
+  /** Parallel to componentPathKeys — the part name of EACH physical component
+   *  folded into this group, even when their partPaths differ (see
+   *  CutListRow.partNames doc comment). */
+  partNames: string[];
 };
 
 function materialName(id: MaterialId, materials: MaterialRegistry): string {
@@ -53,14 +57,17 @@ export function aggregateCutListRecursive(
       }
       const normalized = normalizeLW(spec);
       const key = cutListRowKey(spec, normalized);
+      const name = partInfo.get(c.partPath)?.name ?? '(missing part)';
       const existing = groups.get(key);
       if (existing) {
         existing.componentPathKeys.push(pathKey(path));
+        existing.partNames.push(name);
       } else {
         groups.set(key, {
           spec, normalized,
           componentPathKeys: [pathKey(path)],
           partPath: c.partPath,
+          partNames: [name],
         });
       }
     }
@@ -95,6 +102,7 @@ export function aggregateCutListRecursive(
       partPath: g.partPath,
       partName: info?.name ?? '(missing part)',
       componentPathKeys: [...g.componentPathKeys],
+      partNames: [...g.partNames],
     });
   }
   rows.sort((a, b) => a.itemNumber - b.itemNumber);

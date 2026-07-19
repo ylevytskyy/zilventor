@@ -165,6 +165,31 @@ describe('aggregatePanelManufacturing', () => {
     expect(out[0]!.partNames).toEqual(['Shelf']);
   });
 
+  it('threads a single row\'s OWN partNames (already-collapsed distinct names, e.g. Left+Right Side) through unmerged (R-QTY seed path)', () => {
+    const cut: CutListResult = { rows: [
+      row({ partName: 'Left Side', partNames: ['Left Side', 'Right Side'], qty: 2 }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [panel()] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out).toHaveLength(1);
+    expect(out[0]!.qty).toBe(2);
+    expect(out[0]!.partNames).toEqual(['Left Side', 'Right Side']);
+  });
+
+  it('merges two rows that EACH already carry their own multi-name partNames, concatenating all of them', () => {
+    const cut: CutListResult = { rows: [
+      row({ partPath: 'p/a', itemNumber: 1, partName: 'Left Side', partNames: ['Left Side', 'Right Side'], qty: 2 }),
+      row({ partPath: 'p/b', itemNumber: 1, partName: 'Shelf', partNames: ['Shelf'], qty: 1 }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [
+      panel({ partPath: 'p/a', bores: [] }), panel({ partPath: 'p/b', bores: [] }),
+    ] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out).toHaveLength(1);
+    expect(out[0]!.qty).toBe(3);
+    expect(out[0]!.partNames).toEqual(['Left Side', 'Right Side', 'Shelf']);
+  });
+
   it('faceKey distinguishes bores by face.role — Top vs Bottom on same geometry are separate entries', () => {
     const cut: CutListResult = { rows: [
       row({ partPath: 'p/a', itemNumber: 1 }),

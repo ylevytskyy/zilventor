@@ -84,6 +84,25 @@ describe('aggregateCutListRecursive', () => {
     expect(grossWidth(row)).toBe(402);  // front band 2mm adds to width
   });
 
+  it('two components with the SAME geometry but DIFFERENT part names (e.g. Left/Right Side) merge into one row but keep BOTH names', () => {
+    const a = asm('a', [
+      cmp('c1', 'p/left.zipt'),
+      cmp('c2', 'p/right.zipt'),
+    ]);
+    const specs = new Map<string, PanelSpec | null>([
+      ['p/left.zipt', SPEC()],
+      ['p/right.zipt', SPEC()], // identical geometry/material/grain -> same cutListRowKey
+    ]);
+    const result = aggregateCutListRecursive(
+      a, cacheOf([]), specs, MAT,
+      partInfoOf([['p/left.zipt', 'Left Side'], ['p/right.zipt', 'Right Side']]),
+    );
+    expect(result.rows).toHaveLength(1);
+    const row = result.rows[0]!;
+    expect(row.qty).toBe(2);
+    expect(row.partNames).toEqual(['Left Side', 'Right Side']);
+  });
+
   it('two-level recursion: outer with 2 inner instances; inner has 2 panels', () => {
     const inner = asm('inner', [cmp('p1', 'p/a.zipt'), cmp('p2', 'p/b.zipt')]);
     const outer = asm('outer', [

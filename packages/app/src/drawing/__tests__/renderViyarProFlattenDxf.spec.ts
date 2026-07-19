@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { renderViyarProFlattenDxf } from '../renderViyarProFlattenDxf';
 import type { PanelManufacturingInput } from '../renderPanelManufacturingDxf';
-import type { BoreOp } from '@zilventor/shared';
+import type { BoreOp, AssemblyDocument, ComponentInstance } from '@zilventor/shared';
+import type { PanelSpec } from '@zilventor/shared/src/panel-feature';
+import type { MaterialEntry } from '@zilventor/shared/src/material';
+import { aggregateCutListRecursive } from '../../assembly/walkers/aggregateCutListRecursive';
+import { aggregatePanelManufacturing } from '../../assembly/walkers/aggregatePanelManufacturing';
 
 function panel(over: Partial<PanelManufacturingInput> = {}): PanelManufacturingInput {
   return {
@@ -359,6 +363,48 @@ describe('renderViyarProFlattenDxf — R-QTY panel-quantity instancing (fixes si
     const dxf = renderViyarProFlattenDxf([panel({ qty: 1 })]);
     expect(dxf).toContain('Group1#1');
     expect(dxf).not.toContain('Group1#2');
+  });
+});
+
+describe('renderViyarProFlattenDxf — full pipeline: twin instances get their OWN name (live ViyarPro bug)', () => {
+  const MAT: MaterialEntry[] = [
+    { id: 'm-white' as any, name: 'White 18', defaultThickness: 18, color: '#ffffff' },
+  ];
+  const SPEC = (over: Partial<PanelSpec> = {}): PanelSpec => ({
+    length: 700, width: 500, thickness: 18, materialId: 'm-white' as any, grain: 'length',
+    edgeBands: { front: null, back: null, left: null, right: null },
+    ...over,
+  } as PanelSpec);
+  const cmp = (id: string, partPath: string): ComponentInstance => ({
+    id, partPath,
+    position: { x: 0, y: 0, z: 0 }, rotation: { rx: 0, ry: 0, rz: 0 }, visible: true,
+  } as ComponentInstance);
+  const asm = (components: ComponentInstance[]): AssemblyDocument => ({
+    id: 'a', name: 'a', units: 'mm', parameters: {}, components, constraints: [],
+    groundedComponentPaths: [], colors: {}, bomItemNumbers: {}, cutListItemNumbers: {},
+    colorOverrides: {},
+  } as unknown as AssemblyDocument);
+
+  it('two physically-distinct panels (Left Side / Right Side) that share a cut-list row each get their own ATTRIB name in the DXF, not a duplicate', () => {
+    const assembly = asm([cmp('c1', 'p/left.zipt'), cmp('c2', 'p/right.zipt')]);
+    const specs = new Map<string, PanelSpec | null>([
+      ['p/left.zipt', SPEC()],
+      ['p/right.zipt', SPEC()], // identical geometry/material -> same cut-list row
+    ]);
+    const partInfo = new Map([
+      ['p/left.zipt', { name: 'Left Side' }],
+      ['p/right.zipt', { name: 'Right Side' }],
+    ]);
+    const cutList = aggregateCutListRecursive(assembly, { get: () => undefined }, specs, MAT, partInfo);
+    const manufacturingInputs = aggregatePanelManufacturing(cutList, { panels: [] }, new Map());
+
+    const dxf = renderViyarProFlattenDxf(manufacturingInputs);
+
+    expect(dxf).toContain('Left Side');
+    expect(dxf).toContain('Right Side');
+    // The literal bug: BOTH instances silently reusing the first component's name.
+    expect((dxf.match(/Left Side \{/g) ?? []).length).toBe(1);
+    expect((dxf.match(/Right Side \{/g) ?? []).length).toBe(1);
   });
 });
 
