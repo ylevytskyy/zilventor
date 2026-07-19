@@ -39,21 +39,30 @@ export function sanitizeSkuForLayer(sku: string): string {
 /**
  * ABF-compatible DXF layer name for a bore, per the ratified sample-evidenced
  * convention (docs/abf-plugin/05-parity/04-abf-flatten-dxf-sample-analysis.md §3):
- * face bores → `DEPTH<depth>-ARTICLE<sku>` (bare `DEPTH<depth>` when no sku);
- * edge bores → `ABF-DSIDE-<dia>` (sku ignored). A `throughAll` bore WITH a sku
- * gets the Rule-3 `D<diameter>-DEPTHF-<sku>` family (orientation-independent —
- * the sample's DEPTHF instance was itself a mixed face/edge split); a
- * `throughAll` bore with no sku still returns null (Rule 4: no invented THRU
- * convention when there's no hardware identity to hang the DEPTHF layer on) —
- * caller falls back to the native layer scheme. Face-vs-edge classification is
- * the caller's job.
+ * ANY finite-depth bore (face OR edge) → `DEPTH<depth>-ARTICLE<sku>` (bare
+ * `DEPTH<depth>` when no sku) — the sample confirms this family carries reliable
+ * depth semantics for BOTH orientations (e.g. `DEPTH12-ARTICLE38877` is 100%
+ * edge-oriented). `ABF-DSIDE-<dia>` was tried for finite-depth edge bores and
+ * LIVE-DISQUALIFIED: a 2026-07-19 viyar.pro import bisection (3 independent
+ * mutations — depth magnitude 34→30, splitting the layer by drill direction,
+ * routing a plain CIRCLE onto DEPTH<depth> instead) proved the server never
+ * reads depth from the ABF-DSIDE circle+polyline pair at all; only the
+ * DEPTH<depth> reroute cleared BOTH the "Некоректна глибина" and "Не вказана
+ * глибина" warnings live. `ABF-DSIDE-<dia>` is no longer emitted by this
+ * function. A `throughAll` bore WITH a sku gets the Rule-3
+ * `D<diameter>-DEPTHF-<sku>` family (orientation-independent — the sample's
+ * DEPTHF instance was itself a mixed face/edge split); a `throughAll` bore
+ * with no sku still returns null (Rule 4: no invented THRU convention when
+ * there's no hardware identity to hang the DEPTHF layer on) — caller falls
+ * back to the native layer scheme. `orientation` is accepted for API
+ * stability (callers already classify face-vs-edge for other reasons) but no
+ * longer branches the finite-depth case.
  */
-export function abfBoreLayer(b: BoreOp, orientation: 'face' | 'edge'): string | null {
+export function abfBoreLayer(b: BoreOp, _orientation: 'face' | 'edge'): string | null {
   if (b.depth === 'throughAll') {
     const sku = b.sku !== undefined ? sanitizeSkuForLayer(b.sku) : '';
     return sku ? `D${b.diameter}-DEPTHF-${sku}` : null;
   }
-  if (orientation === 'edge') return `ABF-DSIDE-${b.diameter}`;
   const sku = b.sku !== undefined ? sanitizeSkuForLayer(b.sku) : '';
   return sku ? `DEPTH${b.depth}-ARTICLE${sku}` : `DEPTH${b.depth}`;
 }

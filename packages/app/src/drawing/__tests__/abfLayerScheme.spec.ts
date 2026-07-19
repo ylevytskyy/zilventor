@@ -25,17 +25,20 @@ describe('abfBoreLayer', () => {
     expect(abfBoreLayer(bore({ depth: 13.8 }), 'face')).toBe('DEPTH13.8');
   });
 
-  it('edge bore → ABF-DSIDE-<dia> (integer diameter)', () => {
-    expect(abfBoreLayer(bore({ diameter: 8, depth: 12 }), 'edge')).toBe('ABF-DSIDE-8');
+  // ABF-DSIDE-<dia> was live-disqualified 2026-07-19: viyar.pro never reads depth from the
+  // circle+companion-polyline pair, so a finite-depth edge bore now shares the SAME
+  // DEPTH<depth>[-ARTICLE<sku>] family as a face bore — orientation no longer branches this case.
+  it('edge bore with finite depth → DEPTH<depth>, same as a face bore (no ABF-DSIDE)', () => {
+    expect(abfBoreLayer(bore({ diameter: 8, depth: 12 }), 'edge')).toBe('DEPTH12');
   });
 
-  it('edge bore → ABF-DSIDE-<dia> (decimal diameter)', () => {
-    expect(abfBoreLayer(bore({ diameter: 4.5, depth: 12 }), 'edge')).toBe('ABF-DSIDE-4.5');
+  it('edge bore with finite depth and decimal diameter → DEPTH<depth> (diameter plays no role in the name)', () => {
+    expect(abfBoreLayer(bore({ diameter: 4.5, depth: 12 }), 'edge')).toBe('DEPTH12');
   });
 
-  it('edge bore ignores sku', () => {
+  it('edge bore WITH sku → DEPTH<depth>-ARTICLE<sku>, same as a face bore (sku no longer ignored)', () => {
     expect(abfBoreLayer(bore({ diameter: 8, depth: 12, sku: 'some-sku' }), 'edge'))
-      .toBe('ABF-DSIDE-8');
+      .toBe('DEPTH12-ARTICLEsome-sku');
   });
 
   it('throughAll bore without sku → null (caller falls back to native scheme)', () => {

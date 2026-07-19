@@ -32,6 +32,13 @@ export type DxfDocument = {
    */
   polyline3d(layer: string, points: ReadonlyArray<readonly [number, number]>, closed: boolean): void;
   /**
+   * Same AcDb3dPolyline/AcDb3dPolylineVertex structure and closed-repeats-first-point
+   * convention as `polyline3d`, but each vertex carries its OWN Z (polyline3d always
+   * emits Z=0) — used by the ViyarPro/ABF "side-drill" dialect for an edge bore's
+   * depth-profile rectangle (R-DSIDE), which genuinely needs 3D vertices.
+   */
+  polyline3dPoints(layer: string, points: ReadonlyArray<Vec3>, closed: boolean): void;
+  /**
    * Emit a single-quad polyface mesh (AcDbPolyFaceMesh, POLYLINE flags 70=64, 71=4 vertices,
    * 72=2 faces): 4 position VERTEX + 2 triangular face-record VERTEX (indices -1/2/3 and
    * -2/1/4, coords 0,0,0) + SEQEND. ALL 6 VERTEX entities carry flags 70=192 (the golden
@@ -39,8 +46,13 @@ export type DxfDocument = {
    * "solid representation" requirement: 6 of these (one per box face) per panel.
    */
   polyfaceMesh(layer: string, quad: readonly [Vec3, Vec3, Vec3, Vec3]): void;
-  /** Emit a CIRCLE entity. Optional xdata (ZILVENTOR APPID) emitted last, per DXF spec. */
-  circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[]): void;
+  /**
+   * Emit a CIRCLE entity. Optional xdata (ZILVENTOR APPID) emitted last, per DXF spec.
+   * Optional `extrusion` (group 210/220/230) tilts the circle's plane — used by the
+   * ViyarPro/ABF "side-drill" dialect to encode an edge bore's drill axis (R-DSIDE).
+   * Omitting it (the default) reproduces the exact prior CIRCLE output byte-for-byte.
+   */
+  circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[], extrusion?: Vec3): void;
   /** Emit a native ARC entity. Angles in degrees (DXF group 50/51 convention). */
   arc(layer: string, cx: number, cy: number, r: number, startDeg: number, endDeg: number): void;
   /** Emit a native ELLIPSE. majorX/majorY are the major-axis endpoint RELATIVE to center; ratio = minor/major; params in radians. */
@@ -321,6 +333,17 @@ export function createDxfDocument(extraLayers: readonly string[] = [], opts: Cre
       sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
+    polyline3dPoints(layer, points, closed) {
+      if (points.length < 2) return;
+      sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDb3dPolyline', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', `     ${closed ? 9 : 8}`);
+      const emitVertex = ([x, y, z]: Vec3): void => {
+        sink.push('  0', 'VERTEX', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbVertex', '100', 'AcDb3dPolylineVertex', ' 10', fmt(x), ' 20', fmt(y), ' 30', fmt(z), ' 70', '    32');
+      };
+      for (const p of points) emitVertex(p);
+      if (closed) emitVertex(points[0]!);
+      sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
+    },
+
     polyfaceMesh(layer, quad) {
       sink.push('  0', 'POLYLINE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbPolyFaceMesh', ' 66', '     1', ' 10', '0.0', ' 20', '0.0', ' 30', '0.0', ' 70', '    64', ' 71', '     4', ' 72', '     2');
       for (const [x, y, z] of quad) {
@@ -334,8 +357,9 @@ export function createDxfDocument(extraLayers: readonly string[] = [], opts: Cre
       sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
-    circle(layer, cx, cy, r, xdata) {
+    circle(layer, cx, cy, r, xdata, extrusion) {
       sink.push('  0', 'CIRCLE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 40', fmt(r));
+      if (extrusion) sink.push('210', fmt(extrusion[0]), '220', fmt(extrusion[1]), '230', fmt(extrusion[2]));
       emitXdata(sink, xdata);
     },
 

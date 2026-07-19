@@ -144,6 +144,27 @@ describe('aggregatePanelManufacturing', () => {
     expect(out[0]!.keyholeSlots).toEqual([]);
   });
 
+  it('merges identical machining signatures and accumulates partNames in merge order (R-QTY)', () => {
+    const cut: CutListResult = { rows: [
+      row({ partPath: 'p/a', itemNumber: 1, partName: 'Right Side' }),
+      row({ partPath: 'p/b', itemNumber: 1, partName: 'Left Side' }),
+    ], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [
+      panel({ partPath: 'p/a', bores: [] }), panel({ partPath: 'p/b', bores: [] }),
+    ] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out).toHaveLength(1);
+    expect(out[0]!.qty).toBe(4); // row() default qty is 2, merged: 2+2
+    expect(out[0]!.partNames).toEqual(['Right Side', 'Left Side']);
+  });
+
+  it('a single (unmerged) row still carries its own partName as a 1-element partNames array (R-QTY)', () => {
+    const cut: CutListResult = { rows: [row({ partName: 'Shelf' })], bandTotals: [], excluded: {} as any };
+    const boring: BoringAggregateResult = { panels: [panel()] };
+    const out = aggregatePanelManufacturing(cut, boring, new Map());
+    expect(out[0]!.partNames).toEqual(['Shelf']);
+  });
+
   it('faceKey distinguishes bores by face.role — Top vs Bottom on same geometry are separate entries', () => {
     const cut: CutListResult = { rows: [
       row({ partPath: 'p/a', itemNumber: 1 }),
