@@ -37,6 +37,13 @@ export type CutListRow = {
   partName: string;
   componentPathKeys: string[];
   oversize?: { lengthMm: number; widthMm: number };
+  /** Display name of EACH physically merged component, in merge order — a row's
+   *  `qty` can collapse components from DIFFERENT partPaths that share the same
+   *  geometry/material/grain (cutListRowKey has no bore/name awareness), e.g. a
+   *  mirrored Left Side + Right Side pair. `partName` above only ever reflects the
+   *  first one. Absent (legacy callers, e.g. aggregateCutListLocal) is treated as
+   *  `[partName]` by downstream consumers (aggregatePanelManufacturing.ts). */
+  partNames?: string[];
 };
 
 /** Cut (raw) length = finished length + length oversize allowance (0 if absent). */

@@ -60,7 +60,7 @@ export function aggregatePanelManufacturing(
     const existing = bySig.get(sig);
     if (existing) {
       existing.qty += row.qty;
-      existing.partNames = [...(existing.partNames ?? [existing.partName]), row.partName];
+      existing.partNames = [...(existing.partNames ?? [existing.partName]), ...(row.partNames ?? [row.partName])];
       continue;
     }
 
@@ -97,7 +97,7 @@ export function aggregatePanelManufacturing(
       tenonMortises,
       keyholeSlots,
       qty: row.qty,
-      partNames: [row.partName],
+      partNames: row.partNames ?? [row.partName],
     });
   }
 

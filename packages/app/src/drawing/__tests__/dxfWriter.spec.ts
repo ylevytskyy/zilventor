@@ -1,6 +1,6 @@
 // packages/app/src/drawing/__tests__/dxfWriter.spec.ts
 import { describe, it, expect } from 'vitest';
-import { createDxfDocument } from '../dxfWriter';
+import { createDxfDocument, worldToOcs } from '../dxfWriter';
 
 describe('dxfWriter — document scaffolding (DXF-SCAF)', () => {
   it('DXF-SCAF-1: produces matching SECTION/ENDSEC pairs (exactly 4: HEADER, TABLES, BLOCKS, ENTITIES)', () => {
@@ -273,6 +273,50 @@ describe('dxfWriter — oriented CIRCLE extrusion (DXF-CIRC-EXT, R-DSIDE)', () =
     doc.circle('ABF-DSIDE-8', 0, 0, 4, undefined, [0, -1, 0]);
     const out = doc.toString();
     expect(out).toMatch(/210\n0\.0000\n220\n-1\.0000\n230\n0\.0000\n/);
+  });
+
+  it('DXF-CIRC-EXT-3: circle() accepts an explicit z (OCS elevation) alongside extrusion, emitted as group 30', () => {
+    const doc = createDxfDocument();
+    doc.circle('DEPTH32', 60, 9, 2.5, undefined, [1, 0, 0], 0);
+    const out = doc.toString();
+    expect(out).toMatch(/ 10\n60\.0000\n 20\n9\.0000\n 30\n0\.0000\n 40\n2\.5000\n/);
+    expect(out).toMatch(/210\n1\.0000\n220\n0\.0000\n230\n0\.0000\n/);
+  });
+
+  it('DXF-CIRC-EXT-4: circle() without an explicit z still emits the literal "0.0" elevation (byte-identical when z is omitted, even with extrusion)', () => {
+    const doc = createDxfDocument();
+    doc.circle('ABF-DSIDE-8', 0, 0, 4, undefined, [0, -1, 0]);
+    const out = doc.toString();
+    expect(out).toMatch(/ 30\n0\.0\n/);
+    expect(out).not.toMatch(/ 30\n0\.0000\n/);
+  });
+});
+
+describe('dxfWriter — worldToOcs (DXF-OCS, arbitrary-axis transform for tilted CIRCLEs)', () => {
+  it('DXF-OCS-1: X-normal (1,0,0) decomposes world (0,60,9) to OCS (60,9,0) (hand-worked per DXF arbitrary-axis spec: Ax=(0,1,0), Ay=(0,0,1))', () => {
+    expect(worldToOcs([0, 60, 9], [1, 0, 0])).toEqual([60, 9, 0]);
+  });
+
+  it('DXF-OCS-2: X-normal round-trip — decoding OCS (60,9,0) via the independently-stated basis (Ax=(0,1,0), Ay=(0,0,1), N=(1,0,0)) recovers world (0,60,9)', () => {
+    const [ox, oy, oz] = worldToOcs([0, 60, 9], [1, 0, 0]);
+    const ax = [0, 1, 0], ay = [0, 0, 1], n = [1, 0, 0];
+    const world = [0, 1, 2].map((i) => ox * ax[i]! + oy * ay[i]! + oz * n[i]!);
+    expect(world).toEqual([0, 60, 9]);
+  });
+
+  it('DXF-OCS-3: Y-normal (0,-1,0) decomposes world (100,560,9) to OCS (100,9,-560) (hand-worked: Ax=(1,0,0), Ay=(0,0,1))', () => {
+    expect(worldToOcs([100, 560, 9], [0, -1, 0])).toEqual([100, 9, -560]);
+  });
+
+  it('DXF-OCS-4: Y-normal round-trip — decoding OCS (100,9,-560) via the independently-stated basis (Ax=(1,0,0), Ay=(0,0,1), N=(0,-1,0)) recovers world (100,560,9)', () => {
+    const [ox, oy, oz] = worldToOcs([100, 560, 9], [0, -1, 0]);
+    const ax = [1, 0, 0], ay = [0, 0, 1], n = [0, -1, 0];
+    const world = [0, 1, 2].map((i) => ox * ax[i]! + oy * ay[i]! + oz * n[i]!);
+    expect(world).toEqual([100, 560, 9]);
+  });
+
+  it('DXF-OCS-5: default Z-normal (0,0,1) is the identity — OCS equals world (matches every pre-existing non-tilted CIRCLE)', () => {
+    expect(worldToOcs([12, 34, 0], [0, 0, 1])).toEqual([12, 34, 0]);
   });
 });
 
