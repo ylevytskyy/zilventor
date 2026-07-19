@@ -17,6 +17,34 @@ export type XdataItem =
 /** A 3D point [x, y, z], used by the polyface-mesh / 3D-line emitters. */
 export type Vec3 = readonly [number, number, number];
 
+function cross3(a: Vec3, b: Vec3): Vec3 {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+function dot3(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+function normalize3(v: Vec3): Vec3 {
+  const len = Math.sqrt(dot3(v, v));
+  return len === 0 ? v : [v[0] / len, v[1] / len, v[2] / len];
+}
+
+/**
+ * Decompose a WORLD-space 3D point into DXF OCS (arbitrary-axis-algorithm) coordinates
+ * for a given (unit) extrusion normal. Per the DXF spec: if |Nx|<1/64 AND |Ny|<1/64, the
+ * OCS X axis (Ax) is World-Y × N; otherwise Ax is World-Z × N. Ay is N × Ax (both
+ * normalized). Returns [P·Ax, P·Ay, P·N] — the values an entity with a non-default
+ * `extrusion` (group 210/220/230) must write as its group 10/20/30, since such an
+ * entity's center is expressed in OCS, not world, coordinates. Used by the ViyarPro
+ * flatten-DXF edge-bore encoding (a CIRCLE tilted onto an edge face's drill axis).
+ */
+export function worldToOcs(point: Vec3, normal: Vec3): Vec3 {
+  const [nx, ny] = normal;
+  const worldUp: Vec3 = (Math.abs(nx) < 1 / 64 && Math.abs(ny) < 1 / 64) ? [0, 1, 0] : [0, 0, 1];
+  const ax = normalize3(cross3(worldUp, normal));
+  const ay = normalize3(cross3(normal, ax));
+  return [dot3(point, ax), dot3(point, ay), dot3(point, normal)];
+}
+
 export type DxfDocument = {
   /** Emit a LINE entity. Optional aci (AutoCAD Color Index, group 62) overrides layer color. */
   line(layer: string, x1: number, y1: number, x2: number, y2: number, aci?: number): void;
@@ -49,10 +77,14 @@ export type DxfDocument = {
   /**
    * Emit a CIRCLE entity. Optional xdata (ZILVENTOR APPID) emitted last, per DXF spec.
    * Optional `extrusion` (group 210/220/230) tilts the circle's plane — used by the
-   * ViyarPro/ABF "side-drill" dialect to encode an edge bore's drill axis (R-DSIDE).
-   * Omitting it (the default) reproduces the exact prior CIRCLE output byte-for-byte.
+   * ViyarPro/ABF edge-bore encoding to express the bore's drill axis. When `extrusion`
+   * is non-default, `cx`/`cy`/`z` must already be OCS (arbitrary-axis) coordinates —
+   * see `worldToOcs` to compute them from a world-space center. Optional `z` is the OCS
+   * elevation (group 30); omitting it (the default) reproduces the exact prior CIRCLE
+   * output byte-for-byte (the literal `0.0`), matching the default identity extrusion
+   * (0,0,1) where OCS Z is always world Z = 0 for every pre-existing (flat) CIRCLE.
    */
-  circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[], extrusion?: Vec3): void;
+  circle(layer: string, cx: number, cy: number, r: number, xdata?: readonly XdataItem[], extrusion?: Vec3, z?: number): void;
   /** Emit a native ARC entity. Angles in degrees (DXF group 50/51 convention). */
   arc(layer: string, cx: number, cy: number, r: number, startDeg: number, endDeg: number): void;
   /** Emit a native ELLIPSE. majorX/majorY are the major-axis endpoint RELATIVE to center; ratio = minor/major; params in radians. */
@@ -357,8 +389,8 @@ export function createDxfDocument(extraLayers: readonly string[] = [], opts: Cre
       sink.push('  0', 'SEQEND', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer);
     },
 
-    circle(layer, cx, cy, r, xdata, extrusion) {
-      sink.push('  0', 'CIRCLE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', '0.0', ' 40', fmt(r));
+    circle(layer, cx, cy, r, xdata, extrusion, z) {
+      sink.push('  0', 'CIRCLE', '  5', nextHandle(), '330', currentOwner, '100', 'AcDbEntity', '  8', layer, '100', 'AcDbCircle', ' 10', fmt(cx), ' 20', fmt(cy), ' 30', z !== undefined ? fmt(z) : '0.0', ' 40', fmt(r));
       if (extrusion) sink.push('210', fmt(extrusion[0]), '220', fmt(extrusion[1]), '230', fmt(extrusion[2]));
       emitXdata(sink, xdata);
     },

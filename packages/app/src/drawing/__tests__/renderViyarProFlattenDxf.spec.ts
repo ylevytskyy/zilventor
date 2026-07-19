@@ -248,7 +248,7 @@ describe('renderViyarProFlattenDxf — finite-depth edge bores route through DEP
   // viyar.pro never reads depth from the ABF-DSIDE circle+polyline geometry at all. The fix
   // is layer-scheme-only: finite-depth edge bores now go through the exact same flat-CIRCLE
   // R-BORE group path as face bores, on a DEPTH<depth>[-ARTICLE<sku>] layer.
-  it('a finite-depth edge bore is a bare flat CIRCLE (no extrusion, no companion polyline) — same shape as a face bore', () => {
+  it('a finite-depth edge bore is a single CIRCLE (no companion polyline) — same shape as a face bore', () => {
     const b = bore('Front', 9, 100, 5, 32);
     const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
     // the panel's own R2 cutline block always emits an unrelated AcDb3dPolyline (the outline
@@ -257,7 +257,105 @@ describe('renderViyarProFlattenDxf — finite-depth edge bores route through DEP
     const allCircleBlocks = [...dxf.matchAll(/0\nCIRCLE\n[\s\S]{0,300}?(?=\n\s*0\n|$)/g)].map((m) => m[0]);
     const depth32Circles = allCircleBlocks.filter((c) => c.includes('\n  8\nDEPTH32\n'));
     expect(depth32Circles.length).toBe(1);
-    for (const c of depth32Circles) expect(c).not.toMatch(/210\n/); // no extrusion group
+  });
+
+  // 2026-07-19 EXTENSION (live-bisected, see module docstring): a plain flat CIRCLE on
+  // DEPTH<depth> cleared the "depth" warnings, but the importer still classified the hole
+  // as a FACE hole at 0mm edge distance ("відступ менше 6.5мм"). Tilting the SAME circle's
+  // plane via a DXF OCS extrusion normal (group 210/220/230) equal to the drill axis makes
+  // the importer read it as a genuine ТОРЦЕВИЙ (edge) hole. The circle's OCS center must
+  // also be re-expressed at world Z = thickness/2 (mid-thickness — where a confirmat pilot
+  // physically enters) BEFORE the OCS transform, or the importer warns about edge distance
+  // across the panel's thickness instead.
+  describe('R-EDGE-BORE-OCS: finite-depth edge bores tilt their CIRCLE onto the drill axis', () => {
+    // Independent re-implementation of the DXF arbitrary-axis algorithm (NOT calling
+    // dxfWriter's worldToOcs) — decodes an emitted OCS center + extrusion normal back to a
+    // world-space point, so this test verifies the RENDERER's output against the published
+    // DXF spec, not against dxfWriter's own transform.
+    function decodeOcs(ocs: readonly [number, number, number], normal: readonly [number, number, number]): [number, number, number] {
+      const cross = (a: readonly [number, number, number], b: readonly [number, number, number]): [number, number, number] =>
+        [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const norm = (v: [number, number, number]): [number, number, number] => {
+        const len = Math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2);
+        return len === 0 ? v : [v[0] / len, v[1] / len, v[2] / len];
+      };
+      const [nx, ny] = normal;
+      const wx: [number, number, number] = (Math.abs(nx) < 1 / 64 && Math.abs(ny) < 1 / 64) ? [0, 1, 0] : [0, 0, 1];
+      const ax = norm(cross(wx, normal));
+      const ay = norm(cross(normal, ax));
+      return [
+        ocs[0] * ax[0] + ocs[1] * ay[0] + ocs[2] * normal[0],
+        ocs[0] * ax[1] + ocs[1] * ay[1] + ocs[2] * normal[1],
+        ocs[0] * ax[2] + ocs[1] * ay[2] + ocs[2] * normal[2],
+      ];
+    }
+
+    /** Pull the single CIRCLE on `layer` out of `dxf` and its group 10/20/30/210/220/230
+     *  values (falling back to identity extrusion [0,0,1] when 210/220/230 are absent, per
+     *  the DXF "no extrusion group = default Z-normal" convention). */
+    function circleOnLayer(dxf: string, layer: string): { center: [number, number, number]; normal: [number, number, number] } {
+      const blocks = [...dxf.matchAll(/0\nCIRCLE\n[\s\S]{0,400}?(?=\n\s*0\n|$)/g)].map((m) => m[0]);
+      const matches = blocks.filter((c) => c.includes(`\n  8\n${layer}\n`));
+      expect(matches.length).toBe(1);
+      const block = matches[0]!;
+      const group = (code: string): number => {
+        const m = new RegExp(`\\n\\s*${code}\\n([^\\n]+)`).exec(block);
+        return m ? parseFloat(m[1]!) : NaN;
+      };
+      const has210 = /\n210\n/.test(block);
+      return {
+        center: [group('10'), group('20'), group('30')],
+        normal: has210 ? [group('210'), group('220'), group('230')] : [0, 0, 1],
+      };
+    }
+
+    const PANEL_700x560x18 = {
+      length: 700, width: 560, thickness: 18, materialId: 'm1', grain: 'none',
+      edgeBands: { front: null, back: null, left: null, right: null },
+    } as any;
+
+    it('T-EDGE-OCS-1: Left face, v=60, depth 32, dia 5, panel 700x560x18 — CIRCLE gets extrusion normal (1,0,0) and its OCS center decodes to the world-equivalent mid-thickness point (0,60,9)', () => {
+      const b = bore('Left', 0, 60, 5, 32);
+      const dxf = renderViyarProFlattenDxf([panel({ spec: PANEL_700x560x18, bores: [b] })]);
+      const { center, normal } = circleOnLayer(dxf, 'DEPTH32');
+      expect(normal).toEqual([1, 0, 0]);
+      const world = decodeOcs(center, normal);
+      // world-space decode is relative to the bore-group BLOCK's own local origin; the
+      // block is INSERT'd at the bore's flat (x,y) position with Z=0, so the true
+      // world-equivalent point is the decode PLUS that insert offset.
+      const insertOffset: [number, number, number] = [0, 60, 0];
+      const trueWorld = [0, 1, 2].map((i) => world[i]! + insertOffset[i]!);
+      expect(trueWorld).toEqual([0, 60, 9]);
+    });
+
+    it.each([
+      { role: 'Left', normal: [1, 0, 0], insert: [0, 60, 0] },
+      { role: 'Right', normal: [-1, 0, 0], insert: [700, 500, 0] },
+      { role: 'Front', normal: [0, -1, 0], insert: [60, 560, 0] },
+      { role: 'Back', normal: [0, 1, 0], insert: [640, 0, 0] },
+    ] as const)('T-EDGE-OCS-2 ($role): inward normal $normal, world-equivalent center = insert offset + mid-thickness', ({ role, normal, insert }) => {
+      const b = bore(role, 0, 60, 5, 32);
+      const dxf = renderViyarProFlattenDxf([panel({ spec: PANEL_700x560x18, bores: [b] })]);
+      const { center, normal: actualNormal } = circleOnLayer(dxf, 'DEPTH32');
+      expect(actualNormal).toEqual([...normal]);
+      const world = decodeOcs(center, actualNormal);
+      const trueWorld = [0, 1, 2].map((i) => world[i]! + insert[i]!);
+      expect(trueWorld).toEqual([insert[0], insert[1], 9]);
+    });
+
+    it('T-EDGE-OCS-3: a face (Top/Bottom) bore keeps identity extrusion — no 210/220/230 group at all', () => {
+      const b = bore('Top', 50, 40, 7, 12);
+      const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+      const { normal } = circleOnLayer(dxf, 'DEPTH12');
+      expect(normal).toEqual([0, 0, 1]);
+    });
+
+    it('T-EDGE-OCS-4: a throughAll edge bore keeps identity extrusion (unaffected — native/DEPTHF layer family, not the DEPTH<depth> fix)', () => {
+      const b = bore('Front', 9, 100, 5, 'throughAll');
+      const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+      const { normal } = circleOnLayer(dxf, 'BORES-EDGE-Front-5MM');
+      expect(normal).toEqual([0, 0, 1]);
+    });
   });
 
   it('is grouped via the existing R-BORE _ABF_bore mechanism, not a dedicated side-drill sub-block', () => {

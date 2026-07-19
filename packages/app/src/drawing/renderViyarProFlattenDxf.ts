@@ -1,4 +1,4 @@
-import { createDxfDocument, type DxfDocument, type Vec3 } from './dxfWriter';
+import { createDxfDocument, worldToOcs, type DxfDocument, type Vec3 } from './dxfWriter';
 import { layoutCombinedGrid, type GridPosition } from './layoutCombinedGrid';
 import { abfBoreLayer, ABF_OUTLINE_LAYER, sanitizeSkuForLayer } from './abfLayerScheme';
 import { boreToFlat, boreOrientation, type PanelManufacturingInput } from './renderPanelManufacturingDxf';
@@ -40,6 +40,32 @@ function panelBoreLayer(b: BoreOp, nativeLayer: string): string {
   return nativeLayer;
 }
 
+/**
+ * Inward drill-axis normal (flat-model coords) per edge face — the direction the drill
+ * enters the panel from that edge. Live-bisected 2026-07-19: a plain flat CIRCLE on the
+ * DEPTH<depth> layer clears the depth warnings but the importer still reads it as a FACE
+ * hole at 0mm edge distance; tilting the circle's plane via this normal (as a DXF OCS
+ * extrusion, group 210/220/230) makes it read as a genuine ТОРЦЕВИЙ (edge) hole. Sign
+ * convention is proven only by shape (X- vs Y-normal) so far — the exact sign→"Сторона"
+ * mapping awaits a later live viyar.pro upload; kept as its own lookup so a sign flip is
+ * a one-line change.
+ */
+const EDGE_BORE_NORMAL: Record<'Left' | 'Right' | 'Back' | 'Front', Vec3> = {
+  Left: [1, 0, 0],
+  Right: [-1, 0, 0],
+  Back: [0, 1, 0],
+  Front: [0, -1, 0],
+};
+
+/** The OCS extrusion normal for `b`'s drill axis, or null when the flat (Z-normal)
+ *  encoding is correct as-is: face (Top/Bottom) bores, and throughAll edge bores (which
+ *  stay on the native/DEPTHF layer family — unaffected by the DEPTH<depth> edge-bore
+ *  fix, see abfLayerScheme.ts's abfBoreLayer docstring). */
+function edgeBoreDrillAxis(b: BoreOp): Vec3 | null {
+  if (b.depth === 'throughAll' || boreOrientation(b.face.role) !== 'edge') return null;
+  return EDGE_BORE_NORMAL[b.face.role as 'Left' | 'Right' | 'Back' | 'Front'];
+}
+
 type PositionedBore = { b: BoreOp; x: number; y: number };
 
 /** This panel's bores, grouped by their effective DXF layer, each with its panel-local
@@ -71,11 +97,16 @@ function neededLayers(input: PanelManufacturingInput): string[] {
  * live debugging showed bare CIRCLEs directly in the panel block silently drop on
  * import (holes never appear in the planner). Each group's reference point is its
  * first bore's panel-local position; the child block draws its CIRCLEs in
- * block-local coordinates relative to that point (Z=0 — depth lives in the layer
- * name only), and the panel INSERTs the block AT the reference point with layer '0'
- * and an Skp_GroupInstanceName="_ABF_bore" ATTRIB (group 66=1).
+ * block-local coordinates relative to that point, and the panel INSERTs the block AT
+ * the reference point (Z=0) with layer '0' and an Skp_GroupInstanceName="_ABF_bore"
+ * ATTRIB (group 66=1). A finite-depth EDGE bore (edgeBoreDrillAxis) additionally gets a
+ * DXF OCS extrusion normal equal to its drill axis, re-centered at world Z=thickness/2
+ * (mid-thickness — where a confirmat pilot physically enters) before the OCS transform
+ * — the live-bisected fix for the importer's "FACE hole at 0mm edge distance" warning
+ * (see EDGE_BORE_NORMAL docstring). Face bores and throughAll edge bores keep the flat
+ * Z=0, no-extrusion encoding (byte-identical to before).
  */
-function drawPanelBoreGroups(doc: DxfDocument, bores: readonly BoreOp[], len: number, wid: number, panelIndex: number): void {
+function drawPanelBoreGroups(doc: DxfDocument, bores: readonly BoreOp[], len: number, wid: number, thickness: number, panelIndex: number): void {
   const groups = groupBoresByLayer(bores, len, wid);
   let boreGroupCounter = 0;
   for (const [layer, group] of groups) {
@@ -83,7 +114,15 @@ function drawPanelBoreGroups(doc: DxfDocument, bores: readonly BoreOp[], len: nu
     const boreBlockName = `Group${panelIndex}_bores${boreGroupCounter}#1`;
     const ref = group[0]!;
     doc.namedBlock(boreBlockName, () => {
-      for (const g of group) doc.circle(layer, g.x - ref.x, g.y - ref.y, g.b.diameter / 2);
+      for (const g of group) {
+        const normal = edgeBoreDrillAxis(g.b);
+        if (normal) {
+          const [ox, oy, oz] = worldToOcs([g.x - ref.x, g.y - ref.y, thickness / 2], normal);
+          doc.circle(layer, ox, oy, g.b.diameter / 2, undefined, normal, oz);
+        } else {
+          doc.circle(layer, g.x - ref.x, g.y - ref.y, g.b.diameter / 2);
+        }
+      }
     });
     doc.insert(boreBlockName, ref.x, ref.y, [{ tag: GROUP_INSTANCE_TAG, value: BORE_GROUP_ATTRIB_VALUE }]);
   }
@@ -209,7 +248,13 @@ function expandInstances(items: readonly PanelManufacturingInput[], groupIdSeq: 
  * skuless throughAll face bores → `D<diameter>-DEPTHF`; finite-depth bores of EITHER
  * orientation → `DEPTH<depth>[-ARTICLE<sku>]`, per abfLayerScheme.ts — a live
  * 2026-07-19 bisection disqualified the once-tried `ABF-DSIDE-<dia>` circle+
- * companion-polyline encoding for edge bores: viyar.pro never read depth from it);
+ * companion-polyline encoding for edge bores: viyar.pro never read depth from it. A
+ * SECOND 2026-07-19 live bisection found that a plain flat DEPTH<depth> CIRCLE cleared
+ * the depth warnings but was still read as a FACE hole at 0mm edge distance — the fix
+ * (edgeBoreDrillAxis/EDGE_BORE_NORMAL) tilts a finite-depth edge bore's CIRCLE onto its
+ * drill axis via a DXF OCS extrusion normal (group 210/220/230, world center re-based
+ * to Z=thickness/2 before the worldToOcs transform), which the importer reads as a
+ * genuine edge (ТОРЦЕВИЙ) hole; throughAll edge bores are unaffected, still flat);
  * an INSERT of a nested
  * `Group<N>_cutline#1` child BLOCK (a legacy 3D-polyline closed contour) carrying the
  * ATTRIB `Skp_GroupInstanceName = "_ABF_cuttingLines"` on layer ABF_cuttingLines at
@@ -278,7 +323,7 @@ export function renderViyarProFlattenDxf(inputs: PanelManufacturingInput[]): str
         doc.polyline3d(ABF_OUTLINE_LAYER, [[0, 0], [len, 0], [len, wid], [0, wid]], true);
       });
       doc.namedBlock(panelBlockName, () => {
-        drawPanelBoreGroups(doc, item.bores, len, wid, instanceCounter);
+        drawPanelBoreGroups(doc, item.bores, len, wid, thickness, instanceCounter);
         doc.insert(cutlineBlockName, 0, 0, [{ tag: GROUP_INSTANCE_TAG, value: CUTLINE_ATTRIB_VALUE }], { z: thickness, layer: ABF_OUTLINE_LAYER });
         drawPanelSolid(doc, len, wid, thickness);
       });
