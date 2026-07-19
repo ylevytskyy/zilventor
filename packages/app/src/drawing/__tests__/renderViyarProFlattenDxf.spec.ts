@@ -222,10 +222,138 @@ describe('renderViyarProFlattenDxf — R-BORE nested bore groups (fixes silent h
 
   it('two bores on different layers get two separate bore-group blocks ("Group1_bores1#1", "Group1_bores2#1")', () => {
     const faceBore = bore('Top', 50, 40, 7, 12);
-    const edgeBore = bore('Front', 9, 100, 5, 32);
+    // throughAll (not finite-depth) — stays on the flat-circle path (R-DSIDE only
+    // redirects finite-depth edge bores; see the R-DSIDE describe block above).
+    const edgeBore = bore('Front', 9, 100, 5, 'throughAll');
     const dxf = renderViyarProFlattenDxf([panel({ bores: [faceBore, edgeBore] })]);
     expect(dxf).toContain('Group1_bores1#1');
     expect(dxf).toContain('Group1_bores2#1');
+  });
+});
+
+describe('renderViyarProFlattenDxf — R-DSIDE finite-depth edge bore 3D encoding (fixes "no depth" import warning)', () => {
+  it('a finite-depth edge (ABF-DSIDE) bore is NOT a bare flat CIRCLE in the panel block — every CIRCLE on that layer carries a 210/220/230 extrusion', () => {
+    const b = bore('Front', 9, 100, 5, 32);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    // find every CIRCLE entity block and check each one whose layer is ABF-DSIDE-5 has an extrusion
+    const circleBlocks = [...dxf.matchAll(/0\nCIRCLE\n[\s\S]{0,300}?(?=\n\s*0\n|$)/g)].map((m) => m[0]);
+    const dsideCircles = circleBlocks.filter((c) => c.includes('\n  8\nABF-DSIDE-5\n'));
+    expect(dsideCircles.length).toBeGreaterThan(0);
+    for (const c of dsideCircles) expect(c).toMatch(/210\n/);
+  });
+
+  it('emits a CIRCLE on ABF-DSIDE-5 INSERTed via an ATTRIB "_ABF_sideDrill" sub-block', () => {
+    const b = bore('Front', 9, 100, 5, 32);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('_ABF_sideDrill');
+  });
+
+  it('emits a closed 3D-polyline depth rectangle on ABF-DSIDE-5 INSERTed via an ATTRIB "_ABF_sideDrillDepth" sub-block', () => {
+    const b = bore('Front', 9, 100, 5, 32);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('_ABF_sideDrillDepth');
+    expect(dxf).toContain('AcDb3dPolyline');
+    expect(dxf).toMatch(/\s70\n\s*9\n/); // closed 3D flag
+  });
+
+  it('the depth rectangle encodes the bore\'s ACTUAL depth (32mm) and diameter (5mm, r=2.5) as vertex coordinates — Front axis is (0,-1,0), so depth is negative', () => {
+    const b = bore('Front', 9, 100, 5, 32);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('-32.0000'); // depth-axis extent
+    expect(dxf).toContain('2.5000');   // +radius (diameter-axis extent)
+    expect(dxf).toContain('-2.5000');  // -radius
+  });
+
+  it('a DIFFERENT depth (25mm) on the same diameter produces a DIFFERENT depth-axis extent — depth is read from BoreOp.depth, not a fixed constant', () => {
+    const b = bore('Front', 9, 100, 5, 25);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('-25.0000');
+    expect(dxf).not.toContain('-32.0000');
+  });
+
+  it('Left/Right edge bores drill along X — axis (±1,0,0), not Y', () => {
+    const bLeft = bore('Left', 9, 50, 5, 20);
+    const dxfLeft = renderViyarProFlattenDxf([panel({ bores: [bLeft] })]);
+    expect(dxfLeft).toMatch(/210\n1\.0000\n220\n0\.0000\n230\n0\.0000\n/);
+
+    const bRight = bore('Right', 9, 50, 5, 20);
+    const dxfRight = renderViyarProFlattenDxf([panel({ bores: [bRight] })]);
+    expect(dxfRight).toMatch(/210\n-1\.0000\n220\n0\.0000\n230\n0\.0000\n/);
+  });
+
+  it('two edge bores on the same panel get their OWN distinct circle/rect sub-block pairs (uniqueness)', () => {
+    const b1 = bore('Front', 9, 100, 5, 32);
+    const b2 = bore('Front', 9, 200, 5, 32);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b1, b2] })]);
+    expect(dxf).toContain('Group1_dside1#1');
+    expect(dxf).toContain('Group1_dside2#1');
+    expect(dxf).toContain('Group1_dsideDepth1#1');
+    expect(dxf).toContain('Group1_dsideDepth2#1');
+  });
+
+  it('a throughAll edge bore is UNCHANGED — no _ABF_sideDrill, still the flat native-layer CIRCLE (existing R-THROUGHBORE behavior)', () => {
+    const b = bore('Front', 9, 100, 5, 'throughAll');
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('BORES-EDGE-Front-5MM');
+    expect(dxf).not.toContain('_ABF_sideDrill');
+  });
+
+  it('a face (Top/Bottom) bore is UNCHANGED — no _ABF_sideDrill, still routed through the existing _ABF_bore flat-circle group', () => {
+    const b = bore('Top', 50, 40, 7, 12);
+    const dxf = renderViyarProFlattenDxf([panel({ bores: [b] })]);
+    expect(dxf).toContain('_ABF_bore');
+    expect(dxf).not.toContain('_ABF_sideDrill');
+  });
+});
+
+describe('renderViyarProFlattenDxf — R-QTY panel-quantity instancing (fixes silent qty-drop)', () => {
+  it('a qty=2 aggregated row emits TWO panel BLOCKs sharing the same base group id ("Group1#1", "Group1#2"), not one', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, partNames: ['Right Side', 'Left Side'] })]);
+    expect(dxf).toContain('Group1#1');
+    expect(dxf).toContain('Group1#2');
+  });
+
+  it('each instance\'s Skp_GroupInstanceName ATTRIB uses partNames[i], falling back to partName when partNames is absent/short', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, itemNumber: 5, partNames: ['Right Side', 'Left Side'] })]);
+    expect(dxf).toContain('Right Side {5}');
+    expect(dxf).toContain('Left Side {5}');
+  });
+
+  it('qty=2 with no partNames falls back to partName for BOTH instances', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, partName: 'Shelf', itemNumber: 3 })]);
+    const count = (dxf.match(/Shelf \{3\}/g) ?? []).length;
+    expect(count).toBe(2);
+  });
+
+  it('the material block INSERTs the panel block exactly twice for a qty=2 row (not once)', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, partNames: ['Right Side', 'Left Side'] })]);
+    const insertCount = (dxf.match(/100\nAcDbBlockReference\n\s*66\n\s*1\n\s*2\nGroup1#\d\n/g) ?? []).length;
+    expect(insertCount).toBe(2);
+  });
+
+  it('the two instances are laid out at DIFFERENT (non-overlapping) positions', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, partNames: ['Right Side', 'Left Side'] })]);
+    const insertRe = /\s2\nGroup1#(\d)\n\s*10\n([\d.-]+)\n\s*20\n([\d.-]+)\n/g;
+    const positions: Array<{ inst: string; x: string; y: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = insertRe.exec(dxf))) positions.push({ inst: m[1]!, x: m[2]!, y: m[3]! });
+    expect(positions.length).toBe(2);
+    expect(positions[0]!.x === positions[1]!.x && positions[0]!.y === positions[1]!.y).toBe(false);
+  });
+
+  it('bore sub-blocks stay unique per physical instance (no duplicate BLOCK_RECORD names) when a qty=2 row has bores', () => {
+    const b = bore('Top', 50, 40, 7, 12);
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 2, bores: [b], partNames: ['Right Side', 'Left Side'] })]);
+    const blockRecordNames = [...dxf.matchAll(/BLOCK_RECORD\n\s*5\n[0-9A-F]+\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n\s*2\n([^\n]+)\n/g)]
+      .map((mm) => mm[1]!);
+    const dupes = blockRecordNames.filter((n, i) => blockRecordNames.indexOf(n) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  it('a qty=1 row is byte-for-byte unaffected (still "Group1#1", still ONE INSERT)', () => {
+    const dxf = renderViyarProFlattenDxf([panel({ qty: 1 })]);
+    expect(dxf).toContain('Group1#1');
+    expect(dxf).not.toContain('Group1#2');
   });
 });
 

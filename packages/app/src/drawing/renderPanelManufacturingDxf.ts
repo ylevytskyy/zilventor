@@ -40,6 +40,14 @@ export type PanelManufacturingInput = {
   /** Same absent-is-empty contract as tenonMortises (P16). */
   keyholeSlots?: KeyholeSlotFeature[];
   qty: number;
+  /** Display name of EACH merged member, in merge order (aggregatePanelManufacturing.ts
+   *  keeps only the first row's `partName`, but a qty>1 row can merge physically distinct
+   *  panels — e.g. Left Side + Right Side — that share a machining signature). Consumers
+   *  that render one instance per qty (renderViyarProFlattenDxf.ts's R-QTY) use
+   *  `partNames[i]` for the i-th instance's label, falling back to `partName`. Absent
+   *  (legacy fixtures/callers) is treated as `[partName]`, same absent-is-empty precedent
+   *  as tenonMortises/keyholeSlots above. */
+  partNames?: string[];
 };
 
 const VALID_FACE_ROLES = new Set(['Top', 'Bottom', 'Front', 'Back', 'Left', 'Right']);

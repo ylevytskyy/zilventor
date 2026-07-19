@@ -259,3 +259,42 @@ describe('dxfWriter — native DIMENSION entity (DXF-NDIM)', () => {
     expect(block).toMatch(/ 70\n\s*70/);
   });
 });
+
+describe('dxfWriter — oriented CIRCLE extrusion (DXF-CIRC-EXT, R-DSIDE)', () => {
+  it('DXF-CIRC-EXT-1: circle() with no extrusion arg emits no 210/220/230 groups (byte-identical to prior behavior)', () => {
+    const doc = createDxfDocument();
+    doc.circle('DETAIL', 15, 25, 7.5);
+    const out = doc.toString();
+    expect(out).not.toMatch(/\n210\n/);
+  });
+
+  it('DXF-CIRC-EXT-2: circle() with an extrusion vector emits 210/220/230 group codes with those values', () => {
+    const doc = createDxfDocument();
+    doc.circle('ABF-DSIDE-8', 0, 0, 4, undefined, [0, -1, 0]);
+    const out = doc.toString();
+    expect(out).toMatch(/210\n0\.0000\n220\n-1\.0000\n230\n0\.0000\n/);
+  });
+});
+
+describe('dxfWriter — full-3D closed polyline (DXF-POLY3D-PTS, R-DSIDE)', () => {
+  it('DXF-POLY3D-PTS-1: polyline3dPoints() emits AcDb3dPolyline with each vertex\'s OWN Z (not hardcoded 0.0)', () => {
+    const doc = createDxfDocument();
+    doc.polyline3dPoints('ABF-DSIDE-8', [[0, 0, -4], [0, -25, -4], [0, -25, 4], [0, 0, 4]], true);
+    const out = doc.toString();
+    expect(out).toContain('AcDb3dPolyline');
+    expect(out).toContain('AcDb3dPolylineVertex');
+    // closed flag (70=9) on the POLYLINE header
+    expect(out).toMatch(/\s70\n\s*9\n/);
+    // vertex Z values are NOT all 0.0 — at least one -4.0000 and one -25.0000 present
+    expect(out).toContain('-4.0000');
+    expect(out).toContain('-25.0000');
+  });
+
+  it('DXF-POLY3D-PTS-2: closed repeats the first point as a final (5th) vertex', () => {
+    const doc = createDxfDocument();
+    doc.polyline3dPoints('ABF-DSIDE-8', [[0, 0, -4], [0, -25, -4], [0, -25, 4], [0, 0, 4]], true);
+    const out = doc.toString();
+    const vertexCount = (out.match(/AcDb3dPolylineVertex\n/g) ?? []).length;
+    expect(vertexCount).toBe(5);
+  });
+});
