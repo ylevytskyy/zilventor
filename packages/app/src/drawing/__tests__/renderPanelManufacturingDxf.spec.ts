@@ -403,11 +403,14 @@ describe('renderPanelManufacturingDxf — ABF layer scheme', () => {
     expect(dxf).not.toContain('ARTICLE');
   });
 
-  it('an edge bore gets ABF-DSIDE-<dia> under abf scheme (sku ignored)', () => {
-    const b = { ...bore('Front', 9, 300, 5, 32), sku: 'IGNORED' };
+  // ABF-DSIDE-<dia> was live-disqualified 2026-07-19 (viyar.pro never reads depth from its
+  // circle+companion-polyline pair) — a finite-depth edge bore now shares the face bore's
+  // DEPTH<depth>[-ARTICLE<sku>] family instead, sku included (see abfLayerScheme.spec.ts).
+  it('an edge bore gets DEPTH<depth>-ARTICLE<sku> under abf scheme, same as a face bore', () => {
+    const b = { ...bore('Front', 9, 300, 5, 32), sku: 'ARTICLE123' };
     const dxf = renderPanelManufacturingDxf({ ...base, bores: [b] }, { layerScheme: 'abf' });
-    expect(dxf).toContain('ABF-DSIDE-5');
-    expect(dxf).not.toContain('IGNORED');
+    expect(dxf).toContain('DEPTH32-ARTICLEARTICLE123');
+    expect(dxf).not.toContain('ABF-DSIDE');
   });
 
   it('a throughAll face bore falls back to the native layer name under abf scheme (no invented THRU convention)', () => {

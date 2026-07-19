@@ -19,18 +19,6 @@ const CUTLINE_ATTRIB_VALUE = '_ABF_cuttingLines';
 const SOLID_FACE_LAYER = 'Untagged00';
 /** Skp_GroupInstanceName value on each nested bore-group block's INSERT (R-BORE). */
 const BORE_GROUP_ATTRIB_VALUE = '_ABF_bore';
-/** Layer-name prefix for a finite-depth edge bore under the ABF grammar (abfLayerScheme's
- *  `ABF-DSIDE-<dia>`) — the marker drawPanelEdgeDepthBores/drawPanelBoreGroups use to route
- *  these bores to the R-DSIDE oriented-circle+depth-rect encoding instead of a flat CIRCLE. */
-const DSIDE_LAYER_PREFIX = 'ABF-DSIDE-';
-/** Skp_GroupInstanceName value on a side-drill entry CIRCLE's INSERT (R-DSIDE), per the
- *  genuine ABF-plugin sample (Стелаж flatten.dxf, Group59#1's INSERT). */
-const SIDE_DRILL_ATTRIB_VALUE = '_ABF_sideDrill';
-/** Skp_GroupInstanceName value on a side-drill depth-rectangle's INSERT (R-DSIDE), per the
- *  genuine ABF-plugin sample (Group60#1's INSERT) — paired 1:1 with SIDE_DRILL_ATTRIB_VALUE,
- *  same layer, same INSERT anchor point. Without this, viyar.pro's importer warns "Не
- *  вказана глибина свердління!" and treats the edge bore as a through-hole. */
-const SIDE_DRILL_DEPTH_ATTRIB_VALUE = '_ABF_sideDrillDepth';
 
 /** Effective DXF layer for a bore under the ABF grammar, falling back to the native
  *  (non-ABF) layer name computed by boreToFlat when abfBoreLayer has no convention
@@ -39,8 +27,11 @@ const SIDE_DRILL_DEPTH_ATTRIB_VALUE = '_ABF_sideDrillDepth';
  *  `D<diameter>-DEPTHF` (R-THROUGHBORE: the server documents through-holes via the
  *  literal phrase DEPTHF in the layer name; matches the sku'd variant's own grammar,
  *  `D<diameter>-DEPTHF-$<sku>`, minus the sku — NOT `DEPTH<panelThickness>`, the
- *  original H2 fix, which still triggered a "depth not specified" warning live).
- *  Edge bores keep the existing native fallback unchanged. */
+ *  original H2 fix, which still triggered a "depth not specified" warning live). A
+ *  finite-depth edge bore now routes through the SAME `DEPTH<depth>[-ARTICLE<sku>]`
+ *  family as a face bore (abfBoreLayer no longer branches on orientation for that
+ *  case) — see abfLayerScheme.ts's abfBoreLayer docstring for the live-disqualified
+ *  ABF-DSIDE-<dia> alternative. A throughAll edge bore keeps the native fallback. */
 function panelBoreLayer(b: BoreOp, nativeLayer: string): string {
   const orientation = boreOrientation(b.face.role);
   const abfLayer = abfBoreLayer(b, orientation);
@@ -88,10 +79,6 @@ function drawPanelBoreGroups(doc: DxfDocument, bores: readonly BoreOp[], len: nu
   const groups = groupBoresByLayer(bores, len, wid);
   let boreGroupCounter = 0;
   for (const [layer, group] of groups) {
-    // R-DSIDE: finite-depth edge bores get their own oriented circle + depth-rect pair
-    // (drawPanelEdgeDepthBores) instead of a flat CIRCLE here — a flat CIRCLE on this
-    // layer carries no depth and the server warns "Не вказана глибина свердління!".
-    if (layer.startsWith(DSIDE_LAYER_PREFIX)) continue;
     boreGroupCounter++;
     const boreBlockName = `Group${panelIndex}_bores${boreGroupCounter}#1`;
     const ref = group[0]!;
@@ -99,72 +86,6 @@ function drawPanelBoreGroups(doc: DxfDocument, bores: readonly BoreOp[], len: nu
       for (const g of group) doc.circle(layer, g.x - ref.x, g.y - ref.y, g.b.diameter / 2);
     });
     doc.insert(boreBlockName, ref.x, ref.y, [{ tag: GROUP_INSTANCE_TAG, value: BORE_GROUP_ATTRIB_VALUE }]);
-  }
-}
-
-/** Inward drill-axis unit vector + local depth-rectangle vertices for a finite-depth edge
- *  bore, keyed by face role. Per face2DFrame, each edge role's OUTWARD normal is
- *  Front=+Y/Back=-Y/Left=-X/Right=+X; the drill enters through that face and points
- *  INWARD (the opposite sign) — verified against the genuine ABF-plugin sample (Стелаж
- *  flatten.dxf, Group59#1: layer ABF-DSIDE-8, extrusion (0,-1,0), matching the Front case
- *  below exactly). The depth-rectangle (Group60#1 in the sample) is the drilled cylinder's
- *  axial cross-section: it spans `depth` along the drill axis (from the entry point, 0, to
- *  `depth` inward) and `diameter` along the panel-thickness (Z) axis, with the third
- *  (in-plane, non-diameter) coordinate fixed at 0 — same pattern the sample's rectangle
- *  vertices use (a constant 0 on the axis orthogonal to both depth and diameter). */
-function edgeDrillGeometry(role: string): { axis: Vec3; depthRect: (depth: number, r: number) => readonly [Vec3, Vec3, Vec3, Vec3] } | null {
-  switch (role) {
-    case 'Front':
-      return { axis: [0, -1, 0], depthRect: (depth, r) => [[0, 0, -r], [0, -depth, -r], [0, -depth, r], [0, 0, r]] };
-    case 'Back':
-      return { axis: [0, 1, 0], depthRect: (depth, r) => [[0, 0, -r], [0, depth, -r], [0, depth, r], [0, 0, r]] };
-    case 'Left':
-      return { axis: [1, 0, 0], depthRect: (depth, r) => [[0, 0, -r], [depth, 0, -r], [depth, 0, r], [0, 0, r]] };
-    case 'Right':
-      return { axis: [-1, 0, 0], depthRect: (depth, r) => [[0, 0, -r], [-depth, 0, -r], [-depth, 0, r], [0, 0, r]] };
-    default:
-      return null;
-  }
-}
-
-/**
- * R-DSIDE: encodes each finite-depth edge (ABF-DSIDE-<dia>) bore as a PAIR of nested child
- * BLOCKs sharing one INSERT anchor (the bore's own panel-local 3D entry point), instead of
- * a bare flat CIRCLE — a live viyar.pro import otherwise warns "Не вказана глибина
- * свердління! Поставлено наскрізне" and treats the pilot hole as a through-hole. Per the
- * genuine ABF-plugin sample (Стелаж flatten.dxf, Group59#1/Group60#1, both INSERTed at the
- * identical point): an entry CIRCLE (Ø=dia, extrusion=inward drill axis) carrying
- * Skp_GroupInstanceName="_ABF_sideDrill", and a closed 3D-POLYLINE depth rectangle carrying
- * Skp_GroupInstanceName="_ABF_sideDrillDepth" — both on the bore's ABF-DSIDE-<dia> layer.
- * Coordinates are OUR OWN self-consistent block-local frame (entry point = local origin per
- * pair), not the sample's literal numbers — the importer keys off layer/ATTRIB/entity
- * structure, not exact OCS-transformed geometry (see this feature's task report for the
- * sample-inspection trail).
- */
-function drawPanelEdgeDepthBores(doc: DxfDocument, bores: readonly BoreOp[], len: number, wid: number, panelIndex: number): void {
-  let counter = 0;
-  for (const b of bores) {
-    if (boreOrientation(b.face.role) !== 'edge' || b.depth === 'throughAll') continue;
-    const geometry = edgeDrillGeometry(b.face.role);
-    if (!geometry) continue;
-    const flat = boreToFlat(b, len, wid);
-    if (!flat) continue;
-    counter++;
-    const layer = `${DSIDE_LAYER_PREFIX}${b.diameter}`;
-    const r = b.diameter / 2;
-    const ex = flat.x, ey = flat.y, ez = b.u;
-
-    const circleBlockName = `Group${panelIndex}_dside${counter}#1`;
-    doc.namedBlock(circleBlockName, () => {
-      doc.circle(layer, 0, 0, r, undefined, geometry.axis);
-    });
-    doc.insert(circleBlockName, ex, ey, [{ tag: GROUP_INSTANCE_TAG, value: SIDE_DRILL_ATTRIB_VALUE }], { z: ez });
-
-    const depthBlockName = `Group${panelIndex}_dsideDepth${counter}#1`;
-    doc.namedBlock(depthBlockName, () => {
-      doc.polyline3dPoints(layer, geometry.depthRect(b.depth as number, r), true);
-    });
-    doc.insert(depthBlockName, ex, ey, [{ tag: GROUP_INSTANCE_TAG, value: SIDE_DRILL_DEPTH_ATTRIB_VALUE }], { z: ez });
   }
 }
 
@@ -285,7 +206,11 @@ function expandInstances(items: readonly PanelManufacturingInput[], groupIdSeq: 
  * reference, .vp-native/variants/f4.dxf — see DXF2VIYARPRO-SPEC.md): its bores, nested
  * one child `Group<N>_bores<i>#1` BLOCK per DXF layer (R-BORE — bare CIRCLEs directly
  * in the panel block silently drop on import; layer grammar per H2/R-THROUGHBORE,
- * skuless throughAll face bores → `D<diameter>-DEPTHF`); an INSERT of a nested
+ * skuless throughAll face bores → `D<diameter>-DEPTHF`; finite-depth bores of EITHER
+ * orientation → `DEPTH<depth>[-ARTICLE<sku>]`, per abfLayerScheme.ts — a live
+ * 2026-07-19 bisection disqualified the once-tried `ABF-DSIDE-<dia>` circle+
+ * companion-polyline encoding for edge bores: viyar.pro never read depth from it);
+ * an INSERT of a nested
  * `Group<N>_cutline#1` child BLOCK (a legacy 3D-polyline closed contour) carrying the
  * ATTRIB `Skp_GroupInstanceName = "_ABF_cuttingLines"` on layer ABF_cuttingLines at
  * insertion Z = the panel's thickness (R2 — replaces the old bare LWPOLYLINE outline,
@@ -336,7 +261,7 @@ export function renderViyarProFlattenDxf(inputs: PanelManufacturingInput[]): str
   });
 
   // Unique per PHYSICAL panel instance (unlike groupId, which is shared across an
-  // aggregated item's qty copies) — feeds the `_cutline`/`_bores`/`_dside*` sub-block
+  // aggregated item's qty copies) — feeds the `_cutline`/`_bores` sub-block
   // names, so two copies of the same panel never collide on a BLOCK_RECORD name.
   let instanceCounter = 0;
   for (const g of groups) {
@@ -354,7 +279,6 @@ export function renderViyarProFlattenDxf(inputs: PanelManufacturingInput[]): str
       });
       doc.namedBlock(panelBlockName, () => {
         drawPanelBoreGroups(doc, item.bores, len, wid, instanceCounter);
-        drawPanelEdgeDepthBores(doc, item.bores, len, wid, instanceCounter);
         doc.insert(cutlineBlockName, 0, 0, [{ tag: GROUP_INSTANCE_TAG, value: CUTLINE_ATTRIB_VALUE }], { z: thickness, layer: ABF_OUTLINE_LAYER });
         drawPanelSolid(doc, len, wid, thickness);
       });
