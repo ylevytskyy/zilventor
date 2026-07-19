@@ -501,7 +501,8 @@ test('T-M2.1c: manufacturing DXF export — ABF layer scheme via store field', a
       connectorKind: 'confirmat',
     };
 
-    // Left-face (edge) bore, numeric depth — should produce ABF-DSIDE-8.
+    // Left-face (edge) bore, numeric depth — should produce DEPTH10 (finite-depth edge
+    // bores use the DEPTH<mm> layer family; ABF-DSIDE carries no depth for the importer).
     const edgeBore = {
       id: 'bore-t-m2-1c-edge',
       face: { featureId: 'panel', role: 'Left', instance: 0 },
@@ -558,7 +559,8 @@ test('T-M2.1c: manufacturing DXF export — ABF layer scheme via store field', a
 
   expect(dxf, 'DXF must contain the ABF cutting-lines outline layer').toContain('ABF_cuttingLines');
   expect(dxf, 'DXF must contain the DEPTH12 face-bore layer').toContain('DEPTH12');
-  expect(dxf, 'DXF must contain the ABF-DSIDE- edge-bore layer').toContain('ABF-DSIDE-');
+  expect(dxf, 'DXF must contain the DEPTH10 edge-bore layer').toContain('DEPTH10');
+  expect(dxf, 'finite-depth edge bores must not use the depthless ABF-DSIDE layer').not.toContain('ABF-DSIDE-');
 
   expect(pageErrors, 'No browser page errors during ABF layer-scheme export').toHaveLength(0);
 });
