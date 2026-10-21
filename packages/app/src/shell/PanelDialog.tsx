@@ -210,7 +210,6 @@ export function PanelDialog(): JSX.Element | null {
     // Intentionally keyed on `panelDialog` identity only (open/close
     // transitions), not `materials` — the registry can change while the
     // dialog is open (Manage… editor) without clobbering user edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelDialog]);
 
   // Esc cancel handling.

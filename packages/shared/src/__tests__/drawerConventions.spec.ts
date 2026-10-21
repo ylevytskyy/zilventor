@@ -20,7 +20,7 @@ describe('drawerConventions', () => {
     // grep for the named constants being re-assigned elsewhere
     const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
     const out = execSync(
-      `git grep -nE '(SLIDE_CLEARANCE_PER_SIDE|BOX_VERT_CLEARANCE|DRAWER_FRONT_GAP|DRAWER_SLIDE_FRONT_SETBACK)\\s*=' -- 'packages/' ':!packages/shared/src/drawerConventions.ts' || true`,
+      `git grep -nE '^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+(SLIDE_CLEARANCE_PER_SIDE|BOX_VERT_CLEARANCE|DRAWER_FRONT_GAP|DRAWER_SLIDE_FRONT_SETBACK)[[:space:]]*=' -- 'packages/' ':!packages/shared/src/drawerConventions.ts' || true`,
       { cwd: repoRoot, encoding: 'utf8' }
     );
     expect(out.trim()).toBe('');

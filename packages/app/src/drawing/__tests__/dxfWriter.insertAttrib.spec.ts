@@ -144,14 +144,14 @@ describe('dxfWriter — nested INSERT inside namedBlock (DXF-NESTED)', () => {
     const out = doc.toString();
 
     const blocksPos = out.indexOf('BLOCKS');
-    const entitiesPos = out.indexOf('\n  0\nSECTION\n\s*2\nENTITIES\n');
-    const entitiesSectionPos = out.indexOf('ENTITIES');
+    const entitiesPos = out.search(/\n\s*0\nSECTION\n\s*2\nENTITIES\n/);
     const insertPos = out.indexOf('\nINSERT\n');
     const topLevelLinePos = out.lastIndexOf('\nLINE\n');
 
     expect(insertPos).toBeGreaterThan(blocksPos);
-    expect(insertPos).toBeLessThan(entitiesSectionPos);
-    expect(topLevelLinePos).toBeGreaterThan(entitiesSectionPos);
+    expect(insertPos).toBeLessThan(entitiesPos);
+    expect(entitiesPos).toBeGreaterThan(blocksPos);
+    expect(topLevelLinePos).toBeGreaterThan(entitiesPos);
   });
 
   it('DXF-NESTED-2: nested insert() owner (330) is the enclosing namedBlock\'s block_record handle', () => {
