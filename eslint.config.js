@@ -21,6 +21,7 @@ export default [
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      'docs-site/.vitepress/**',
       '**/*.js',
       '**/vitest.*.config.ts',
       '**/vitest.config.ts',
