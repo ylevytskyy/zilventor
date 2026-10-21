@@ -89,7 +89,6 @@ describe('GcsSystem lifecycle (integration)', () => {
     // beginDrag resolves the point via decomp.pointIds['self']; the internal 'self'
     // key is only accessible by casting since PointRef's public anchor union doesn't
     // include it — this is intentional (point primitives are DXF-import-only).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await sys.beginDrag({ primitiveId: 'pt1', anchor: 'self' } as any);
     await sys.dragTo(10, 20);
     const { finalCoords } = await sys.endDrag();
