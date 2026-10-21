@@ -151,7 +151,7 @@ zilventor/
 ## Further reading
 
 - [User documentation](docs-site/index.md)
-- [Architecture and module map](docs-site/architecture/index.md)
+- [Reference documentation](docs-site/reference/index.md)
 - [Known limitations](docs-site/troubleshooting/known-limitations.md)
 - [Manufacturing capability inventory](docs/abf-plugin/05-parity/01-zilinventor-capability-inventory.md)
 - [ABF parity milestones](docs/superpowers/plans/2026-07-02-abf-parity-milestones.md)
