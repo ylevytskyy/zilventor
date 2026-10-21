@@ -1,170 +1,159 @@
-# zilventor
+# Zilventor
 
-## Current state
+Zilventor is a browser-based, parametric 3D CAD application with a furniture-design and panel-manufacturing workflow. It combines a real OpenCascade (OCCT) geometry kernel with sketching, feature-based modeling, assemblies, engineering drawings, cabinet construction, drilling, cut lists, nesting, and production exports.
 
-_As of 2026-06-21._  
-TODO
+> **Repository status — reviewed 2026-10-21.** The latest commit currently visible on GitHub `master` is dated 2026-07-19. The latest GitHub Actions run found for that commit failed at the **Lint** step. No GitHub Release was found during this review. The recorded test counts below are historical project notes, not a fresh green CI result; do not treat this snapshot as release-certified until CI and the production smoke test pass.
 
-## What this is
+## What is implemented
 
-A web-based 3D CAD / parametric sketching application. _(detected — unverified)_  
-Stack: TypeScript + React 18 + Three.js + OpenCascade.js (WASM), bundled with Vite, deployed as a PWA via Firebase Hosting / Vercel. _(detected — unverified)_
+### CAD and engineering drawings
 
-## Goals / Scope
+- Parametric 2D sketching with geometric constraints, dimensions, and expression-bound parameters.
+- Feature-history solid modeling on OpenCascade.js/WASM, including extrude, revolve, sweep, holes, fillet, chamfer, shell, patterns, and mirror.
+- Assemblies with nested subassemblies, component patterns, mate/flush/angle/insert/tangent constraints, BOM aggregation, and interference checks.
+- 2D drawing sheets with projected, section, detail, and isometric views; dimensions, annotations, parts lists, balloons, and reusable drawing templates.
+- DXF drawing import/export, plus PDF and other drawing-output formats.
 
-**Goals**
-- TODO
+### Furniture and manufacturing workflows
 
-**Non-goals**
-- TODO
+- Base, wall, and tall cabinets; L-corner, blind-corner, and diagonal-corner cabinet generators.
+- Slab, shaker, and raised-panel doors, drawer banks, and a hardware catalogue that includes hinges, shelf pins, drawer slides, levelers, and pulls.
+- System-32 shelf-pin drilling, cabinet-connection boring, editable drilling operations, parametric grooves/dados, and mortise/tenon features.
+- Recursive cut lists and hardware BOMs, edge-band metadata and gross cut dimensions, guillotine nesting with kerf and oversize allowance, and interactive nest editing.
+- Exports for manufacturing and nested-sheet DXF, machining/cut-list/BOM CSV, nesting PDF/PNG, shop-label PDFs with QR codes, statistics/cost reports, and production reconciliation.
+- Parameter-driven part configurations, a rule engine, feature suppression, and custom hardware catalogue import.
 
-**MVP scope**
-- TODO
+The feature list describes code present in the repository; it does not imply that every edge case or downstream machine workflow has been independently accepted by a production shop.
 
-## Confidence & calibration
+## Current scope and known limitations
 
-| Area | Confidence | Notes |
-|---|---|---|
-| TODO | TODO | TODO |
+- **Native CNC/CAM formats:** CIX, MPR, and XNC post-processors are not implemented. DXF and associated manufacturing metadata/CSV are the current manufacturing outputs. Confirm the exported file with the target CAD/CAM or CNC workflow before production.
+- **Nesting:** uses a guillotine-style packer, not an unrestricted irregular-shape nesting optimizer. Oversize allowance is currently global per job, rather than independently specified for every panel.
+- **Configurations:** configuration tables are part-level; CSV import is available, but CSV export and inline cell editing are not.
+- **Imported geometry:** STEP/Inventor imports are stored as opaque geometry rather than editable native feature histories. Converting to a panel has documented placement limitations.
+- **External validation:** the repository documentation says manufacturing DXF has not been independently verified in a specific external CAD application, and the Production-tab camera QR scan has not been smoke-tested on a real mobile device.
+- **Known UI/function gaps:** see [Known Limitations](docs-site/troubleshooting/known-limitations.md) for the current documented list, including camera-fit controls, manual carcass-boring UI, and door-handle drilling.
+
+See also the [manufacturing capability inventory](docs/abf-plugin/05-parity/01-zilinventor-capability-inventory.md) and [ABF parity milestones](docs/superpowers/plans/2026-07-02-abf-parity-milestones.md). These are detailed engineering notes and may contain snapshots that predate later commits; validate important claims against the source code.
+
+## Technology and architecture
+
+- **Language/UI:** TypeScript, React 18, Vite, Three.js, and Zustand.
+- **Geometry kernel:** OpenCascade.js compiled to WebAssembly (WASM), running in a Web Worker.
+- **2D sketch constraints:** planegcs through a separate worker.
+- **Persistence:** browser-local Origin Private File System (OPFS), with versioned document migrations.
+- **PWA:** service worker and offline asset caching. The initial load needs to download the OCCT runtime; offline use depends on a successful first load and cache installation.
+- **Repository:** pnpm workspace/monorepo; no application backend is required by the current client-side architecture.
 
 ## Prerequisites
 
-- Node.js ≥ 20 _(detected — unverified)_
-- pnpm 9.x (`corepack enable && corepack prepare pnpm@9 --activate`) _(detected — unverified)_
-- TypeScript 5.5 (dev dep, installed via pnpm) _(detected — unverified)_
+- Node.js 20 or newer
+- pnpm 9.x (the repository pins `pnpm@9.15.9`)
 
-## Quickstart
+Enable Corepack if needed:
 
 ```bash
-# Install dependencies (also runs postinstall to copy OCCT binaries)
+corepack enable
+corepack prepare pnpm@9.15.9 --activate
+```
+
+## Quick start
+
+Run these commands from the repository root:
+
+```bash
+# Install workspace dependencies and copy the OCCT runtime assets
 pnpm install
 
-# Start the development server (app package)
+# Start the application in development mode
 pnpm --filter @zilventor/app dev
 ```
 
-## Running tests
+The application uses browser features including OPFS, workers, and WebAssembly. Use a supported secure context for realistic browser testing.
+
+## Build
 
 ```bash
-# Type-check all packages
+# Install the locked dependencies and build the app
+pnpm install --frozen-lockfile
+pnpm --filter @zilventor/app build
+```
+
+The production artifact is written to `packages/app/dist/`. Verify the OCCT runtime was copied into the output:
+
+```bash
+ls -lh packages/app/dist/occt/
+# Expected: opencascade.full.js and opencascade.full.wasm
+```
+
+## Verification and tests
+
+Root scripts are defined in `package.json`:
+
+```bash
+# TypeScript checks
 pnpm typecheck
 
 # Lint
 pnpm lint
 
-# Unit tests (all packages)
+# Unit and integration tests
 pnpm test:unit
-
-# Integration tests (all packages)
 pnpm test:integration
 
-# E2E tests (Playwright, Chromium)
+# End-to-end tests
 pnpm test:e2e
-
-# E2E — Firefox
 pnpm test:e2e:firefox
 
-# E2E — built artifact
+# Test the built production artifact, including kernel initialization
 pnpm test:e2e:built
 
 # Performance tests
 pnpm test:perf
 ```
 
-## Build & publish
+Some suites—especially real-OCCT integration tests and browser tests—need their configured environments and can take longer than ordinary unit tests. Follow [CLAUDE.md](CLAUDE.md) for package-specific verification guidance and known test-runner pitfalls.
 
-### Build the production artifact
+**Last recorded baseline (project notes, 2026-07-19; not rerun for this README update):** app 3,942 tests, shared 1,633 tests, kernel 306 unit tests and 380/381 integration tests, E2E 244/244, and zero typecheck errors across five packages. The latest GitHub Actions run found during this review failed at Lint, so these historical counts must not be interpreted as the current CI status.
 
-```bash
-# From repo root. The frozen-lockfile install triggers the root `postinstall`
-# (copy-occt.mjs), which copies the OCCT WASM into packages/app/public/occt/.
-pnpm install --frozen-lockfile && pnpm --filter @zilventor/app build
-```
+## Deployment
 
-The build runs `tsc --noEmit` + `vite build`; output lands in **`packages/app/dist/`**.
-Verify the WASM made it in:
+See [DEPLOY.md](DEPLOY.md) for the build artifact, hosting requirements, and deployment instructions. In particular:
 
-```bash
-ls packages/app/dist/occt/
-# opencascade.full.js   opencascade.full.wasm  (~48 MB)
-```
-
-> **Must deploy at a domain root** (`https://example.com/`), not a sub-path — the
-> OCCT worker loads `/occt/…` via absolute URLs. The host must also send
-> `Content-Type: application/wasm`, allow a ~48 MB static file, serve HTTPS, and
-> SPA-rewrite to `/index.html`. See [DEPLOY.md](./DEPLOY.md) for the full host comparison.
-
-### Publish to Firebase Hosting (recommended free host)
-
-Config lives in `firebase.json` at the repo root (SPA rewrite + WASM/cache headers).
-
-```bash
-# One-time setup
-npm install -g firebase-tools
-firebase login            # opens a browser — run it yourself
-firebase use --add        # pick your Firebase project, give it an alias
-
-# Build, then deploy only Hosting
-pnpm install --frozen-lockfile && pnpm --filter @zilventor/app build
-firebase deploy --only hosting
-# (or, without an alias:)
-firebase deploy --only hosting --project <your-project-id>
-```
-
-`firebase deploy` uploads `packages/app/dist/` and prints the live `https://<project>.web.app` URL.
-Run the post-deploy smoke checks in [DEPLOY.md](./DEPLOY.md) (kernel loads, `.wasm` is `200`
-+ `application/wasm`, a cabinet renders, the service worker activates and works offline).
-
-### Publish to Vercel (paid / non-commercial only)
-
-`vercel.json` auto-configures the build. **The Hobby free tier bans commercial use** —
-use only on a paid plan or accept the ToS risk.
-
-```bash
-npm install -g vercel
-vercel              # first deploy — links the project
-vercel --prod       # production deploy
-```
-
-Cloudflare Pages needs an R2 workaround for the 48 MB WASM (over its 25 MiB/file cap) —
-see [DEPLOY.md](./DEPLOY.md).
+- Deploy at the **root of a domain**, not under a path prefix, because the OCCT loader uses absolute `/occt/…` URLs.
+- The host must support HTTPS, SPA fallback to `/index.html`, the OCCT runtime asset of about 48 MiB, and `Content-Type: application/wasm`.
+- Firebase Hosting is documented as the recommended free option. Vercel can be used on an appropriate plan; check the current plan terms before using a free tier for commercial work.
+- After deployment, verify the WASM returns HTTP 200 with the correct MIME type, the kernel initializes, a cabinet can be created, and the service worker works offline after the initial load.
 
 ## Repository layout
 
-```
+```text
 zilventor/
 ├── packages/
-│   ├── app/             # Main React application  _(detected — unverified)_
-│   ├── kernel/          # CAD kernel (OpenCascade.js wrapper)  _(detected — unverified)_
-│   ├── sketcher-worker/ # Web Worker for constraint solving (planegcs)  _(detected — unverified)_
-│   ├── shared/          # Shared types / utilities  _(detected — unverified)_
-│   └── icons/           # SVG icon assets  _(detected — unverified)_
-├── docs/                # Project documentation
-├── tests/               # Root-level Playwright E2E tests  _(detected — unverified)_
-├── tools/               # Build / codegen scripts  _(detected — unverified)_
-├── tmp/                 # Scratch / local artifacts (gitignored?)
-├── DEPLOY.md            # Deployment guide
-├── firebase.json        # Firebase Hosting config
-├── vercel.json          # Vercel deployment config
+│   ├── app/              # React UI, commands, drawings, furniture and manufacturing workflows
+│   ├── kernel/           # OCCT/WASM geometry, solver, workers and storage
+│   ├── shared/           # Domain models, CAD/furniture math, nesting and shared types
+│   ├── sketcher-worker/  # 2D sketch constraint worker
+│   └── icons/            # Shared icon assets
+├── tests/
+│   ├── e2e/              # Playwright end-to-end tests
+│   └── perf/             # Performance tests
+├── docs/                 # Architecture, technical research, plans and capability inventories
+├── docs-site/            # User-facing product documentation
+├── CLAUDE.md             # AI-assisted development and verification guidance
+├── DEPLOY.md             # Build and deployment guide
 ├── pnpm-workspace.yaml
 ├── playwright.config.ts
 ├── vitest.config.ts
-├── eslint.config.js
 └── tsconfig.base.json
 ```
 
-## Troubleshooting
+## Further reading
 
-| Symptom | Fix |
-|---|---|
-| TODO | TODO |
-
-## Where to read more
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — system design, component map, key decisions
-- [CLAUDE.md](./CLAUDE.md) — project-specific guidance for AI-assisted development
-- [DEPLOY.md](./DEPLOY.md) — build and deployment instructions
-
-## Caveats
-
-TODO
+- [User documentation](docs-site/index.md)
+- [Architecture and module map](docs-site/architecture/index.md)
+- [Known limitations](docs-site/troubleshooting/known-limitations.md)
+- [Manufacturing capability inventory](docs/abf-plugin/05-parity/01-zilinventor-capability-inventory.md)
+- [ABF parity milestones](docs/superpowers/plans/2026-07-02-abf-parity-milestones.md)
+- [AI-assisted development guidance](CLAUDE.md)
+- [Deployment guide](DEPLOY.md)
