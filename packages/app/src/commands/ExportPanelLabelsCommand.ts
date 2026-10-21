@@ -5,7 +5,6 @@ import { triggerDownload } from '../nesting/triggerDownload';
 
 declare global {
   // E2E-inspectable bytes from the latest labels export call.
-  // eslint-disable-next-line no-var
   var __zilventorPanelLabelsBytes: Uint8Array | undefined;
 }
 
